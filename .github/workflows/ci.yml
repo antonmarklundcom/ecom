@@ -33,9 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Sin `version:` a propósito: la versión sale de "packageManager" en
+      # package.json, y declarar las dos hace fallar la action.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
