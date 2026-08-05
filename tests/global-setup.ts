@@ -1,0 +1,64 @@
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import mysql from 'mysql2/promise';
+
+import '../src/lib/load-env';
+import { applySchemaExtras } from '../src/db/extras';
+
+/**
+ * Prepara la base de tests: la recrea de cero y aplica las migraciones
+ * versionadas de `drizzle/` + los extras (FULLTEXT, FK self-ref, contador).
+ *
+ * Si no hay `TEST_DATABASE_URL`, las suites de integración se saltan solas
+ * (ver tests/helpers/db.ts) y sólo corren los tests unitarios.
+ */
+export async function setup(): Promise<void> {
+  const url = process.env.TEST_DATABASE_URL;
+  if (!url) {
+    console.warn(
+      '⚠ TEST_DATABASE_URL no está definida: se saltan los tests de integración. ' +
+        'Levantá MySQL con `docker compose up -d` y definila en .env.local.',
+    );
+    return;
+  }
+
+  const parsed = new URL(url);
+  const database = parsed.pathname.replace(/^\//, '');
+  if (!database) throw new Error('TEST_DATABASE_URL tiene que incluir el nombre de la base');
+  // Cinturón y tirantes: nunca apuntar el runner de tests a la base real.
+  if (!/test/i.test(database)) {
+    throw new Error(`Me niego a resetear "${database}": el nombre de la base de tests debe contener "test"`);
+  }
+
+  const admin = await mysql.createConnection({
+    host: parsed.hostname,
+    port: Number(parsed.port || 3306),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    multipleStatements: true,
+  });
+  await admin.query(`DROP DATABASE IF EXISTS \`${database}\``);
+  await admin.query(`CREATE DATABASE \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci`);
+  await admin.end();
+
+  const pool = mysql.createPool({ uri: url, connectionLimit: 4, timezone: 'Z', multipleStatements: false });
+
+  const migrationsDir = path.join(process.cwd(), 'drizzle');
+  const files = (await readdir(migrationsDir)).filter((file) => file.endsWith('.sql')).sort();
+  if (files.length === 0) {
+    throw new Error('No hay migraciones en drizzle/. Corré `pnpm db:generate`.');
+  }
+
+  for (const file of files) {
+    const sql = await readFile(path.join(migrationsDir, file), 'utf8');
+    for (const statement of sql.split('--> statement-breakpoint')) {
+      const trimmed = statement.trim().replace(/;\s*$/, '');
+      if (trimmed === '') continue;
+      await pool.query(trimmed);
+    }
+  }
+
+  await applySchemaExtras(pool);
+  await pool.end();
+}
