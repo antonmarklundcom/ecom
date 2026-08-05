@@ -18,19 +18,19 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 ---
 
 ## 1. Scaffold
-- [ ] `npx create-next-app@latest` — TS, App Router, Tailwind
-- [ ] `shadcn` init + button, dialog, input, form, table, badge, sheet, select, sonner
-- [ ] `tsconfig`: `strict: true`, `noUncheckedIndexedAccess: true`
-- [ ] ESLint + Prettier + husky pre-commit (typecheck + lint)
-- [ ] `vitest` + `@testing-library/react` corriendo en CI
+- [x] `npx create-next-app@latest` — TS, App Router, Tailwind
+- [x] `shadcn` init + button, dialog, input, form, table, badge, sheet, select, sonner
+- [x] `tsconfig`: `strict: true`, `noUncheckedIndexedAccess: true`
+- [x] ESLint + Prettier + husky pre-commit (typecheck + lint)
+- [x] `vitest` + `@testing-library/react` corriendo en CI
 
 ## 2. Base de datos (Hostinger MySQL)
-- [ ] Crear DB + usuario en hPanel; guardar credenciales en el gestor de contraseñas
-- [ ] **Remote MySQL**: whitelistear la IP de desarrollo (sin esto, `ECONNREFUSED` desde local)
-- [ ] `DATABASE_URL` en `.env.local` — probar con un script `tsx` antes de escribir nada más
-- [ ] ⚠️ `tsx` **no** carga `.env` solo → usar `import 'dotenv/config'` al inicio de cada script
-- [ ] `drizzle.config.ts` (dialect `mysql`, schema `./src/db/schema.ts`, out `./drizzle`)
-- [ ] `src/db/index.ts` — pool único, `connectionLimit: 8`, `timezone: "Z"`
+- [ ] Crear DB + usuario en hPanel; guardar credenciales en el gestor de contraseñas *(bloqueado — requiere acceso a Hostinger, PR #2)*
+- [ ] **Remote MySQL**: whitelistear la IP de desarrollo *(idem, PR #2)*
+- [x] `DATABASE_URL` en `.env.local` — apunta al MySQL local de `docker-compose.yml` en dev; Hostinger se conecta recién en el deploy
+- [x] ⚠️ `tsx` **no** carga `.env` solo → usar `import 'dotenv/config'` al inicio de cada script
+- [x] `drizzle.config.ts` (dialect `mysql`, schema `./src/db/schema.ts`, out `./drizzle`)
+- [x] `src/db/index.ts` — pool único, `connectionLimit: 8`, `timezone: "Z"`
 
 ## 3. Schema — `src/db/schema.ts`  *(Opus 5)*
 - [ ] ENUMs: `order_status`, `payment_method`, `payment_provider`, `payment_status`, `receipt_review`, `doc_type`, `user_role`, `invoice_status`
@@ -60,16 +60,16 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [ ] Fechas: `dd/mm/yyyy`, zona `America/Asuncion` en toda la UI
 
 ## 6. Auth + Cloudinary
-- [ ] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)`
-- [ ] Script `create-owner.ts` — **sin ruta pública de registro**
-- [ ] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated
-- [ ] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido
-- [ ] `signedReceiptUrl()` con TTL corto para el admin
+- [ ] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)` *(PR #2 — depende del schema)*
+- [ ] Script `create-owner.ts` — **sin ruta pública de registro** *(PR #2)*
+- [x] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated (config + `signedReceiptUrl()` — sin flow de upload todavía)
+- [ ] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido *(PR #2)*
+- [x] `signedReceiptUrl()` con TTL corto para el admin
 
 ## 7. Zod + seed
-- [ ] `lib/schemas.ts`: `CartItemSchema`, `CheckoutInputSchema` (refine `doc_number` según `doc_type`), `AdminProductInput`
-- [ ] `scripts/seed.ts` idempotente (`onDuplicateKeyUpdate` por slug/sku): 4 categorías, 24 productos, variantes, stock, zonas de envío
-- [ ] `pnpm db:push` / `db:seed` / `db:studio`
+- [x] `lib/schemas.ts`: `CartItemSchema`, `CheckoutInputSchema` (refine `doc_number` según `doc_type`), `AdminProductInput`
+- [ ] `scripts/seed.ts` idempotente (`onDuplicateKeyUpdate` por slug/sku): 4 categorías, 24 productos, variantes, stock, zonas de envío *(PR #2 — placeholder `src/db/seed.ts` sólo lanza error hasta entonces)*
+- [x] `pnpm db:push` / `db:seed` / `db:studio` (scripts wired; `db:seed` es un stub hasta el PR #2)
 
 ---
 
