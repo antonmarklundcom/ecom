@@ -25,57 +25,57 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] `vitest` + `@testing-library/react` corriendo en CI
 
 ## 2. Base de datos (Hostinger MySQL)
-- [ ] Crear DB + usuario en hPanel; guardar credenciales en el gestor de contraseñas *(bloqueado — requiere acceso a Hostinger, PR #2)*
-- [ ] **Remote MySQL**: whitelistear la IP de desarrollo *(idem, PR #2)*
+- [ ] Crear DB + usuario en hPanel; guardar credenciales en el gestor de contraseñas *(bloqueado — requiere acceso a Hostinger)*
+- [ ] **Remote MySQL**: whitelistear la IP de desarrollo *(ídem)*
 - [x] `DATABASE_URL` en `.env.local` — apunta al MySQL local de `docker-compose.yml` en dev; Hostinger se conecta recién en el deploy
 - [x] ⚠️ `tsx` **no** carga `.env` solo → usar `import 'dotenv/config'` al inicio de cada script
 - [x] `drizzle.config.ts` (dialect `mysql`, schema `./src/db/schema.ts`, out `./drizzle`)
 - [x] `src/db/index.ts` — pool único, `connectionLimit: 8`, `timezone: "Z"`
 
 ## 3. Schema — `src/db/schema.ts`  *(Opus 5)*
-- [ ] ENUMs: `order_status`, `payment_method`, `payment_provider`, `payment_status`, `receipt_review`, `doc_type`, `user_role`, `invoice_status`
-- [ ] `categories` (self-FK, `slug` UQ) · `products` (`slug` UQ, `iva_rate TINYINT` ∈ {10,5,0}, `published_at`, FULLTEXT) · `product_images` · `variants` (`price_pyg BIGINT UNSIGNED`, `on_hand INT UNSIGNED`)
-- [ ] `orders`: `order_number` UQ, `access_token` UQ, todos los montos `BIGINT UNSIGNED`, `reserved_until`, columnas `invoice_*` (nullables, sin usar en el MVP)
-- [ ] `order_items` con snapshots de nombre / sku / precio / iva_rate
-- [ ] `payments` con `UNIQUE (provider, provider_ref)`
-- [ ] `payment_events` con `UNIQUE (provider, event_key)` ← **idempotencia de webhooks**
-- [ ] `receipts`, `stock_reservations`, `order_events`, `users`, `shipping_zones`
-- [ ] Índices: `orders(status, created_at)`, `orders(access_token)`, `orders(customer_phone)`, `orders(doc_number)`, `stock_reservations(variant_id, state, expires_at)`
-- [ ] ✅ Verificar: **ningún** `float` / `decimal` en columnas de dinero
+- [x] ENUMs: `order_status`, `payment_method`, `payment_provider`, `payment_status`, `receipt_review`, `doc_type`, `user_role`, `invoice_status`
+- [x] `categories` (self-FK, `slug` UQ) · `products` (`slug` UQ, `iva_rate TINYINT` ∈ {10,5,0}, `published_at`, FULLTEXT) · `product_images` · `variants` (`price_pyg BIGINT UNSIGNED`, `on_hand INT UNSIGNED`)
+- [x] `orders`: `order_number` UQ, `access_token` UQ, todos los montos `BIGINT UNSIGNED`, `reserved_until`, columnas `invoice_*` (nullables, sin usar en el MVP)
+- [x] `order_items` con snapshots de nombre / sku / precio / iva_rate
+- [x] `payments` con `UNIQUE (provider, provider_ref)`
+- [x] `payment_events` con `UNIQUE (provider, event_key)` ← **idempotencia de webhooks**
+- [x] `receipts`, `stock_reservations`, `order_events`, `users`, `shipping_zones`
+- [x] Índices: `orders(status, created_at)`, `orders(access_token)`, `orders(customer_phone)`, `orders(doc_number)`, `stock_reservations(variant_id, state, expires_at)`
+- [x] ✅ Verificar: **ningún** `float` / `decimal` en columnas de dinero
 
 ## 4. Lógica de dominio  *(Opus 5)*
-- [ ] `transitionOrder(orderId, to, actor, reason)` — transacción + `FOR UPDATE` + tabla de aristas permitidas + escribe `order_events`
-- [ ] Tests: `enviado → pagado` falla · doble `→ pagado` es no-op · `→ pagado` descuenta `on_hand` una sola vez
-- [ ] `getAvailability(variantId)` = `on_hand − Σ(reservas held no vencidas)`
-- [ ] `reserveStock(orderId, items)` — transacción, `FOR UPDATE` sobre las variantes, re-chequea disponibilidad antes de commitear
-- [ ] `nextOrderNumber()` → `PY-000123` (contador dedicado, **nunca `COUNT(*)`**); test de concurrencia
-- [ ] Grep final: `UPDATE orders SET status` no debe existir fuera de `transitionOrder`
+- [x] `transitionOrder(orderId, to, actor, reason)` — transacción + `FOR UPDATE` + tabla de aristas permitidas + escribe `order_events`
+- [x] Tests: `enviado → pagado` falla · doble `→ pagado` es no-op · `→ pagado` descuenta `on_hand` una sola vez
+- [x] `getAvailability(variantId)` = `on_hand − Σ(reservas held no vencidas)`
+- [x] `reserveStock(orderId, items)` — transacción, `FOR UPDATE` sobre las variantes, re-chequea disponibilidad antes de commitear
+- [x] `nextOrderNumber()` → `PY-000123` (contador dedicado, **nunca `COUNT(*)`**); test de concurrencia
+- [x] Grep final: `UPDATE orders SET status` no debe existir fuera de `transitionOrder`
 
 ## 5. Utils PY + tests  *(Opus 5)*
-- [ ] `formatGs(1234567)` → `"₲ 1.234.567"` (`Intl` `es-PY`, `maximumFractionDigits: 0`)
-- [ ] `validateRuc("80012345-6")` → DV módulo-11; casos con CI; RUC `44444401-7` para consumidor final
-- [ ] `normalizePhonePY("0981 123 456")` → `"+595981123456"`
-- [ ] `ivaIncluded(110000, 10)` → `10000` — redondeo **por línea**, no sobre el total
-- [ ] `waLink(phone, text)` con `encodeURIComponent` + límite de longitud
+- [x] `formatGs(1234567)` → `"₲ 1.234.567"` (`Intl` `es-PY`, `maximumFractionDigits: 0`)
+- [x] `validateRuc("80012345-6")` → DV módulo-11; casos con CI; RUC `44444401-7` para consumidor final
+- [x] `normalizePhonePY("0981 123 456")` → `"+595981123456"`
+- [x] `ivaIncluded(110000, 10)` → `10000` — redondeo **por línea**, no sobre el total
+- [x] `waLink(phone, text)` con `encodeURIComponent` + límite de longitud
 - [ ] Fechas: `dd/mm/yyyy`, zona `America/Asuncion` en toda la UI
 
 ## 6. Auth + Cloudinary
-- [ ] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)` *(PR #2 — depende del schema)*
-- [ ] Script `create-owner.ts` — **sin ruta pública de registro** *(PR #2)*
+- [x] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)`
+- [x] Script `create-owner.ts` — **sin ruta pública de registro**
 - [x] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated (config + `signedReceiptUrl()` — sin flow de upload todavía)
-- [ ] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido *(PR #2)*
+- [ ] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido
 - [x] `signedReceiptUrl()` con TTL corto para el admin
 
 ## 7. Zod + seed
 - [x] `lib/schemas.ts`: `CartItemSchema`, `CheckoutInputSchema` (refine `doc_number` según `doc_type`), `AdminProductInput`
-- [ ] `scripts/seed.ts` idempotente (`onDuplicateKeyUpdate` por slug/sku): 4 categorías, 24 productos, variantes, stock, zonas de envío *(PR #2 — placeholder `src/db/seed.ts` sólo lanza error hasta entonces)*
-- [x] `pnpm db:push` / `db:seed` / `db:studio` (scripts wired; `db:seed` es un stub hasta el PR #2)
+- [x] `scripts/seed.ts` idempotente (`onDuplicateKeyUpdate` por slug/sku): 4 categorías, 24 productos, variantes, stock, zonas de envío
+- [x] `pnpm db:push` / `db:seed` / `db:studio`
 
 ---
 
 ## Definition of done del PR #1
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` verde
-- [ ] Catálogo sembrado visible desde un Server Component conectado a Hostinger MySQL
-- [ ] `transitionOrder` cubierto por tests, incluyendo transiciones inválidas
-- [ ] `.env.example` completo · `.env.local` ignorado (`git check-ignore .env.local` lo confirma)
-- [ ] Ningún secreto con prefijo `NEXT_PUBLIC_`
+- [x] `pnpm typecheck && pnpm lint && pnpm test` verde
+- [ ] Catálogo sembrado visible desde un Server Component conectado a Hostinger MySQL — ✅ verificado contra MySQL local (`docker compose up -d`); falta la cuenta de Hostinger (bloqueante §0)
+- [x] `transitionOrder` cubierto por tests, incluyendo transiciones inválidas
+- [x] `.env.example` completo · `.env.local` ignorado (`git check-ignore .env.local` lo confirma)
+- [x] Ningún secreto con prefijo `NEXT_PUBLIC_`

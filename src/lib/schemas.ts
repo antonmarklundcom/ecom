@@ -14,10 +14,12 @@ export type CartItem = z.infer<typeof CartItemSchema>;
 
 export const DocTypeSchema = z.enum(["RUC", "CI", "NINGUNO"]);
 
+// Los valores tienen que coincidir con el ENUM payment_method de
+// src/db/schema.ts o el insert falla: "contra_entrega", no "efectivo".
 export const PaymentMethodSchema = z.enum([
   "transferencia",
+  "contra_entrega",
   "tarjeta",
-  "efectivo",
 ]);
 
 /**
