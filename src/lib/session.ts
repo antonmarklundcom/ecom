@@ -16,10 +16,10 @@ export type AdminSession = {
 export const SESSION_COOKIE = 'tienda_py_admin';
 
 export function sessionOptions(): SessionOptions {
-  const password = process.env.SESSION_PASSWORD;
+  const password = process.env.SESSION_SECRET;
   if (!password || password.length < 32) {
     throw new Error(
-      'SESSION_PASSWORD debe existir y tener al menos 32 caracteres. ' +
+      'SESSION_SECRET debe existir y tener al menos 32 caracteres. ' +
         'Generala con: openssl rand -base64 32',
     );
   }

@@ -18,16 +18,16 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 ---
 
 ## 1. Scaffold
-- [ ] `npx create-next-app@latest` — TS, App Router, Tailwind
-- [ ] `shadcn` init + button, dialog, input, form, table, badge, sheet, select, sonner
+- [x] `npx create-next-app@latest` — TS, App Router, Tailwind
+- [x] `shadcn` init + button, dialog, input, form, table, badge, sheet, select, sonner
 - [x] `tsconfig`: `strict: true`, `noUncheckedIndexedAccess: true`
-- [ ] ESLint + Prettier ✅ · husky pre-commit ⬜ (falta)
-- [ ] `vitest` corriendo en CI ✅ · `@testing-library/react` ⬜ (recién con UI, PR #2)
+- [x] ESLint + Prettier + husky pre-commit (typecheck + lint)
+- [x] `vitest` + `@testing-library/react` corriendo en CI
 
 ## 2. Base de datos (Hostinger MySQL)
-- [ ] Crear DB + usuario en hPanel; guardar credenciales en el gestor de contraseñas
-- [ ] **Remote MySQL**: whitelistear la IP de desarrollo (sin esto, `ECONNREFUSED` desde local)
-- [ ] `DATABASE_URL` en `.env.local` — probar con un script `tsx` antes de escribir nada más
+- [ ] Crear DB + usuario en hPanel; guardar credenciales en el gestor de contraseñas *(bloqueado — requiere acceso a Hostinger)*
+- [ ] **Remote MySQL**: whitelistear la IP de desarrollo *(ídem)*
+- [x] `DATABASE_URL` en `.env.local` — apunta al MySQL local de `docker-compose.yml` en dev; Hostinger se conecta recién en el deploy
 - [x] ⚠️ `tsx` **no** carga `.env` solo → usar `import 'dotenv/config'` al inicio de cada script
 - [x] `drizzle.config.ts` (dialect `mysql`, schema `./src/db/schema.ts`, out `./drizzle`)
 - [x] `src/db/index.ts` — pool único, `connectionLimit: 8`, `timezone: "Z"`
@@ -62,9 +62,9 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 ## 6. Auth + Cloudinary
 - [x] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)`
 - [x] Script `create-owner.ts` — **sin ruta pública de registro**
-- [ ] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated
+- [x] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated (config + `signedReceiptUrl()` — sin flow de upload todavía)
 - [ ] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido
-- [ ] `signedReceiptUrl()` con TTL corto para el admin
+- [x] `signedReceiptUrl()` con TTL corto para el admin
 
 ## 7. Zod + seed
 - [x] `lib/schemas.ts`: `CartItemSchema`, `CheckoutInputSchema` (refine `doc_number` según `doc_type`), `AdminProductInput`
