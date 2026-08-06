@@ -37,7 +37,22 @@ export async function setup(): Promise<void> {
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
     multipleStatements: true,
+    connectTimeout: 15_000,
   });
+
+  // Sin esto, cualquier lock trabado deja la suite colgada: el default de
+  // lock_wait_timeout en MySQL es de un año. Que falle en un minuto y con un
+  // mensaje claro. Requiere SUPER — si no lo tenemos, seguimos igual.
+  for (const statement of [
+    "SET GLOBAL lock_wait_timeout = 60",
+    "SET GLOBAL innodb_lock_wait_timeout = 30",
+  ]) {
+    try {
+      await admin.query(statement);
+    } catch {
+      // usuario sin privilegios: no es fatal
+    }
+  }
   await admin.query(`DROP DATABASE IF EXISTS \`${database}\``);
   await admin.query(`CREATE DATABASE \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci`);
   await admin.end();

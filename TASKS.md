@@ -79,3 +79,22 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] `transitionOrder` cubierto por tests, incluyendo transiciones inválidas
 - [x] `.env.example` completo · `.env.local` ignorado (`git check-ignore .env.local` lo confirma)
 - [x] Ningún secreto con prefijo `NEXT_PUBLIC_`
+
+---
+
+# PR #2 · Storefront, Catalog & Cart
+
+## 8. Vidriera
+- [x] Layout: header + badge del carrito, footer, nav mobile, botón flotante de WhatsApp, metadata `es-PY`
+- [x] `/` home: hero, destacados, grilla de categorías (ISR)
+- [x] `/categoria/[slug]`: filtros (precio, marca), orden, paginación server-side
+- [x] `/producto/[slug]`: galería, selector de variante, disponibilidad, nota "IVA incluido", JSON-LD Product
+- [x] Primitivas: `ProductCard`, `PriceTag`, `StockBadge`, `QuantityStepper`
+- [x] Carrito Zustand con `persist` + migración versionada, líneas por variante
+- [x] Slide-over del carrito: editar, quitar, subtotal, "Seguí comprando" / "Ir al checkout"
+- [x] **Revalidación del carrito** — re-precia y re-chequea stock en el servidor; avisa "cambió el precio / se quedó sin stock"
+- [x] Búsqueda con `FULLTEXT` (+ fallback a `LIKE` para términos cortos)
+- [x] Pipeline de imágenes de Cloudinary con placeholders
+- [x] Estados vacíos / loading / error, `not-found.tsx`
+- [ ] Lighthouse mobile ≥ 90 perf/a11y en la ficha de producto *(medir con el sitio desplegado)*
+- [ ] Fotos reales de producto en Cloudinary *(el seed no trae imágenes: se ven placeholders)*

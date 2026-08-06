@@ -1,38 +1,47 @@
-import { getCatalog } from "@/db/queries";
-import { formatGs } from "@/lib/money";
+import Link from "next/link";
+
+import { ProductCard } from "@/components/product-card";
+import { Button } from "@/components/ui/button";
+import { getCatalog, getCategories, type CatalogProduct } from "@/db/queries";
 
 /**
- * Server Component: lee el catálogo sembrado directo de MySQL.
- * La vidriera de verdad (grillas, filtros, carrito) es el PR #2 — esto
- * demuestra que el dato viaja de la base a la página.
+ * Home. ISR: el catálogo cambia poco y las redes móviles paraguayas
+ * agradecen el HTML ya armado. La disponibilidad exacta se ve en la ficha.
  */
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function HomePage() {
-  let catalog: Awaited<ReturnType<typeof getCatalog>> = [];
+  let categories: Awaited<ReturnType<typeof getCategories>> = [];
+  let featured: CatalogProduct[] = [];
   let error: string | null = null;
 
   try {
-    catalog = await getCatalog({ limit: 100 });
+    [categories, featured] = await Promise.all([getCategories(), getCatalog({ limit: 8 })]);
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause);
   }
 
-  const variantCount = catalog.reduce(
-    (total, product) => total + product.variants.length,
-    0
-  );
-
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Tienda PY</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Catálogo servido desde MySQL. Todos los precios están en guaraníes,{" "}
-        <strong>IVA incluido</strong>.
-      </p>
+    <main className="mx-auto w-full max-w-6xl px-4 py-8">
+      <section className="border-border bg-muted/30 rounded-2xl border p-6 sm:p-10">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">
+          Comprá fácil, pagá como quieras
+        </h1>
+        <p className="text-muted-foreground mt-3 max-w-xl text-sm sm:text-base">
+          Transferencia, QR o contra entrega. Precios en guaraníes con IVA incluido y envíos a
+          todo el país. ¿Dudas? Escribinos por WhatsApp.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {categories[0] ? (
+            <Button asChild size="lg">
+              <Link href={`/categoria/${categories[0].slug}`}>Ver productos</Link>
+            </Button>
+          ) : null}
+        </div>
+      </section>
 
       {error ? (
-        <div className="border-border border-l-primary mt-6 rounded-lg border border-l-2 p-4">
+        <div className="border-border border-l-primary mt-8 rounded-lg border border-l-2 p-4">
           <p className="text-sm">No pude leer el catálogo:</p>
           <p className="mt-1 font-mono text-xs break-all">{error}</p>
           <p className="text-muted-foreground mt-2 text-sm">
@@ -42,49 +51,40 @@ export default async function HomePage() {
         </div>
       ) : (
         <>
-          <p className="text-muted-foreground mt-4 text-sm">
-            {catalog.length} productos · {variantCount} variantes
-          </p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {catalog.map((product) => (
-              <article
-                key={product.id}
-                className="border-border rounded-xl border p-4"
-              >
-                <p className="text-muted-foreground text-xs uppercase">
-                  {product.categoryName}
-                </p>
-                <h2 className="mt-1 font-medium">{product.name}</h2>
-                <p className="text-muted-foreground text-xs">
-                  {product.brand ?? "Sin marca"} · IVA {product.ivaRate}%
-                </p>
-                <ul className="mt-3 space-y-1">
-                  {product.variants.map((variant) => (
-                    <li
-                      key={variant.id}
-                      className="border-border flex items-center justify-between gap-3 border-t pt-1 text-sm"
-                    >
-                      <span>{variant.label}</span>
-                      <span className="flex items-center gap-2">
-                        <span className="font-medium tabular-nums">
-                          {formatGs(variant.pricePyg)}
-                        </span>
-                        {variant.available > 0 ? (
-                          <span className="text-muted-foreground text-xs">
-                            {variant.available} disp.
-                          </span>
-                        ) : (
-                          <span className="text-destructive text-xs">
-                            sin stock
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
+          {categories.length > 0 ? (
+            <section className="mt-10">
+              <h2 className="text-lg font-semibold">Categorías</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {categories.map((category) => (
+                  <Link
+                    key={category.id}
+                    href={`/categoria/${category.slug}`}
+                    className="border-border hover:border-foreground/30 rounded-xl border p-4 transition-colors"
+                  >
+                    <p className="font-medium">{category.name}</p>
+                    <p className="text-muted-foreground mt-1 text-sm">Ver todo →</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {featured.length > 0 ? (
+            <section className="mt-12">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-lg font-semibold">Destacados</h2>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                {featured.map((product, index) => (
+                  <ProductCard key={product.id} product={product} priority={index < 4} />
+                ))}
+              </div>
+            </section>
+          ) : (
+            <p className="text-muted-foreground mt-10 text-sm">
+              Todavía no hay productos publicados. Sembrá el catálogo con <code>pnpm db:seed</code>.
+            </p>
+          )}
         </>
       )}
     </main>

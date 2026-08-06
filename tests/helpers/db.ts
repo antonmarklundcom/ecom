@@ -44,12 +44,24 @@ const TABLES = [
   'counters',
 ];
 
-/** Vacía todo entre tests y deja el contador de pedidos en cero. */
+/**
+ * Vacía todo entre tests y deja el contador de pedidos en cero.
+ *
+ * `DELETE` y no `TRUNCATE`: TRUNCATE es DDL y necesita un metadata lock
+ * exclusivo, así que en MySQL 8 se queda esperando —con `lock_wait_timeout`
+ * por defecto, un año— si alguna conexión del pool dejó una transacción
+ * abierta. `DELETE` toma locks de fila normales y las tablas de test son
+ * chicas. (MariaDB, que es lo que corre en local, no se cuelga igual: esto
+ * apareció recién en CI.)
+ */
 export async function resetTables(): Promise<void> {
   const db = getTestDb();
   await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
   for (const table of TABLES) {
-    await db.execute(sql.raw(`TRUNCATE TABLE \`${table}\``));
+    // Nada de `ALTER TABLE ... AUTO_INCREMENT = 1` acá: también es DDL y
+    // vuelve a meter el mismo metadata lock. Ningún test depende de que los
+    // ids arranquen en 1 — las factories devuelven el id que crearon.
+    await db.execute(sql.raw(`DELETE FROM \`${table}\``));
   }
   await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
   await db.insert(schema.counters).values({ name: 'order_number', value: 0 });
