@@ -22,6 +22,8 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
   beforeAll(async () => {
     await resetTables();
     await run("pnpm", ["exec", "tsx", "scripts/seed.ts"], {
+      // Que no quede colgado para siempre si la DB no responde.
+      timeout: 90_000,
       cwd: process.cwd(),
       env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
     });

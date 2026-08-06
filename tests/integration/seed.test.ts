@@ -16,6 +16,8 @@ async function seed(): Promise<void> {
   await run('pnpm', ['exec', 'tsx', 'scripts/seed.ts'], {
     cwd: process.cwd(),
     env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+    // Que no quede colgado para siempre si la DB no responde.
+    timeout: 90_000,
   });
 }
 
