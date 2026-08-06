@@ -1,0 +1,109 @@
+import { and, eq } from "drizzle-orm";
+
+import { getDb } from "@/db";
+import { receipts } from "@/db/schema";
+
+import type { Executor } from "./executor";
+
+/**
+ * Comprobantes de transferencia (PLAN.md 3.5).
+ *
+ * La validación vive acá y no en el componente: el formulario se puede
+ * saltear con un `fetch`, así que el límite real es este.
+ */
+
+export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
+export const RECEIPT_MAX_PER_ORDER = 3;
+export const RECEIPT_ALLOWED_MIME = ["image/jpeg", "image/png", "application/pdf"] as const;
+
+/** Firmas de archivo: el `type` que manda el navegador es sólo una sugerencia. */
+const MAGIC_NUMBERS: Array<{ mime: string; bytes: number[] }> = [
+  { mime: "image/jpeg", bytes: [0xff, 0xd8, 0xff] },
+  { mime: "image/png", bytes: [0x89, 0x50, 0x4e, 0x47] },
+  { mime: "application/pdf", bytes: [0x25, 0x50, 0x44, 0x46] },
+];
+
+export class ReceiptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReceiptError";
+  }
+}
+
+/** Detecta el tipo real por los primeros bytes. `null` si no reconoce ninguno. */
+export function sniffMime(buffer: Buffer | Uint8Array): string | null {
+  for (const candidate of MAGIC_NUMBERS) {
+    const matches = candidate.bytes.every((byte, index) => buffer[index] === byte);
+    if (matches) return candidate.mime;
+  }
+  return null;
+}
+
+export function validateReceipt(input: {
+  declaredMime: string;
+  bytes: number;
+  content: Buffer | Uint8Array;
+}): { mime: string } {
+  if (input.bytes <= 0) {
+    throw new ReceiptError("El archivo está vacío.");
+  }
+  if (input.bytes > RECEIPT_MAX_BYTES) {
+    throw new ReceiptError("El comprobante no puede pesar más de 5 MB.");
+  }
+
+  const sniffed = sniffMime(input.content);
+  if (!sniffed) {
+    throw new ReceiptError("Subí una foto (JPG o PNG) o un PDF del comprobante.");
+  }
+  // Si el navegador declaró otra cosa, mandan los bytes.
+  if (!(RECEIPT_ALLOWED_MIME as readonly string[]).includes(sniffed)) {
+    throw new ReceiptError("Subí una foto (JPG o PNG) o un PDF del comprobante.");
+  }
+
+  return { mime: sniffed };
+}
+
+export async function countReceipts(orderId: number, executor?: Executor): Promise<number> {
+  const tx = executor ?? getDb();
+  const rows = await tx
+    .select({ id: receipts.id })
+    .from(receipts)
+    .where(eq(receipts.orderId, orderId));
+  return rows.length;
+}
+
+export async function assertCanUpload(orderId: number, executor?: Executor): Promise<void> {
+  const already = await countReceipts(orderId, executor);
+  if (already >= RECEIPT_MAX_PER_ORDER) {
+    throw new ReceiptError(
+      `Ya subiste ${RECEIPT_MAX_PER_ORDER} comprobantes para este pedido. Escribinos por WhatsApp.`
+    );
+  }
+}
+
+export async function recordReceipt(
+  input: { orderId: number; cloudinaryId: string; mime: string; bytes: number },
+  executor?: Executor
+): Promise<void> {
+  const tx = executor ?? getDb();
+  await tx.insert(receipts).values({
+    orderId: input.orderId,
+    cloudinaryId: input.cloudinaryId,
+    mime: input.mime,
+    bytes: input.bytes,
+    review: "pending",
+  });
+}
+
+export async function listReceipts(orderId: number, executor?: Executor) {
+  const tx = executor ?? getDb();
+  return tx.select().from(receipts).where(eq(receipts.orderId, orderId));
+}
+
+export async function pendingReceipts(executor?: Executor) {
+  const tx = executor ?? getDb();
+  return tx
+    .select()
+    .from(receipts)
+    .where(and(eq(receipts.review, "pending")));
+}

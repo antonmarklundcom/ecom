@@ -41,6 +41,35 @@ async function heldQty(tx: Executor, variantId: number): Promise<number> {
 }
 
 /**
+ * Igual que heldQty pero con lectura bloqueante, para usar adentro de la
+ * transacción que reserva.
+ *
+ * Es la diferencia entre no vender de más y venderlo: en REPEATABLE READ, un
+ * SELECT común lee del snapshot que la transacción tomó en su **primera**
+ * lectura. Si antes hubo otras consultas —re-precio, envío, contador— ese
+ * snapshot es anterior al commit del comprador rival, así que el
+ * `SELECT ... FOR UPDATE` sobre la variante ve la fila al día pero la suma de
+ * reservas no ve la reserva recién insertada, y los dos creen que queda una
+ * unidad. Una lectura bloqueante ve siempre la última versión confirmada, y
+ * de paso toma gap locks que frenan el insert del otro lado.
+ */
+async function heldQtyForUpdate(tx: Executor, variantId: number): Promise<number> {
+  const rows = await tx
+    .select({ qty: stockReservations.qty })
+    .from(stockReservations)
+    .where(
+      and(
+        eq(stockReservations.variantId, variantId),
+        eq(stockReservations.state, 'held'),
+        gt(stockReservations.expiresAt, sql`NOW()`),
+      ),
+    )
+    .for('update');
+
+  return rows.reduce((total, row) => total + row.qty, 0);
+}
+
+/**
  * `disponible = on_hand − Σ(reservas held no vencidas)`.
  *
  * Se calcula en vivo: una reserva vencida deja de contar sola, así que un cron
@@ -155,7 +184,7 @@ export async function reserveStock(
         throw new InsufficientStockError(item.variantId, item.qty, 0);
       }
 
-      const available = variant.onHand - (await heldQty(tx, item.variantId));
+      const available = variant.onHand - (await heldQtyForUpdate(tx, item.variantId));
       if (item.qty > available) {
         throw new InsufficientStockError(item.variantId, item.qty, Math.max(0, available));
       }

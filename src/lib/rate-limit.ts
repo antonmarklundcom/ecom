@@ -1,0 +1,91 @@
+/**
+ * Rate limit en memoria, ventana deslizante.
+ *
+ * Alcanza para el slot único de Node de Hostinger, que es donde corre esto.
+ * Con más de una instancia hay que moverlo a la DB o a Redis: cada proceso
+ * tiene su propio contador y el límite efectivo se multiplica. Está acá
+ * aislado justamente para que ese cambio sea de un archivo.
+ */
+
+type Bucket = { hits: number[] };
+
+const buckets = new Map<string, Bucket>();
+
+/** Cada tanto se limpia lo vencido para que el Map no crezca para siempre. */
+let lastSweep = Date.now();
+const SWEEP_INTERVAL_MS = 60_000;
+
+export type RateLimitResult = {
+  ok: boolean;
+  remaining: number;
+  /** Segundos hasta que se libere un intento. */
+  retryAfterSeconds: number;
+};
+
+export function rateLimit(
+  key: string,
+  options: { limit: number; windowMs: number },
+  now: number = Date.now()
+): RateLimitResult {
+  sweep(now, options.windowMs);
+
+  const bucket = buckets.get(key) ?? { hits: [] };
+  const windowStart = now - options.windowMs;
+  const hits = bucket.hits.filter((time) => time > windowStart);
+
+  if (hits.length >= options.limit) {
+    buckets.set(key, { hits });
+    const oldest = hits[0] ?? now;
+    return {
+      ok: false,
+      remaining: 0,
+      retryAfterSeconds: Math.max(1, Math.ceil((oldest + options.windowMs - now) / 1000)),
+    };
+  }
+
+  hits.push(now);
+  buckets.set(key, { hits });
+  return { ok: true, remaining: options.limit - hits.length, retryAfterSeconds: 0 };
+}
+
+function sweep(now: number, windowMs: number): void {
+  if (now - lastSweep < SWEEP_INTERVAL_MS) return;
+  lastSweep = now;
+  for (const [key, bucket] of buckets) {
+    const alive = bucket.hits.filter((time) => time > now - windowMs);
+    if (alive.length === 0) buckets.delete(key);
+    else buckets.set(key, { hits: alive });
+  }
+}
+
+/** Sólo para tests. */
+export function resetRateLimits(): void {
+  buckets.clear();
+  lastSweep = 0;
+}
+
+/**
+ * IP del cliente detrás del proxy de Hostinger.
+ *
+ * `x-forwarded-for` lo pone el proxy y puede venir con varias IPs: la del
+ * cliente es la primera. Es un header, o sea que es falsificable — para un
+ * límite anti-fuerza-bruta alcanza, pero no sirve como identidad.
+ */
+export function clientIp(headers: Headers): string {
+  const forwarded = headers.get("x-forwarded-for");
+  if (forwarded) {
+    const first = forwarded.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return headers.get("x-real-ip")?.trim() || "desconocida";
+}
+
+/**
+ * Límite del formulario "buscar mi pedido" (PLAN.md 3.9).
+ *
+ * Viven acá y no en la server action porque un módulo `"use server"` sólo
+ * puede exportar funciones async: exportar una constante deja el módulo sin
+ * exports y el build falla con "has no exports at all".
+ */
+export const LOOKUP_LIMIT = 5;
+export const LOOKUP_WINDOW_MS = 15 * 60 * 1000;

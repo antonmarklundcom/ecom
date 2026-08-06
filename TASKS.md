@@ -98,3 +98,19 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] Estados vacíos / loading / error, `not-found.tsx`
 - [ ] Lighthouse mobile ≥ 90 perf/a11y en la ficha de producto *(medir con el sitio desplegado)*
 - [ ] Fotos reales de producto en Cloudinary *(el seed no trae imágenes: se ven placeholders)*
+
+---
+
+# PR #3 · Checkout: SPI/QR manual + contra entrega
+
+## 9. Núcleo del checkout *(Opus 5)*
+- [x] **`createOrder`** — re-precia todo desde la DB, inserta pedido + ítems + reservas en UNA transacción, acuña `access_token`, `reserved_until` según el método
+- [x] Envío por zona desde `shipping_zones` + umbral de envío gratis
+- [x] **Subida de comprobante** — MIME por bytes (no por el `type` del navegador), ≤ 5 MB, ≤ 3 por pedido, Cloudinary privado, fila en `receipts`, → `esperando_verificacion`
+- [x] **Guard de `/pedido/[order_number]?t=`** — comparación de token en tiempo constante; token inválido y pedido inexistente devuelven el mismo 404
+- [x] **`/pedido/buscar`** — nro. + teléfono, 5 intentos / 15 min / IP, mensaje de error genérico, redirige a la URL tokenizada
+- [x] `/checkout` con formulario (nombre, WhatsApp, RUC/CI con DV, ciudad/barrio/dirección, método de pago)
+- [x] Timeline del pedido desde `order_events`
+- [ ] Página SPI/QR con datos bancarios y botones de copiar *(faltan los datos reales del comercio — TASKS.md §0)*
+- [ ] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado
+- [ ] Notificación al dueño de un pedido nuevo
