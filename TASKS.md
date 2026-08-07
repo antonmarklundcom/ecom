@@ -10,7 +10,7 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [ ] Confirmar que el plan de Hostinger incluye **Node.js** (los planes sólo-PHP no sirven para Next.js)
 - [ ] Dominio / subdominio para la tienda
 - [x] **Métodos de pago del MVP: SPI/QR manual + contra entrega.** Pagopar queda para el PR #5, post-lanzamiento
-- [ ] Datos bancarios reales (Banco, titular, RUC, nro. de cuenta) + imagen del QR SPI — necesarios recién en el PR #3
+- [ ] Datos bancarios reales (Banco, titular, RUC, nro. de cuenta) + imagen del QR SPI — **el código ya está listo**: completá `COMERCIO_BANCO` / `COMERCIO_TITULAR` / `COMERCIO_RUC` / `COMERCIO_CUENTA` (+ `COMERCIO_ALIAS` / `COMERCIO_QR_URL`) y la página de pago se enciende sola
 - [ ] Número de WhatsApp del comercio en formato `+5959XXXXXXXX`
 - [x] ~~Credenciales de sandbox de Pagopar~~ — no bloquean nada hasta el PR #5
 - [ ] Cuenta de Cloudinary (o reusar la de inmobiliaria con folders separados)
@@ -111,8 +111,8 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] **`/pedido/buscar`** — nro. + teléfono, 5 intentos / 15 min / IP, mensaje de error genérico, redirige a la URL tokenizada
 - [x] `/checkout` con formulario (nombre, WhatsApp, RUC/CI con DV, ciudad/barrio/dirección, método de pago)
 - [x] Timeline del pedido desde `order_events`
-- [ ] Página SPI/QR con datos bancarios y botones de copiar *(faltan los datos reales del comercio — TASKS.md §0)*
-- [ ] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado
+- [x] Página SPI/QR con datos bancarios y botones de copiar en cada campo *(los datos entran por `COMERCIO_*`; sin ellos la página cae al botón de WhatsApp y el panel avisa qué falta)*
+- [x] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado (nro. + total, sin el link tokenizado)
 - [ ] Notificación al dueño de un pedido nuevo
 
 ---

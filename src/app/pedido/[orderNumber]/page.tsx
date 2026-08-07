@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DatosTransferencia } from "@/components/datos-transferencia";
 import { ReceiptUpload } from "@/components/receipt-upload";
 import { getOrderItems, requireOrderAccess } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import type { OrderStatus } from "@/db/schema";
-import { comercioWaLink } from "@/lib/comercio";
+import { comercioWaLink, datosBancarios } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
 
@@ -57,8 +58,23 @@ export default async function OrderPage({
     countReceipts(order.id),
   ]);
 
+  const banco = datosBancarios();
+
   const waHref = comercioWaLink(
     `¡Hola! Te escribo por mi pedido ${order.orderNumber} (${formatGs(order.totalPyg)}).`
+  );
+
+  /**
+   * Botón "mandar el comprobante por WhatsApp" (PLAN.md 3.6).
+   *
+   * El mensaje ya trae el nro. de pedido y el total para que el dueño no tenga
+   * que preguntar de qué pedido se trata. **No** lleva el link tokenizado: eso
+   * le da acceso al pedido a cualquiera que reenvíe el chat, y acá el que
+   * escribe es el propio comprador, que ya lo tiene.
+   */
+  const waComprobanteHref = comercioWaLink(
+    `¡Hola! Te mando el comprobante de mi pedido ${order.orderNumber} por ` +
+      `${formatGs(order.totalPyg)}. (Adjuntá la foto acá 👇)`
   );
 
   return (
@@ -69,19 +85,61 @@ export default async function OrderPage({
         Estado: <strong>{STATUS_LABEL[order.status]}</strong>
       </p>
 
-      {order.status === "pendiente_pago" && order.paymentMethod === "transferencia" ? (
+      {["pendiente_pago", "rechazado"].includes(order.status) &&
+      order.paymentMethod === "transferencia" ? (
         <section className="border-border mt-6 rounded-xl border p-4">
           <h2 className="font-medium">Pagá por transferencia o QR</h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Transferí el total exacto y subí el comprobante acá abajo. Lo revisamos y te
-            confirmamos.
-          </p>
-          <p className="mt-3 text-sm">
-            Total a transferir: <strong className="tabular-nums">{formatGs(order.totalPyg)}</strong>
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Los datos bancarios del comercio se cargan en el PR #3.4.
-          </p>
+
+          {banco ? (
+            <>
+              <ol className="text-muted-foreground mt-2 list-decimal space-y-1 pl-5 text-sm">
+                <li>Transferí el total exacto a la cuenta de abajo.</li>
+                <li>Guardá el comprobante que te da el banco.</li>
+                <li>Subilo acá o mandanoslo por WhatsApp.</li>
+              </ol>
+
+              <div className="mt-4">
+                <DatosTransferencia
+                  qrUrl={banco.qrUrl}
+                  campos={[
+                    {
+                      label: "Total exacto a transferir",
+                      display: formatGs(order.totalPyg),
+                      // Dígitos pelados: ni `₲` ni puntos de miles. `formatGs`
+                      // da "₲ 570.000" y `formatGsPlain` todavía agrupa
+                      // ("570.000") — y el campo "monto" de una app bancaria
+                      // interpreta ese punto como decimal o directamente
+                      // rechaza el pegado. Acá el formato lindo es para leer,
+                      // no para copiar.
+                      copy: String(order.totalPyg),
+                      destacado: true,
+                    },
+                    { label: "Banco", display: banco.banco },
+                    { label: "Titular", display: banco.titular },
+                    { label: "RUC", display: banco.ruc },
+                    { label: "Nº de cuenta", display: banco.cuenta },
+                    ...(banco.alias ? [{ label: "Alias SPI", display: banco.alias }] : []),
+                  ]}
+                />
+              </div>
+
+              <p className="text-muted-foreground mt-3 text-xs">
+                Transferí el monto exacto: si el importe no coincide, tenemos que verificarlo a
+                mano y tu pedido tarda más.
+              </p>
+            </>
+          ) : (
+            // Sin datos bancarios cargados no inventamos una pantalla de pago
+            // a medias: mandamos al comprador por el camino que sí funciona.
+            <p className="mt-2 text-sm">
+              Escribinos por WhatsApp y te pasamos los datos para transferir.{" "}
+              {waHref ? (
+                <a href={waHref} target="_blank" rel="noopener noreferrer" className="underline">
+                  Abrir WhatsApp
+                </a>
+              ) : null}
+            </p>
+          )}
         </section>
       ) : null}
 
@@ -97,6 +155,23 @@ export default async function OrderPage({
               remaining={RECEIPT_MAX_PER_ORDER - receiptCount}
             />
           </div>
+
+          {/* Salida alternativa: mucha gente tiene el comprobante en la app del
+              banco y le sale más natural mandarlo por WhatsApp que buscar el
+              archivo. Que el pedido no se trabe por eso. */}
+          {waComprobanteHref ? (
+            <p className="text-muted-foreground mt-4 text-sm">
+              ¿Se te complica subirlo?{" "}
+              <a
+                href={waComprobanteHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground font-medium underline"
+              >
+                Mandanoslo por WhatsApp
+              </a>
+            </p>
+          ) : null}
         </section>
       ) : null}
 

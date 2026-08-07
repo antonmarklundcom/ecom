@@ -4,6 +4,7 @@ import Link from "next/link";
 import { listOrders } from "@/domain/admin-orders";
 import { getDashboardSummary } from "@/domain/admin-dashboard";
 import { lowStockVariants } from "@/domain/admin-products";
+import { datosBancariosFaltantes } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
 
@@ -18,9 +19,25 @@ export default async function AdminDashboardPage() {
     lowStockVariants(3, 8),
   ]);
 
+  const faltantes = datosBancariosFaltantes();
+
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Resumen</h1>
+
+      {/* Sin datos bancarios, quien elige transferencia no tiene a dónde
+          pagar. Es silencioso desde afuera y le cuesta ventas al comercio, así
+          que se avisa arriba de todo hasta que se cargue. */}
+      {faltantes.length > 0 ? (
+        <div className="border-destructive/40 bg-destructive/5 mt-4 rounded-xl border p-4">
+          <p className="text-sm font-medium">Faltan tus datos bancarios</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Los pedidos por transferencia no muestran a dónde pagar: al comprador sólo le
+            aparece el botón de WhatsApp. Cargá {faltantes.join(", ")} en las variables de
+            entorno del servidor y listo.
+          </p>
+        </div>
+      ) : null}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Stat
