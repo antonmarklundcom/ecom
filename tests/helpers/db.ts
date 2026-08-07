@@ -35,6 +35,7 @@ const TABLES = [
   'payments',
   'order_items',
   'orders',
+  'stock_adjustments',
   'variants',
   'product_images',
   'products',

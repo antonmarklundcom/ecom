@@ -198,3 +198,113 @@ export function formatDatePY(date: Date): string {
 export function formatDateTimePY(date: Date): string {
   return DATE_TIME_FMT.format(date).replace(', ', ' ');
 }
+
+// ---------------------------------------------------------------------------
+// Límites de día y de mes en hora paraguaya
+// ---------------------------------------------------------------------------
+
+/**
+ * Todo se guarda en UTC (`timezone: "Z"` en el pool), pero "las ventas de hoy"
+ * es una pregunta en hora de Asunción. A las 21:00 de Asunción ya es el día
+ * siguiente en UTC: sin convertir, el panel mostraría el día equivocado todas
+ * las noches, que es justo cuando el dueño cierra la caja.
+ *
+ * La conversión sale de `Intl` y no de un `-3` hardcodeado. Paraguay eliminó
+ * el horario de verano en 2024, pero el offset es un dato político: cuando
+ * cambie, cambia la tzdata de Node y esto sigue andando.
+ */
+const PARTS_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: PY_TIMEZONE,
+  hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+type WallClock = { year: number; month: number; day: number; hour: number; minute: number; second: number };
+
+function pyWallClock(instant: Date): WallClock {
+  const parts = PARTS_FMT.formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes): number => {
+    const value = parts.find((part) => part.type === type)?.value ?? '0';
+    return Number(value);
+  };
+  // `hour12: false` puede devolver 24 para la medianoche según la versión de ICU.
+  const hour = get('hour') % 24;
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour,
+    minute: get('minute'),
+    second: get('second'),
+  };
+}
+
+/** Cuánto hay que sumarle a un instante UTC para leer el reloj de pared en PY. */
+function pyOffsetMs(instant: Date): number {
+  const wall = pyWallClock(instant);
+  const asIfUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second);
+  // Se descartan los milisegundos del instante: el offset siempre es un
+  // múltiplo de un minuto.
+  return asIfUtc - Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/** Reloj de pared paraguayo → el instante UTC que le corresponde. */
+function pyWallToUtc(wall: WallClock): Date {
+  const guess = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second);
+  // Dos pasadas: la primera usa el offset del instante equivocado. Con un
+  // offset fijo la segunda no cambia nada; si algún día vuelve el horario de
+  // verano, es la que salva los días del cambio.
+  const first = guess - pyOffsetMs(new Date(guess));
+  return new Date(guess - pyOffsetMs(new Date(first)));
+}
+
+/** Medianoche (00:00:00) del día paraguayo que contiene `instant`. */
+export function startOfDayPY(instant: Date = new Date()): Date {
+  const wall = pyWallClock(instant);
+  return pyWallToUtc({ ...wall, hour: 0, minute: 0, second: 0 });
+}
+
+/**
+ * Medianoche del día siguiente — el borde superior, exclusivo.
+ *
+ * Se avanzan 36 h desde el inicio del día y se vuelve al inicio del día: cae
+ * siempre adentro del día siguiente, con o sin salto de offset.
+ */
+export function startOfNextDayPY(instant: Date = new Date()): Date {
+  return startOfDayPY(new Date(startOfDayPY(instant).getTime() + 36 * 3600_000));
+}
+
+/** Medianoche del día 1 del mes paraguayo que contiene `instant`. */
+export function startOfMonthPY(instant: Date = new Date()): Date {
+  const wall = pyWallClock(instant);
+  return pyWallToUtc({ ...wall, day: 1, hour: 0, minute: 0, second: 0 });
+}
+
+/**
+ * `"2026-08-07"` (lo que manda un `<input type="date">`) → el instante UTC de
+ * esa medianoche paraguaya. `null` si el formato no es el esperado.
+ */
+export function parsePyDateInput(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const parsed = { year: Number(year), month: Number(month), day: Number(day) };
+  if (parsed.month < 1 || parsed.month > 12 || parsed.day < 1 || parsed.day > 31) return null;
+  return pyWallToUtc({ ...parsed, hour: 0, minute: 0, second: 0 });
+}
+
+/**
+ * Igual, pero devuelve el borde superior **exclusivo**: la medianoche
+ * siguiente. Así "hasta el 07/08" incluye todo el 7 y el filtro se escribe
+ * `created_at < fin` en vez de pelearse con el último segundo del día.
+ */
+export function parsePyDateInputEnd(value: string | null | undefined): Date | null {
+  const start = parsePyDateInput(value);
+  return start ? startOfNextDayPY(start) : null;
+}

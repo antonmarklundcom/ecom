@@ -304,6 +304,33 @@ export const stockReservations = mysqlTable(
   ],
 );
 
+/**
+ * Ajustes manuales de stock hechos desde el panel (PLAN.md 4.6).
+ *
+ * `variants.on_hand` es la única cifra física, y fuera de una venta confirmada
+ * sólo la mueve el dueño. Cada movimiento deja fila acá con el motivo, el
+ * actor y el antes/después: sin esto, un faltante de inventario es una
+ * discusión sin registro. Append-only, igual que `order_events`.
+ */
+export const stockAdjustments = mysqlTable(
+  'stock_adjustments',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    variantId: int('variant_id')
+      .notNull()
+      .references(() => variants.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    /** Con signo: negativo es merma, positivo es reposición. */
+    delta: int('delta').notNull(),
+    previousOnHand: int('previous_on_hand', { unsigned: true }).notNull(),
+    newOnHand: int('new_on_hand', { unsigned: true }).notNull(),
+    /** Obligatorio por diseño: un ajuste sin motivo no se puede auditar. */
+    reason: varchar('reason', { length: 300 }).notNull(),
+    actor: varchar('actor', { length: 120 }).notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('stock_adjustments_variant_idx').on(t.variantId, t.createdAt)],
+);
+
 /** Append-only audit log. Written by transitionOrder() and nothing else. */
 export const orderEvents = mysqlTable(
   'order_events',

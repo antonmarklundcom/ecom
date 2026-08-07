@@ -65,6 +65,15 @@ export function resetRateLimits(): void {
 }
 
 /**
+ * Borra el contador de una clave. Se usa después de un login exitoso: el que
+ * probó tres contraseñas y acertó no tiene por qué quedar a un intento del
+ * bloqueo.
+ */
+export function resetRateLimitKey(key: string): void {
+  buckets.delete(key);
+}
+
+/**
  * IP del cliente detrás del proxy de Hostinger.
  *
  * `x-forwarded-for` lo pone el proxy y puede venir con varias IPs: la del
@@ -89,3 +98,21 @@ export function clientIp(headers: Headers): string {
  */
 export const LOOKUP_LIMIT = 5;
 export const LOOKUP_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Límite del login del panel (PLAN.md 4.1).
+ *
+ * Más apretado que el de "buscar mi pedido": del otro lado hay una contraseña
+ * que abre todos los pedidos del comercio, y el dueño es una sola persona que
+ * entra una vez por día. Se aplica por IP **y** por email, porque el atacante
+ * puede rotar cualquiera de los dos por separado.
+ */
+export const LOGIN_LIMIT = 8;
+export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Límite del cron: la ruta es pública y compara un secreto, así que sin esto
+ * es un oráculo para adivinarlo a fuerza de intentos.
+ */
+export const CRON_LIMIT = 30;
+export const CRON_WINDOW_MS = 60 * 1000;

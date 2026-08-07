@@ -1,0 +1,51 @@
+import "../src/lib/load-env";
+
+import { closePool } from "../src/db";
+import { reconcile } from "../src/domain/reconciliation";
+import { formatGs } from "../src/lib/money";
+
+/**
+ * `pnpm reconcile` — control de caja (PLAN.md 4.10).
+ *
+ * Se corre a mano después de un deploy, o desde el cron nocturno de Hostinger.
+ * Sale con código 1 si algo no cuadra, para que el cron mande el mail solo.
+ */
+async function main(): Promise<void> {
+  const report = await reconcile();
+
+  if (report.ok) {
+    console.log("✓ Los totales cuadran: no hay pedidos ni líneas descuadradas.");
+    return;
+  }
+
+  if (report.totalMismatches.length > 0) {
+    console.error(`\n✗ ${report.totalMismatches.length} pedido(s) con totales descuadrados:\n`);
+    for (const row of report.totalMismatches) {
+      console.error(
+        `  ${row.orderNumber} (${row.status})\n` +
+          `    subtotal guardado ${formatGs(row.storedSubtotalPyg)} vs ítems ${formatGs(row.itemsSubtotalPyg)} (dif ${row.subtotalDiffPyg})\n` +
+          `    total guardado    ${formatGs(row.storedTotalPyg)} vs esperado ${formatGs(row.expectedTotalPyg)} (dif ${row.totalDiffPyg})`,
+      );
+    }
+  }
+
+  if (report.lineMismatches.length > 0) {
+    console.error(`\n✗ ${report.lineMismatches.length} línea(s) con line_total ≠ precio × cantidad:\n`);
+    for (const line of report.lineMismatches) {
+      console.error(
+        `  ${line.orderNumber} · ${line.skuSnapshot}: ` +
+          `${formatGs(line.unitPricePyg)} × ${line.qty} = ${formatGs(line.expectedLineTotalPyg)}, ` +
+          `guardado ${formatGs(line.storedLineTotalPyg)}`,
+      );
+    }
+  }
+
+  process.exitCode = 1;
+}
+
+main()
+  .catch((error) => {
+    console.error("La reconciliación falló:", error);
+    process.exitCode = 1;
+  })
+  .finally(() => closePool());

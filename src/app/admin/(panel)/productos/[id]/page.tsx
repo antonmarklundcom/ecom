@@ -1,0 +1,134 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { ProductForm } from "@/components/admin/product-form";
+import { ProductImages } from "@/components/admin/product-images";
+import { VariantEditor } from "@/components/admin/variant-editor";
+import { getAdminProduct, listCategories, listStockAdjustments } from "@/domain/admin-products";
+import { formatDateTimePY } from "@/lib/py";
+
+export const metadata: Metadata = { title: "Producto" };
+
+export const dynamic = "force-dynamic";
+
+type Params = Promise<{ id: string }>;
+
+export default async function AdminProductPage({ params }: { params: Params }) {
+  const { id } = await params;
+  const productId = Number(id);
+  if (!Number.isInteger(productId) || productId <= 0) notFound();
+
+  const found = await getAdminProduct(productId);
+  if (!found) notFound();
+
+  const { product, variants, images } = found;
+  const categories = await listCategories();
+
+  // Historial de ajustes de todas las variantes, en una sola lista.
+  const adjustments = (
+    await Promise.all(
+      variants.map(async (variant) => {
+        const rows = await listStockAdjustments(variant.id, 5);
+        return rows.map((row) => ({ ...row, variantLabel: variant.label, sku: variant.sku }));
+      }),
+    )
+  )
+    .flat()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 15);
+
+  return (
+    <div>
+      <Link href="/admin/productos" className="text-muted-foreground text-sm">
+        ← Productos
+      </Link>
+      <h1 className="mt-2 text-xl font-semibold tracking-tight">{product.name}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">
+        <Link href={`/producto/${product.slug}`} className="underline">
+          /producto/{product.slug}
+        </Link>
+      </p>
+
+      <section className="mt-6">
+        <h2 className="font-medium">Datos</h2>
+        <div className="mt-2">
+          <ProductForm
+            categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+            defaults={{
+              productId: product.id,
+              slug: product.slug,
+              name: product.name,
+              description: product.description ?? "",
+              categoryId: product.categoryId,
+              brand: product.brand ?? "",
+              ivaRate: product.ivaRate,
+              isActive: product.isActive,
+              published: product.publishedAt !== null,
+            }}
+          />
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="font-medium">Variantes y stock</h2>
+        <div className="mt-2">
+          <VariantEditor
+            productId={product.id}
+            variants={variants.map((variant) => ({
+              id: variant.id,
+              sku: variant.sku,
+              label: variant.label,
+              pricePyg: variant.pricePyg,
+              compareAtPyg: variant.compareAtPyg,
+              isActive: variant.isActive,
+              onHand: variant.onHand,
+              heldQty: variant.heldQty,
+              available: variant.available,
+            }))}
+          />
+        </div>
+      </section>
+
+      {adjustments.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="font-medium">Últimos ajustes de stock</h2>
+          <ul className="divide-border mt-2 divide-y text-sm">
+            {adjustments.map((adjustment) => (
+              <li key={adjustment.id} className="py-2">
+                <div className="flex justify-between gap-3">
+                  <span>
+                    {adjustment.variantLabel}
+                    <span className="text-muted-foreground"> · {adjustment.sku}</span>
+                  </span>
+                  <span className="shrink-0 font-medium tabular-nums">
+                    {adjustment.delta > 0 ? "+" : ""}
+                    {adjustment.delta}
+                  </span>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  {formatDateTimePY(adjustment.createdAt)} · {adjustment.actor} ·{" "}
+                  {adjustment.previousOnHand} → {adjustment.newOnHand} · {adjustment.reason}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="mt-8">
+        <h2 className="font-medium">Fotos</h2>
+        <div className="mt-2">
+          <ProductImages
+            productId={product.id}
+            images={images.map((image) => ({
+              id: image.id,
+              cloudinaryId: image.cloudinaryId,
+              alt: image.alt,
+            }))}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
