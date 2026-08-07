@@ -1,0 +1,210 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { safeNextPath } from '../../src/lib/safe-redirect';
+import { listSourceFiles, readCode } from '../helpers/source';
+
+/**
+ * Revisión de seguridad del PR #4 (PLAN.md 4.9), automatizada.
+ *
+ * Un checklist que se corrió una vez a mano es un checklist que se rompe en el
+ * commit siguiente. Cada punto de la revisión que se puede verificar leyendo
+ * el repo vive acá y corre en CI.
+ */
+
+const SOURCE_ROOTS = ['src', 'scripts', 'tests'];
+const SELF = path.join('tests', 'unit', 'security-review.test.ts');
+
+describe('secretos', () => {
+  it('ninguna variable de servidor lleva el prefijo NEXT_PUBLIC_', async () => {
+    // `NEXT_PUBLIC_*` termina literalmente en el bundle JS del navegador. Lo
+    // único público es la URL del sitio.
+    const ALLOWED = new Set(['NEXT_PUBLIC_SITE_URL']);
+    const offenders: string[] = [];
+
+    for (const file of await listSourceFiles(SOURCE_ROOTS)) {
+      if (file === SELF) continue;
+      const code = await readCode(file);
+      for (const [, name] of code.matchAll(/process\.env\.(NEXT_PUBLIC_\w+)/g)) {
+        if (name && !ALLOWED.has(name)) offenders.push(`${file}: ${name}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('no hay secretos con valor real commiteados', async () => {
+    // Formas concretas, no entropía: buscar "cualquier string largo" da
+    // falsos positivos con cada hash de test y termina desactivado.
+    const PATTERNS: Array<{ name: string; pattern: RegExp }> = [
+      { name: 'clave privada PEM', pattern: /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
+      { name: 'AWS access key', pattern: /\bAKIA[0-9A-Z]{16}\b/ },
+      { name: 'token de GitHub', pattern: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/ },
+      { name: 'api_secret de Cloudinary en una URL', pattern: /cloudinary:\/\/\d+:[A-Za-z0-9_-]+@/ },
+      { name: 'password en una URL de MySQL apuntando afuera de localhost',
+        pattern: /mysql:\/\/[^:\s]+:[^@\s]+@(?!localhost|127\.0\.0\.1)/ },
+    ];
+
+    const offenders: string[] = [];
+    for (const file of await listSourceFiles(SOURCE_ROOTS)) {
+      if (file === SELF) continue;
+      const content = await readFile(path.join(process.cwd(), file), 'utf8');
+      for (const { name, pattern } of PATTERNS) {
+        if (pattern.test(content)) offenders.push(`${file}: ${name}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('.env.example no trae valores reales y .env.local está ignorado', async () => {
+    const example = await readFile(path.join(process.cwd(), '.env.example'), 'utf8');
+
+    // Los secretos del ejemplo tienen que ser placeholders evidentes.
+    const filled = [...example.matchAll(/^(CLOUDINARY_API_SECRET|PAGOPAR_PRIVATE_KEY|CRON_SECRET|SESSION_SECRET)="?([^"\n]*)"?$/gm)]
+      .filter(([, , value]) => {
+        const text = (value ?? '').trim();
+        if (text === '') return false;
+        return !/changeme|generate|^$/i.test(text);
+      })
+      .map(([, key]) => key);
+
+    expect(filled).toEqual([]);
+
+    // `.env.example` es lo único que se commitea; el resto queda afuera.
+    const gitignore = await readFile(path.join(process.cwd(), '.gitignore'), 'utf8');
+    expect(gitignore).toMatch(/^\.env\.(\*|local)$/m);
+    expect(gitignore).toMatch(/^!\.env\.example$/m);
+  });
+});
+
+describe('cabeceras de seguridad', () => {
+  it('next.config declara HSTS, X-Frame-Options y nosniff', async () => {
+    const config = await readCode('next.config.ts');
+
+    expect(config).toContain('Strict-Transport-Security');
+    expect(config).toContain('X-Frame-Options');
+    expect(config).toContain('X-Content-Type-Options');
+    expect(config).toContain('Referrer-Policy');
+    expect(config).toContain('Permissions-Policy');
+    // La versión de Next en un header es información gratis para el que busca
+    // un CVE.
+    expect(config).toMatch(/poweredByHeader:\s*false/);
+  });
+
+  it('el proxy arma un CSP con nonce y sin `unsafe-inline` en los scripts', async () => {
+    const proxy = await readCode(path.join('src', 'proxy.ts'));
+
+    expect(proxy).toContain('Content-Security-Policy');
+    expect(proxy).toContain("default-src 'self'");
+    expect(proxy).toContain("frame-ancestors 'none'");
+    expect(proxy).toContain("object-src 'none'");
+    expect(proxy).toContain("base-uri 'self'");
+
+    // El nonce es lo que permite prohibir 'unsafe-inline' en script-src sin
+    // romper la hidratación de Next.
+    const scriptSrc = /script-src[^`;]*/.exec(proxy)?.[0] ?? '';
+    expect(scriptSrc).toContain('nonce-');
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
+  });
+
+  it('el panel se sirve con no-store y noindex', async () => {
+    const proxy = await readCode(path.join('src', 'proxy.ts'));
+    expect(proxy).toMatch(/Cache-Control["']?,\s*["']no-store/);
+    expect(proxy).toMatch(/X-Robots-Tag["']?,\s*["']noindex/);
+  });
+});
+
+describe('redirect abierto en el login', () => {
+  it('sólo acepta rutas internas de /admin', () => {
+    expect(safeNextPath('/admin/pedidos')).toBe('/admin/pedidos');
+    expect(safeNextPath('/admin/pedidos?estado=pagado')).toBe('/admin/pedidos?estado=pagado');
+    expect(safeNextPath('/admin')).toBe('/admin');
+  });
+
+  it('descarta todo lo que salga del sitio', () => {
+    for (const evil of [
+      'https://sitio-falso.py/admin',
+      '//sitio-falso.py',
+      '/\\sitio-falso.py',
+      '/adminfalso',
+      '/pedido/PY-000123',
+      'javascript:alert(1)',
+      '',
+      undefined,
+      null,
+    ]) {
+      expect(safeNextPath(evil)).toBe('/admin');
+    }
+  });
+});
+
+describe('rate limiting', () => {
+  it('el login, la búsqueda de pedidos y el cron tienen límite', async () => {
+    const login = await readCode(path.join('src', 'app', 'actions', 'admin-auth.ts'));
+    const lookup = await readCode(path.join('src', 'app', 'actions', 'order-lookup.ts'));
+    const cron = await readCode(
+      path.join('src', 'app', 'api', 'cron', 'vencer-pedidos', 'route.ts'),
+    );
+
+    for (const [name, code] of Object.entries({ login, lookup, cron })) {
+      expect(code, `${name} debería llamar a rateLimit()`).toMatch(/rateLimit\s*\(/);
+    }
+
+    // El login se limita por IP **y** por email: el atacante rota una u otra
+    // por separado.
+    expect(login).toMatch(/login:ip:/);
+    expect(login).toMatch(/login:email:/);
+  });
+});
+
+describe('logs', () => {
+  it('ningún log imprime el secreto del cron, el token del pedido ni una contraseña', async () => {
+    const offenders: string[] = [];
+
+    for (const file of await listSourceFiles(['src'])) {
+      if (file === SELF) continue;
+      const code = await readCode(file);
+
+      for (const [line] of code.matchAll(/console\.(log|info|warn|error)\([^\n]*/g)) {
+        // Lo que importa es el **valor**, no la palabra: decir "CRON_SECRET no
+        // está configurado" es un mensaje de diagnóstico legítimo, imprimir
+        // `process.env.CRON_SECRET` o interpolar la variable no lo es.
+        if (/process\.env\.\w*(SECRET|PRIVATE_KEY|API_KEY)/.test(line)) {
+          offenders.push(`${file}: ${line.trim()}`);
+        }
+        if (/\$\{[^}]*\b(secret|password|passwordHash|accessToken|token)\b[^}]*\}/i.test(line)) {
+          offenders.push(`${file}: ${line.trim()}`);
+        }
+        // `console.error("...", password)` — el secreto como argumento suelto.
+        if (/console\.\w+\([^)]*,\s*\w*(password|accessToken|secret)\w*\s*[),]/i.test(line)) {
+          offenders.push(`${file}: ${line.trim()}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('el cron responde sin distinguir "falta el header" de "el secreto está mal"', async () => {
+    const cron = await readCode(
+      path.join('src', 'app', 'api', 'cron', 'vencer-pedidos', 'route.ts'),
+    );
+
+    // Un solo 401 genérico, y comparación en tiempo constante.
+    expect(cron).toContain('timingSafeEqual');
+    const unauthorized = [...cron.matchAll(/["']unauthorized["']/g)];
+    expect(unauthorized.length).toBe(1);
+  });
+});
+
+describe('acceso del comprador', () => {
+  it('el token del pedido se compara en tiempo constante', async () => {
+    const access = await readCode(path.join('src', 'domain', 'order-access.ts'));
+    expect(access).toContain('timingSafeEqual');
+    // Nada de `===` sobre el token: filtra cuántos caracteres se acertaron.
+    expect(access).not.toMatch(/accessToken\s*===/);
+  });
+});

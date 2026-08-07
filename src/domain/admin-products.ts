@@ -1,0 +1,441 @@
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+
+import { getDb } from "@/db";
+import {
+  categories,
+  productImages,
+  products,
+  stockAdjustments,
+  variants,
+} from "@/db/schema";
+
+import type { Executor } from "./executor";
+import { heldQtyMap } from "./stock";
+
+/**
+ * Catálogo desde el panel (PLAN.md 4.6).
+ *
+ * A diferencia de `db/queries.ts`, que sólo ve lo publicado, acá se ven los
+ * borradores y lo despublicado: es la vista del dueño, no la de la vidriera.
+ */
+
+export class AdminInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AdminInputError";
+  }
+}
+
+export const PRODUCTS_PER_PAGE = 20;
+
+export type AdminProductRow = {
+  id: number;
+  slug: string;
+  name: string;
+  brand: string | null;
+  categoryName: string;
+  isActive: boolean;
+  publishedAt: Date | null;
+  variantCount: number;
+  minPricePyg: number | null;
+  onHand: number;
+};
+
+export async function listAdminProducts(
+  options: { search?: string; page?: number; perPage?: number } = {},
+  executor?: Executor,
+): Promise<{ rows: AdminProductRow[]; total: number; page: number; totalPages: number }> {
+  const tx = executor ?? getDb();
+  const perPage = Math.min(100, Math.max(1, options.perPage ?? PRODUCTS_PER_PAGE));
+  const page = Math.max(1, options.page ?? 1);
+
+  const term = options.search?.trim();
+  const where = term
+    ? sql`(${products.name} LIKE ${`%${escapeLike(term)}%`} OR ${products.slug} LIKE ${`%${escapeLike(term)}%`})`
+    : undefined;
+
+  const [{ total = 0 } = {}] = await tx.select({ total: count() }).from(products).where(where);
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, totalPages);
+
+  const rows = await tx
+    .select({
+      id: products.id,
+      slug: products.slug,
+      name: products.name,
+      brand: products.brand,
+      categoryName: categories.name,
+      isActive: products.isActive,
+      publishedAt: products.publishedAt,
+      variantCount: sql<number>`COUNT(${variants.id})`,
+      minPricePyg: sql<number | null>`MIN(${variants.pricePyg})`,
+      onHand: sql<number>`COALESCE(SUM(${variants.onHand}), 0)`,
+    })
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(variants, eq(variants.productId, products.id))
+    .where(where)
+    .groupBy(products.id, categories.name)
+    .orderBy(desc(products.updatedAt))
+    .limit(perPage)
+    .offset((safePage - 1) * perPage);
+
+  return {
+    rows: rows.map((row) => ({
+      ...row,
+      variantCount: Number(row.variantCount),
+      minPricePyg: row.minPricePyg === null ? null : Number(row.minPricePyg),
+      onHand: Number(row.onHand),
+    })),
+    total,
+    page: safePage,
+    totalPages,
+  };
+}
+
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+export async function getAdminProduct(productId: number, executor?: Executor) {
+  const tx = executor ?? getDb();
+  const rows = await tx.select().from(products).where(eq(products.id, productId)).limit(1);
+  const product = rows[0];
+  if (!product) return null;
+
+  const productVariants = await tx
+    .select()
+    .from(variants)
+    .where(eq(variants.productId, productId))
+    .orderBy(asc(variants.position), asc(variants.id));
+
+  const images = await tx
+    .select()
+    .from(productImages)
+    .where(eq(productImages.productId, productId))
+    .orderBy(asc(productImages.position));
+
+  // La disponibilidad real es on_hand menos lo reservado: el dueño necesita
+  // ver las dos cifras, porque "hay 3" y "puedo vender 1" son distintas.
+  const held = await heldQtyMap(
+    productVariants.map((variant) => variant.id),
+    tx,
+  );
+
+  return {
+    product,
+    images,
+    variants: productVariants.map((variant) => ({
+      ...variant,
+      heldQty: held.get(variant.id) ?? 0,
+      available: Math.max(0, variant.onHand - (held.get(variant.id) ?? 0)),
+    })),
+  };
+}
+
+export async function listCategories(executor?: Executor) {
+  const tx = executor ?? getDb();
+  return tx.select().from(categories).orderBy(asc(categories.position), asc(categories.name));
+}
+
+// ---------------------------------------------------------------------------
+// Escrituras
+// ---------------------------------------------------------------------------
+
+export type ProductWrite = {
+  slug: string;
+  name: string;
+  description: string | null;
+  categoryId: number;
+  brand: string | null;
+  ivaRate: number;
+  isActive: boolean;
+  /** `true` publica ahora; `false` lo saca de la vidriera. */
+  published: boolean;
+};
+
+export async function createProduct(input: ProductWrite, executor?: Executor): Promise<number> {
+  const tx = executor ?? getDb();
+  await assertSlugFree(tx, input.slug, null);
+
+  await tx.insert(products).values({
+    slug: input.slug,
+    name: input.name,
+    description: input.description,
+    categoryId: input.categoryId,
+    brand: input.brand,
+    ivaRate: input.ivaRate,
+    isActive: input.isActive,
+    publishedAt: input.published ? new Date() : null,
+  });
+
+  const rows = await tx
+    .select({ id: products.id })
+    .from(products)
+    .where(eq(products.slug, input.slug))
+    .limit(1);
+  const created = rows[0];
+  if (!created) throw new AdminInputError("No pude crear el producto.");
+  return created.id;
+}
+
+export async function updateProduct(
+  productId: number,
+  input: ProductWrite,
+  executor?: Executor,
+): Promise<void> {
+  const tx = executor ?? getDb();
+  await assertSlugFree(tx, input.slug, productId);
+
+  const existing = await tx
+    .select({ publishedAt: products.publishedAt })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
+  const current = existing[0];
+  if (!current) throw new AdminInputError("Ese producto no existe.");
+
+  await tx
+    .update(products)
+    .set({
+      slug: input.slug,
+      name: input.name,
+      description: input.description,
+      categoryId: input.categoryId,
+      brand: input.brand,
+      ivaRate: input.ivaRate,
+      isActive: input.isActive,
+      // Se conserva la fecha original de publicación: republicar no debería
+      // mandar el producto al tope de "nuevos" otra vez.
+      publishedAt: input.published ? (current.publishedAt ?? new Date()) : null,
+    })
+    .where(eq(products.id, productId));
+}
+
+async function assertSlugFree(
+  tx: Executor,
+  slug: string,
+  exceptProductId: number | null,
+): Promise<void> {
+  const rows = await tx
+    .select({ id: products.id })
+    .from(products)
+    .where(eq(products.slug, slug))
+    .limit(1);
+  const clash = rows[0];
+  if (clash && clash.id !== exceptProductId) {
+    throw new AdminInputError(`Ya hay un producto con el slug "${slug}".`);
+  }
+}
+
+export type VariantWrite = {
+  id?: number;
+  sku: string;
+  label: string;
+  pricePyg: number;
+  compareAtPyg: number | null;
+  isActive: boolean;
+};
+
+/**
+ * Alta/edición de variantes. **No toca `on_hand`**: el stock sólo se mueve por
+ * `adjustStock()`, que exige motivo y deja auditoría. Si editar un precio
+ * pudiera además cambiar el stock de paso, el registro de ajustes dejaría de
+ * ser la historia completa del inventario.
+ */
+export async function saveVariant(
+  productId: number,
+  input: VariantWrite,
+  executor?: Executor,
+): Promise<void> {
+  const tx = executor ?? getDb();
+
+  const clash = await tx
+    .select({ id: variants.id })
+    .from(variants)
+    .where(eq(variants.sku, input.sku))
+    .limit(1);
+  const existing = clash[0];
+  if (existing && existing.id !== input.id) {
+    throw new AdminInputError(`El SKU "${input.sku}" ya está usado por otra variante.`);
+  }
+
+  if (input.id === undefined) {
+    await tx.insert(variants).values({
+      productId,
+      sku: input.sku,
+      label: input.label,
+      pricePyg: input.pricePyg,
+      compareAtPyg: input.compareAtPyg,
+      isActive: input.isActive,
+      onHand: 0,
+    });
+    return;
+  }
+
+  await tx
+    .update(variants)
+    .set({
+      sku: input.sku,
+      label: input.label,
+      pricePyg: input.pricePyg,
+      compareAtPyg: input.compareAtPyg,
+      isActive: input.isActive,
+    })
+    .where(and(eq(variants.id, input.id), eq(variants.productId, productId)));
+}
+
+export type StockAdjustment = {
+  variantId: number;
+  /** Con signo: +10 repuse, −2 rotura. Nunca 0. */
+  delta: number;
+  reason: string;
+  actor: string;
+};
+
+export const ADJUSTMENT_MIN_REASON = 4;
+
+/**
+ * Ajuste manual de stock, auditado (PLAN.md 4.6).
+ *
+ * Se guarda el delta y no el total nuevo: dos ajustes simultáneos con
+ * "poné 7" se pisan y uno de los dos conteos desaparece sin dejar rastro;
+ * dos "sumá 3" se acumulan bien. El `FOR UPDATE` además serializa el ajuste
+ * contra una venta que esté descontando al mismo tiempo.
+ *
+ * El motivo es obligatorio y va a `stock_adjustments` junto con el antes y el
+ * después. Sin eso, un faltante de inventario es la palabra de uno contra la
+ * de otro.
+ */
+export async function adjustStock(input: StockAdjustment): Promise<{
+  previousOnHand: number;
+  newOnHand: number;
+}> {
+  const reason = input.reason.trim();
+  if (reason.length < ADJUSTMENT_MIN_REASON) {
+    throw new AdminInputError("Escribí el motivo del ajuste (ej: rotura, conteo, reposición).");
+  }
+  if (!Number.isInteger(input.delta) || input.delta === 0) {
+    throw new AdminInputError("El ajuste tiene que ser un número entero distinto de cero.");
+  }
+
+  return getDb().transaction(async (tx) => {
+    const locked = await tx
+      .select({ id: variants.id, onHand: variants.onHand })
+      .from(variants)
+      .where(eq(variants.id, input.variantId))
+      .for("update");
+
+    const variant = locked[0];
+    if (!variant) throw new AdminInputError("Esa variante no existe.");
+
+    // `on_hand` es UNSIGNED: restar de más haría wrap-around a un número
+    // gigante en vez de fallar. Se corta acá.
+    const newOnHand = variant.onHand + input.delta;
+    if (newOnHand < 0) {
+      throw new AdminInputError(
+        `No podés descontar ${Math.abs(input.delta)}: hay ${variant.onHand} en stock.`,
+      );
+    }
+
+    await tx.update(variants).set({ onHand: newOnHand }).where(eq(variants.id, variant.id));
+
+    await tx.insert(stockAdjustments).values({
+      variantId: variant.id,
+      delta: input.delta,
+      previousOnHand: variant.onHand,
+      newOnHand,
+      reason: reason.slice(0, 300),
+      actor: input.actor,
+    });
+
+    return { previousOnHand: variant.onHand, newOnHand };
+  });
+}
+
+/** Historial de ajustes de una variante, para la ficha del producto. */
+export async function listStockAdjustments(
+  variantId: number,
+  limit = 20,
+  executor?: Executor,
+) {
+  const tx = executor ?? getDb();
+  return tx
+    .select()
+    .from(stockAdjustments)
+    .where(eq(stockAdjustments.variantId, variantId))
+    .orderBy(desc(stockAdjustments.createdAt), desc(stockAdjustments.id))
+    .limit(limit);
+}
+
+export async function addProductImage(
+  input: { productId: number; cloudinaryId: string; alt: string | null },
+  executor?: Executor,
+): Promise<void> {
+  const tx = executor ?? getDb();
+  const [row] = await tx
+    .select({ total: count() })
+    .from(productImages)
+    .where(eq(productImages.productId, input.productId));
+
+  await tx.insert(productImages).values({
+    productId: input.productId,
+    cloudinaryId: input.cloudinaryId,
+    alt: input.alt,
+    position: row?.total ?? 0,
+  });
+}
+
+export async function deleteProductImage(imageId: number, executor?: Executor): Promise<void> {
+  const tx = executor ?? getDb();
+  await tx.delete(productImages).where(eq(productImages.id, imageId));
+}
+
+/**
+ * Stock bajo, para el resumen (PLAN.md 4.7).
+ *
+ * Se mide sobre la disponibilidad (`on_hand − reservas vigentes`), no sobre
+ * `on_hand`: si hay 5 y 5 están reservados, no hay nada para vender aunque el
+ * número físico se vea sano.
+ */
+export async function lowStockVariants(
+  threshold = 3,
+  limit = 20,
+  executor?: Executor,
+): Promise<
+  Array<{ variantId: number; sku: string; label: string; productName: string; available: number }>
+> {
+  const tx = executor ?? getDb();
+  const rows = await tx
+    .select({
+      variantId: variants.id,
+      sku: variants.sku,
+      label: variants.label,
+      onHand: variants.onHand,
+      productName: products.name,
+    })
+    .from(variants)
+    .innerJoin(products, eq(variants.productId, products.id))
+    .where(and(eq(variants.isActive, true), eq(products.isActive, true)))
+    .orderBy(asc(variants.onHand))
+    // Se traen de más porque el filtro real es sobre la disponibilidad, que se
+    // calcula recién después de restar las reservas.
+    .limit(limit * 5);
+
+  const held = await heldQtyMap(
+    rows.map((row) => row.variantId),
+    tx,
+  );
+
+  return rows
+    .map((row) => ({
+      variantId: row.variantId,
+      sku: row.sku,
+      label: row.label,
+      productName: row.productName,
+      available: Math.max(0, row.onHand - (held.get(row.variantId) ?? 0)),
+    }))
+    .filter((row) => row.available <= threshold)
+    .sort((a, b) => a.available - b.available)
+    .slice(0, limit);
+}

@@ -15,7 +15,8 @@
     "prepare": "husky",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "create-owner": "tsx scripts/create-owner.ts"
+    "create-owner": "tsx scripts/create-owner.ts",
+    "reconcile": "tsx scripts/reconcile.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

@@ -31,7 +31,16 @@ describe('orders.status sólo se escribe vía transitionOrder()', () => {
       if (file === TRANSITION_ORDER_MODULE || file === SELF) continue;
       const code = await readCode(file);
       // .update(orders).set({ ... status: ... })
-      if (/\.update\(\s*orders\s*\)[\s\S]{0,200}?\bstatus\s*:/.test(code)) offenders.push(file);
+      //
+      // El `.set(` va pegado al `.update(orders)` a propósito: buscar
+      // "cualquier `status:` en los 200 caracteres siguientes" marcaba como
+      // culpable a un `.update(orders).set({ createdAt })` que apenas tenía
+      // cerca, en otra función, un `createOrder({ status: ... })`. Un
+      // guardarraíl que grita en falso es un guardarraíl que alguien termina
+      // borrando.
+      if (/\.update\(\s*orders\s*\)\s*\.set\(\s*\{[\s\S]{0,200}?\bstatus\s*:/.test(code)) {
+        offenders.push(file);
+      }
     }
     expect(offenders).toEqual([]);
   });

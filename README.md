@@ -10,12 +10,14 @@ E-commerce para el mercado paraguayo. Guaraníes enteros, español (voseo), What
 |---|---|
 | [ARCH.md](./ARCH.md) | Modelo de datos (ERD), modelo de seguridad, máquina de estados del pedido, flujos de pago, integración FacturaPY (fase 2) |
 | [PLAN.md](./PLAN.md) | Los 5 PRs con tareas etiquetadas `[Opus 5]` / `[Sonnet 5]` |
-| [TASKS.md](./TASKS.md) | Checklist del sprint activo (PR #1) |
+| [TASKS.md](./TASKS.md) | Checklist por PR |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
 
 ## Estado
 
-🚧 **PR #1 (Foundation & Data Layer) en curso.** Schema, máquina de estados, stock, numeración de pedidos, utils PY, auth y seed están listos; falta la vidriera (PR #2) y la cuenta de Hostinger. Ver `TASKS.md`.
+🚧 **PR #4 (Admin & Hardening) en curso.** Están listos el schema y el dominio (PR #1), la vidriera (PR #2), el checkout (PR #3) y el panel del dueño con su endurecimiento (PR #4): login, pedidos, revisión de comprobantes, productos, resumen y cron de vencimiento.
+
+Falta para poder vender: la cuenta de Hostinger (deploy, PLAN.md 4.11), los datos bancarios reales del comercio y las fotos de producto. Pagopar es el PR #5, post-lanzamiento. Ver `TASKS.md`.
 
 ## Arrancar en local
 
@@ -26,7 +28,7 @@ docker compose up -d                # MySQL 8 en localhost:3306 (tienda_py + tie
 pnpm db:push                        # schema + FULLTEXT + FK self-ref + contador
 pnpm db:seed                        # 4 categorías, 24 productos, 43 variantes, 4 zonas de envío
 pnpm create-owner                   # única forma de crear un usuario del panel
-pnpm dev                            # http://localhost:3000
+pnpm dev                            # http://localhost:3000 · panel en /admin
 ```
 
 | Comando | Qué hace |
@@ -35,6 +37,28 @@ pnpm dev                            # http://localhost:3000
 | `pnpm test` | unitarios siempre; los de integración necesitan `TEST_DATABASE_URL` (esa base se borra y se recrea en cada corrida) |
 | `pnpm db:studio` | Drizzle Studio |
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |
+| `pnpm reconcile` | control de caja: suma `order_items` contra los totales del pedido y sale con código 1 si algo no cuadra |
+
+## El panel (`/admin`)
+
+Se entra con la cuenta que crea `pnpm create-owner` — **no hay ruta pública de registro**.
+
+| Ruta | Qué hace |
+|---|---|
+| `/admin` | ventas del día y del mes, comprobantes por revisar, stock bajo |
+| `/admin/pedidos` | filtros por estado/método/fecha, búsqueda por nro., WhatsApp o RUC, paginación server-side |
+| `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
+| `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado) |
+
+### Cron de Hostinger
+
+Vence los pedidos sin pago que pasaron su `reserved_until` y limpia reservas viejas. En el hPanel, cada 15 minutos:
+
+```bash
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/cron/vencer-pedidos
+```
+
+La ruta compara `CRON_SECRET` en tiempo constante y está rate-limited. Sin la variable configurada responde 503, nunca 200: una ruta "abierta hasta que la configuren" es una ruta abierta.
 
 ## Decisiones tomadas
 
@@ -50,3 +74,6 @@ pnpm dev                            # http://localhost:3000
 - El navegador nunca decide precios ni stock — el servidor recalcula todo desde la DB.
 - El estado de un pedido sólo cambia vía `transitionOrder()`. Nunca un `UPDATE orders SET status` suelto.
 - Nada de secretos con prefijo `NEXT_PUBLIC_`.
+- **Toda** server action de `/admin` llama a `requireAdminSession()` como primera línea. El proxy que protege `/admin/*` es UX: una server action es un endpoint HTTP propio y se la puede invocar sin pasar por ninguna URL `/admin`.
+
+Cada una de estas reglas tiene un test que la verifica sobre el código en CI (`tests/unit/no-raw-status-update.test.ts`, `money-path.test.ts`, `admin-guards.test.ts`, `security-review.test.ts`): un checklist que se corrió una vez a mano se rompe en el commit siguiente.

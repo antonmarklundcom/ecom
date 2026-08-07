@@ -1,0 +1,69 @@
+"use client";
+
+import { useState, useTransition } from "react";
+
+import { loginAdmin } from "@/app/actions/admin-auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export function LoginForm({ next }: { next: string }) {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setError(null);
+        const data = new FormData(event.currentTarget);
+        data.set("next", next);
+
+        startTransition(async () => {
+          // Si entra, la acción hace `redirect()` y nunca devuelve; sólo
+          // volvemos acá cuando falló.
+          const result = await loginAdmin(data);
+          setError(result.error);
+        });
+      }}
+    >
+      {error ? (
+        <p
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
+        >
+          {error}
+        </p>
+      ) : null}
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="username"
+          autoCapitalize="none"
+          inputMode="email"
+        />
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="password">Contraseña</Label>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+        />
+      </div>
+
+      <Button type="submit" disabled={isPending}>
+        {isPending ? "Entrando…" : "Entrar"}
+      </Button>
+    </form>
+  );
+}
