@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { PagoSpi } from "@/components/pago-spi";
 import { ReceiptUpload } from "@/components/receipt-upload";
 import { getOrderItems, requireOrderAccess } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import type { OrderStatus } from "@/db/schema";
-import { comercioWaLink } from "@/lib/comercio";
+import { comercioWaLink, datosPagoSpi, receiptWaMessage } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
 
@@ -61,6 +62,16 @@ export default async function OrderPage({
     `¡Hola! Te escribo por mi pedido ${order.orderNumber} (${formatGs(order.totalPyg)}).`
   );
 
+  // Los eventos "system" (p. ej. la notificación al dueño) son auditoría
+  // interna, no pasos del pedido — el comprador no necesita verlos.
+  const timelineEvents = events.filter((event) => event.actor !== "system");
+
+  const isTransferencia = order.paymentMethod === "transferencia";
+  const spi = isTransferencia ? datosPagoSpi() : null;
+  const receiptWaHref = isTransferencia
+    ? comercioWaLink(receiptWaMessage(order.orderNumber, order.totalPyg, order.customerName))
+    : null;
+
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
       <p className="text-muted-foreground text-sm">Pedido</p>
@@ -69,24 +80,41 @@ export default async function OrderPage({
         Estado: <strong>{STATUS_LABEL[order.status]}</strong>
       </p>
 
-      {order.status === "pendiente_pago" && order.paymentMethod === "transferencia" ? (
+      {order.status === "pendiente_pago" && isTransferencia ? (
         <section className="border-border mt-6 rounded-xl border p-4">
           <h2 className="font-medium">Pagá por transferencia o QR</h2>
           <p className="text-muted-foreground mt-1 text-sm">
             Transferí el total exacto y subí el comprobante acá abajo. Lo revisamos y te
             confirmamos.
           </p>
-          <p className="mt-3 text-sm">
-            Total a transferir: <strong className="tabular-nums">{formatGs(order.totalPyg)}</strong>
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Los datos bancarios del comercio se cargan en el PR #3.4.
-          </p>
+          {spi ? (
+            <PagoSpi datos={spi} totalPyg={order.totalPyg} />
+          ) : (
+            <>
+              <p className="mt-3 text-sm">
+                Total a transferir: <strong className="tabular-nums">{formatGs(order.totalPyg)}</strong>
+              </p>
+              <p className="text-muted-foreground mt-2 text-sm">
+                Todavía no cargamos los datos bancarios acá — escribinos por WhatsApp y coordinamos el
+                pago.
+              </p>
+              {waHref ? (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border-border mt-3 inline-block rounded-lg border px-4 py-2 text-sm"
+                >
+                  Coordinar por WhatsApp
+                </a>
+              ) : null}
+            </>
+          )}
         </section>
       ) : null}
 
       {["pendiente_pago", "rechazado", "esperando_verificacion"].includes(order.status) &&
-      order.paymentMethod === "transferencia" &&
+      isTransferencia &&
       token ? (
         <section className="border-border mt-6 rounded-xl border p-4">
           <h2 className="font-medium">Subí tu comprobante</h2>
@@ -97,6 +125,16 @@ export default async function OrderPage({
               remaining={RECEIPT_MAX_PER_ORDER - receiptCount}
             />
           </div>
+          {receiptWaHref ? (
+            <a
+              href={receiptWaHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="border-border mt-3 inline-block rounded-lg border px-4 py-2 text-sm"
+            >
+              Enviar comprobante por WhatsApp
+            </a>
+          ) : null}
         </section>
       ) : null}
 
@@ -149,7 +187,7 @@ export default async function OrderPage({
       <section className="mt-6">
         <h2 className="font-medium">Seguimiento</h2>
         <ol className="mt-2 space-y-2 text-sm">
-          {events.map((event) => (
+          {timelineEvents.map((event) => (
             <li key={event.id} className="flex gap-3">
               <span className="text-muted-foreground w-36 shrink-0 tabular-nums">
                 {formatDateTimePY(event.createdAt)}
