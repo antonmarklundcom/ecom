@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function OrderLookupForm() {
+export function OrderLookupForm({ defaultOrderNumber }: { defaultOrderNumber?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -41,7 +41,13 @@ export function OrderLookupForm() {
 
       <div className="grid gap-1.5">
         <Label htmlFor="orderNumber">Número de pedido</Label>
-        <Input id="orderNumber" name="orderNumber" required placeholder="PY-000123" />
+        <Input
+          id="orderNumber"
+          name="orderNumber"
+          required
+          placeholder="PY-000123"
+          defaultValue={defaultOrderNumber}
+        />
       </div>
 
       <div className="grid gap-1.5">

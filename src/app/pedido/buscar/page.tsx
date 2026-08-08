@@ -9,7 +9,12 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export default function OrderLookupPage() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function OrderLookupPage({ searchParams }: { searchParams: SearchParams }) {
+  const query = await searchParams;
+  const pedido = Array.isArray(query.pedido) ? query.pedido[0] : query.pedido;
+
   return (
     <main className="mx-auto w-full max-w-md px-4 py-12">
       <h1 className="text-2xl font-semibold tracking-tight">Buscá tu pedido</h1>
@@ -19,7 +24,7 @@ export default function OrderLookupPage() {
       </p>
 
       <div className="mt-6">
-        <OrderLookupForm />
+        <OrderLookupForm defaultOrderNumber={pedido} />
       </div>
     </main>
   );
