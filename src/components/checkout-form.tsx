@@ -18,13 +18,19 @@ import { formatGs } from "@/lib/money";
  * Ojo con lo que NO manda: ningún monto. El total que se ve acá es
  * informativo; el que se cobra lo calcula `createOrder` desde la DB.
  */
-export function CheckoutForm({ cities }: { cities: string[] }) {
+export function CheckoutForm({
+  cities,
+  pagoparEnabled = false,
+}: {
+  cities: string[];
+  pagoparEnabled?: boolean;
+}) {
   const router = useRouter();
   const { lines, clear } = useCart();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [docType, setDocType] = useState<"NINGUNO" | "CI" | "RUC">("NINGUNO");
-  const [paymentMethod, setPaymentMethod] = useState<"transferencia" | "contra_entrega">(
+  const [paymentMethod, setPaymentMethod] = useState<"transferencia" | "contra_entrega" | "tarjeta">(
     "transferencia"
   );
 
@@ -72,7 +78,14 @@ export function CheckoutForm({ cities }: { cities: string[] }) {
           }
 
           clear();
-          router.push(result.redirectTo);
+          // La pasarela de Pagopar vive en otro dominio: `router.push` es
+          // para rutas internas, así que un link externo necesita navegación
+          // real del navegador.
+          if (/^https?:\/\//.test(result.redirectTo)) {
+            window.location.href = result.redirectTo;
+          } else {
+            router.push(result.redirectTo);
+          }
         });
       }}
     >
@@ -155,6 +168,15 @@ export function CheckoutForm({ cities }: { cities: string[] }) {
           [
             ["transferencia", "Transferencia / QR (SPI)", "Te pasamos los datos y subís el comprobante."],
             ["contra_entrega", "Contra entrega", "Pagás en efectivo cuando recibís el pedido."],
+            ...(pagoparEnabled
+              ? ([
+                  [
+                    "tarjeta",
+                    "Tarjeta / Pagopar",
+                    "Pagás online, ahora, con tarjeta u otros medios de Pagopar.",
+                  ],
+                ] as const)
+              : []),
           ] as const
         ).map(([value, label, hint]) => (
           <label

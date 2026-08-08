@@ -230,7 +230,7 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [ ] Túnel HTTPS + "URL de respuesta" registrada en el panel de Pagopar para probarlo de punta a punta (Pagopar no llama a `localhost`)
 
 ## 22. Pendiente de PR #5 *(Sonnet 5)*
-- [ ] Método "Tarjeta / Pagopar" en el checkout + página de retorno (PLAN.md 5.5)
+- [x] Método "Tarjeta / Pagopar" en el checkout + página de retorno (PLAN.md 5.5)
 - [x] Reserva de 45 min para el método tarjeta (`RESERVATION_TTL_MINUTES.tarjeta`, ya venía del PR #1)
 
 ## Definition of done del PR #5

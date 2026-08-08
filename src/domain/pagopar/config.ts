@@ -70,3 +70,18 @@ export function isPagoparConfigured(): boolean {
     return false;
   }
 }
+
+/**
+ * URL de la página de pago alojada por Pagopar para un `hash_pedido` dado.
+ *
+ * ⚠️ Igual que `webhookResponseBody()` en `protocol.ts`: no hay acceso a la
+ * doc v2 vigente para confirmar si la página de pago vive en el mismo host
+ * que la API (`PAGOPAR_BASE_URL`) bajo `/pagos/{hash_pedido}` — el patrón
+ * público más común de Pagopar — o en un host de checkout separado. Se usa
+ * `PAGOPAR_BASE_URL` por ser lo único configurado; confirmar contra la doc
+ * y el sandbox antes de cobrar de verdad, y ajustar sólo esta función si el
+ * host difiere.
+ */
+export function pagoparCheckoutUrl(hashPedido: string, config: PagoparConfig = pagoparConfig()): string {
+  return `${config.baseUrl}/pagos/${encodeURIComponent(hashPedido)}`;
+}
