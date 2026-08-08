@@ -111,9 +111,9 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] **`/pedido/buscar`** — nro. + teléfono, 5 intentos / 15 min / IP, mensaje de error genérico, redirige a la URL tokenizada
 - [x] `/checkout` con formulario (nombre, WhatsApp, RUC/CI con DV, ciudad/barrio/dirección, método de pago)
 - [x] Timeline del pedido desde `order_events`
-- [ ] Página SPI/QR con datos bancarios y botones de copiar *(faltan los datos reales del comercio — TASKS.md §0)*
-- [ ] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado
-- [ ] Notificación al dueño de un pedido nuevo
+- [x] Página SPI/QR con datos bancarios y botones de copiar *(implementado contra `.env.example`/`SPI_*`; degrada a "coordinar por WhatsApp" si faltan — siguen pendientes los datos reales del comercio, TASKS.md §0)*
+- [x] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado
+- [x] Notificación al dueño de un pedido nuevo
 
 ---
 
