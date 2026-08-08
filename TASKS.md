@@ -64,13 +64,13 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] `normalizePhonePY("0981 123 456")` → `"+595981123456"`
 - [x] `ivaIncluded(110000, 10)` → `10000` — redondeo **por línea**, no sobre el total
 - [x] `waLink(phone, text)` con `encodeURIComponent` + límite de longitud
-- [ ] Fechas: `dd/mm/yyyy`, zona `America/Asuncion` en toda la UI
+- [x] Fechas: `dd/mm/yyyy`, zona `America/Asuncion` en toda la UI — `formatDatePY`/`formatDateTimePY` (`src/lib/py.ts`), usadas en todas las páginas que muestran fechas; sin `toLocaleDateString` suelto en la UI
 
 ## 6. Auth + Cloudinary
 - [x] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)`
 - [x] Script `create-owner.ts` — **sin ruta pública de registro**
 - [x] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated (config + `signedReceiptUrl()` — sin flow de upload todavía)
-- [ ] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido
+- [x] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido — `src/app/actions/receipt.ts`, ya cerrado en §9
 - [x] `signedReceiptUrl()` con TTL corto para el admin
 
 ## 7. Zod + seed
@@ -118,6 +118,7 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] **`/pedido/buscar`** — nro. + teléfono, 5 intentos / 15 min / IP, mensaje de error genérico, redirige a la URL tokenizada
 - [x] `/checkout` con formulario (nombre, WhatsApp, RUC/CI con DV, ciudad/barrio/dirección, método de pago)
 - [x] Timeline del pedido desde `order_events`
+- [x] `/pedido/[order_number]` se auto-actualiza al confirmarse el pago — `OrderStatusPoller` (`router.refresh()` cada 10s mientras el estado espera algo, tope de ~5 min)
 - [x] Página SPI/QR con datos bancarios y botones de copiar — lee `BANCO_*` del entorno (`src/lib/comercio.ts`); sin configurar, muestra un aviso en vez de inventar un banco o un RUC *(datos reales del comercio siguen pendientes — TASKS.md §0)*
 - [x] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado (nro. de pedido, total, URL tokenizada)
 - [x] Notificación al dueño de un pedido nuevo — link `wa.me` de un toque desde `/admin/pedidos`, sin SMTP
