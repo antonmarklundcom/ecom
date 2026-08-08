@@ -4,7 +4,8 @@ import Link from "next/link";
 import { OrderFiltersForm } from "@/components/admin/order-filters";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
-import { isOrderStatus, isPaymentMethod, listOrders } from "@/domain/admin-orders";
+import { isOrderStatus, isPaymentMethod, listOrders, type AdminOrderRow } from "@/domain/admin-orders";
+import { comercioWaLink } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
 
@@ -69,10 +70,10 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
         // tabla de 8 columnas ahí es scroll horizontal y nada más.
         <ul className="mt-4 grid gap-3">
           {result.rows.map((order) => (
-            <li key={order.id}>
+            <li key={order.id} className="border-border rounded-xl border">
               <Link
                 href={`/admin/pedidos/${order.id}`}
-                className="border-border hover:bg-muted/50 block rounded-xl border p-4"
+                className="hover:bg-muted/50 block p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium tabular-nums">{order.orderNumber}</span>
@@ -95,6 +96,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
                   ) : null}
                 </p>
               </Link>
+              {order.status === "pendiente_pago" ? <NotifyOwnerLink order={order} /> : null}
             </li>
           ))}
         </ul>
@@ -150,5 +152,33 @@ function Pagination({
         <span />
       )}
     </nav>
+  );
+}
+
+/**
+ * PLAN 3.10 — sin SMTP ni servicios externos: un link `wa.me` con el mensaje
+ * ya armado para que el dueño (o quien esté de guardia en WhatsApp) se avise
+ * de un pedido nuevo con un solo toque, sin loguearse al panel.
+ */
+function NotifyOwnerLink({ order }: { order: AdminOrderRow }) {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const adminUrl = `${siteUrl}/admin/pedidos/${order.id}`;
+  const waHref = comercioWaLink(
+    `Pedido nuevo ${order.orderNumber} — ${order.customerName} — ${formatGs(order.totalPyg)} ` +
+      `(${PAYMENT_METHOD_LABEL[order.paymentMethod]}). Ver: ${adminUrl}`
+  );
+  if (!waHref) return null;
+
+  return (
+    <div className="border-border border-t px-4 py-2">
+      <a
+        href={waHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-muted-foreground hover:text-foreground text-xs"
+      >
+        Avisar por WhatsApp →
+      </a>
+    </div>
   );
 }
