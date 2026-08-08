@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { orderItems, orders, payments } from "@/db/schema";
 
 import { iniciarTransaccion, type PagoparRequestOptions } from "./client";
+import { pagoparCheckoutUrlTemplate } from "./config";
 
 /**
  * Arranque del pago con tarjeta (PLAN.md 5.1, ARCH.md §4).
@@ -133,4 +134,28 @@ export async function startPagoparCheckout(
     totalPyg: order.totalPyg,
     hashPedido,
   };
+}
+
+export class PagoparCheckoutUrlError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PagoparCheckoutUrlError";
+  }
+}
+
+/**
+ * A dónde se manda el navegador del comprador para pagar (PLAN.md 5.5).
+ *
+ * `PAGOPAR_CHECKOUT_URL` puede llevar el placeholder `{hash_pedido}` (se
+ * reemplaza); sin placeholder, el hash se pega al final del path.
+ */
+export function pagoparCheckoutRedirectUrl(hashPedido: string): string {
+  const template = pagoparCheckoutUrlTemplate();
+  if (!template) {
+    throw new PagoparCheckoutUrlError("Falta PAGOPAR_CHECKOUT_URL");
+  }
+  const encoded = encodeURIComponent(hashPedido);
+  return template.includes("{hash_pedido}")
+    ? template.replace("{hash_pedido}", encoded)
+    : `${template.replace(/\/+$/, "")}/${encoded}`;
 }

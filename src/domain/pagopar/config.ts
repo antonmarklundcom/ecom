@@ -70,3 +70,21 @@ export function isPagoparConfigured(): boolean {
     return false;
   }
 }
+
+/**
+ * Plantilla de la URL de checkout hospedado de Pagopar (PLAN.md 5.5).
+ *
+ * Sin default a propósito, mismo criterio que `PAGOPAR_BASE_URL`: no hay
+ * acceso a la doc v2 vigente para confirmar el host correcto, y una URL "por
+ * si acaso" manda al comprador a pagar al lugar equivocado. Se completa en
+ * `.env` cuando se confirme contra la doc o el sandbox.
+ */
+export function pagoparCheckoutUrlTemplate(): string | null {
+  const value = read("PAGOPAR_CHECKOUT_URL");
+  return value === "" ? null : value;
+}
+
+/** El checkout sólo ofrece "Tarjeta" si además de las claves está la URL de pago. */
+export function isPagoparCheckoutOfferable(): boolean {
+  return isPagoparConfigured() && pagoparCheckoutUrlTemplate() !== null;
+}
