@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CopyField } from "@/components/copy-field";
 import { ReceiptUpload } from "@/components/receipt-upload";
-import { getOrderItems, requireOrderAccess } from "@/domain/order-access";
+import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import type { OrderStatus } from "@/db/schema";
-import { comercioWaLink } from "@/lib/comercio";
-import { formatGs } from "@/lib/money";
+import { comercioDatosBancarios, comercioWaLink } from "@/lib/comercio";
+import { formatGs, formatGsPlain } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +63,18 @@ export default async function OrderPage({
     `¡Hola! Te escribo por mi pedido ${order.orderNumber} (${formatGs(order.totalPyg)}).`
   );
 
+  const datosBancarios = comercioDatosBancarios();
+
+  // PLAN 3.6: mensaje pre-armado con nro. de pedido, total y la URL
+  // tokenizada — bien por debajo del límite de ~1500 caracteres de waLink()
+  // (ARCH.md §5 punto 4).
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const buyerUrl = `${siteUrl}${orderUrl(order.orderNumber, order.accessToken)}`;
+  const comprobanteWaHref = comercioWaLink(
+    `¡Hola! Ya transferí el pedido ${order.orderNumber} por ${formatGs(order.totalPyg)}. ` +
+      `Te mando el comprobante. Podés ver el pedido acá: ${buyerUrl}`
+  );
+
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
       <p className="text-muted-foreground text-sm">Pedido</p>
@@ -76,12 +90,52 @@ export default async function OrderPage({
             Transferí el total exacto y subí el comprobante acá abajo. Lo revisamos y te
             confirmamos.
           </p>
-          <p className="mt-3 text-sm">
-            Total a transferir: <strong className="tabular-nums">{formatGs(order.totalPyg)}</strong>
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Los datos bancarios del comercio se cargan en el PR #3.4.
-          </p>
+
+          {datosBancarios ? (
+            <>
+              <dl className="divide-border mt-3 divide-y">
+                <CopyField label="Banco" value={datosBancarios.banco} />
+                <CopyField label="Titular" value={datosBancarios.titular} />
+                <CopyField label="RUC" value={datosBancarios.ruc} />
+                <CopyField label={datosBancarios.tipoCuenta} value={datosBancarios.cuenta} />
+                <CopyField label="Total a transferir (₲)" value={formatGsPlain(order.totalPyg)} />
+              </dl>
+
+              {datosBancarios.qrUrl ? (
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <div className="border-border relative size-56 overflow-hidden rounded-lg border bg-white">
+                    <Image
+                      src={datosBancarios.qrUrl}
+                      alt="Código QR para pagar por SPI"
+                      fill
+                      className="object-contain p-2"
+                      unoptimized
+                    />
+                  </div>
+                  <p className="text-muted-foreground text-xs">
+                    O escaneá el QR desde la app de tu banco.
+                  </p>
+                </div>
+              ) : null}
+
+              <ol className="mt-4 list-decimal space-y-1.5 pl-5 text-sm">
+                <li>Abrí la app de tu banco y elegí transferencia por SPI o pago por QR.</li>
+                <li>Copiá el banco, titular, RUC y número de cuenta de arriba (o escaneá el QR).</li>
+                <li>
+                  Copiá el total exacto —{" "}
+                  <strong className="tabular-nums">{formatGs(order.totalPyg)}</strong>— y pegalo
+                  como monto. No redondees ni cambies el número.
+                </li>
+                <li>Confirmá la transferencia.</li>
+                <li>Sacá una captura del comprobante y subila acá abajo.</li>
+              </ol>
+            </>
+          ) : (
+            <p className="text-muted-foreground mt-3 rounded-lg border border-dashed p-3 text-sm">
+              Los datos bancarios del comercio todavía no están configurados. Escribinos por
+              WhatsApp con tu número de pedido y te los pasamos a mano mientras tanto.
+            </p>
+          )}
         </section>
       ) : null}
 
@@ -97,6 +151,21 @@ export default async function OrderPage({
               remaining={RECEIPT_MAX_PER_ORDER - receiptCount}
             />
           </div>
+          {comprobanteWaHref ? (
+            <>
+              <p className="text-muted-foreground mt-4 text-xs">
+                También podés mandarnos el comprobante directo por WhatsApp:
+              </p>
+              <a
+                href={comprobanteWaHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="border-border mt-2 inline-flex rounded-lg border px-4 py-2 text-sm"
+              >
+                Enviar comprobante por WhatsApp
+              </a>
+            </>
+          ) : null}
         </section>
       ) : null}
 

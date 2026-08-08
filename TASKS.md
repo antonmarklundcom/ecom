@@ -1,4 +1,8 @@
-# TASKS.md — Sprint activo: **PR #5 · Pagopar**
+# TASKS.md — Sprint activo: **cierre de pendientes PR #3 · Checkout SPI/QR**
+
+PR #5 (Pagopar) ya está mergeado en `main`; sólo quedan bloqueados 5.4/22 por
+credenciales de sandbox (TASKS.md §0). Lo que falta cerrar ahora es la
+página SPI/QR del checkout — la tienda no podía cobrar sin ella (§9).
 
 Stack: Next.js 15 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudinary.
 Marcá `[x]` al terminar. Cada bloque es un commit.
@@ -111,9 +115,9 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] **`/pedido/buscar`** — nro. + teléfono, 5 intentos / 15 min / IP, mensaje de error genérico, redirige a la URL tokenizada
 - [x] `/checkout` con formulario (nombre, WhatsApp, RUC/CI con DV, ciudad/barrio/dirección, método de pago)
 - [x] Timeline del pedido desde `order_events`
-- [ ] Página SPI/QR con datos bancarios y botones de copiar *(faltan los datos reales del comercio — TASKS.md §0)*
-- [ ] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado
-- [ ] Notificación al dueño de un pedido nuevo
+- [x] Página SPI/QR con datos bancarios y botones de copiar — lee `BANCO_*` del entorno (`src/lib/comercio.ts`); sin configurar, muestra un aviso en vez de inventar un banco o un RUC *(datos reales del comercio siguen pendientes — TASKS.md §0)*
+- [x] Botón "Enviar comprobante por WhatsApp" con mensaje pre-armado (nro. de pedido, total, URL tokenizada)
+- [x] Notificación al dueño de un pedido nuevo — link `wa.me` de un toque desde `/admin/pedidos`, sin SMTP
 
 ---
 
