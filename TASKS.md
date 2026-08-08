@@ -1,8 +1,11 @@
-# TASKS.md — Sprint activo: **cierre de pendientes PR #3 · Checkout SPI/QR**
+# TASKS.md — Sprint activo: **cierre de pendientes de código (PR #3 y #5)**
 
-PR #5 (Pagopar) ya está mergeado en `main`; sólo quedan bloqueados 5.4/22 por
-credenciales de sandbox (TASKS.md §0). Lo que falta cerrar ahora es la
-página SPI/QR del checkout — la tienda no podía cobrar sin ella (§9).
+Todo lo codeable de PR #3 (SPI/QR, §9) y PR #5 (Pagopar, §18-22) está
+cerrado. Lo único que queda abierto en el checklist es lo bloqueado por
+accesos externos que no tiene Sonnet/Opus 5 (TASKS.md §0): cuenta de
+Hostinger, credenciales reales de Pagopar/Cloudinary/banco, y confirmar
+contra la doc/sandbox de Pagopar el sobre del webhook (§21) y
+`PAGOPAR_CHECKOUT_URL` (§22).
 
 Stack: Next.js 15 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudinary.
 Marcá `[x]` al terminar. Cada bloque es un commit.
@@ -230,7 +233,7 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [ ] Túnel HTTPS + "URL de respuesta" registrada en el panel de Pagopar para probarlo de punta a punta (Pagopar no llama a `localhost`)
 
 ## 22. Pendiente de PR #5 *(Sonnet 5)*
-- [ ] Método "Tarjeta / Pagopar" en el checkout + página de retorno (PLAN.md 5.5)
+- [x] Método "Tarjeta / Pagopar" en el checkout + página de retorno (PLAN.md 5.5) — sólo se ofrece si `isPagoparCheckoutOfferable()` (claves **y** `PAGOPAR_CHECKOUT_URL` cargadas); `/checkout/retorno` es la URL fija a registrar a mano en el panel de Pagopar, junto a la de webhook *(⚠️ `PAGOPAR_CHECKOUT_URL` sin confirmar contra la doc v2/sandbox, mismo caso que §21 — queda vacía en `.env.example` a propósito)*
 - [x] Reserva de 45 min para el método tarjeta (`RESERVATION_TTL_MINUTES.tarjeta`, ya venía del PR #1)
 
 ## Definition of done del PR #5
