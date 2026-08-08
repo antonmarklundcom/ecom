@@ -14,6 +14,7 @@ import { assertGs, ivaIncluded } from "@/lib/money";
 import { normalizePhonePY, validateDoc } from "@/lib/py";
 
 import { priceCart, type CartInput } from "./cart";
+import { notifyOwnerOfNewOrder } from "./notify-owner";
 import { nextOrderNumber } from "./order-number";
 import { SHIPPING_IVA_RATE, quoteShipping } from "./shipping";
 import { RESERVATION_TTL_MINUTES, reserveStock } from "./stock";
@@ -91,7 +92,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
     throw new CheckoutError("El carrito está vacío.");
   }
 
-  return getDb().transaction(async (tx) => {
+  const created = await getDb().transaction(async (tx) => {
     // 1. Re-precio: precio, IVA y stock salen de la DB.
     const cart = await priceCart(input.items, { executor: tx });
 
@@ -197,4 +198,15 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       reservedUntil,
     };
   });
+
+  // 7. Notificación al dueño — DESPUÉS del commit, y no puede abortarlo: si
+  //    falla, el pedido igual quedó creado (notifyOwnerOfNewOrder atrapa sus
+  //    propios errores).
+  await notifyOwnerOfNewOrder({
+    orderId: created.orderId,
+    orderNumber: created.orderNumber,
+    totalPyg: created.totalPyg,
+  });
+
+  return created;
 }

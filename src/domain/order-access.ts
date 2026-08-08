@@ -100,3 +100,11 @@ export async function findOrderByNumberAndPhone(
 export function orderUrl(orderNumber: string, accessToken: string, baseUrl = ""): string {
   return `${baseUrl}/pedido/${orderNumber}?t=${accessToken}`;
 }
+
+/**
+ * URL interna del panel — la que recibe el dueño, nunca el comprador.
+ * Requiere sesión de admin; a diferencia de {@link orderUrl} no lleva token.
+ */
+export function adminOrderUrl(orderId: number, baseUrl = ""): string {
+  return `${baseUrl}/admin/pedidos/${orderId}`;
+}
