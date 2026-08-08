@@ -1,4 +1,4 @@
-# TASKS.md — Sprint activo: **PR #4 · Admin & Hardening**
+# TASKS.md — Sprint activo: **PR #5 · Pagopar**
 
 Stack: Next.js 15 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudinary.
 Marcá `[x]` al terminar. Cada bloque es un commit.
@@ -12,7 +12,7 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] **Métodos de pago del MVP: SPI/QR manual + contra entrega.** Pagopar queda para el PR #5, post-lanzamiento
 - [ ] Datos bancarios reales (Banco, titular, RUC, nro. de cuenta) + imagen del QR SPI — necesarios recién en el PR #3
 - [ ] Número de WhatsApp del comercio en formato `+5959XXXXXXXX`
-- [x] ~~Credenciales de sandbox de Pagopar~~ — no bloquean nada hasta el PR #5
+- [ ] **Credenciales de sandbox de Pagopar** (`PAGOPAR_PUBLIC_KEY` / `PAGOPAR_PRIVATE_KEY`) + la URL base de la API 2.0 — ahora sí bloquean: son lo único que falta para confirmar el formato de la respuesta del webhook (§21)
 - [ ] Cuenta de Cloudinary (o reusar la de inmobiliaria con folders separados)
 
 ---
@@ -182,3 +182,54 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] `pnpm build` sin warnings
 - [x] Ciclo completo probado en un navegador a 390 px: login → filtrar → aprobar comprobante → el pedido queda `pagado` con su auditoría → salir
 - [ ] Deploy a Hostinger, smoke test en producción y script de backup de la DB *(PLAN.md 4.11 — bloqueado: necesita la cuenta de Hostinger)*
+
+---
+
+# PR #5 · Pagopar *(post-MVP, no toca el schema)*
+
+## 18. Cliente de Pagopar *(Opus 5)*
+- [x] `pagoparAmount()` — el total viaja como **string entero exacto** (`"150000"`, nunca `"150000.00"`); rechaza decimales, negativos y notación científica
+- [x] `requestToken()` = `sha1(PRIVATE_KEY + order_number + total)`, con `order_number` (nunca el id interno)
+- [x] `webhookGuardToken()` = `sha1(PRIVATE_KEY + hash_pedido)` — **función aparte**, otra entrada, otro vector de test
+- [x] `iniciarTransaccion()` con request/response tipados y el sobre `{respuesta, resultado}` parseado
+- [x] Timeout por intento (`AbortSignal.timeout`) + reintentos con **jitter completo**; 5xx y cortes de red se reintentan, 4xx no
+- [x] `startPagoparCheckout()` deja la fila de `payments` con `provider_ref = hash_pedido` **antes** del redirect — sin eso, el aviso que llega temprano no tiene a qué pedido aplicarse
+- [x] `PAGOPAR_BASE_URL` sin default en el código: una URL "por si acaso" manda los datos del comercio al host equivocado
+
+## 19. Webhook `POST /api/webhooks/pagopar` *(Opus 5)*
+- [x] Guard en el querystring: `sha1(PRIVATE_KEY + hash_pedido)` comparado con `timingSafeEqual`; 401 genérico que no distingue "falta el token" de "está mal"
+- [x] Idempotencia: `INSERT IGNORE` en `payment_events (provider, event_key)`; `affectedRows === 0` → repetido → 200 y afuera
+- [x] La clave de idempotencia lleva el estado además del hash: si fuera sólo el hash, un primer aviso de "no pagado" taparía para siempre el "pagado" que viene después
+- [x] Verificación de **monto contra `orders.total_pyg`** antes de transicionar (comparación de enteros, sin floats)
+- [x] `transitionOrder(→ pagado)` — nunca un `UPDATE` directo
+- [x] El `INSERT IGNORE` y la transición van en **una sola transacción**: si el proceso muere en el medio, el reintento rehace el trabajo en vez de descartarlo como repetido
+- [x] Un pedido en estado final (`enviado`, `cancelado`) responde 200 y queda logueado, sin arrastrarlo de vuelta ni entrar en bucle de reintentos
+- [x] Presupuesto de 4 s (`withDeadline`) por debajo de los ~5 s de Pagopar; el corte es seguro porque la transacción es atómica
+- [x] Rate limit por IP, holgado (120/min): tirar un aviso legítimo cuesta un pedido cobrado sin marcar
+- [x] Logs sin secretos: nunca `PAGOPAR_PRIVATE_KEY` ni el token recibido; sí el número de pedido cuando el dueño tiene que intervenir
+- [x] Sin `PAGOPAR_PRIVATE_KEY` la ruta responde 503, no 200
+
+## 20. Suite del webhook *(Opus 5)*
+- [x] Aviso válido → `pagado`, stock descontado, `payments` en `paid`, fila en `order_events` con actor `pagopar`
+- [x] Firma alterada → 401, nada cambia, ni siquiera se registra el evento (incluye el caso "firma válida pero de otro pedido")
+- [x] Replay ×3 → 200 las tres veces, una sola transición, stock descontado **una sola vez**, una sola fila en `payment_events`
+- [x] Monto distinto → 409, pedido intacto; el evento **no** queda registrado para que el aviso corregido pueda procesarse
+- [x] Pedido inexistente → 404 con rollback, y el reintento posterior (cuando ya existe la fila de `payments`) sí cobra
+- [x] Webhook antes del redirect → cobra igual, y el comprador encuentra el pedido ya pagado cuando vuelve
+- [x] Pedido ya enviado → 200, sigue `enviado`, sin transición nueva y sin tocar el stock
+- [x] Test de que ningún log imprime la clave privada ni el token recibido
+
+## 21. Formato de la respuesta *(Opus 5)*
+- [x] La forma de la respuesta vive en **una sola función** (`webhookResponseBody`), fijada por test
+- [x] Test de integración contra el sandbox listo y salteándose solo mientras no haya credenciales (`PAGOPAR_SANDBOX_*` en `.env.example`, vacías)
+- [ ] ⚠️ **Confirmar el sobre exacto contra la doc v2 vigente + sandbox.** ARCH.md §4 avisa que cambió entre revisiones; al implementar no había credenciales ni acceso de red a la documentación de Pagopar, así que quedó fijado el sobre `{respuesta, resultado}` que usa el resto de la API 2.0 — **sin confirmar**. Es lo único que falta antes de cobrar de verdad
+- [ ] Túnel HTTPS + "URL de respuesta" registrada en el panel de Pagopar para probarlo de punta a punta (Pagopar no llama a `localhost`)
+
+## 22. Pendiente de PR #5 *(Sonnet 5)*
+- [ ] Método "Tarjeta / Pagopar" en el checkout + página de retorno (PLAN.md 5.5)
+- [x] Reserva de 45 min para el método tarjeta (`RESERVATION_TTL_MINUTES.tarjeta`, ya venía del PR #1)
+
+## Definition of done del PR #5
+- [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verde (348 tests, 1 salteado: el de sandbox)
+- [x] Un webhook repetido no cambia nada; una firma alterada devuelve 401 y queda logueada
+- [ ] Compra de sandbox pagada de punta a punta *(bloqueado: faltan credenciales de Pagopar — TASKS.md §0)*
