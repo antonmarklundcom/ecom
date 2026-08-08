@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CopyField } from "@/components/copy-field";
+import { OrderStatusPoller } from "@/components/order-status-poller";
 import { ReceiptUpload } from "@/components/receipt-upload";
 import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
@@ -77,6 +78,7 @@ export default async function OrderPage({
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
+      <OrderStatusPoller status={order.status} />
       <p className="text-muted-foreground text-sm">Pedido</p>
       <h1 className="text-2xl font-semibold tracking-tight">{order.orderNumber}</h1>
       <p className="mt-1 text-sm">
