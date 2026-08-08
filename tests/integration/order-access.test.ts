@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  adminOrderUrl,
   findOrderByNumberAndPhone,
   getOrderByNumber,
   orderUrl,
@@ -58,6 +59,17 @@ describe("orderUrl", () => {
     expect(orderUrl("PY-000123", "tok", "https://tienda.py")).toBe(
       "https://tienda.py/pedido/PY-000123?t=tok"
     );
+  });
+});
+
+describe("adminOrderUrl", () => {
+  it("arma la URL interna del panel, sin token", () => {
+    expect(adminOrderUrl(42)).toBe("/admin/pedidos/42");
+    expect(adminOrderUrl(42, "https://tienda.py")).toBe("https://tienda.py/admin/pedidos/42");
+  });
+
+  it("nunca lleva `?t=` — es distinta de la URL del comprador", () => {
+    expect(adminOrderUrl(42, "https://tienda.py")).not.toMatch(/\?t=/);
   });
 });
 

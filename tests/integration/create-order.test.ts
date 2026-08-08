@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { orderEvents, orderItems, orders, shippingZones, stockReservations } from "@/db/schema";
 import { CheckoutError, createOrder, type CreateOrderInput } from "@/domain/create-order";
+import { notifyOwnerOfNewOrder } from "@/domain/notify-owner";
 import { getAvailability } from "@/domain/stock";
 import { ivaIncluded } from "@/lib/money";
 
@@ -207,5 +208,57 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
 
   it("un carrito vacío no crea nada", async () => {
     await expect(createOrder(input({ items: [] }))).rejects.toThrow(/vacío/);
+  });
+
+  describe("notificación al dueño de un pedido nuevo (TASKS.md §9)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("se dispara al final de createOrder y deja una fila de auditoría 'system'", async () => {
+      vi.stubEnv("WHATSAPP_NUMBER", "+595981123456");
+      const db = getTestDb();
+      const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
+
+      const order = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
+
+      const events = await db.select().from(orderEvents).where(eq(orderEvents.orderId, order.orderId));
+      // La primera fila es "pedido creado" (actor "buyer"); la notificación
+      // agrega una segunda, propia, sin ser una transición de estado real.
+      expect(events).toHaveLength(2);
+      const systemEvents = events.filter((e) => e.actor === "system");
+      expect(systemEvents).toHaveLength(1);
+      expect(systemEvents[0]?.fromStatus).toBeNull();
+      expect(systemEvents[0]?.toStatus).toBe("pendiente_pago");
+
+      // Nunca el access_token del comprador en el registro de auditoría.
+      const reason = systemEvents[0]?.reason ?? "";
+      expect(reason).not.toContain(order.accessToken);
+      expect(reason).not.toMatch(/\?t=/);
+    });
+
+    it("sin WHATSAPP_NUMBER configurado, el pedido se crea igual (degrada, no revienta)", async () => {
+      vi.stubEnv("WHATSAPP_NUMBER", "");
+      const db = getTestDb();
+      const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
+
+      const order = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
+      expect(order.orderNumber).toBe("PY-000001");
+
+      const events = await db.select().from(orderEvents).where(eq(orderEvents.orderId, order.orderId));
+      const systemEvents = events.filter((e) => e.actor === "system");
+      expect(systemEvents).toHaveLength(1);
+      expect(systemEvents[0]?.reason).toMatch(/WHATSAPP_NUMBER/);
+    });
+
+    it("un fallo de la notificación no revierte ni bloquea el pedido ya commiteado", async () => {
+      // Pedido inexistente: la fila de order_events pisa la FK y revienta el
+      // INSERT adentro de notifyOwnerOfNewOrder. La función tiene que atrapar
+      // ese error y no propagarlo — exactamente lo que protege que un pedido
+      // ya commiteado no pueda ser tocado por esto.
+      await expect(
+        notifyOwnerOfNewOrder({ orderId: 999_999_999, orderNumber: "PY-999999", totalPyg: 1000 })
+      ).resolves.toBeUndefined();
+    });
   });
 });
