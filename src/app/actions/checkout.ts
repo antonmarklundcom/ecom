@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { CheckoutError, createOrder } from "@/domain/create-order";
 import { orderUrl } from "@/domain/order-access";
+import { pagoparCheckoutRedirectUrl, startPagoparCheckout } from "@/domain/pagopar/checkout";
 import { DOC_TYPES, PAYMENT_METHODS } from "@/db/schema";
 import type { CartIssue } from "@/lib/cart-issues";
 
@@ -32,7 +33,7 @@ const CheckoutActionSchema = z.object({
 });
 
 export type CheckoutResult =
-  | { ok: true; orderNumber: string; redirectTo: string }
+  | { ok: true; orderNumber: string; redirectTo: string; warning?: string }
   | { ok: false; error: string; issues?: CartIssue[] };
 
 export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
@@ -42,20 +43,15 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
     return { ok: false, error: first?.message ?? "Revisá los datos del formulario." };
   }
 
+  let order: Awaited<ReturnType<typeof createOrder>>;
   try {
-    const order = await createOrder({
+    order = await createOrder({
       ...parsed.data,
       customerEmail: parsed.data.customerEmail || null,
       docNumber: parsed.data.docNumber || null,
       shipBarrio: parsed.data.shipBarrio || null,
       shipReference: parsed.data.shipReference || null,
     });
-
-    return {
-      ok: true,
-      orderNumber: order.orderNumber,
-      redirectTo: orderUrl(order.orderNumber, order.accessToken),
-    };
   } catch (error) {
     if (error instanceof CheckoutError) {
       return { ok: false, error: error.message, issues: error.issues };
@@ -63,5 +59,33 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
     // El detalle queda en el log del servidor; al comprador no le sirve.
     console.error("createOrder falló", error);
     return { ok: false, error: "No pudimos crear el pedido. Probá de nuevo en un momento." };
+  }
+
+  const fallback = orderUrl(order.orderNumber, order.accessToken);
+
+  if (parsed.data.paymentMethod !== "tarjeta") {
+    return { ok: true, orderNumber: order.orderNumber, redirectTo: fallback };
+  }
+
+  // El pedido y la reserva de stock ya quedaron escritos (createOrder,
+  // arriba) — si Pagopar falla acá, el pedido no se pierde: el comprador
+  // sigue teniendo el link tokenizado, sólo que sin la redirección directa a
+  // pagar. La reserva de 45 min de "tarjeta" (RESERVATION_TTL_MINUTES) le da
+  // margen para reintentar.
+  try {
+    const { hashPedido } = await startPagoparCheckout(order.orderId);
+    return {
+      ok: true,
+      orderNumber: order.orderNumber,
+      redirectTo: pagoparCheckoutRedirectUrl(hashPedido),
+    };
+  } catch (error) {
+    console.error(`no pude iniciar el pago con Pagopar para ${order.orderNumber}`, error);
+    return {
+      ok: true,
+      orderNumber: order.orderNumber,
+      redirectTo: fallback,
+      warning: "Creamos tu pedido, pero no pudimos abrir la pasarela de pago. Escribinos por WhatsApp.",
+    };
   }
 }

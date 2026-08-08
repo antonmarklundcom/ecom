@@ -18,15 +18,22 @@ import { formatGs } from "@/lib/money";
  * Ojo con lo que NO manda: ningún monto. El total que se ve acá es
  * informativo; el que se cobra lo calcula `createOrder` desde la DB.
  */
-export function CheckoutForm({ cities }: { cities: string[] }) {
+type PaymentMethod = "transferencia" | "contra_entrega" | "tarjeta";
+
+export function CheckoutForm({
+  cities,
+  pagoparEnabled = false,
+}: {
+  cities: string[];
+  /** Sólo se ofrece "Tarjeta" si PAGOPAR_* está configurado (isPagoparCheckoutOfferable). */
+  pagoparEnabled?: boolean;
+}) {
   const router = useRouter();
   const { lines, clear } = useCart();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [docType, setDocType] = useState<"NINGUNO" | "CI" | "RUC">("NINGUNO");
-  const [paymentMethod, setPaymentMethod] = useState<"transferencia" | "contra_entrega">(
-    "transferencia"
-  );
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("transferencia");
 
   const subtotal = cartSubtotal(lines);
 
@@ -71,8 +78,16 @@ export function CheckoutForm({ cities }: { cities: string[] }) {
             return;
           }
 
+          if (result.warning) toast.warning(result.warning);
           clear();
-          router.push(result.redirectTo);
+
+          // La pasarela de Pagopar es un host externo: `router.push` (el
+          // router del cliente de Next) no navega afuera de la app.
+          if (/^https?:\/\//.test(result.redirectTo)) {
+            window.location.href = result.redirectTo;
+          } else {
+            router.push(result.redirectTo);
+          }
         });
       }}
     >
@@ -155,6 +170,11 @@ export function CheckoutForm({ cities }: { cities: string[] }) {
           [
             ["transferencia", "Transferencia / QR (SPI)", "Te pasamos los datos y subís el comprobante."],
             ["contra_entrega", "Contra entrega", "Pagás en efectivo cuando recibís el pedido."],
+            ...(pagoparEnabled
+              ? ([
+                  ["tarjeta", "Tarjeta", "Pagás online, te redirigimos a la pasarela de Pagopar."],
+                ] as const)
+              : []),
           ] as const
         ).map(([value, label, hint]) => (
           <label

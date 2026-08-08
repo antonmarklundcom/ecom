@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CheckoutForm } from "@/components/checkout-form";
+import { isPagoparCheckoutOfferable } from "@/domain/pagopar/config";
 import { listShippingZones } from "@/domain/shipping";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export default async function CheckoutPage() {
       </p>
 
       <div className="mt-6">
-        <CheckoutForm cities={cities} />
+        <CheckoutForm cities={cities} pagoparEnabled={isPagoparCheckoutOfferable()} />
       </div>
     </main>
   );
