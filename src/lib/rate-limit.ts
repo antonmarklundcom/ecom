@@ -116,3 +116,15 @@ export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
  */
 export const CRON_LIMIT = 30;
 export const CRON_WINDOW_MS = 60 * 1000;
+
+/**
+ * Límite del webhook de Pagopar (PLAN.md 5.2).
+ *
+ * Más holgado que el resto y a propósito: del otro lado hay avisos de pago
+ * reales, y tirar uno cuesta un pedido cobrado que la tienda no marca. Alcanza
+ * para que nadie use la ruta como oráculo de firmas —cada intento necesita un
+ * sha1 acertado— sin castigar un sábado con muchas ventas. Pagopar reintenta
+ * ante un 429, así que un aviso legítimo que caiga acá vuelve.
+ */
+export const PAGOPAR_WEBHOOK_LIMIT = 120;
+export const PAGOPAR_WEBHOOK_WINDOW_MS = 60 * 1000;
