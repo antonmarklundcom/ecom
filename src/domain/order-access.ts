@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { orderItems, orders, payments } from "@/db/schema";
 import { normalizePhonePY } from "@/lib/py";
 
 import type { Executor } from "./executor";
@@ -99,4 +99,28 @@ export async function findOrderByNumberAndPhone(
 /** URL tokenizada — la que se pega en WhatsApp. */
 export function orderUrl(orderNumber: string, accessToken: string, baseUrl = ""): string {
   return `${baseUrl}/pedido/${orderNumber}?t=${accessToken}`;
+}
+
+/**
+ * Ubica el pedido a partir del `hash_pedido` que Pagopar nos devuelve al
+ * volver del pago (PLAN.md 5.5).
+ *
+ * No dice nada sobre si el pago se acreditó — eso lo decide únicamente el
+ * webhook (ARCH.md §4). Esto sólo existe para poder mandar al comprador a la
+ * URL tokenizada de su pedido; el estado real lo muestra esa página, con
+ * polling.
+ */
+export async function getOrderByPagoparHash(hashPedido: string, executor?: Executor) {
+  const trimmed = hashPedido.trim();
+  if (trimmed === "") return null;
+
+  const tx = executor ?? getDb();
+  const rows = await tx
+    .select({ orderNumber: orders.orderNumber, accessToken: orders.accessToken })
+    .from(payments)
+    .innerJoin(orders, eq(orders.id, payments.orderId))
+    .where(and(eq(payments.provider, "pagopar"), eq(payments.providerRef, trimmed)))
+    .limit(1);
+
+  return rows[0] ?? null;
 }

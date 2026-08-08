@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { CheckoutError, createOrder } from "@/domain/create-order";
 import { orderUrl } from "@/domain/order-access";
+import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config";
+import { startPagoparCheckout } from "@/domain/pagopar/checkout";
 import { DOC_TYPES, PAYMENT_METHODS } from "@/db/schema";
 import type { CartIssue } from "@/lib/cart-issues";
 
@@ -42,6 +44,12 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
     return { ok: false, error: first?.message ?? "Revisá los datos del formulario." };
   }
 
+  // El form ya lo oculta si no está configurado; esto es el guard del lado
+  // servidor para quien lo intente igual con un POST directo.
+  if (parsed.data.paymentMethod === "tarjeta" && !isPagoparConfigured()) {
+    return { ok: false, error: "El pago con tarjeta no está disponible en este momento." };
+  }
+
   try {
     const order = await createOrder({
       ...parsed.data,
@@ -50,6 +58,31 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       shipBarrio: parsed.data.shipBarrio || null,
       shipReference: parsed.data.shipReference || null,
     });
+
+    if (parsed.data.paymentMethod === "tarjeta") {
+      // El pedido y la reserva de stock (45 min, RESERVATION_TTL_MINUTES.tarjeta)
+      // ya quedaron escritos por `createOrder`; acá sólo se abre la transacción
+      // en Pagopar y se manda al comprador a pagar.
+      try {
+        const started = await startPagoparCheckout(order.orderId);
+        return {
+          ok: true,
+          orderNumber: order.orderNumber,
+          redirectTo: pagoparCheckoutUrl(started.hashPedido),
+        };
+      } catch (pagoparError) {
+        console.error("startPagoparCheckout falló", pagoparError);
+        // El pedido y su reserva de 45 min ya quedaron escritos: no se pierden
+        // por un error de red con Pagopar. Mandamos al comprador a la página
+        // de su pedido en vez de a un checkout roto; desde ahí puede
+        // contactar al comercio para reintentar.
+        return {
+          ok: true,
+          orderNumber: order.orderNumber,
+          redirectTo: orderUrl(order.orderNumber, order.accessToken),
+        };
+      }
+    }
 
     return {
       ok: true,
