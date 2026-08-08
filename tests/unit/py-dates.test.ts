@@ -1,12 +1,42 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  formatDatePY,
+  formatDateTimePY,
   parsePyDateInput,
   parsePyDateInputEnd,
   startOfDayPY,
   startOfMonthPY,
   startOfNextDayPY,
 } from '../../src/lib/py';
+
+describe('formatDatePY / formatDateTimePY', () => {
+  it('formatea en dd/mm/yyyy', () => {
+    expect(formatDatePY(new Date('2026-08-07T15:00:00Z'))).toBe('07/08/2026');
+    expect(formatDatePY(new Date('2026-01-05T15:00:00Z'))).toBe('05/01/2026');
+  });
+
+  it('formatea con hora en dd/mm/yyyy HH:mm, 24 horas', () => {
+    // 2026-08-07 15:00 UTC = 12:00 en Asunción (UTC−3).
+    expect(formatDateTimePY(new Date('2026-08-07T15:00:00Z'))).toBe('07/08/2026 12:00');
+  });
+
+  it('una fecha tarde en UTC cae en el día paraguayo correcto', () => {
+    // 2026-08-07 23:30 UTC = 2026-08-07 20:30 en Asunción: mismo día.
+    expect(formatDatePY(new Date('2026-08-07T23:30:00Z'))).toBe('07/08/2026');
+
+    // 2026-08-08 02:30 UTC = 2026-08-07 23:30 en Asunción: todavía el día anterior.
+    expect(formatDatePY(new Date('2026-08-08T02:30:00Z'))).toBe('07/08/2026');
+
+    // 2026-08-08 03:00 UTC = 2026-08-08 00:00 en Asunción: ya cruzó al día siguiente.
+    expect(formatDatePY(new Date('2026-08-08T03:00:00Z'))).toBe('08/08/2026');
+  });
+
+  it('cruza el año correctamente cerca de medianoche', () => {
+    // 2027-01-01 01:00 UTC = 2026-12-31 22:00 en Asunción.
+    expect(formatDatePY(new Date('2027-01-01T01:00:00Z'))).toBe('31/12/2026');
+  });
+});
 
 /**
  * Los cortes de día en hora paraguaya (PLAN.md 4.7).

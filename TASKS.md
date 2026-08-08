@@ -61,7 +61,7 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] `normalizePhonePY("0981 123 456")` → `"+595981123456"`
 - [x] `ivaIncluded(110000, 10)` → `10000` — redondeo **por línea**, no sobre el total
 - [x] `waLink(phone, text)` con `encodeURIComponent` + límite de longitud
-- [ ] Fechas: `dd/mm/yyyy`, zona `America/Asuncion` en toda la UI
+- [x] Fechas: `dd/mm/yyyy`, zona `America/Asuncion` en toda la UI
 
 ## 6. Auth + Cloudinary
 - [x] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)`
