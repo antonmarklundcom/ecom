@@ -311,3 +311,24 @@ marcados como pendientes en varias secciones más abajo.
 
 ## 27. Hueco conocido *(no lo cierra este PR)*
 - [ ] **Sólo Pagopar escribe en `payments`.** Una transferencia aprobada o un contra entrega llegan a `pagado` sin ninguna fila de pago, así que `pedido_cobrado_sin_pago` está acotado a `payment_method = 'tarjeta'`. Cerrarlo es cambiar el camino de escritura (registrar el pago manual al aprobar el comprobante), no este control de lectura
+
+---
+
+# PR #8 · Suite de concurrencia contra MySQL real *(Opus 5)*
+
+## 28. Carreras cubiertas
+- [x] Dos checkouts por la última unidad → uno cobra, el otro pierde con un error de **dominio** (no un `ER_LOCK_DEADLOCK`)
+- [x] Diez checkouts sobre tres unidades → se reservan exactamente tres
+- [x] Dos carritos con las mismas dos variantes en **orden opuesto** → ninguno se deadlockea (fija el `sort` por `variant_id` de `reserveStock`)
+- [x] `reserveStock` contra su propio vencimiento: reserva vencida + cron + comprador nuevo a la vez → una sola reserva viva, sin duplicar la unidad
+- [x] Dos reservas simultáneas sobre una reserva recién vencida → entra una sola
+- [x] Webhook contra cron sobre el mismo pedido → o `pagado` o `vencido`, nunca un tercer resultado; **el pago queda registrado pase lo que pase**
+- [x] Dos avisos idénticos **simultáneos** (el `INSERT IGNORE` bajo contención real, no llamadas secuenciales) → `aplicado` + `repetido`, una fila en `payment_events`, un solo descuento, una sola transición
+- [x] Cinco avisos idénticos simultáneos → un solo cobro
+- [x] Cobrar y reservar a la vez → `on_hand` nunca queda por debajo de lo real
+
+## 29. Forma de los tests
+- [x] Cada operación en su propia conexión del pool, lanzadas con `Promise.all`: en secuencia ninguno de estos bugs aparece
+- [x] Se afirma sobre el resultado **agregado**, nunca sobre quién ganó — eso depende del scheduler y no es asunto del test
+- [x] Corridos cinco veces seguidas sin flakiness antes de commitear
+- [x] Nada que arreglar: las nueve carreras ya se resolvían bien. Los tests fijan las decisiones que las resuelven (`FOR UPDATE` sobre la variante, lectura bloqueante de las reservas, orden de locks por `variant_id`, `INSERT IGNORE` y transición en la misma transacción)
