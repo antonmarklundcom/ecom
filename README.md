@@ -37,7 +37,32 @@ pnpm dev                            # http://localhost:3000 · panel en /admin
 | `pnpm test` | unitarios siempre; los de integración necesitan `TEST_DATABASE_URL` (esa base se borra y se recrea en cada corrida) |
 | `pnpm db:studio` | Drizzle Studio |
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |
+| `pnpm demo` | deja la base en un estado mostrable: catálogo + un pedido en cada estado |
 | `pnpm reconcile` | control de caja: suma `order_items` contra los totales del pedido y sale con código 1 si algo no cuadra |
+
+### `pnpm demo` — la tienda lista para mostrar
+
+Un solo comando después del quickstart de arriba (`db:push` ya corrido, no hace
+falta `db:seed` a mano — `pnpm demo` siembra el catálogo él solo):
+
+```bash
+pnpm demo
+pnpm dev   # y abrí /admin/pedidos
+```
+
+Deja sembrado el catálogo (si todavía no lo estaba) y crea un pedido de
+ejemplo — nombre, WhatsApp, dirección paraguayos, no genéricos — en cada
+estado de la máquina (ARCH.md §3): `pendiente_pago`, `esperando_verificacion`,
+`pagado`, `enviado`, `entregado`, `cancelado`, `vencido`. Suma un octavo
+pedido con método tarjeta parqueado en la pasarela simulada de Pagopar
+(enciende `PAGOPAR_MODE=mock` él solo, sin tocar `.env.local`) e imprime el
+link `/dev/pagopar/<hash_pedido>` al final para pagarlo, rechazarlo o
+reenviar el aviso desde ahí.
+
+Idempotente: cada pedido de ejemplo se identifica por el teléfono del
+cliente, así que correr `pnpm demo` de nuevo reusa lo que ya existe en vez de
+duplicarlo. Se niega a correr con `NODE_ENV=production` — es data de mentira,
+no algo para dejar suelto donde hay plata de verdad.
 
 ### Demo del pago con tarjeta sin cuenta de Pagopar
 

@@ -18,7 +18,14 @@ import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_SHIPPING_ZONES } from './seed-data
  */
 const RESET_STOCK = process.argv.includes('--reset-stock');
 
-async function main(): Promise<void> {
+/**
+ * Siembra el catálogo (categorías, zonas de envío, productos y variantes).
+ *
+ * Exportada aparte de `main()` para que `scripts/demo.ts` pueda encadenarla
+ * con la creación de pedidos de ejemplo sin levantar un segundo proceso ni
+ * una segunda conexión a la base.
+ */
+export async function seedCatalog(resetStock: boolean = RESET_STOCK): Promise<void> {
   const db = getDb();
 
   // --- Categorías ---------------------------------------------------------
@@ -129,7 +136,7 @@ async function main(): Promise<void> {
             isActive: true,
             // El stock real lo maneja la operación del negocio: re-sembrar no
             // debería pisarlo salvo que se pida explícitamente.
-            onHand: RESET_STOCK ? variant.onHand : sql`${variants.onHand}`,
+            onHand: resetStock ? variant.onHand : sql`${variants.onHand}`,
           },
         });
       variantCount += 1;
@@ -137,13 +144,20 @@ async function main(): Promise<void> {
   }
 
   console.log(`✓ ${SEED_PRODUCTS.length} productos · ${variantCount} variantes`);
-  console.log(RESET_STOCK ? '↺ stock reseteado a los valores del seed' : '· stock existente respetado (--reset-stock para pisarlo)');
+  console.log(resetStock ? '↺ stock reseteado a los valores del seed' : '· stock existente respetado (--reset-stock para pisarlo)');
+}
 
+async function main(): Promise<void> {
+  await seedCatalog();
   await closePool();
 }
 
-main().catch(async (error) => {
-  console.error(error);
-  await closePool();
-  process.exit(1);
-});
+// `scripts/demo.ts` importa `seedCatalog` sin querer correr esto de nuevo —
+// sólo se ejecuta cuando `seed.ts` es el script invocado directamente.
+if (process.argv[1] && /seed\.ts$/.test(process.argv[1])) {
+  main().catch(async (error) => {
+    console.error(error);
+    await closePool();
+    process.exit(1);
+  });
+}

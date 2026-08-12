@@ -11,6 +11,7 @@
     "test": "vitest run",
     "db:push": "drizzle-kit push && tsx scripts/post-push.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "demo": "tsx scripts/demo.ts",
     "db:studio": "drizzle-kit studio",
     "prepare": "husky",
     "test:watch": "vitest",
