@@ -11,14 +11,21 @@ export function WhatsAppFab({ message }: { message?: string }) {
   if (!href) return null;
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Escribinos por WhatsApp"
-      className="fixed right-4 bottom-4 z-40 flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-    >
-      <MessageCircle className="size-7" />
-    </a>
+    // El link queda `fixed` igual dentro de un `<nav>` sin posicionar: fixed
+    // se ubica contra el viewport salvo que un ancestro cree su propio
+    // "containing block" (transform/filter/perspective), y `<nav>` acá no
+    // tiene nada de eso. El wrapper es lo que hace falta para que WCAG lo vea
+    // contenido por un landmark en vez de flotando suelto en el body.
+    <nav aria-label="Contacto por WhatsApp">
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Escribinos por WhatsApp"
+        className="fixed right-4 bottom-4 z-40 flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+      >
+        <MessageCircle className="size-7" />
+      </a>
+    </nav>
   );
 }
