@@ -121,6 +121,11 @@ export default async function CategoryPage({
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {/* El h3 de cada ProductCard necesita un h2 arriba para no saltar
+              de nivel (regla heading-order de axe) — la grilla no tiene un
+              título visible propio, así que va oculto para lectores de
+              pantalla. */}
+          <h2 className="sr-only">Productos</h2>
           {result.products.map((product, index) => (
             <ProductCard key={product.id} product={product} priority={index < 4} />
           ))}
