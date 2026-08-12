@@ -47,11 +47,26 @@ describe.skipIf(!hasTestDb)('transitionOrder', () => {
     ['cancelado', 'pagado'],
     ['reembolsado', 'pagado'],
     ['pendiente_pago', 'entregado'],
-    ['vencido', 'pagado'],
   ] as const)('%s → %s es inválido', async (from, to) => {
     const orderId = await createOrder({ status: from });
     await expect(transitionOrder(orderId, to, 'admin:test')).rejects.toThrow(InvalidTransitionError);
     expect(await getStatus(orderId)).toBe(from);
+  });
+
+  /**
+   * `vencido → pagado` sí es una arista válida desde la política del pago
+   * tardío (ARCH.md §4.1): el cron vence el pedido y el aviso de Pagopar llega
+   * un segundo después. Lo que la controla no es la tabla de aristas sino el
+   * re-chequeo de stock — todo eso se prueba en `late-payment.test.ts`.
+   * `cancelado → pagado`, en cambio, sigue prohibido: lo canceló una persona.
+   */
+  it('vencido → pagado es válido (recuperación del pago tardío)', async () => {
+    const orderId = await createOrder({ status: 'vencido' });
+
+    const result = await transitionOrder(orderId, 'pagado', 'pagopar', 'pago tardío');
+
+    expect(result.changed).toBe(true);
+    expect(await getStatus(orderId)).toBe('pagado');
   });
 
   it('explota si el pedido no existe', async () => {

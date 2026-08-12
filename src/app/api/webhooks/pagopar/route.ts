@@ -99,6 +99,16 @@ export async function POST(request: Request): Promise<Response> {
       case "no_pagado":
         console.info(`pagopar: aviso de pago no acreditado para ${outcome.orderNumber}`);
         break;
+      case "sin_stock":
+        // El peor caso que el sistema puede manejar solo: cobrado, sin
+        // mercadería. Se contesta 200 porque reintentar no cambia nada; lo que
+        // sigue es una devolución, y el panel ya lo lista en "pagos sin pedido
+        // vivo" (ARCH.md §4.1).
+        console.error(
+          `pagopar: pago tardío de ${outcome.orderNumber} sin stock para recuperarlo — ` +
+            `queda cobrado y el pedido en "${outcome.status}": hay que devolver`
+        );
+        break;
       case "estado_final":
         // Puede ser inofensivo (`enviado`: ya se había cobrado) o grave
         // (`cancelado`: entró plata de un pedido que no existe más). El dueño

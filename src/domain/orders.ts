@@ -1,7 +1,14 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, gt, lte, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
-import { orderEvents, orders, stockReservations, variants, type OrderStatus } from '@/db/schema';
+import {
+  orderEvents,
+  orderItems,
+  orders,
+  stockReservations,
+  variants,
+  type OrderStatus,
+} from '@/db/schema';
 
 import type { Executor, Tx } from './executor';
 
@@ -22,7 +29,14 @@ export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatu
   preparando: ['enviado', 'reembolsado'],
   enviado: ['entregado'],
   entregado: [],
-  vencido: ['cancelado'],
+  // `vencido → pagado` es la recuperación del pago tardío (ARCH.md §4.1): el
+  // cron venció el pedido y el aviso de Pagopar llegó un segundo después. La
+  // arista existe, pero entrar a `pagado` re-asegura el stock primero, así que
+  // sólo revive el pedido si la mercadería sigue estando.
+  vencido: ['pagado', 'cancelado'],
+  // `cancelado` NO revive: lo canceló una persona a propósito. Si entra plata
+  // para un pedido cancelado, el pago queda registrado y va a la lista de
+  // "pagos sin pedido vivo" para que el dueño devuelva.
   cancelado: [],
   reembolsado: [],
 };
@@ -43,6 +57,28 @@ export class OrderNotFoundError extends Error {
   constructor(readonly orderId: number) {
     super(`No existe el pedido ${orderId}`);
     this.name = 'OrderNotFoundError';
+  }
+}
+
+/**
+ * Se quiso cobrar un pedido cuya mercadería ya no está.
+ *
+ * Pasa en los dos sentidos del mismo problema: el pedido venció y se vendió lo
+ * que tenía reservado, o la reserva se venció sola y todavía no pasó el cron.
+ * El mensaje está escrito para el dueño, que es quien lo va a leer en el panel.
+ */
+export class StockUnavailableError extends Error {
+  constructor(
+    readonly orderId: number,
+    readonly variantId: number,
+    readonly needed: number,
+    readonly available: number,
+  ) {
+    super(
+      `Ya no hay stock para completar este pedido: faltan ${needed - available} ` +
+        `unidad(es) de una de las variantes. Si el pago entró, hay que devolverlo.`,
+    );
+    this.name = 'StockUnavailableError';
   }
 }
 
@@ -114,6 +150,11 @@ export async function transitionOrder(
     }
 
     if (CONSUMES_STOCK.includes(to)) {
+      // Antes de descontar: comprobar que la mercadería siga estando. Va acá
+      // adentro y no en quien llama a propósito — es la única forma de que
+      // NINGÚN camino a `pagado` (webhook, comprobante aprobado, botón del
+      // panel) pueda descontar stock que ya no existe.
+      await secureStockForPayment(tx, orderId);
       await consumeReservations(tx, orderId);
     }
     if (RELEASES_STOCK.includes(to)) {
@@ -141,6 +182,122 @@ export async function transitionOrder(
 
   return options.executor ? run(options.executor) : getDb().transaction(run);
 }
+
+/**
+ * Se asegura de que la mercadería del pedido siga estando, justo antes de
+ * descontarla (ARCH.md §4.1).
+ *
+ * Cubre los dos lados de la misma carrera:
+ *
+ *  - **pago tardío**: el cron venció el pedido y liberó sus reservas; el aviso
+ *    de Pagopar llega después. No queda ninguna reserva viva, así que hay que
+ *    volver a tomarla — y si otro comprador se llevó la última unidad en el
+ *    medio, no se toma nada y el pedido no revive.
+ *  - **reserva vencida sin cron**: el pedido sigue en `pendiente_pago` con sus
+ *    filas todavía en `held`, pero pasadas de `expires_at`. Descontar sobre
+ *    esas filas sería descontar apoyándose en una promesa que ya expiró y que
+ *    la vidriera dejó de contar hace rato: para el resto del mundo esa unidad
+ *    estaba disponible. Se sueltan y se vuelven a pedir como cualquiera.
+ *
+ * Primero verifica **todas** las líneas y recién después escribe: si faltara
+ * algo, no queda el pedido con media reserva nueva y media no.
+ *
+ * Un pedido sin ítems (dato roto, lo reporta `pnpm reconcile`) no tiene nada
+ * que asegurar y se deja pasar: frenar acá el cobro de un pedido que ya tiene
+ * la plata adentro sería el peor de los dos males.
+ */
+async function secureStockForPayment(tx: Executor, orderId: number): Promise<void> {
+  // Una reserva pasada de hora no reserva nada. Soltarla acá deja el conteo
+  // de `held` vigentes igual a lo que ve la vidriera.
+  await tx
+    .update(stockReservations)
+    .set({ state: 'released' })
+    .where(
+      and(
+        eq(stockReservations.orderId, orderId),
+        eq(stockReservations.state, 'held'),
+        lte(stockReservations.expiresAt, sql`NOW()`),
+      ),
+    );
+
+  const needs = await tx
+    .select({
+      variantId: orderItems.variantId,
+      qty: sql<string | number>`SUM(${orderItems.qty})`,
+    })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, orderId))
+    .groupBy(orderItems.variantId)
+    // Mismo orden de locks que `reserveStock`, o dos pedidos con los mismos
+    // ítems se deadlockean cruzados.
+    .orderBy(orderItems.variantId);
+
+  if (needs.length === 0) return;
+
+  const missing: Array<{ variantId: number; qty: number }> = [];
+
+  for (const need of needs) {
+    const wanted = Number(need.qty);
+
+    const locked = await tx
+      .select({ onHand: variants.onHand })
+      .from(variants)
+      .where(eq(variants.id, need.variantId))
+      .for('update');
+
+    const onHand = locked[0]?.onHand ?? 0;
+
+    // Lectura bloqueante, no un SUM común: en REPEATABLE READ un SELECT normal
+    // lee del snapshot y no vería la reserva que el comprador rival acaba de
+    // commitear (misma razón que en `stock.ts`).
+    const live = await tx
+      .select({ orderId: stockReservations.orderId, qty: stockReservations.qty })
+      .from(stockReservations)
+      .where(
+        and(
+          eq(stockReservations.variantId, need.variantId),
+          eq(stockReservations.state, 'held'),
+          gt(stockReservations.expiresAt, sql`NOW()`),
+        ),
+      )
+      .for('update');
+
+    let own = 0;
+    let others = 0;
+    for (const row of live) {
+      if (row.orderId === orderId) own += row.qty;
+      else others += row.qty;
+    }
+
+    const shortfall = wanted - own;
+    if (shortfall <= 0) continue;
+
+    const free = onHand - others - own;
+    if (shortfall > free) {
+      throw new StockUnavailableError(orderId, need.variantId, wanted, own + Math.max(0, free));
+    }
+
+    missing.push({ variantId: need.variantId, qty: shortfall });
+  }
+
+  // Reservas nuevas para lo que faltaba. Nacen `held` y las consume el paso
+  // siguiente en esta misma transacción, así que el `expires_at` no llega a
+  // significar nada — se pone en el futuro sólo para que ninguna consulta de
+  // disponibilidad las ignore mientras tanto.
+  const expiresAt = new Date(Date.now() + RECOVERY_HOLD_MINUTES * 60_000);
+  for (const item of missing) {
+    await tx.insert(stockReservations).values({
+      variantId: item.variantId,
+      orderId,
+      qty: item.qty,
+      expiresAt,
+      state: 'held',
+    });
+  }
+}
+
+/** Vida de la reserva que se toma al recuperar un pago tardío. */
+const RECOVERY_HOLD_MINUTES = 15;
 
 /**
  * Marca las reservas del pedido como `consumed` y descuenta `on_hand`.

@@ -226,6 +226,60 @@ Browser            Next.js (Hostinger)         Pagopar               MySQL
 - Respond within ~5 s or Pagopar retries. Do the slow work after responding, not before.
 - Register the webhook URL over **HTTPS on the real domain** — Hostinger provides the certificate; Pagopar will not call `localhost` (use a tunnel in dev).
 
+### 4.1 The payment that arrives after the order died
+
+The cron cancels unpaid orders once `reserved_until` passes. Pagopar's notice can
+land a second later — the buyer paid at 14:59:58 and the sweep ran at 15:00:00.
+Both systems behaved correctly and the money is now in the merchant's account for
+an order that is `vencido`. This is not a rare edge case; with a 45-minute hold on
+card payments it will happen.
+
+**The policy, in the order the rules are applied:**
+
+1. **The payment is recorded before anything else, and the recording is never
+   rolled back.** `payment_events` gets the raw notice, `payments` goes to `paid`.
+   Whatever happens to the order afterwards, the transaction commits. Losing the
+   record of a payment that really happened is the only unrecoverable outcome
+   here: everything else can be fixed by a human who can *see* what occurred.
+2. **The order revives only if the goods are still there.** `vencido → pagado` is
+   a legal edge in the state machine, but entering `pagado` re-secures stock first
+   (see below). If the last unit was sold while the order was expired, the
+   transition throws, the order stays `vencido`, and nothing is oversold.
+3. **The owner is told, without depending on a flag anyone has to remember to
+   set.** `findUnmatchedPayments()` derives the list from the data — a `paid`
+   payment whose order is not in `pagado|preparando|enviado|entregado|reembolsado`
+   — and the admin dashboard shows it at the top in red. A boolean column would
+   have been cheaper and would eventually drift; a query over the two tables that
+   already hold the truth cannot.
+4. **A `cancelado` order never revives automatically.** A person cancelled it on
+   purpose, so the software does not overrule them. The money still shows up in
+   the same list, for the same refund.
+
+**Why the stock re-check lives inside `transitionOrder` and not in the webhook.**
+There are three ways into `pagado` — the Pagopar webhook, the owner approving a
+transfer receipt, and the manual button in the panel — and any of them can be the
+one that runs after the goods are gone. A check placed in the caller is a check
+someone will forget to copy into the fourth caller. Putting it in the one function
+that owns the `pagado` edge makes it structurally impossible to decrement
+`on_hand` for stock that no longer exists.
+
+**The reverse case falls out of the same rule.** An order can also still be
+`pendiente_pago` with its reservation rows technically `held` but past
+`expires_at`, because the cron has not run yet. Availability is computed live
+(§2), so the storefront has already been offering that unit to everyone else.
+Consuming those rows would decrement `on_hand` on the strength of a promise that
+expired. `secureStockForPayment()` therefore releases the order's stale holds
+first and re-acquires what it needs against live availability, taking
+`SELECT … FOR UPDATE` on the variant and on the competing reservation rows. Either
+it can secure every line or it secures none and throws — it verifies the whole
+order before it writes anything, so a half-reserved order is not a state that can
+exist.
+
+**What the buyer sees.** A recovered order looks like any other paid order; the
+`order_events` row records why (`pago tardío recuperado`). An unrecoverable one
+stays `vencido` on the buyer's page, which is honest — the merchant owes them a
+refund, and pretending the order is alive would be worse than saying nothing.
+
 ---
 
 ## 5. Manual SPI / QR + WhatsApp stream (the zero-fee path)

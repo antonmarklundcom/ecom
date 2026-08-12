@@ -4,6 +4,7 @@ import Link from "next/link";
 import { listOrders } from "@/domain/admin-orders";
 import { getDashboardSummary } from "@/domain/admin-dashboard";
 import { lowStockVariants } from "@/domain/admin-products";
+import { findUnmatchedPayments } from "@/domain/payment-recovery";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
 
@@ -12,15 +13,48 @@ export const metadata: Metadata = { title: "Resumen" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  const [summary, awaiting, lowStock] = await Promise.all([
+  const [summary, awaiting, lowStock, unmatched] = await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
     lowStockVariants(3, 8),
+    findUnmatchedPayments({ limit: 10 }),
   ]);
 
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Resumen</h1>
+
+      {/*
+        Va arriba de todo y sólo aparece si hay algo: es plata de un comprador
+        que está en la cuenta del comercio sin un pedido vivo detrás
+        (ARCH.md §4.1). Cada fila es una devolución pendiente.
+      */}
+      {unmatched.length > 0 && (
+        <section className="border-destructive/40 bg-destructive/5 mt-4 rounded-xl border p-4">
+          <h2 className="text-destructive font-medium">Pagos sin pedido vivo</h2>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Entró la plata pero el pedido no está cobrado — normalmente el pago llegó justo
+            después de que el pedido venciera y la mercadería ya se había vendido. Revisá cada
+            uno: o volvés a habilitar el pedido a mano si hay stock, o le devolvés al comprador.
+          </p>
+          <ul className="divide-border mt-3 divide-y text-sm">
+            {unmatched.map((payment) => (
+              <li key={payment.paymentId} className="py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Link href={`/admin/pedidos/${payment.orderId}`} className="font-medium underline">
+                    {payment.orderNumber}
+                  </Link>
+                  <span className="font-semibold tabular-nums">{formatGs(payment.amountPyg)}</span>
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {payment.provider} · pedido en &quot;{payment.orderStatus}&quot; ·{" "}
+                  {formatDateTimePY(payment.paidAt)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Stat
