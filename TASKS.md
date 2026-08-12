@@ -332,3 +332,25 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Se afirma sobre el resultado **agregado**, nunca sobre quién ganó — eso depende del scheduler y no es asunto del test
 - [x] Corridos cinco veces seguidas sin flakiness antes de commitear
 - [x] Nada que arreglar: las nueve carreras ya se resolvían bien. Los tests fijan las decisiones que las resuelven (`FOR UPDATE` sobre la variante, lectura bloqueante de las reservas, orden de locks por `variant_id`, `INSERT IGNORE` y transición en la misma transacción)
+
+---
+
+# PR #9 · Revisión de seguridad ronda 2 + `pnpm preflight` *(Opus 5)*
+
+## 30. Revisión ronda 2 — lo que se agregó después del PR #4
+- [x] **Cobertura que no se queda vieja**: el control descubre `src/app/actions/` y `src/app/api/**/route.ts` por directorio, no por una lista escrita a mano. Una acción o ruta nueva entra sola
+- [x] Toda server action llama a algún guard (admin, acceso del comprador o rate limit); `cart.ts` es la única excepción declarada, por ser stateless
+- [x] Toda ruta de API verifica firma, secreto o sesión antes de tocar la base
+- [x] Webhook de Pagopar: la firma se verifica **antes** de `processPagoparWebhook`, 503 sin clave privada, respuesta `no-store`
+- [x] `/dev/pagopar` cerrada por partida doble (render + server action) y con `noindex`
+- [x] Candado de producción del modo mock verificado por **comportamiento** desde la revisión (el detalle sigue en `pagopar-mock-mode.test.ts`)
+- [x] 🐛 **Encontrado y arreglado**: `submitCheckout` no tenía rate limit. Cada pedido creado reserva stock por 45 min o 24 h sin que nadie pague nada, así que un script dejaba la vidriera en "sin stock" gratis. `CHECKOUT_LIMIT = 20 / 10 min` por IP, holgado para que un NAT familiar no lo note
+
+## 31. `pnpm preflight`
+- [x] Un comando que contesta "¿se pierde algo si mañana alguien compra acá?" y sale con código 1 si sí
+- [x] Bloquea: sobre del webhook sin confirmar, `BANCO_*` incompletos, `CRON_SECRET` / `SESSION_SECRET` vacíos o cortos, Cloudinary sin configurar, `NEXT_PUBLIC_SITE_URL` sin https en producción, `PAGOPAR_MODE=mock` con `NODE_ENV=production`
+- [x] Advierte sin frenar: credenciales de Pagopar faltantes (la tienda cobra igual por transferencia), base local en producción, formato raro del WhatsApp
+- [x] `WEBHOOK_ENVELOPE_CONFIRMED` es una **constante del código**, no una variable de entorno: confirmarlo es un hecho sobre el repo, no sobre el servidor
+- [x] No toca la base ni la red: se puede correr en producción sin efectos
+- [x] Nunca imprime el valor de un secreto — sólo si está y si tiene el largo mínimo, verificado por test
+- [x] Tests en las dos direcciones, uno por control: sano → `ok`, roto → `bloquea`

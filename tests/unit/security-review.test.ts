@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { safeNextPath } from '../../src/lib/safe-redirect';
 import { listSourceFiles, readCode } from '../helpers/source';
@@ -206,5 +206,144 @@ describe('acceso del comprador', () => {
     expect(access).toContain('timingSafeEqual');
     // Nada de `===` sobre el token: filtra cuántos caracteres se acertaron.
     expect(access).not.toMatch(/accessToken\s*===/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ronda 2 — las rutas y acciones que se agregaron después de la revisión del
+// PR #4: el webhook de Pagopar, la página de retorno, el simulador y sus
+// candados.
+// ---------------------------------------------------------------------------
+
+describe('cobertura de la revisión', () => {
+  it('toda server action nueva empieza por un guard', async () => {
+    // La lista no se escribe a mano: se descubre el directorio. Una acción
+    // nueva entra sola en el control, que es la única forma de que la revisión
+    // no se quede vieja.
+    const ACTIONS = path.join('src', 'app', 'actions');
+    const files = (await listSourceFiles([ACTIONS])).filter((file) => file.endsWith('.ts'));
+    expect(files.length).toBeGreaterThan(0);
+
+    // Cada acción exportada tiene que llamar a *algún* guard: el de admin, el
+    // del comprador (token del pedido) o el rate limit. Las de carrito son
+    // stateless y no tocan nada del servidor.
+    const GUARDS = /requireAdminSession|requireOwnerSession|requireOrderAccess|rateLimit\s*\(/;
+    const SIN_ESTADO = new Set([path.join(ACTIONS, 'cart.ts')]);
+
+    const offenders: string[] = [];
+    for (const file of files) {
+      if (SIN_ESTADO.has(file)) continue;
+      const code = await readCode(file);
+      if (!GUARDS.test(code)) offenders.push(file);
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('toda ruta de API verifica algo antes de tocar la base', async () => {
+    const API = path.join('src', 'app', 'api');
+    const routes = (await listSourceFiles([API])).filter((file) => file.endsWith('route.ts'));
+    expect(routes.length).toBeGreaterThan(0);
+
+    const offenders: string[] = [];
+    for (const file of routes) {
+      const code = await readCode(file);
+      // Firma, secreto o sesión: alguna de las tres. Una ruta pública que
+      // mueve pedidos y no compara nada es exactamente lo que se busca.
+      if (!/timingSafeEqual|requireAdmin|tokensMatch/.test(code)) offenders.push(file);
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe('webhook de Pagopar', () => {
+  it('la firma se verifica antes de tocar la base', async () => {
+    const route = await readCode(
+      path.join('src', 'app', 'api', 'webhooks', 'pagopar', 'route.ts'),
+    );
+
+    const guard = route.indexOf('guardMatches(request');
+    const process = route.indexOf('processPagoparWebhook(');
+    expect(guard).toBeGreaterThan(-1);
+    expect(process).toBeGreaterThan(-1);
+    // Nada de trabajo antes de la firma: lo único que la precede es el parseo
+    // del cuerpo y el rate limit.
+    expect(guard).toBeLessThan(process);
+  });
+
+  it('sin clave privada la ruta se cierra en vez de aceptar cualquier cosa', async () => {
+    const route = await readCode(
+      path.join('src', 'app', 'api', 'webhooks', 'pagopar', 'route.ts'),
+    );
+    expect(route).toMatch(/not_configured/);
+    expect(route).toMatch(/503/);
+  });
+
+  it('la respuesta del webhook no cachea', async () => {
+    const route = await readCode(
+      path.join('src', 'app', 'api', 'webhooks', 'pagopar', 'route.ts'),
+    );
+    expect(route).toMatch(/no-store/);
+  });
+});
+
+describe('candado del simulador de Pagopar', () => {
+  /*
+   * El candado completo —comportamiento y guardarraíles de código— vive en
+   * `tests/unit/pagopar-mock-mode.test.ts`. Acá quedan los dos puntos que la
+   * revisión de seguridad mira por su cuenta, porque son sobre una **ruta**:
+   * que `/dev/pagopar` esté cerrada por los dos lados y que no la indexe nadie.
+   */
+
+  it('la ruta /dev/pagopar se cierra por partida doble y no se indexa', async () => {
+    const page = await readCode(path.join('src', 'app', 'dev', 'pagopar', '[hash]', 'page.tsx'));
+
+    // 1. Render: fuera del modo mock la ruta no existe.
+    expect(page).toMatch(/if\s*\(!isPagoparMockMode\(\)\)\s*notFound\(\)/);
+    // 2. Server action: es un endpoint POST propio con su propio id, y el
+    //    render no la cubre. Un `fetch` directo la alcanza sin pasar por la
+    //    página.
+    expect(page).toContain('assertMockAllowed(');
+    // Y ni Google ni un scraper la levantan.
+    expect(page).toMatch(/index:\s*false/);
+  });
+
+  it('el simulador está apagado con NODE_ENV=production, pase lo que pase', async () => {
+    // Verificación de comportamiento, no un grep: es la afirmación que la
+    // revisión necesita poder hacer sobre el servidor real.
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PAGOPAR_MODE', 'mock');
+
+    const { assertMockAllowed, isPagoparMockMode } = await import(
+      '../../src/domain/pagopar/mode'
+    );
+
+    expect(isPagoparMockMode()).toBe(false);
+    expect(() => assertMockAllowed('revisión')).toThrow();
+
+    vi.unstubAllEnvs();
+  });
+});
+
+describe('preflight', () => {
+  it('está declarado como script de package.json', async () => {
+    const pkg = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    expect(pkg.scripts.preflight).toBe('tsx scripts/preflight.ts');
+  });
+
+  it('no imprime el valor de ningún secreto', async () => {
+    for (const file of [
+      path.join('src', 'domain', 'preflight.ts'),
+      path.join('scripts', 'preflight.ts'),
+    ]) {
+      const code = await readCode(file);
+      // Se puede decir "CRON_SECRET está vacío"; no se puede interpolar el
+      // valor. `secret.length` sí, que es justamente lo que hace falta.
+      expect(code).not.toMatch(/\$\{\s*secret\s*\}/);
+      expect(code).not.toMatch(/\$\{\s*value\([^)]*\)\s*\}/);
+    }
   });
 });

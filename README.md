@@ -42,7 +42,8 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm db:studio` | Drizzle Studio |
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |
 | `pnpm demo` | deja la base en un estado mostrable: catálogo + un pedido en cada estado |
-| `pnpm reconcile` | control de caja: suma `order_items` contra los totales del pedido y sale con código 1 si algo no cuadra |
+| `pnpm reconcile` | control de caja: los totales de cada pedido más cinco invariantes entre tablas; sale con código 1 si algo no cuadra |
+| `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `BANCO_*`, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
 
 ### `pnpm demo` — la tienda lista para mostrar
 
@@ -108,6 +109,27 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/cron/ve
 ```
 
 La ruta compara `CRON_SECRET` en tiempo constante y está rate-limited. Sin la variable configurada responde 503, nunca 200: una ruta "abierta hasta que la configuren" es una ruta abierta.
+
+### `pnpm preflight` — antes de cobrar de verdad
+
+Se corre **en el servidor**, después de configurar las variables: la mitad de lo
+que revisa es sobre el entorno donde va a correr, no sobre el repo. Contesta una
+sola pregunta —si mañana un desconocido compra acá, ¿se pierde algo?— y sale con
+código 1 si la respuesta es que sí, para que un deploy automatizado se frene
+solo.
+
+```bash
+pnpm preflight
+```
+
+Bloquea con: el sobre de la respuesta del webhook de Pagopar sin confirmar
+(TASKS.md §21), `BANCO_*` incompletos, `CRON_SECRET` o `SESSION_SECRET` vacíos o
+demasiado cortos, Cloudinary sin configurar, y `PAGOPAR_MODE=mock` en un entorno
+con `NODE_ENV=production`. Advierte —sin frenar— con las credenciales de Pagopar
+faltantes: la tienda cobra igual por transferencia y contra entrega.
+
+No toca la base ni la red, y nunca imprime el valor de un secreto: sólo si está
+y si tiene el largo mínimo.
 
 ## Decisiones tomadas
 
