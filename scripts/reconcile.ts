@@ -9,13 +9,25 @@ import { formatGs } from "../src/lib/money";
  *
  * Se corre a mano después de un deploy, o desde el cron nocturno de Hostinger.
  * Sale con código 1 si algo no cuadra, para que el cron mande el mail solo.
+ *
+ * Dos capas: la aritmética de cada pedido y los controles cruzados entre
+ * tablas. Se imprimen los cruzados primero — un pedido cobrado sin pago
+ * registrado se atiende antes que un guaraní de diferencia en un subtotal.
  */
 async function main(): Promise<void> {
   const report = await reconcile();
 
   if (report.ok) {
-    console.log("✓ Los totales cuadran: no hay pedidos ni líneas descuadradas.");
+    console.log("✓ Todo cuadra: totales, líneas y las cinco invariantes entre tablas.");
     return;
+  }
+
+  if (report.crossChecks.length > 0) {
+    console.error(`\n✗ ${report.crossChecks.length} inconsistencia(s) entre tablas:\n`);
+    for (const finding of report.crossChecks) {
+      console.error(`  [${finding.kind}] ${finding.orderNumber} (${finding.orderStatus})`);
+      console.error(`    ${finding.detail}`);
+    }
   }
 
   if (report.totalMismatches.length > 0) {

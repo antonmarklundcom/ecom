@@ -288,3 +288,26 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Reserva vencida + ítem vendido → `StockUnavailableError`, `on_hand` intacto
 - [x] Reserva vencida + stock libre → cobra y descuenta **una sola vez** (no la vencida más la nueva)
 - [x] La reserva viva del propio pedido no se cuenta como competencia (última unidad, reservada por él mismo, se cobra)
+
+---
+
+# PR #7 · `pnpm reconcile` v2: invariantes entre tablas *(Opus 5)*
+
+## 25. Controles cruzados
+- [x] Pedido de tarjeta cobrado sin fila de pago acreditada (`pedido_cobrado_sin_pago`)
+- [x] Pago acreditado cuyo pedido nunca pasó por `pagado` (`pago_sin_transicion`) — se mira `order_events`, no `orders.status`: importa si la transición **ocurrió alguna vez**
+- [x] `payments.amount_pyg ≠ orders.total_pyg` (`monto_del_pago_distinto`)
+- [x] Comprobante aprobado que no movió el pedido (`comprobante_aprobado_sin_movimiento`)
+- [x] `order_events` con aristas imposibles (`arista_imposible`), incluida la fila que "nace cobrada" (`from_status` NULL hacia algo que no sea `pendiente_pago`) y el evento que no se mueve a ningún lado
+- [x] La lista blanca de aristas se arma desde `ORDER_TRANSITIONS`, no escrita a mano en el SQL: una arista nueva la acepta sola y las dos versiones no se pueden separar
+- [x] Todo el filtro corre dentro de MySQL con enteros; en JS sólo se transporta el resultado
+- [x] `pnpm reconcile` imprime primero los cruzados (más graves) y sigue saliendo con código 1
+
+## 26. Tests de los controles cruzados *(las dos direcciones)*
+- [x] Base sana con pedidos cobrados por los dos caminos (tarjeta y transferencia con comprobante aprobado) → no reporta nada
+- [x] Cada una de las cinco inconsistencias inyectada a mano → se detecta
+- [x] Casos negativos que separan el control de un falso positivo: transferencia cobrada sin fila en `payments`, pago `pending`, pedido ya `entregado`, comprobante `pending`, fila de creación con `from_status` NULL
+- [x] Varias inconsistencias distintas a la vez salen todas en el mismo reporte
+
+## 27. Hueco conocido *(no lo cierra este PR)*
+- [ ] **Sólo Pagopar escribe en `payments`.** Una transferencia aprobada o un contra entrega llegan a `pagado` sin ninguna fila de pago, así que `pedido_cobrado_sin_pago` está acotado a `payment_method = 'tarjeta'`. Cerrarlo es cambiar el camino de escritura (registrar el pago manual al aprobar el comprobante), no este control de lectura
