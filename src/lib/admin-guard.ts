@@ -68,6 +68,7 @@ const KNOWN_DOMAIN_ERRORS = [
   "OrderNotFoundError",
   "ReceiptError",
   "InsufficientStockError",
+  "StockUnavailableError",
   "MoneyError",
   "AdminInputError",
 ];

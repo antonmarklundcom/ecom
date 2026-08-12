@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { orders, paymentEvents, payments, type OrderStatus } from "@/db/schema";
 
-import { InvalidTransitionError, transitionOrder } from "../orders";
+import { InvalidTransitionError, StockUnavailableError, transitionOrder } from "../orders";
 import type { PagoparWebhookEvent } from "./protocol";
 
 /**
@@ -38,7 +38,13 @@ export type WebhookOutcome =
   /** `pagado: false` — se deja registrado y listo. */
   | { kind: "no_pagado"; orderId: number; orderNumber: string }
   /** El pedido está en un estado que no admite el pago (p. ej. `enviado`). */
-  | { kind: "estado_final"; orderId: number; orderNumber: string; status: OrderStatus };
+  | { kind: "estado_final"; orderId: number; orderNumber: string; status: OrderStatus }
+  /**
+   * Pago tardío que no se pudo recuperar: el pedido había vencido y la
+   * mercadería se vendió mientras tanto. El pago queda cobrado y registrado,
+   * el pedido sigue `vencido` y hay que devolver la plata (ARCH.md §4.1).
+   */
+  | { kind: "sin_stock"; orderId: number; orderNumber: string; status: OrderStatus };
 
 /** No conocemos ese `hash_pedido`. */
 export class UnknownPagoparOrderError extends Error {
@@ -135,12 +141,21 @@ export async function processPagoparWebhook(
       .where(eq(payments.id, payment.id));
 
     // 4. El único camino para cambiar el estado.
+    //
+    // Ojo con el orden: la fila de `payments` ya quedó en `paid` arriba, a
+    // propósito. Si esto falla —el pedido venció y no hay stock, o ya está
+    // `cancelado`— el `catch` devuelve un resultado en vez de tirar, así que
+    // la transacción COMMITEA y el pago queda registrado igual. Es la regla
+    // central de la política: la plata entró, el registro de que entró no se
+    // pierde nunca, aunque el pedido no se pueda salvar (ARCH.md §4.1).
     try {
       const result = await transitionOrder(
         order.id,
         "pagado",
         PAGOPAR_ACTOR,
-        "pago confirmado por Pagopar",
+        order.status === "vencido"
+          ? "pago tardío recuperado: llegó después del vencimiento y había stock"
+          : "pago confirmado por Pagopar",
         { executor: tx }
       );
       return {
@@ -150,6 +165,19 @@ export async function processPagoparWebhook(
         changed: result.changed,
       };
     } catch (error) {
+      if (error instanceof StockUnavailableError) {
+        // Pago tardío que no se pudo recuperar. No es un error de Pagopar y
+        // reintentar no lo arregla: 200, el pago queda `paid`, el pedido
+        // `vencido`, y la fila aparece en "pagos sin pedido vivo" del panel
+        // hasta que el dueño devuelva.
+        return {
+          kind: "sin_stock",
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+        };
+      }
+
       if (!(error instanceof InvalidTransitionError)) throw error;
 
       // El pedido ya avanzó más allá de `pagado` (`enviado`, `entregado`) o

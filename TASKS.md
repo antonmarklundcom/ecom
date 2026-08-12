@@ -237,3 +237,27 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verde (348 tests, 1 salteado: el de sandbox)
 - [x] Un webhook repetido no cambia nada; una firma alterada devuelve 401 y queda logueada
 - [ ] Compra de sandbox pagada de punta a punta *(bloqueado: faltan credenciales de Pagopar — TASKS.md §0)*
+
+---
+
+# PR #6 · Pago tardío: el aviso que llega después del vencimiento *(Opus 5)*
+
+## 23. Política del pago tardío *(ARCH.md §4.1)*
+- [x] Decidida y escrita en ARCH.md §4.1, con el porqué de cada regla
+- [x] El pago se registra **siempre** y el registro no se revierte: `payment_events` + `payments` en `paid` commitean aunque el pedido no se pueda salvar
+- [x] `vencido → pagado` habilitado en la máquina de estados; `cancelado → pagado` sigue prohibido (lo canceló una persona a propósito)
+- [x] El re-chequeo de stock vive **dentro de `transitionOrder`**, no en quien llama: los tres caminos a `pagado` (webhook, comprobante aprobado, botón del panel) quedan cubiertos por construcción
+- [x] `secureStockForPayment()` verifica todas las líneas antes de escribir una sola reserva: no existe el estado "medio reservado"
+- [x] Caso inverso: una reserva `held` pero vencida se suelta y se vuelve a pedir contra la disponibilidad viva — descontar sobre una promesa vencida sería sobreventa
+- [x] Locks en el mismo orden que `reserveStock` (por `variant_id`), o dos pedidos con los mismos ítems se deadlockean cruzados
+- [x] El dueño lo ve: `findUnmatchedPayments()` deriva la lista de los datos (pago `paid` + pedido fuera de la cadena del cobro) y el panel la muestra arriba de todo. Sin columna nueva ni flag que alguien tenga que acordarse de escribir
+- [x] El webhook contesta 200 en el caso irrecuperable: reintentar no cambia nada, lo que sigue es una devolución
+
+## 24. Tests del pago tardío *(Opus 5)*
+- [x] Vencido + hay stock → revive a `pagado`, descuenta una sola vez, `order_events` explica por qué
+- [x] Vencido + se vendió el stock → sigue `vencido`, **el pago igual queda `paid`** y el aviso en `payment_events`, sin reservas colgadas
+- [x] Cancelado + aviso de pago → sigue `cancelado`, el pago queda registrado para devolver
+- [x] `findUnmatchedPayments()` en las dos direcciones: lista la plata colgada, deja afuera la que sí tiene pedido cobrado
+- [x] Reserva vencida + ítem vendido → `StockUnavailableError`, `on_hand` intacto
+- [x] Reserva vencida + stock libre → cobra y descuenta **una sola vez** (no la vencida más la nueva)
+- [x] La reserva viva del propio pedido no se cuenta como competencia (última unidad, reservada por él mismo, se cobra)
