@@ -216,6 +216,19 @@ export function webhookResponseBody(event: PagoparWebhookEvent): PagoparEnvelope
   return { respuesta: true, resultado: [event.raw] };
 }
 
+/**
+ * ¿Se confirmó el sobre de arriba contra la doc v2 vigente y el sandbox?
+ *
+ * Es una constante y no una variable de entorno a propósito: confirmarlo es un
+ * hecho sobre **el código**, no sobre el servidor donde corre. Cuando alguien
+ * corra el test de sandbox con credenciales y verifique la forma, cambia este
+ * `false` por `true` en el mismo commit en que ajusta `webhookResponseBody()`.
+ *
+ * `pnpm preflight` la lee y se niega a dar el visto bueno mientras siga en
+ * `false`: es lo último que separa a la tienda de poder cobrar de verdad.
+ */
+export const WEBHOOK_ENVELOPE_CONFIRMED = false;
+
 /** Errores, con el mismo sobre que usa Pagopar para los suyos. */
 export function webhookErrorBody(code: string): PagoparEnvelope {
   return { respuesta: false, resultado: code };

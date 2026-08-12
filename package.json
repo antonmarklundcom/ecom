@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "create-owner": "tsx scripts/create-owner.ts",
-    "reconcile": "tsx scripts/reconcile.ts"
+    "reconcile": "tsx scripts/reconcile.ts",
+    "preflight": "tsx scripts/preflight.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

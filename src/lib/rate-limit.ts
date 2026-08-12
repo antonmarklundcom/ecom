@@ -128,3 +128,19 @@ export const CRON_WINDOW_MS = 60 * 1000;
  */
 export const PAGOPAR_WEBHOOK_LIMIT = 120;
 export const PAGOPAR_WEBHOOK_WINDOW_MS = 60 * 1000;
+
+/**
+ * Límite del checkout.
+ *
+ * No es contra el fraude con tarjeta —de eso se ocupa Pagopar— sino contra el
+ * agotamiento de stock: cada pedido creado reserva unidades por 45 minutos o
+ * 24 horas, y nadie tiene que pagar nada para crearlo. Sin límite, un script
+ * deja la vidriera entera en "sin stock" con un rato de pedidos que nunca se
+ * van a pagar, y el comercio no vende hasta que venzan.
+ *
+ * Holgado en serio: una familia detrás de un mismo NAT, o un comprador que
+ * corrige el formulario cinco veces, tienen que pasar sin fricción. Lo que se
+ * corta es el volumen que sólo puede ser automático.
+ */
+export const CHECKOUT_LIMIT = 20;
+export const CHECKOUT_WINDOW_MS = 10 * 60 * 1000;

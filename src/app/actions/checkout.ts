@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { z } from "zod";
 
 import { CheckoutError, createOrder } from "@/domain/create-order";
@@ -8,12 +9,23 @@ import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config
 import { startPagoparCheckout } from "@/domain/pagopar/checkout";
 import { DOC_TYPES, PAYMENT_METHODS } from "@/db/schema";
 import type { CartIssue } from "@/lib/cart-issues";
+import {
+  CHECKOUT_LIMIT,
+  CHECKOUT_WINDOW_MS,
+  clientIp,
+  rateLimit,
+} from "@/lib/rate-limit";
 
 /**
  * Server action del checkout.
  *
  * Recibe el carrito del navegador y devuelve la URL tokenizada del pedido.
  * Los montos no viajan en el input: los calcula `createOrder` desde la DB.
+ *
+ * Es una acción **pública** —los compradores son anónimos, ARCH.md §1 regla 3—
+ * así que no hay sesión que verificar. Lo que sí hay es un límite por IP: cada
+ * pedido creado reserva stock por 45 minutos o 24 horas sin que nadie haya
+ * pagado nada, y un script sin freno deja la vidriera en "sin stock" gratis.
  */
 
 const CheckoutActionSchema = z.object({
@@ -38,6 +50,16 @@ export type CheckoutResult =
   | { ok: false; error: string; issues?: CartIssue[] };
 
 export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
+  // Antes de mirar el cuerpo: lo caro de este endpoint no es validarlo sino la
+  // transacción que reserva stock al final.
+  const ip = clientIp(await headers());
+  if (!rateLimit(`checkout:${ip}`, { limit: CHECKOUT_LIMIT, windowMs: CHECKOUT_WINDOW_MS }).ok) {
+    return {
+      ok: false,
+      error: "Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.",
+    };
+  }
+
   const parsed = CheckoutActionSchema.safeParse(input);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
