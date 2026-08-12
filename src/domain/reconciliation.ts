@@ -3,16 +3,23 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/db";
 
 import type { Executor } from "./executor";
+import { ORDER_TRANSITIONS } from "./orders";
 
 /**
- * Reconciliación de totales (PLAN.md 4.10).
+ * Reconciliación (PLAN.md 4.10).
  *
- * Verifica, contra la base de verdad, las tres identidades que sostienen todo
+ * Dos capas. La primera verifica las tres identidades aritméticas que sostienen
  * el dinero de la tienda (ARCH.md §2 "Money invariants"):
  *
  *   1. `subtotal_pyg = Σ(order_items.line_total_pyg)`
  *   2. `total_pyg = subtotal_pyg + shipping_pyg`
  *   3. `line_total_pyg = unit_price_pyg × qty` en cada línea
+ *
+ * La segunda —los controles cruzados, más abajo— verifica que las tablas
+ * cuenten todas la misma historia: pedidos cobrados sin pago registrado, pagos
+ * registrados sin pedido movido, montos que no coinciden, comprobantes
+ * aprobados que no movieron nada y aristas que la máquina de estados no
+ * permite. La aritmética mira una fila; esto mira las costuras.
  *
  * Todo pasa en MySQL con enteros. Si esto se hiciera en JS trayendo las filas,
  * la propia suma sería el paso que introduce el error que estamos buscando.
@@ -132,22 +139,284 @@ export async function findLineMismatches(
   }));
 }
 
+/* ---------------------------------------------------------------------------
+ * Invariantes entre tablas (v2)
+ *
+ * La aritmética de arriba mira una sola fila por vez y no ve el problema más
+ * caro: que dos tablas cuenten historias distintas de la misma plata. Un
+ * pedido `pagado` sin pago registrado y un pago registrado sin pedido movido
+ * son el mismo bug visto desde cada punta, y ninguna de las tres identidades
+ * anteriores lo detecta.
+ *
+ * Todo corre en MySQL. Traer las filas y compararlas en JS convertiría cada
+ * `BIGINT` en un `number` de coma flotante justo en el paso que existe para
+ * encontrar errores de plata.
+ * ------------------------------------------------------------------------- */
+
+/** Estados en los que la plata ya entró (o volvió) y el pedido está cerrado. */
+const SETTLED = ["pagado", "preparando", "enviado", "entregado", "reembolsado"] as const;
+
+/** Qué invariante se rompió. El id es estable: sirve para grepear en un log. */
+export type CrossCheckKind =
+  | "pedido_cobrado_sin_pago"
+  | "pago_sin_transicion"
+  | "monto_del_pago_distinto"
+  | "comprobante_aprobado_sin_movimiento"
+  | "arista_imposible";
+
+export type CrossCheckFinding = {
+  kind: CrossCheckKind;
+  orderId: number;
+  orderNumber: string;
+  orderStatus: string;
+  /** Frase lista para imprimir, ya con los números adentro. */
+  detail: string;
+};
+
+const CROSS_CHECK_LIMIT = 100;
+
+/**
+ * Pedido cobrado con tarjeta y sin fila de pago.
+ *
+ * Acotado a `tarjeta` a propósito: hoy la única forma de pago que escribe en
+ * `payments` es Pagopar (`startPagoparCheckout`). Una transferencia aprobada
+ * por el dueño o un contra entrega llegan a `pagado` sin ninguna fila ahí, así
+ * que sin este filtro el control gritaría por cada venta legítima del camino
+ * manual — y un control que grita siempre es un control que nadie mira.
+ *
+ * Que ese hueco exista es en sí una deuda anotada en TASKS.md; cerrarlo es
+ * cambiar el camino de escritura, no este control de lectura.
+ */
+export async function findOrdersPaidWithoutPayment(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT o.id AS orderId, o.order_number AS orderNumber, o.status AS orderStatus
+    FROM orders o
+    WHERE o.payment_method = 'tarjeta'
+      AND o.status IN (${statusList(SETTLED)})
+      AND NOT EXISTS (
+        SELECT 1 FROM payments p
+        WHERE p.order_id = o.id AND p.status = 'paid'
+      )
+    ORDER BY o.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "pedido_cobrado_sin_pago" as const,
+    ...identity(row),
+    detail: "el pedido está cobrado con tarjeta pero no hay ninguna fila de pago acreditada",
+  }));
+}
+
+/**
+ * Pago acreditado cuyo pedido nunca pasó por `pagado`.
+ *
+ * Se mira `order_events` y no `orders.status`: el estado actual puede haber
+ * seguido avanzando (`enviado`, `entregado`) o retrocedido a `reembolsado`, y
+ * lo que se quiere saber es si la transición **ocurrió alguna vez**. El log de
+ * auditoría es lo único que puede contestar eso.
+ */
+export async function findPaymentsWithoutTransition(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      o.id           AS orderId,
+      o.order_number AS orderNumber,
+      o.status       AS orderStatus,
+      p.provider     AS provider,
+      p.amount_pyg   AS amountPyg
+    FROM payments p
+    JOIN orders o ON o.id = p.order_id
+    WHERE p.status = 'paid'
+      AND NOT EXISTS (
+        SELECT 1 FROM order_events e
+        WHERE e.order_id = o.id AND e.to_status = 'pagado'
+      )
+    ORDER BY p.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "pago_sin_transicion" as const,
+    ...identity(row),
+    detail:
+      `hay un pago acreditado de ${row.provider} por ${row.amountPyg} ₲ y el pedido ` +
+      `nunca pasó por "pagado"`,
+  }));
+}
+
+/**
+ * `payments.amount_pyg ≠ orders.total_pyg`.
+ *
+ * La comparación es de enteros y la hace MySQL. El webhook ya rechaza el aviso
+ * con monto distinto, así que una fila acá significa que el descuadre entró por
+ * otro lado: un total editado después de cobrar, o una fila escrita a mano.
+ */
+export async function findPaymentAmountMismatches(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      o.id           AS orderId,
+      o.order_number AS orderNumber,
+      o.status       AS orderStatus,
+      p.provider     AS provider,
+      p.amount_pyg   AS amountPyg,
+      o.total_pyg    AS totalPyg,
+      CAST(p.amount_pyg AS SIGNED) - CAST(o.total_pyg AS SIGNED) AS diffPyg
+    FROM payments p
+    JOIN orders o ON o.id = p.order_id
+    WHERE p.status IN ('paid', 'refunded')
+      AND p.amount_pyg <> o.total_pyg
+    ORDER BY p.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "monto_del_pago_distinto" as const,
+    ...identity(row),
+    detail:
+      `el pago de ${row.provider} dice ${row.amountPyg} ₲ y el pedido ${row.totalPyg} ₲ ` +
+      `(diferencia ${row.diffPyg})`,
+  }));
+}
+
+/**
+ * Comprobante aprobado y pedido que no se movió.
+ *
+ * Aprobar es lo que dispara `transitionOrder(→ pagado)`; las dos escrituras
+ * viajan en la misma transacción. Una fila acá significa que esa transacción no
+ * es tan atómica como se cree, o que alguien tocó `receipts.review` a mano.
+ */
+export async function findApprovedReceiptsWithoutMove(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      o.id           AS orderId,
+      o.order_number AS orderNumber,
+      o.status       AS orderStatus,
+      r.id           AS receiptId
+    FROM receipts r
+    JOIN orders o ON o.id = r.order_id
+    WHERE r.review = 'approved'
+      AND o.status NOT IN (${statusList(SETTLED)})
+    ORDER BY r.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "comprobante_aprobado_sin_movimiento" as const,
+    ...identity(row),
+    detail: `el comprobante ${row.receiptId} está aprobado y el pedido quedó en "${row.orderStatus}"`,
+  }));
+}
+
+/**
+ * Filas de `order_events` con una arista que la máquina de estados no permite.
+ *
+ * La lista blanca se arma acá con `ORDER_TRANSITIONS`, la misma constante que
+ * usa `transitionOrder`: si mañana se agrega una arista, este control la acepta
+ * sola. Escribirla a mano en el SQL sería garantizar que las dos versiones se
+ * separen.
+ *
+ * Una fila acá es la más grave de todas: significa que algo movió un pedido sin
+ * pasar por `transitionOrder`, que es la premisa sobre la que se apoya todo lo
+ * demás (ARCH.md §3).
+ */
+export async function findImpossibleEdges(executor?: Executor): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const allowed = Object.entries(ORDER_TRANSITIONS).flatMap(([from, targets]) =>
+    targets.map((to) => sql`(${from}, ${to})`),
+  );
+
+  const result = await tx.execute(sql`
+    SELECT
+      o.id            AS orderId,
+      o.order_number  AS orderNumber,
+      o.status        AS orderStatus,
+      e.id            AS eventId,
+      e.from_status   AS fromStatus,
+      e.to_status     AS toStatus,
+      e.actor         AS actor
+    FROM order_events e
+    JOIN orders o ON o.id = e.order_id
+    WHERE CASE
+      -- from_status IS NULL es legítimo exactamente una vez por pedido: la
+      -- fila que escribe createOrder al nacer. Con cualquier otro destino es
+      -- un pedido que apareció ya cobrado. El CASE es necesario además porque
+      -- un NULL adentro del row constructor vuelve la comparación NULL, o sea
+      -- "no sospechoso", que es justo lo contrario de lo que queremos.
+      WHEN e.from_status IS NULL THEN e.to_status <> 'pendiente_pago'
+      ELSE (e.from_status, e.to_status) NOT IN (${sql.join(allowed, sql`, `)})
+    END
+    ORDER BY e.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "arista_imposible" as const,
+    ...identity(row),
+    detail:
+      `el evento ${row.eventId} registra "${row.fromStatus}" → "${row.toStatus}" ` +
+      `(actor ${row.actor}), que la máquina de estados no permite`,
+  }));
+}
+
 export type ReconciliationReport = {
   totalMismatches: ReconciliationRow[];
   lineMismatches: LineMismatch[];
+  crossChecks: CrossCheckFinding[];
   ok: boolean;
 };
 
 export async function reconcile(executor?: Executor): Promise<ReconciliationReport> {
-  const [totalMismatches, lineMismatches] = await Promise.all([
+  const [totalMismatches, lineMismatches, ...cross] = await Promise.all([
     findTotalMismatches({}, executor),
     findLineMismatches({}, executor),
+    findOrdersPaidWithoutPayment(executor),
+    findPaymentsWithoutTransition(executor),
+    findPaymentAmountMismatches(executor),
+    findApprovedReceiptsWithoutMove(executor),
+    findImpossibleEdges(executor),
   ]);
+
+  const crossChecks = cross.flat();
 
   return {
     totalMismatches,
     lineMismatches,
-    ok: totalMismatches.length === 0 && lineMismatches.length === 0,
+    crossChecks,
+    ok: totalMismatches.length === 0 && lineMismatches.length === 0 && crossChecks.length === 0,
+  };
+}
+
+/** Lista de estados como literales SQL, para un `IN (...)`. */
+function statusList(statuses: readonly string[]) {
+  return sql.join(
+    statuses.map((status) => sql`${status}`),
+    sql`, `,
+  );
+}
+
+/** Las tres columnas que toda fila de un control cruzado trae. */
+function identity(row: Record<string, unknown>) {
+  return {
+    orderId: Number(row.orderId),
+    orderNumber: String(row.orderNumber),
+    orderStatus: String(row.orderStatus),
   };
 }
 
