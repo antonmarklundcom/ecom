@@ -65,3 +65,19 @@ export function isPagoparMockMode(): boolean {
 export function assertMockAllowed(entryPoint: string): void {
   if (isProduction()) throw new PagoparMockInProductionError(entryPoint);
 }
+
+/**
+ * Prende el simulador para el proceso actual, sin pasar por `.env`.
+ *
+ * Sólo la usa `scripts/demo.ts`, para que el pedido con tarjeta de la demo
+ * funcione sin que quien la corre tenga que acordarse de configurar
+ * `PAGOPAR_MODE=mock` a mano. La escritura a `process.env` vive acá adentro
+ * — no en `demo.ts` — porque este es el único archivo del repo al que se le
+ * permite tocar la variable (`tests/unit/pagopar-mock-mode.test.ts` lo
+ * verifica); si `demo.ts` la escribiera directamente, sería una segunda
+ * fuente de verdad sobre cómo se enciende el modo mock.
+ */
+export function enableMockModeForDemo(): void {
+  if (isProduction()) throw new PagoparMockInProductionError('enableMockModeForDemo');
+  process.env.PAGOPAR_MODE = PAGOPAR_MOCK_MODE;
+}
