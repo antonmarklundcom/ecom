@@ -30,7 +30,7 @@ export function ProductCard({
       <ProductImage
         image={product.image}
         alt={product.name}
-        seed={product.slug}
+        categorySlug={product.categorySlug}
         priority={priority}
       />
 
