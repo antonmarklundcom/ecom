@@ -9,7 +9,16 @@
  * `PAGOPAR_BASE_URL` no tiene default a propósito. Poner una URL "por si
  * acaso" es la forma de mandarle los datos del comercio a un host equivocado:
  * el valor sale de la doc de Pagopar y se configura en el `.env`, no acá.
+ *
+ * Con `PAGOPAR_MODE=mock` (nunca en producción, ver `mode.ts`) las tres salen
+ * del simulador en vez del entorno: es lo que permite demostrar el ciclo
+ * completo sin una cuenta de Pagopar. El mock gana sobre lo que haya en el
+ * `.env`; si están las credenciales reales igual no se usan, que es lo que uno
+ * quiere de un modo llamado "mock".
  */
+
+import { MOCK_PRIVATE_KEY, mockCheckoutUrl, mockPagoparConfig } from "./mock";
+import { isPagoparMockMode } from "./mode";
 
 export type PagoparConfig = {
   publicKey: string;
@@ -36,6 +45,8 @@ function read(name: string): string {
  * y deja pedidos colgados esperando un pago que nunca se pudo iniciar.
  */
 export function pagoparConfig(): PagoparConfig {
+  if (isPagoparMockMode()) return mockPagoparConfig();
+
   const publicKey = read("PAGOPAR_PUBLIC_KEY");
   const privateKey = read("PAGOPAR_PRIVATE_KEY");
   const baseUrl = read("PAGOPAR_BASE_URL").replace(/\/+$/, "");
@@ -57,6 +68,11 @@ export function pagoparConfig(): PagoparConfig {
  * un pago que ya ocurrió tiene que poder confirmarse.
  */
 export function pagoparPrivateKey(): string | null {
+  // En modo mock la ruta valida avisos firmados por el simulador. La ruta no
+  // sabe nada de esto: sigue pidiendo "la clave privada" y comparando en
+  // tiempo constante como siempre.
+  if (isPagoparMockMode()) return MOCK_PRIVATE_KEY;
+
   const privateKey = read("PAGOPAR_PRIVATE_KEY");
   return privateKey === "" ? null : privateKey;
 }
@@ -83,5 +99,10 @@ export function isPagoparConfigured(): boolean {
  * host difiere.
  */
 export function pagoparCheckoutUrl(hashPedido: string, config: PagoparConfig = pagoparConfig()): string {
+  // En modo mock la "página de pago" es una ruta interna de esta misma app
+  // (`/dev/pagopar/...`), no una URL externa: el formulario del checkout la
+  // navega con el router en vez de mandar el navegador afuera.
+  if (isPagoparMockMode()) return mockCheckoutUrl(hashPedido);
+
   return `${config.baseUrl}/pagos/${encodeURIComponent(hashPedido)}`;
 }

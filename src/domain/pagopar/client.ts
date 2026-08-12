@@ -2,6 +2,8 @@ import { PY_TIMEZONE } from "@/lib/py";
 
 import { pagoparConfig, type PagoparConfig } from "./config";
 import { pagoparAmount, requestToken } from "./hash";
+import { mockPagoparFetch } from "./mock";
+import { isPagoparMockMode } from "./mode";
 import {
   extractHashPedido,
   parseEnvelope,
@@ -202,7 +204,12 @@ async function postJson(
   body: unknown,
   options: PagoparRequestOptions
 ): Promise<PagoparEnvelope> {
-  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  // El modo mock (`PAGOPAR_MODE=mock`, jamás en producción) cambia esto y nada
+  // más: el cuerpo, el token `sha1(PRIVATE_KEY + order_number + total)`, el
+  // timeout, los reintentos y el parseo del sobre siguen siendo los de siempre.
+  // Un `fetchImpl` explícito gana igual, para no pisar los tests.
+  const fetchImpl =
+    options.fetchImpl ?? (isPagoparMockMode() ? mockPagoparFetch : globalThis.fetch);
   const timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
   const attempts = Math.max(1, options.attempts ?? DEFAULTS.attempts);
   const baseDelayMs = options.baseDelayMs ?? DEFAULTS.baseDelayMs;

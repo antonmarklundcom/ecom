@@ -39,6 +39,26 @@ pnpm dev                            # http://localhost:3000 · panel en /admin
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |
 | `pnpm reconcile` | control de caja: suma `order_items` contra los totales del pedido y sale con código 1 si algo no cuadra |
 
+### Demo del pago con tarjeta sin cuenta de Pagopar
+
+`PAGOPAR_MODE="mock"` en `.env.local` levanta una Pagopar simulada en memoria:
+sin red, sin credenciales y sin cuenta. El checkout vuelve a ofrecer tarjeta y,
+en vez de mandar al comprador a Pagopar, lo manda a `/dev/pagopar/<hash_pedido>`
+—una pantalla de esta misma app— con un botón por escenario: pagar, reenviar el
+mismo aviso, rechazar, pagar de menos, mandar un aviso sin firma válida.
+
+Lo simulado es **la contraparte, no nuestro código**: cada botón postea un aviso
+firmado contra la ruta real `POST /api/webhooks/pagopar`, así que el pedido se
+mueve por el mismo camino de siempre (firma → idempotencia → verificación de
+monto → `transitionOrder()`). Alcanza para ver el ciclo completo
+`pendiente_pago → pagado`, con su fila en `order_events` y el stock descontado.
+
+El simulador **no existe en producción**: con `NODE_ENV=production` el modo se
+apaga solo y cada función del simulador tira si alguien la llama igual
+(`src/domain/pagopar/mode.ts`). Está probado en
+`tests/unit/pagopar-mock-mode.test.ts`, y que el camino mockeado ejercite los
+mismos guardarraíles que el real, en `tests/integration/pagopar-mock-flow.test.ts`.
+
 ## El panel (`/admin`)
 
 Se entra con la cuenta que crea `pnpm create-owner` — **no hay ruta pública de registro**.
