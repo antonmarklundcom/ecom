@@ -105,7 +105,7 @@ export default async function ProductPage({ params }: { params: Params }) {
           <ProductImage
             image={product.images[0] ?? null}
             alt={product.name}
-            seed={product.slug}
+            categorySlug={product.categorySlug}
             size="detail"
             priority
             sizes="(max-width: 1024px) 100vw, 550px"
@@ -117,7 +117,7 @@ export default async function ProductPage({ params }: { params: Params }) {
                   key={image.cloudinaryId}
                   image={image}
                   alt={product.name}
-                  seed={image.cloudinaryId}
+                  categorySlug={product.categorySlug}
                   size="thumb"
                   sizes="120px"
                 />

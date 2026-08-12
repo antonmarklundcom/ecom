@@ -35,13 +35,21 @@ export function productImageUrl(
 }
 
 /**
- * Placeholder determinístico para productos sin foto: el mismo slug da
- * siempre el mismo color, así la grilla no titila entre renders.
+ * Ilustraciones placeholder commiteadas (`public/placeholders/`), una por
+ * categoría del seed — evita que la demo se muestre con cajas de color liso
+ * antes de que el comercio cargue fotos reales. A propósito son dibujos de
+ * línea simples y genéricos, sin logos de marca: son un "todavía no hay
+ * foto", no un producto de mentira disfrazado de real.
  */
-export function placeholderHue(seed: string): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) % 360;
-  }
-  return hash;
+const CATEGORY_PLACEHOLDERS = new Set([
+  "electronica",
+  "hogar-y-cocina",
+  "moda",
+  "deportes",
+]);
+
+/** `categoryPlaceholderSrc("moda")` → `/placeholders/moda.svg`. */
+export function categoryPlaceholderSrc(categorySlug: string): string {
+  const slug = CATEGORY_PLACEHOLDERS.has(categorySlug) ? categorySlug : "generico";
+  return `/placeholders/${slug}.svg`;
 }

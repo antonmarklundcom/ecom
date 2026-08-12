@@ -128,7 +128,7 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Pipeline de imágenes de Cloudinary con placeholders
 - [x] Estados vacíos / loading / error, `not-found.tsx`
 - [ ] Lighthouse mobile ≥ 90 perf/a11y en la ficha de producto *(medir con el sitio desplegado)*
-- [ ] Fotos reales de producto en Cloudinary *(el seed no trae imágenes: se ven placeholders)*
+- [ ] Fotos reales de producto en Cloudinary *(el seed no trae fotos: se ve una ilustración placeholder por categoría — `public/placeholders/` — en vez de la caja de color de antes)*
 
 ---
 
