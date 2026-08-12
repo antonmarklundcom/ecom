@@ -15,21 +15,25 @@ E-commerce para el mercado paraguayo. Guaraníes enteros, español (voseo), What
 
 ## Estado
 
-🚧 **PR #4 (Admin & Hardening) en curso.** Están listos el schema y el dominio (PR #1), la vidriera (PR #2), el checkout (PR #3) y el panel del dueño con su endurecimiento (PR #4): login, pedidos, revisión de comprobantes, productos, resumen y cron de vencimiento.
+✅ **PR #1 a #5 del `PLAN.md` mergeados**: schema y dominio (PR #1), vidriera (PR #2), checkout SPI/QR + contra entrega (PR #3), panel del dueño con su endurecimiento (PR #4) y Pagopar (PR #5, con modo mock para probarlo sin cuenta).
 
-Falta para poder vender: la cuenta de Hostinger (deploy, PLAN.md 4.11), los datos bancarios reales del comercio y las fotos de producto. Pagopar es el PR #5, post-lanzamiento. Ver `TASKS.md`.
+Falta para poder vender de verdad: la cuenta de Hostinger (deploy, PLAN.md 4.11), los datos bancarios reales del comercio, el número de WhatsApp, las credenciales de Pagopar y las fotos de producto. Son bloqueos de terceros, no trabajo pendiente de este repo — están todos juntos en la sección **"Bloqueado por terceros"** de `TASKS.md`.
 
 ## Arrancar en local
 
 ```bash
 pnpm install
 cp .env.example .env.local          # completá SESSION_PASSWORD: openssl rand -base64 32
+                                     # y opcionalmente PAGOPAR_MODE="mock" (probar tarjeta sin cuenta de Pagopar)
 docker compose up -d                # MySQL 8 en localhost:3306 (tienda_py + tienda_py_test)
 pnpm db:push                        # schema + FULLTEXT + FK self-ref + contador
 pnpm db:seed                        # 4 categorías, 24 productos, 43 variantes, 4 zonas de envío
 pnpm create-owner                   # única forma de crear un usuario del panel
 pnpm dev                            # http://localhost:3000 · panel en /admin
 ```
+
+Para ver la tienda con pedidos de verdad en vez de un catálogo vacío, `pnpm demo`
+reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 
 | Comando | Qué hace |
 |---|---|

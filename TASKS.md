@@ -1,11 +1,38 @@
-# TASKS.md — Sprint activo: **cierre de pendientes PR #3 · Checkout SPI/QR**
+# TASKS.md — Sprint activo: **cierre de bloqueos de terceros**
 
-PR #5 (Pagopar) ya está mergeado en `main`; sólo quedan bloqueados 5.4/22 por
-credenciales de sandbox (TASKS.md §0). Lo que falta cerrar ahora es la
-página SPI/QR del checkout — la tienda no podía cobrar sin ella (§9).
+PR #1 a #5 del `PLAN.md` ya están mergeados en `main` — schema, vidriera,
+checkout SPI/QR, admin y Pagopar. `pnpm demo` deja la base en un estado
+mostrable con un pedido en cada estado (ver README). Lo único que queda sin
+marcar en este archivo son ítems que dependen de que alguien fuera de este
+repo entregue algo: una cuenta, un dominio, credenciales o datos reales del
+comercio. La sección **"Bloqueado por terceros"** de abajo los junta todos en
+un solo lugar con quién tiene que resolver cada uno — antes había que
+peinar los cinco PRs para armar esa lista.
 
 Stack: Next.js 15 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudinary.
 Marcá `[x]` al terminar. Cada bloque es un commit.
+
+---
+
+## Bloqueado por terceros
+
+Ningún ítem de esta tabla se resuelve escribiendo código: cada uno espera
+una decisión, una cuenta o un dato que sólo puede dar quien se nombra en la
+columna "Lo desbloquea". Se listan una sola vez acá aunque aparezcan
+marcados como pendientes en varias secciones más abajo.
+
+| Bloqueo | Lo desbloquea | Dónde aparece |
+|---|---|---|
+| Cuenta de Hostinger + slot Node.js libre, y confirmar que el plan incluye Node.js | Dueño del proyecto | §0, §2, DoD PR #1, DoD PR #4 |
+| Dominio / subdominio de la tienda | Dueño del proyecto | §0 |
+| Datos bancarios reales (banco, titular, RUC, nro. de cuenta) + imagen del QR SPI | Dueño del comercio (con su banco) | §0, §9 |
+| Número de WhatsApp del comercio | Dueño del comercio | §0 |
+| Credenciales de Pagopar (`PAGOPAR_PUBLIC_KEY` / `PAGOPAR_PRIVATE_KEY`) + `PAGOPAR_BASE_URL` de la API 2.0 | Pagopar (alta de comercio) | §0 |
+| Confirmar el sobre exacto de la respuesta del webhook contra la doc v2 vigente | Pagopar (acceso a la doc actualizada) | §21 |
+| Túnel HTTPS + registrar la "URL de respuesta" en el panel de Pagopar, para probar de punta a punta | Pagopar (panel del comercio) — depende de las credenciales de arriba | §21 |
+| Cuenta de Cloudinary (o folders separados en una existente) | Dueño del proyecto | §0 |
+| Fotos reales de cada producto | Dueño del comercio (catálogo fotográfico real) — los placeholders sólo evitan la caja gris en la demo, no reemplazan esto | §8 |
+| Lighthouse mobile ≥ 90 medido de verdad | Depende del deploy a Hostinger (primer bloqueo de esta tabla) | §8 |
 
 ---
 
@@ -67,7 +94,7 @@ Marcá `[x]` al terminar. Cada bloque es un commit.
 - [x] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)`
 - [x] Script `create-owner.ts` — **sin ruta pública de registro**
 - [x] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated (config + `signedReceiptUrl()` — sin flow de upload todavía)
-- [ ] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido
+- [x] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido (`src/app/actions/receipt.ts`, usado por `src/components/receipt-upload.tsx`; validación en `src/domain/receipts.ts`)
 - [x] `signedReceiptUrl()` con TTL corto para el admin
 
 ## 7. Zod + seed
