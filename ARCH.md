@@ -255,6 +255,24 @@ card payments it will happen.
    purpose, so the software does not overrule them. The money still shows up in
    the same list, for the same refund.
 
+**What the owner can do about it.** The list is not read-only: each row carries
+the two actions it implies. **Retry** re-runs the revival — `vencido → pagado`
+through `transitionOrder`, which re-secures stock first, so it either revives
+the order or leaves everything exactly as it was. It is safe to press as often
+as the merchant restocks; a failed retry writes nothing. **Mark as refunded**
+sets `payments.status = 'refunded'` and moves the order to `cancelado` with the
+reason in `order_events`, in one transaction — the software does not move money,
+it records that the owner already did.
+
+Both re-read payment and order under `SELECT … FOR UPDATE` instead of trusting
+the id the form submitted. The screen was rendered minutes ago and anything
+could have happened since: the other owner already refunded it, the cron moved
+the order, a sale took the last unit. Deciding on what the page said is deciding
+on stale data. Concretely, a refund is refused if the order came back to life in
+the meantime, and a retry on an already-revived order is a no-op rather than an
+error — two owners pressing the same button at the same time produce exactly one
+stock decrement and one `order_events` row.
+
 **Why the stock re-check lives inside `transitionOrder` and not in the webhook.**
 There are three ways into `pagado` — the Pagopar webhook, the owner approving a
 transfer receipt, and the manual button in the panel — and any of them can be the

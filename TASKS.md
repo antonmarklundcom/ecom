@@ -381,3 +381,25 @@ marcados como pendientes en varias secciones más abajo.
 - [x] No toca la base ni la red: se puede correr en producción sin efectos
 - [x] Nunca imprime el valor de un secreto — sólo si está y si tiene el largo mínimo, verificado por test
 - [x] Tests en las dos direcciones, uno por control: sano → `ok`, roto → `bloquea`
+
+---
+
+# PR #11 · Recuperación de pagos colgados, desde el panel *(Opus 5)*
+
+## 32. Las dos acciones *(ARCH.md §4.1)*
+- [x] **Reintentar**: `vencido → pagado` vía `transitionOrder`, que re-asegura el stock primero. Nunca un `UPDATE` crudo. Si la mercadería sigue sin estar, no escribe nada y se puede volver a tocar cuando el comercio reponga
+- [x] **Marcar como devuelto**: `payments.status = 'refunded'` + pedido a `cancelado` con el motivo en `order_events`, en una sola transacción. El software no mueve plata: anota que el dueño ya la movió
+- [x] Las dos detrás de `requireAdminSession` — una server action es un endpoint HTTP con su propio id y el middleware de `/admin` no la cubre
+- [x] Las dos releen pago y pedido con `SELECT ... FOR UPDATE` en vez de confiar en el id del formulario: la pantalla desde la que se hizo click puede tener minutos de viejo
+- [x] Las dos idempotentes: el segundo click no escribe y **no es un error**
+- [x] `cancelado` no revive ni con el botón (ARCH.md §4.1 regla 4), con un mensaje escrito para el dueño en vez del error de la máquina de estados
+- [x] Devolver se **niega** si el pedido revivió mientras la pantalla estaba abierta: cancelar ahí sería cancelar un pedido que alguien está por preparar
+- [x] El motivo de la devolución es obligatorio: es lo único que va a explicar esa plata dentro de seis meses
+
+## 33. Tests
+- [x] Revive con stock (descuenta una sola vez) · sin stock (no mueve nada y se puede reintentar después) · ya revivido (`changed: false`)
+- [x] Devolución: marca `refunded`, cancela, deja el motivo y el actor en `order_events`, y el pago sale solo de `findUnmatchedPayments()`
+- [x] Sin motivo no escribe nada; marcar dos veces no duplica el evento
+- [x] Un id inexistente en el formulario no rompe nada
+- [x] **Concurrencia**: dos dueños tocando "reintentar" a la vez sobre la misma fila → ninguno explota, un solo descuento, una sola fila en `order_events`
+- [x] **Concurrencia**: reintentar y devolver a la vez → o pedido cobrado con el pago `paid`, o pedido cancelado con el pago `refunded`. Nunca cobrado con la plata devuelta ni cancelado con el stock descontado
