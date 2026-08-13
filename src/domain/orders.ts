@@ -11,6 +11,7 @@ import {
 } from '@/db/schema';
 
 import type { Executor, Tx } from './executor';
+import { recordManualPayment } from './manual-payments';
 
 /**
  * Máquina de estados del pedido (ARCH.md §3).
@@ -130,7 +131,13 @@ export async function transitionOrder(
 ): Promise<TransitionResult> {
   const run = async (tx: Tx | Executor): Promise<TransitionResult> => {
     const locked = await tx
-      .select({ id: orders.id, status: orders.status })
+      .select({
+        id: orders.id,
+        status: orders.status,
+        orderNumber: orders.orderNumber,
+        paymentMethod: orders.paymentMethod,
+        totalPyg: orders.totalPyg,
+      })
       .from(orders)
       .where(eq(orders.id, orderId))
       .for('update');
@@ -156,6 +163,17 @@ export async function transitionOrder(
       // panel) pueda descontar stock que ya no existe.
       await secureStockForPayment(tx, orderId);
       await consumeReservations(tx, orderId);
+
+      // Y por la misma razón, el registro del cobro manual (TASKS.md §27). El
+      // comprobante aprobado y el contra entrega confirmado son plata que
+      // entró: si la fila de `payments` no se escribe acá, en la transacción
+      // que cobra, no hay dónde escribirla después sin poder mentir.
+      await recordManualPayment(tx, {
+        id: orderId,
+        orderNumber: order.orderNumber,
+        paymentMethod: order.paymentMethod,
+        totalPyg: order.totalPyg,
+      });
     }
     if (RELEASES_STOCK.includes(to)) {
       await releaseReservations(tx, orderId);

@@ -18,6 +18,7 @@
     "db:generate": "drizzle-kit generate",
     "create-owner": "tsx scripts/create-owner.ts",
     "reconcile": "tsx scripts/reconcile.ts",
+    "backfill:pagos-manuales": "tsx scripts/backfill-manual-payments.ts",
     "preflight": "tsx scripts/preflight.ts"
   },
   "dependencies": {

@@ -309,8 +309,35 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Casos negativos que separan el control de un falso positivo: transferencia cobrada sin fila en `payments`, pago `pending`, pedido ya `entregado`, comprobante `pending`, fila de creación con `from_status` NULL
 - [x] Varias inconsistencias distintas a la vez salen todas en el mismo reporte
 
-## 27. Hueco conocido *(no lo cierra este PR)*
-- [ ] **Sólo Pagopar escribe en `payments`.** Una transferencia aprobada o un contra entrega llegan a `pagado` sin ninguna fila de pago, así que `pedido_cobrado_sin_pago` está acotado a `payment_method = 'tarjeta'`. Cerrarlo es cambiar el camino de escritura (registrar el pago manual al aprobar el comprobante), no este control de lectura
+## 27. Hueco conocido *(cerrado en el PR #10)*
+- [x] **Sólo Pagopar escribía en `payments`.** Una transferencia aprobada o un contra entrega llegaban a `pagado` sin ninguna fila de pago, así que `pedido_cobrado_sin_pago` estaba acotado a `payment_method = 'tarjeta'`. Se cerró donde correspondía: en el camino de escritura, no en el control de lectura
+
+---
+
+# PR #10 · El pago manual queda registrado *(Opus 5)*
+
+## 27.1 Camino de escritura *(ARCH.md §5.1)*
+- [x] `recordManualPayment()` corre **dentro de `transitionOrder`**, al entrar a `pagado`, en la misma transacción que cobra el pedido: los tres caminos a `pagado` quedan cubiertos sin que ninguno tenga que acordarse de nada
+- [x] `transferencia → spi`, `contra_entrega → cod`; `tarjeta` no escribe nada porque esa fila ya la puso `startPagoparCheckout`
+- [x] `provider_ref = orders.order_number`: inmutable, único y es lo que el dueño busca en el extracto del banco. Con eso `UNIQUE(provider, provider_ref)` significa "un solo cobro manual por pedido y proveedor"
+- [x] `INSERT IGNORE`: idempotente bajo doble click por el índice, no por una lectura previa. Una fila ya existente no se pisa — un pago `refunded` no revive porque el pedido vuelva a pasar por `pagado`
+
+## 27.2 La invariante, sin el parche
+- [x] `pedido_cobrado_sin_pago` ya no filtra por método: pedido cobrado ⇒ pago registrado, sin excepciones
+- [x] Cuenta como registrado `paid` **o** `refunded`: devolver la plata no borra que entró (un pedido `reembolsado` no está incompleto)
+
+## 27.3 Backfill *(script, no migración)*
+- [x] `pnpm backfill:pagos-manuales` completa los pedidos ya cobrados por el camino manual. Ensayo por defecto; `--apply` escribe
+- [x] Script y no migración porque el schema se aplica con `drizzle-kit push`, que **no corre los archivos de `drizzle/`**: una migración con el backfill adentro correría en los tests y jamás en el servidor del comercio
+- [x] La escritura es un `INSERT ... SELECT`: el monto va de `orders.total_pyg` a `payments.amount_pyg` sin salir de MySQL
+- [x] Idempotente por el mismo índice único: correrlo dos veces no duplica y correrlo después de un corte termina lo que faltaba
+
+## 27.4 Tests
+- [x] Comprobante aprobado → fila `spi` con el total exacto; contra entrega confirmado → fila `cod`; tarjeta → no aparece una segunda fila
+- [x] Comprobante rechazado → ningún pago registrado
+- [x] Dos aprobaciones **simultáneas** del mismo comprobante → un solo pago
+- [x] Atomicidad: si el cobro falla por falta de stock, no queda ni el pago ni el comprobante aprobado
+- [x] Backfill en las dos direcciones: ensayo que no escribe, `--apply` que escribe, segunda corrida que no duplica, y el monto leído como texto crudo desde MySQL para que ningún `Number()` pase por el medio
 
 ---
 

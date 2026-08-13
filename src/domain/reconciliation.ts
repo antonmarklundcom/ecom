@@ -176,16 +176,20 @@ export type CrossCheckFinding = {
 const CROSS_CHECK_LIMIT = 100;
 
 /**
- * Pedido cobrado con tarjeta y sin fila de pago.
+ * Pedido cobrado sin fila de pago, por cualquier método.
  *
- * Acotado a `tarjeta` a propósito: hoy la única forma de pago que escribe en
- * `payments` es Pagopar (`startPagoparCheckout`). Una transferencia aprobada
- * por el dueño o un contra entrega llegan a `pagado` sin ninguna fila ahí, así
- * que sin este filtro el control gritaría por cada venta legítima del camino
- * manual — y un control que grita siempre es un control que nadie mira.
+ * Estuvo acotado a `tarjeta` mientras Pagopar era lo único que escribía en
+ * `payments`: sin ese filtro, cada transferencia aprobada y cada contra
+ * entrega —ventas legítimas— salían reportadas, y un control que grita siempre
+ * es un control que nadie mira. Ahora los dos caminos manuales registran su
+ * pago en la misma transacción que cobra el pedido
+ * (`recordManualPayment`, TASKS.md §27), así que el filtro dejó de tapar un
+ * hueco y pasaría a tapar el control: la invariante es "pedido cobrado ⇒ pago
+ * registrado", sin excepciones por método.
  *
- * Que ese hueco exista es en sí una deuda anotada en TASKS.md; cerrarlo es
- * cambiar el camino de escritura, no este control de lectura.
+ * `paid` o `refunded`: lo que se verifica es que la plata haya quedado
+ * anotada, y devolverla no borra que entró. Un pedido `reembolsado` con su
+ * pago en `refunded` está bien, no le falta el registro.
  */
 export async function findOrdersPaidWithoutPayment(
   executor?: Executor,
@@ -193,13 +197,16 @@ export async function findOrdersPaidWithoutPayment(
   const tx = executor ?? getDb();
 
   const result = await tx.execute(sql`
-    SELECT o.id AS orderId, o.order_number AS orderNumber, o.status AS orderStatus
+    SELECT
+      o.id             AS orderId,
+      o.order_number   AS orderNumber,
+      o.status         AS orderStatus,
+      o.payment_method AS paymentMethod
     FROM orders o
-    WHERE o.payment_method = 'tarjeta'
-      AND o.status IN (${statusList(SETTLED)})
+    WHERE o.status IN (${statusList(SETTLED)})
       AND NOT EXISTS (
         SELECT 1 FROM payments p
-        WHERE p.order_id = o.id AND p.status = 'paid'
+        WHERE p.order_id = o.id AND p.status IN ('paid', 'refunded')
       )
     ORDER BY o.id DESC
     LIMIT ${CROSS_CHECK_LIMIT}
@@ -208,7 +215,9 @@ export async function findOrdersPaidWithoutPayment(
   return rowsOf(result).map((row) => ({
     kind: "pedido_cobrado_sin_pago" as const,
     ...identity(row),
-    detail: "el pedido está cobrado con tarjeta pero no hay ninguna fila de pago acreditada",
+    detail:
+      `el pedido está cobrado (${row.paymentMethod}) pero no hay ninguna fila de pago ` +
+      `acreditada`,
   }));
 }
 
