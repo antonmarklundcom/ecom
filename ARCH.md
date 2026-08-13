@@ -288,9 +288,55 @@ refund, and pretending the order is alive would be worse than saying nothing.
 2. Confirmation page shows: Banco, Titular, RUC, nro. de cuenta, **the exact ₲ total with a copy button**, and the SPI QR image. Copy buttons on every field — typing an account number on a phone is where orders die.
 3. Buyer uploads the comprobante → server validates MIME + size → uploads to a **private Cloudinary folder** (signed delivery URLs only) → `receipts` row → `esperando_verificacion`.
 4. One-tap WhatsApp button: `https://wa.me/595XXXXXXXXX?text=` + `encodeURIComponent(message)`. Message contains order number, total, and the tokenized order URL. Keep under ~1500 chars — long deeplinks truncate on iOS.
-5. Owner checks the receipt against the bank statement in `/admin`, clicks **Aprobar** → `transitionOrder(→ pagado)`.
+5. Owner checks the receipt against the bank statement in `/admin`, clicks **Aprobar** → `transitionOrder(→ pagado)`, which also writes the `payments` row (below).
 
 **Contra entrega (COD)** uses the same states, minus the receipt: the owner confirms on delivery. Worth having on day one — cash on delivery is still a large share of PY e-commerce.
+
+### 5.1 A manual payment is still a payment
+
+For a while `payments` only ever held Pagopar rows, because Pagopar was the
+only path with an external system to record. An approved transfer receipt and a
+confirmed COD reached `pagado` with no row at all: the money arrived and the
+table that exists to record money arriving never heard about it. That is not a
+cosmetic gap. It cost the reconciliation its most valuable cross-check —
+`pedido_cobrado_sin_pago` had to be scoped to `payment_method = 'tarjeta'`,
+which is to say switched off for the two paths the store actually gets paid
+through.
+
+**Entering `pagado` writes the payment row, in the same transaction.**
+`recordManualPayment()` runs inside `transitionOrder`, next to the stock
+re-check and for the same reason (§4.1): there are three ways into `pagado`,
+and a record the caller has to remember to write is a record the fourth caller
+will not write. If it were a second step, a process that dies in between would
+leave the order charged and the payment unrecorded — precisely the mismatch
+this exists to make impossible.
+
+| `orders.payment_method` | `payments.provider` | who writes it |
+|---|---|---|
+| `transferencia` | `spi` | `transitionOrder`, on entering `pagado` |
+| `contra_entrega` | `cod` | `transitionOrder`, on entering `pagado` |
+| `tarjeta` | `pagopar` | `startPagoparCheckout` before redirecting; the webhook flips it to `paid` |
+
+**`provider_ref` is the order number.** Nobody issues a transaction id for a
+bank transfer or for cash in hand, so the reference has to come from something
+that already identifies the charge without ambiguity. `orders.order_number` is
+immutable, unique, and is what the owner has in front of them when they look
+for the transfer on the bank statement. Because it is derivable from the order,
+`UNIQUE(provider, provider_ref)` now *means* something — "one manual charge per
+order per provider" — and a double-click, a retry, or an order re-entering
+`pagado` collides with that index instead of duplicating the money. The insert
+is `INSERT IGNORE`: an existing row is never overwritten, so a payment someone
+already marked `refunded` cannot be resurrected by the order passing through
+again.
+
+**The invariant, restored.** `pedido_cobrado_sin_pago` no longer filters by
+payment method: a settled order without a `paid`-or-`refunded` payment row is a
+finding, whatever it was paid with. (`refunded` counts as recorded — refunding
+money does not erase that it arrived.) Orders charged before this existed are
+completed by `pnpm backfill:pagos-manuales`, a dry-run-by-default script rather
+than a migration: the schema is applied with `drizzle-kit push`, which never
+runs the files in `drizzle/`, so a backfill living there would run in the test
+suite and never on the merchant's server.
 
 ---
 

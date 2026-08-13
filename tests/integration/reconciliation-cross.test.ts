@@ -171,8 +171,9 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   });
 
   it("un pedido por transferencia cobrado no cuenta como pedido sin pago", async () => {
-    // Sólo Pagopar escribe en `payments`: si el control no acotara por método,
-    // cada venta legítima del camino manual saldría reportada.
+    // El control ya no acota por método: pasa porque aprobar el comprobante
+    // registra el pago `spi` en la misma transacción que cobra el pedido
+    // (TASKS.md §27), no porque se lo esté salteando.
     await pedidoSanoPorTransferencia();
 
     expect(await findOrdersPaidWithoutPayment()).toEqual([]);
