@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { TIENDA } from "@/config/tienda";
 import { CartSheet } from "@/components/cart-sheet";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -21,15 +22,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "TiendaPY — Comprá online en Paraguay",
-    template: "%s · TiendaPY",
+    default: TIENDA.titulo,
+    template: `%s · ${TIENDA.nombre}`,
   },
-  description:
-    "Tienda online paraguaya. Precios en guaraníes, IVA incluido, envíos a todo el país y atención por WhatsApp.",
+  description: TIENDA.descripcion,
   openGraph: {
     type: "website",
-    locale: "es_PY",
-    siteName: "TiendaPY",
+    locale: TIENDA.ogLocale,
+    siteName: TIENDA.nombre,
   },
 };
 
@@ -38,7 +38,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
-      lang="es-PY"
+      lang={TIENDA.lang}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">

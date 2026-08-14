@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { TIENDA } from "@/config/tienda";
 import { getCategories } from "@/db/queries";
 import { comercioWhatsApp } from "@/lib/comercio";
 import { formatPhonePY } from "@/lib/py";
@@ -17,10 +18,8 @@ export async function SiteFooter() {
     <footer className="border-border mt-16 border-t">
       <div className="text-muted-foreground mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 text-sm sm:grid-cols-3">
         <div>
-          <p className="text-foreground font-semibold">TiendaPY</p>
-          <p className="mt-2">
-            Precios en guaraníes, IVA incluido. Enviamos a todo el país.
-          </p>
+          <p className="text-foreground font-semibold">{TIENDA.nombre}</p>
+          <p className="mt-2">{TIENDA.tagline}</p>
         </div>
 
         <div>

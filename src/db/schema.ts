@@ -15,7 +15,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 
 /**
- * Tienda PY — data model (ARCH.md §2).
+ * Data model (ARCH.md §2).
  *
  * Money rule, no exceptions: every `*_pyg` column is BIGINT UNSIGNED holding
  * whole guaraníes. No DECIMAL, no FLOAT, no cents. Prices are IVA incluido.

@@ -21,7 +21,7 @@ export type Database = MySql2Database<typeof schema>;
 declare global {
   // Next.js dev reloads the module graph on every edit; without this the pool
   // count grows until MySQL refuses new connections.
-  var __tiendaPyPool: mysql.Pool | undefined;
+  var __ecomPool: mysql.Pool | undefined;
 }
 
 function connectionString(): string {
@@ -36,10 +36,10 @@ function connectionString(): string {
 }
 
 export function getPool(): mysql.Pool {
-  if (!globalThis.__tiendaPyPool) {
-    globalThis.__tiendaPyPool = mysql.createPool({ uri: connectionString(), ...POOL_OPTIONS });
+  if (!globalThis.__ecomPool) {
+    globalThis.__ecomPool = mysql.createPool({ uri: connectionString(), ...POOL_OPTIONS });
   }
-  return globalThis.__tiendaPyPool;
+  return globalThis.__ecomPool;
 }
 
 let cachedDb: Database | undefined;
@@ -60,9 +60,9 @@ export const db: Database = new Proxy({} as Database, {
 });
 
 export async function closePool(): Promise<void> {
-  if (globalThis.__tiendaPyPool) {
-    await globalThis.__tiendaPyPool.end();
-    globalThis.__tiendaPyPool = undefined;
+  if (globalThis.__ecomPool) {
+    await globalThis.__ecomPool.end();
+    globalThis.__ecomPool = undefined;
     cachedDb = undefined;
   }
 }

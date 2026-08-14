@@ -1,6 +1,10 @@
-# ecom — Tienda PY
+# ecom — template de tienda online (Paraguay)
 
-E-commerce para el mercado paraguayo. Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
+Base reutilizable para montar tiendas online paraguayas: la maquinaria (pedidos,
+stock, pagos, panel) viene hecha y por tienda sólo se cambian marca, diseño,
+base y productos — ver **[NEW-STORE.md](./NEW-STORE.md)**.
+
+Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 
 **Stack:** Next.js 15 (App Router, TS) · Drizzle ORM · Hostinger MySQL · Hostinger Node.js · Cloudinary · Tailwind + shadcn/ui · Zustand · Zod
 
@@ -11,6 +15,7 @@ E-commerce para el mercado paraguayo. Guaraníes enteros, español (voseo), What
 | [ARCH.md](./ARCH.md) | Modelo de datos (ERD), modelo de seguridad, máquina de estados del pedido, flujos de pago, integración FacturaPY (fase 2) |
 | [PLAN.md](./PLAN.md) | Los 5 PRs con tareas etiquetadas `[Opus 5]` / `[Sonnet 5]` |
 | [TASKS.md](./TASKS.md) | Checklist por PR |
+| [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
 
 ## Estado
@@ -25,7 +30,7 @@ Falta para poder vender de verdad: la cuenta de Hostinger (deploy, PLAN.md 4.11)
 pnpm install
 cp .env.example .env.local          # completá SESSION_PASSWORD: openssl rand -base64 32
                                      # y opcionalmente PAGOPAR_MODE="mock" (probar tarjeta sin cuenta de Pagopar)
-docker compose up -d                # MySQL 8 en localhost:3306 (tienda_py + tienda_py_test)
+docker compose up -d                # MySQL 8 en localhost:3306 (base `ecom`)
 pnpm db:push                        # schema + FULLTEXT + FK self-ref + contador
 pnpm db:seed                        # 4 categorías, 24 productos, 43 variantes, 4 zonas de envío
 pnpm create-owner                   # única forma de crear un usuario del panel
