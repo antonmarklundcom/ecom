@@ -13,7 +13,7 @@ export type AdminSession = {
   role?: UserRole;
 };
 
-export const SESSION_COOKIE = 'tienda_py_admin';
+export const SESSION_COOKIE = 'ecom_admin';
 
 export function sessionOptions(): SessionOptions {
   const password = process.env.SESSION_SECRET;

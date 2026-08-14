@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 
+import { TIENDA } from "@/config/tienda";
 import { CartButton } from "@/components/cart-button";
 import { SearchBox } from "@/components/search-box";
 import { getCategories } from "@/db/queries";
@@ -17,7 +18,7 @@ export async function SiteHeader() {
     <header className="border-border bg-background/95 sticky top-0 z-30 border-b backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
         <Link href="/" className="text-lg font-semibold tracking-tight">
-          Tienda<span className="text-muted-foreground">PY</span>
+          {TIENDA.nombre}
         </Link>
 
         <Suspense fallback={null}>
