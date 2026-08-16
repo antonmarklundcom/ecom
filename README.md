@@ -16,6 +16,7 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | [PLAN.md](./PLAN.md) | Los 5 PRs con tareas etiquetadas `[Opus 5]` / `[Sonnet 5]` |
 | [TASKS.md](./TASKS.md) | Checklist por PR |
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
+| [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
 
 ## Estado
