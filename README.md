@@ -107,6 +107,7 @@ Se entra con la cuenta que crea `pnpm create-owner` — **no hay ruta pública d
 | `/admin/pedidos` | filtros por estado/método/fecha, búsqueda por nro., WhatsApp o RUC, paginación server-side |
 | `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
 | `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado) |
+| `/admin/clientes` | quién compró, cuántas veces y cuánto gastó — sale de agrupar los pedidos por WhatsApp, sin cuentas de cliente |
 
 ### `POST /api/setup/init` — inicializar una tienda recién deployada
 
