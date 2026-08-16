@@ -9,6 +9,8 @@ import {
   variants,
 } from "@/db/schema";
 
+import type { AdminProductSort } from "@/lib/admin-product-sort";
+
 import type { Executor } from "./executor";
 import { heldQtyMap } from "./stock";
 
@@ -34,15 +36,28 @@ export type AdminProductRow = {
   name: string;
   brand: string | null;
   categoryName: string;
+  /** Para elegir la ilustración placeholder cuando todavía no hay foto. */
+  categorySlug: string;
   isActive: boolean;
   publishedAt: Date | null;
   variantCount: number;
   minPricePyg: number | null;
   onHand: number;
+  /** La primera foto del producto, o `null` si no cargó ninguna. */
+  imageCloudinaryId: string | null;
+  imageAlt: string | null;
+};
+
+export type AdminProductFilters = {
+  search?: string;
+  categoryId?: number;
+  sort?: AdminProductSort;
+  page?: number;
+  perPage?: number;
 };
 
 export async function listAdminProducts(
-  options: { search?: string; page?: number; perPage?: number } = {},
+  options: AdminProductFilters = {},
   executor?: Executor,
 ): Promise<{ rows: AdminProductRow[]; total: number; page: number; totalPages: number }> {
   const tx = executor ?? getDb();
@@ -50,13 +65,31 @@ export async function listAdminProducts(
   const page = Math.max(1, options.page ?? 1);
 
   const term = options.search?.trim();
-  const where = term
-    ? sql`(${products.name} LIKE ${`%${escapeLike(term)}%`} OR ${products.slug} LIKE ${`%${escapeLike(term)}%`})`
-    : undefined;
+  const where = and(
+    term
+      ? sql`(${products.name} LIKE ${`%${escapeLike(term)}%`} OR ${products.slug} LIKE ${`%${escapeLike(term)}%`})`
+      : undefined,
+    options.categoryId ? eq(products.categoryId, options.categoryId) : undefined,
+  );
 
   const [{ total = 0 } = {}] = await tx.select({ total: count() }).from(products).where(where);
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const safePage = Math.min(page, totalPages);
+
+  // El stock y el precio del listado son agregados de las variantes, así que
+  // ordenar por ellos es ordenar por el agregado y no por una columna.
+  const onHandSum = sql`COALESCE(SUM(${variants.onHand}), 0)`;
+  const minPrice = sql`MIN(${variants.pricePyg})`;
+  const orderBy = {
+    recientes: [desc(products.updatedAt)],
+    // Un producto sin variantes suma cero y encabeza la lista: eso es correcto,
+    // no se puede vender.
+    stock: [asc(onHandSum), asc(products.name)],
+    // Los sin precio (sin variantes) van al final en las dos direcciones: no
+    // son "el más barato".
+    "precio-asc": [sql`${minPrice} IS NULL`, asc(minPrice)],
+    "precio-desc": [sql`${minPrice} IS NULL`, desc(minPrice)],
+  }[options.sort ?? "recientes"];
 
   const rows = await tx
     .select({
@@ -65,18 +98,34 @@ export async function listAdminProducts(
       name: products.name,
       brand: products.brand,
       categoryName: categories.name,
+      categorySlug: categories.slug,
       isActive: products.isActive,
       publishedAt: products.publishedAt,
       variantCount: sql<number>`COUNT(${variants.id})`,
       minPricePyg: sql<number | null>`MIN(${variants.pricePyg})`,
       onHand: sql<number>`COALESCE(SUM(${variants.onHand}), 0)`,
+      // Subconsulta y no JOIN: un JOIN a `product_images` multiplica las filas
+      // por sus fotos y rompe COUNT(variants) igual que rompería la
+      // paginación. Las columnas van calificadas a mano — interpolar
+      // `${productImages.productId}` acá adentro las emite sin el alias y la
+      // correlación se compara consigo misma.
+      imageCloudinaryId: sql<string | null>`(
+        SELECT pi.\`cloudinary_id\` FROM \`product_images\` AS pi
+        WHERE pi.\`product_id\` = \`products\`.\`id\`
+        ORDER BY pi.\`position\` ASC, pi.\`id\` ASC LIMIT 1
+      )`,
+      imageAlt: sql<string | null>`(
+        SELECT pi.\`alt\` FROM \`product_images\` AS pi
+        WHERE pi.\`product_id\` = \`products\`.\`id\`
+        ORDER BY pi.\`position\` ASC, pi.\`id\` ASC LIMIT 1
+      )`,
     })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .leftJoin(variants, eq(variants.productId, products.id))
     .where(where)
-    .groupBy(products.id, categories.name)
-    .orderBy(desc(products.updatedAt))
+    .groupBy(products.id, categories.name, categories.slug)
+    .orderBy(...orderBy)
     .limit(perPage)
     .offset((safePage - 1) * perPage);
 
