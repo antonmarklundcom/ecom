@@ -3,22 +3,24 @@ import Link from "next/link";
 
 import { UnmatchedPayments } from "@/components/admin/unmatched-payments";
 import { listOrders } from "@/domain/admin-orders";
-import { getDashboardSummary } from "@/domain/admin-dashboard";
+import { getDashboardSummary, salesTrend, topProducts } from "@/domain/admin-dashboard";
 import { lowStockVariants } from "@/domain/admin-products";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
 import { formatGs } from "@/lib/money";
-import { formatDateTimePY } from "@/lib/py";
+import { formatDatePY, formatDateTimePY } from "@/lib/py";
 
 export const metadata: Metadata = { title: "Resumen" };
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  const [summary, awaiting, lowStock, unmatched] = await Promise.all([
+  const [summary, awaiting, lowStock, unmatched, top, trend] = await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
     lowStockVariants(3, 8),
     findUnmatchedPayments({ limit: 10 }),
+    topProducts(),
+    salesTrend(),
   ]);
 
   return (
@@ -70,6 +72,45 @@ export default async function AdminDashboardPage() {
         Sólo se cuentan los pedidos ya cobrados (pagado en adelante). Un pedido esperando pago
         todavía puede vencer.
       </p>
+
+      <section className="mt-8">
+        <h2 className="font-medium">Últimos 7 días</h2>
+        <p className="text-muted-foreground mt-1 text-xs">
+          Cada día se corta a medianoche de Asunción y cuenta lo mismo que el cuadro de arriba.
+        </p>
+        <SalesTrend days={trend} />
+      </section>
+
+      <section className="mt-8">
+        <h2 className="font-medium">Lo más vendido del mes</h2>
+        {top.length === 0 ? (
+          <p className="text-muted-foreground border-border mt-2 rounded-xl border border-dashed p-6 text-center text-sm">
+            Todavía no hay ventas cobradas este mes.
+          </p>
+        ) : (
+          <ol className="divide-border mt-2 divide-y text-sm">
+            {top.map((product, index) => (
+              <li key={product.productId} className="flex items-baseline gap-3 py-2">
+                <span className="text-muted-foreground w-4 shrink-0 tabular-nums">
+                  {index + 1}
+                </span>
+                <Link
+                  href={`/admin/productos/${product.productId}`}
+                  className="min-w-0 flex-1 truncate hover:underline"
+                >
+                  {product.name}
+                </Link>
+                <span className="text-muted-foreground shrink-0 tabular-nums">
+                  {product.qty} u.
+                </span>
+                <span className="shrink-0 font-medium tabular-nums">
+                  {formatGs(product.totalPyg)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       <section className="mt-8">
         <div className="flex items-baseline justify-between gap-2">
@@ -149,6 +190,40 @@ export default async function AdminDashboardPage() {
         </Link>
       </section>
     </div>
+  );
+}
+
+/**
+ * Tendencia de la semana.
+ *
+ * Barras de CSS y no una librería de gráficos: son siete números, y meter un
+ * paquete de charting al bundle por esto es cargar 50 kB para dibujar siete
+ * rectángulos. Los montos están escritos al lado de cada barra, así que la
+ * barra es una ayuda visual y no el único portador del dato — que además es lo
+ * que lo hace legible en un lector de pantalla.
+ */
+function SalesTrend({ days }: { days: Array<{ day: Date; totalPyg: number; orders: number }> }) {
+  const max = Math.max(...days.map((day) => day.totalPyg), 1);
+
+  return (
+    <ul className="divide-border mt-2 divide-y text-sm">
+      {days.map((day) => (
+        <li key={day.day.toISOString()} className="flex items-center gap-3 py-2">
+          <span className="text-muted-foreground w-20 shrink-0 text-xs tabular-nums">
+            {formatDatePY(day.day)}
+          </span>
+          <span className="bg-muted h-2 min-w-0 flex-1 overflow-hidden rounded-full">
+            <span
+              className="bg-primary block h-full rounded-full"
+              // El ancho es el único dato que no puede vivir en una clase de
+              // Tailwind: sale de una consulta, no de la hoja de estilos.
+              style={{ width: `${Math.round((day.totalPyg / max) * 100)}%` }}
+            />
+          </span>
+          <span className="shrink-0 tabular-nums">{formatGs(day.totalPyg)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
