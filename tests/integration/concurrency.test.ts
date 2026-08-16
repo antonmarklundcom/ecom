@@ -447,4 +447,86 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     expect((reserva as PromiseRejectedResult).reason).toBeInstanceOf(InsufficientStockError);
     expect(await getOnHand(variantId)).toBe(0);
   });
+
+  it("si la base aborta la reserva por conflicto de locks, el comprador no ve el error crudo", async () => {
+    /*
+     * El test de arriba fallaba una de cada diez corridas de la suite entera:
+     * `reserveStock` volvía con un error crudo de la base —"Failed query:
+     * select `qty` from `stock_reservations`"— en vez de
+     * `InsufficientStockError`.
+     *
+     * No era el test. Las dos transacciones toman los mismos locks en orden
+     * distinto —la reserva entra por `variants` y sigue a
+     * `stock_reservations`, el pago entra por el pedido— y MySQL rompe el
+     * empate matando a una. El `sort` por id de variante de `reserveStock` no
+     * ayuda contra una transacción que viene por otras tablas. Del lado del
+     * comprador eso es un 500 al apretar "comprar".
+     *
+     * Reproducirlo a pedido no se puede: son dos transacciones peleando por
+     * microsegundos, y repetir el choque 40 veces seguidas no lo provocó ni una
+     * vez. Entonces el conflicto se **inyecta**: la base tira lo que tira, y lo
+     * que se prueba es que el camino del comprador lo absorbe. Eso es
+     * exactamente lo que puede volver a romperse si alguien saca el
+     * `withLockRetry` de `reserveStock`.
+     */
+    const variantId = await createVariant({ onHand: 5, pricePyg: 50_000 });
+    const orderId = await insertBareOrder({ paymentMethod: "tarjeta" });
+
+    const db = getTestDb();
+    const real = db.transaction.bind(db);
+    let intentos = 0;
+
+    vi.spyOn(db, "transaction").mockImplementation(((...args: Parameters<typeof real>) => {
+      intentos += 1;
+      if (intentos === 1) {
+        // Tal cual llega: mysql2 adentro del envoltorio de drizzle.
+        return Promise.reject(
+          new Error("Failed query: select `qty` from `stock_reservations`", {
+            cause: Object.assign(new Error("Deadlock found when trying to get lock"), {
+              code: "ER_LOCK_DEADLOCK",
+              errno: 1213,
+            }),
+          }),
+        );
+      }
+      return real(...args);
+    }) as typeof real);
+
+    const resultado = await reserveStock(orderId, [{ variantId, qty: 1 }], {
+      expiresAt: new Date(Date.now() + HOUR),
+    });
+
+    // Reintentó y la reserva quedó hecha: una sola, no dos.
+    expect(intentos).toBe(2);
+    expect(resultado).toEqual({ reserved: 1 });
+
+    const held = await getTestDb()
+      .select()
+      .from(stockReservations)
+      .where(eq(stockReservations.variantId, variantId));
+    expect(held.filter((row) => row.state === "held")).toHaveLength(1);
+  });
+
+  it("un `sin stock` NO se reintenta: es una respuesta, no una falla", async () => {
+    // La otra mitad del arreglo, y la más fácil de romper de un manotazo:
+    // reintentar cualquier error convertiría cada "no hay stock" en tres
+    // transacciones y, el día que la reserva tenga efectos parciales, en
+    // duplicados.
+    const variantId = await createVariant({ onHand: 0, pricePyg: 50_000 });
+    const orderId = await insertBareOrder({ paymentMethod: "tarjeta" });
+
+    const db = getTestDb();
+    const real = db.transaction.bind(db);
+    let intentos = 0;
+    vi.spyOn(db, "transaction").mockImplementation(((...args: Parameters<typeof real>) => {
+      intentos += 1;
+      return real(...args);
+    }) as typeof real);
+
+    await expect(
+      reserveStock(orderId, [{ variantId, qty: 1 }], { expiresAt: new Date(Date.now() + HOUR) }),
+    ).rejects.toBeInstanceOf(InsufficientStockError);
+
+    expect(intentos).toBe(1);
+  });
 });

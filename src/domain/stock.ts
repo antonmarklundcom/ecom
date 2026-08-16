@@ -1,6 +1,7 @@
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
+import { withLockRetry } from '@/db/retry';
 import { stockReservations, variants } from '@/db/schema';
 
 import type { Executor } from './executor';
@@ -200,7 +201,18 @@ export async function reserveStock(
     return { reserved: ordered.length };
   };
 
-  return options.executor ? run(options.executor) : getDb().transaction(run);
+  // El `sort` de arriba evita que dos reservas se traben entre sí, pero no
+  // sirve contra una transacción que toma los mismos locks desde otras tablas
+  // —aplicar un pago, por ejemplo, que va por el pedido y sus reservas—. Ahí
+  // MySQL rompe el empate matando a una de las dos, y el comprador que perdió
+  // se comía un error crudo de la base en vez del "sin stock" de más arriba.
+  //
+  // Sólo cuando somos dueños de la transacción: si nos pasaron un executor,
+  // estamos adentro de una transacción ajena que ya quedó abortada, y
+  // reintentar acá no la resucita. Ese reintento le toca al de afuera.
+  return options.executor
+    ? run(options.executor)
+    : withLockRetry(() => getDb().transaction(run));
 }
 
 export function reservationExpiry(
