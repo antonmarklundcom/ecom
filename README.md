@@ -46,6 +46,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm typecheck` / `pnpm lint` / `pnpm test` | lo que corre CI |
 | `pnpm test` | unitarios siempre; los de integración necesitan `TEST_DATABASE_URL` (esa base se borra y se recrea en cada corrida) |
 | `pnpm db:studio` | Drizzle Studio |
+| `pnpm db:check` | prueba la `DATABASE_URL`: imprime con qué usuario, base, host y puerto conecta (nunca la contraseña) y traduce el error si falla. Primer paso de debugging del deploy (DEPLOY.md §3) |
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |
 | `pnpm demo` | deja la base en un estado mostrable: catálogo + un pedido en cada estado |
 | `pnpm reconcile` | control de caja: los totales de cada pedido más cinco invariantes entre tablas; sale con código 1 si algo no cuadra |
@@ -116,6 +117,17 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/cron/ve
 ```
 
 La ruta compara `CRON_SECRET` en tiempo constante y está rate-limited. Sin la variable configurada responde 503, nunca 200: una ruta "abierta hasta que la configuren" es una ruta abierta.
+
+### `/api/health` — ¿levantó y llega a la base?
+
+```bash
+curl -fsS https://TU-DOMINIO/api/health   # {"ok":true,"db":true}
+```
+
+Sin autenticar, para que la pueda llamar el monitoreo. Dos booleanos y nada
+más: ni versiones, ni nombre de base, ni el error de MySQL. `db:false` con
+`ok:true` es la `DATABASE_URL` mal cargada en el panel — de ahí se sigue con
+`pnpm db:check`.
 
 ### `pnpm preflight` — antes de cobrar de verdad
 

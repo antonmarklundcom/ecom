@@ -245,8 +245,16 @@ describe('cobertura de la revisión', () => {
     const routes = (await listSourceFiles([API])).filter((file) => file.endsWith('route.ts'));
     expect(routes.length).toBeGreaterThan(0);
 
+    // La única excepción, y con nombre y apellido: el health check tiene que
+    // poder llamarlo el monitoreo sin credenciales. Se la banca porque no toca
+    // ningún dato —un `SELECT 1`— y contesta dos booleanos: ni versiones, ni
+    // schema, ni el error de MySQL. Cualquier ruta nueva que quiera entrar acá
+    // tiene que poder decir lo mismo.
+    const SIN_GUARD = new Set([path.join(API, 'health', 'route.ts')]);
+
     const offenders: string[] = [];
     for (const file of routes) {
+      if (SIN_GUARD.has(file)) continue;
       const code = await readCode(file);
       // Firma, secreto o sesión: alguna de las tres. Una ruta pública que
       // mueve pedidos y no compara nada es exactamente lo que se busca.
