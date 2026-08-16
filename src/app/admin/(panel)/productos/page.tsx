@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CsvDownloadButton } from "@/components/admin/csv-download";
 import { ProductFilters } from "@/components/admin/product-filters";
 import { ProductImage } from "@/components/product-image";
 import { listAdminProducts, listCategories } from "@/domain/admin-products";
@@ -161,6 +162,18 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
           )}
         </nav>
       ) : null}
+
+      {/* Una fila por variante: es la unidad que tiene SKU, precio y stock, y
+          es con lo que se cuenta el depósito. */}
+      <div className="border-border mt-6 border-t pt-4">
+        <CsvDownloadButton
+          kind="productos"
+          params={{ q: search, categoria: categoryId ? String(categoryId) : undefined }}
+        />
+        <p className="text-muted-foreground mt-1 text-xs">
+          Una fila por variante, con los filtros puestos.
+        </p>
+      </div>
     </div>
   );
 }
