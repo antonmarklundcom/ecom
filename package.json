@@ -13,6 +13,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "demo": "tsx scripts/demo.ts",
     "db:studio": "drizzle-kit studio",
+    "db:check": "tsx scripts/db-check.ts",
     "prepare": "husky || true",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
