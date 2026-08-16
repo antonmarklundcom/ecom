@@ -1,6 +1,7 @@
-import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { drizzle } from 'drizzle-orm/mysql2';
+import { migrate } from 'drizzle-orm/mysql2/migrator';
 import mysql from 'mysql2/promise';
 
 import '../src/lib/load-env';
@@ -59,20 +60,11 @@ export async function setup(): Promise<void> {
 
   const pool = mysql.createPool({ uri: url, connectionLimit: 4, timezone: 'Z', multipleStatements: false });
 
-  const migrationsDir = path.join(process.cwd(), 'drizzle');
-  const files = (await readdir(migrationsDir)).filter((file) => file.endsWith('.sql')).sort();
-  if (files.length === 0) {
-    throw new Error('No hay migraciones en drizzle/. Corré `pnpm db:generate`.');
-  }
-
-  for (const file of files) {
-    const sql = await readFile(path.join(migrationsDir, file), 'utf8');
-    for (const statement of sql.split('--> statement-breakpoint')) {
-      const trimmed = statement.trim().replace(/;\s*$/, '');
-      if (trimmed === '') continue;
-      await pool.query(trimmed);
-    }
-  }
+  // El migrador de drizzle y no un aplicador de .sql hecho a mano: es
+  // literalmente lo que corre `POST /api/setup/init` en el servidor, y además
+  // deja escrita la tabla `__drizzle_migrations`. Sin eso, el `migrate()` de la
+  // ruta creería que la base está vacía y trataría de crear todo de nuevo.
+  await migrate(drizzle(pool), { migrationsFolder: path.join(process.cwd(), 'drizzle') });
 
   await applySchemaExtras(pool);
   await pool.end();

@@ -152,8 +152,60 @@ símbolos raros.
 
 ## 4. Primer deploy de una tienda nueva
 
-Después de que el sitio buildeó y levantó, contra la base remota (Remote MySQL
-habilitado, ver el punto 3):
+Sin SSH y sin Node instalado en el servidor: la app que ya está corriendo se
+inicializa sola con un curl.
+
+1. **Cargá las variables** en el hPanel (punto 1), incluida `SETUP_SECRET` —
+   mínimo 16 caracteres, `openssl rand -base64 32`.
+2. **Deploy** (push, o Redeploy si sólo tocaste variables).
+3. **Inicializá la tienda**:
+
+   ```bash
+   curl -X POST https://DOMAIN/api/setup/init \
+     -H "Authorization: Bearer $SETUP_SECRET" \
+     -H "content-type: application/json" \
+     -d '{"seed":true,"owner":{"email":"...","password":"..."}}'
+   ```
+
+   Corre las migraciones de `./drizzle`, aplica los extras (FULLTEXT, FK
+   self-ref, contador de pedidos), siembra el catálogo de ejemplo y crea la
+   cuenta del dueño. Responde con el resultado de cada paso.
+
+4. **Verificá**:
+
+   ```bash
+   curl -fsS https://DOMAIN/api/health   # {"ok":true,"db":true}
+   pnpm preflight
+   ```
+
+5. **Sacá `SETUP_SECRET`** de las Environment variables y apretá **Redeploy**.
+   La ruta vuelve a responder 503 y ahí queda para siempre.
+
+**Trampa:** el paso 5 no es opcional y no se hace solo. Guardar la variable
+—o borrarla— no reinicia nada: hasta el Redeploy, el proceso viejo sigue con el
+secreto en memoria y la ruta viva. `pnpm preflight` avisa si `SETUP_SECRET`
+quedó puesta en producción.
+
+### Llamarla de nuevo
+
+Las migraciones y los extras son idempotentes y corren en **cada** llamada, así
+que la misma ruta es el corredor de migraciones de los deploys siguientes:
+
+```bash
+curl -X POST https://DOMAIN/api/setup/init \
+  -H "Authorization: Bearer $SETUP_SECRET" \
+  -H "content-type: application/json" -d '{}'
+```
+
+Lo que no se repite solo es lo que escribe datos del negocio: con la tienda ya
+inicializada, un `seed` o un `owner` responden **409** con el resumen de lo que
+ya estaba, en vez de volver a sembrar el catálogo sobre una tienda que ya vende.
+Para reabrirlos hay que pedirlo con `{"force":true}`. El stock nunca se resetea
+por esta vía, ni con `force`.
+
+### Si preferís hacerlo a mano
+
+Sigue funcionando, contra la base remota (Remote MySQL habilitado, punto 3):
 
 ```bash
 pnpm db:check      # ¿la URL de la base es la correcta?
@@ -161,6 +213,11 @@ pnpm db:push       # schema + FULLTEXT + FK + contador
 pnpm db:seed       # catálogo de ejemplo — reemplazalo por el real
 pnpm create-owner  # única forma de crear usuario del panel
 ```
+
+**Trampa:** `db:push` compara contra `schema.ts` y decide él solo qué ALTER
+correr — está bien para desarrollo, no para una base con pedidos adentro. La
+ruta de setup corre las migraciones versionadas de `./drizzle`, que es lo que
+se revisó en un PR.
 
 ---
 

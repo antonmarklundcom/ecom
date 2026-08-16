@@ -51,6 +51,29 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # `POST /api/setup/init` deploya **migraciones**, no `schema.ts`: en el
+      # servidor no hay drizzle-kit y `db:push` no corre. O sea que una columna
+      # agregada a schema.ts sin su migración generada compila, pasa los tests
+      # (que también migran) y recién falla en producción, con la tienda arriba
+      # y la columna faltando. Acá se ve en el PR.
+      #
+      # El dev local sigue usando `pnpm db:push`; lo que se pide es que la
+      # migración esté generada y commiteada.
+      - name: schema.ts no se despegó de las migraciones
+        run: |
+          set -euo pipefail
+
+          pnpm db:generate
+
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            echo "::error::schema.ts cambió sin su migración. Corré \`pnpm db:generate\` y commiteá lo que aparezca en drizzle/."
+            git status --porcelain drizzle
+            git --no-pager diff -- drizzle
+            exit 1
+          fi
+
+          echo "✓ schema.ts y drizzle/ están al día"
+
       - run: pnpm typecheck
 
       - run: pnpm lint
