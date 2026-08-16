@@ -1,3 +1,26 @@
-ignoredBuiltDependencies:
+# Aprobación de los scripts de build.
+#
+# pnpm no corre el `postinstall` de una dependencia salvo que esté aprobada acá.
+# Las de abajo lo necesitan de verdad: bajan o compilan un binario nativo y sin
+# eso quedan a medio instalar.
+#
+#   esbuild        — el binario que usan tsx, drizzle-kit y vitest
+#   unrs-resolver  — el resolver nativo del plugin de imports de eslint
+#   sharp          — el optimizador de imágenes de Next (hoy opcional en el
+#                    árbol; queda aprobado para cuando entre)
+#
+# Trampa: la lista va **dos veces** y no es un copy-paste al pedo. pnpm 10 lee
+# `onlyBuiltDependencies` (una lista) y pnpm 11 lee `allowBuilds` (un mapa
+# nombre → booleano); cada uno ignora la clave del otro. Con una sola de las
+# dos, la versión que no la entiende vuelve a frenar los builds — y pnpm 11 ya
+# no avisa, falla el install entero con ERR_PNPM_IGNORED_BUILDS. Al subir el pin
+# a pnpm 12, revisar si `onlyBuiltDependencies` todavía existe antes de borrarla.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+
+onlyBuiltDependencies:
+  - esbuild
   - sharp
   - unrs-resolver
