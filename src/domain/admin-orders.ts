@@ -114,9 +114,9 @@ function searchCondition(rawTerm: string): SQL | undefined {
   return conditions.length === 1 ? conditions[0] : or(...conditions);
 }
 
-function buildWhere(filters: OrderFilters): SQL | undefined {
+function buildWhere(filters: OrderFilters, options: { ignoreStatus?: boolean } = {}): SQL | undefined {
   return and(
-    filters.status ? eq(orders.status, filters.status) : undefined,
+    filters.status && !options.ignoreStatus ? eq(orders.status, filters.status) : undefined,
     filters.paymentMethod ? eq(orders.paymentMethod, filters.paymentMethod) : undefined,
     filters.createdFrom ? gte(orders.createdAt, filters.createdFrom) : undefined,
     // Borde superior exclusivo: `parsePyDateInputEnd` ya devuelve la
@@ -182,6 +182,50 @@ export async function listOrders(
     perPage,
     totalPages,
   };
+}
+
+export type OrderStatusCounts = {
+  /** Un número por estado, incluidos los que están en cero. */
+  byStatus: Record<OrderStatus, number>;
+  /** Todos los pedidos que pasan el resto de los filtros. */
+  total: number;
+};
+
+/**
+ * Cuántos pedidos hay en cada estado, para los accesos rápidos del listado.
+ *
+ * **Ignora el filtro de estado a propósito** y respeta todos los demás: los
+ * números que se ven arriba del listado tienen que ser los de "a dónde puedo
+ * ir desde acá", no los de dónde estoy parado. Si respetara el estado activo,
+ * todos los accesos menos uno mostrarían cero y dejarían de servir para
+ * navegar.
+ *
+ * Una sola consulta agrupada y no once `COUNT(*)`: esto se abre desde el
+ * celular con datos móviles.
+ */
+export async function countOrdersByStatus(
+  filters: OrderFilters = {},
+  executor?: Executor,
+): Promise<OrderStatusCounts> {
+  const tx = executor ?? getDb();
+
+  const rows = await tx
+    .select({ status: orders.status, total: count() })
+    .from(orders)
+    .where(buildWhere(filters, { ignoreStatus: true }))
+    .groupBy(orders.status);
+
+  const byStatus = Object.fromEntries(
+    ORDER_STATUSES.map((status) => [status, 0]),
+  ) as Record<OrderStatus, number>;
+
+  let total = 0;
+  for (const row of rows) {
+    byStatus[row.status] = row.total;
+    total += row.total;
+  }
+
+  return { byStatus, total };
 }
 
 /** Ficha completa del pedido para `/admin/pedidos/[id]` (PLAN.md 4.3). */

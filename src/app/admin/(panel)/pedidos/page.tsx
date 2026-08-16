@@ -3,8 +3,15 @@ import Link from "next/link";
 
 import { OrderFiltersForm } from "@/components/admin/order-filters";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
+import { OrderStatusTabs } from "@/components/admin/order-status-tabs";
 import { PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
-import { isOrderStatus, isPaymentMethod, listOrders, type AdminOrderRow } from "@/domain/admin-orders";
+import {
+  countOrdersByStatus,
+  isOrderStatus,
+  isPaymentMethod,
+  listOrders,
+  type AdminOrderRow,
+} from "@/domain/admin-orders";
 import { comercioWaLink } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
@@ -31,14 +38,18 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
   const search = first(query.q);
   const page = Number(first(query.pagina) ?? 1);
 
-  const result = await listOrders({
+  const filters = {
     status: isOrderStatus(status) ? status : undefined,
     paymentMethod: isPaymentMethod(method) ? method : undefined,
     createdFrom: parsePyDateInput(desde) ?? undefined,
     createdTo: parsePyDateInputEnd(hasta) ?? undefined,
     search,
-    page: Number.isFinite(page) ? page : 1,
-  });
+  };
+
+  const [result, counts] = await Promise.all([
+    listOrders({ ...filters, page: Number.isFinite(page) ? page : 1 }),
+    countOrdersByStatus(filters),
+  ]);
 
   return (
     <div>
@@ -48,6 +59,15 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
           {result.total} {result.total === 1 ? "pedido" : "pedidos"}
         </p>
       </div>
+
+      {/* Los accesos rápidos van arriba del buscador: la pregunta más común
+          —"¿qué está esperando por mí?"— se contesta con un toque y sin
+          tipear. Los filtros finos siguen abajo, colapsados. */}
+      <OrderStatusTabs
+        counts={counts}
+        active={filters.status}
+        query={{ metodo: method, desde, hasta, q: search }}
+      />
 
       <div className="mt-4">
         <OrderFiltersForm

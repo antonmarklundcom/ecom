@@ -104,7 +104,7 @@ Se entra con la cuenta que crea `pnpm create-owner` — **no hay ruta pública d
 | Ruta | Qué hace |
 |---|---|
 | `/admin` | ventas del día y del mes, comprobantes por revisar, stock bajo |
-| `/admin/pedidos` | filtros por estado/método/fecha, búsqueda por nro., WhatsApp o RUC, paginación server-side |
+| `/admin/pedidos` | accesos rápidos por estado con su cuenta, filtros por método/fecha, búsqueda por nro., WhatsApp o RUC, paginación server-side |
 | `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
 | `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado) |
 
