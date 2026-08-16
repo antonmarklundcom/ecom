@@ -91,9 +91,10 @@ pnpm preflight     # qué falta para cobrar plata (banco, cron, modo Pagopar)
 pnpm reconcile     # control de caja: totales e invariantes entre tablas
 ```
 
-Deploy: seguí el playbook de Hostinger (Node.js + MySQL remoto), acordate del
-cron cada 15 minutos contra `/api/cron/vencer-pedidos` y de registrar la URL
-de respuesta de Pagopar.
+Deploy: el runbook completo está en **[DEPLOY.md](./DEPLOY.md)** — el flujo git
+de Hostinger, las trampas del SSH, la base de datos, el cron cada 15 minutos
+contra `/api/cron/vencer-pedidos` y la prueba de humo. Acordate además de
+registrar la URL de respuesta de Pagopar.
 
 ---
 

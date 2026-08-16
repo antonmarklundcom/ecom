@@ -1,0 +1,209 @@
+# Deploy a Hostinger (Websites → Node.js + MySQL)
+
+Este es el runbook del deploy, adentro del repo y no en la cabeza de nadie.
+Vale para cualquier tienda salida de este template: el producto de Hostinger es
+**Websites** con la app de Node.js conectada a git, y la base es un MySQL del
+mismo hPanel.
+
+El orden importa. Cada sección de acá abajo salió de algo que ya rompió una vez.
+
+---
+
+## 1. Conectar el repo (git deploy)
+
+En el hPanel, dentro del sitio:
+
+1. **Websites → tu sitio → Advanced → GIT**: pegá la URL del repo y la rama
+   (`main`). Si el repo es privado, copiá la clave pública que muestra
+   Hostinger y cargala como *deploy key* en GitHub (Settings → Deploy keys).
+2. **Node.js**: versión **22** (la misma de `.nvmrc` y del CI), y los comandos:
+
+   | Campo | Valor |
+   |---|---|
+   | Install command | `pnpm install --frozen-lockfile` |
+   | Build command | `pnpm build` |
+   | Start command | `pnpm start` |
+
+3. **Environment variables**: cargá una por una las de `.env.example` que la
+   tienda necesita — `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET`,
+   `WHATSAPP_NUMBER`, `BANCO_*`, `CLOUDINARY_*`, `NEXT_PUBLIC_SITE_URL`,
+   `PAGOPAR_*` si va con tarjeta, y `NODE_ENV=production`.
+
+   No hay `.env.local` en el servidor: en Hostinger las variables viven en el
+   panel, no en un archivo. Lo que no cargues ahí, no existe.
+
+> **Cambiar una variable en el panel de Hostinger NO reinicia ni rebuildea la
+> app.** Guardás el valor nuevo, el panel te dice "guardado", y el proceso que
+> está atendiendo sigue corriendo con el build viejo y los valores viejos. Hay
+> que apretar **Redeploy** a mano. Esto es la causa número uno de "cambié la
+> contraseña de la base y el sitio sigue tirando Access denied".
+
+**Trampa:** el deploy automático por push también arrastra esto. Un push
+rebuildea, pero un cambio de variable sin push no dispara nada — si tocaste
+sólo variables, Redeploy es obligatorio.
+
+---
+
+## 2. Trampas del SSH de Hostinger
+
+Con la ruta de setup del punto 4 (`POST /api/setup/init`) **no deberías
+necesitar SSH para nada**. Queda documentado igual, porque el día que entres
+por SSH a debuggear te vas a comer estas tres, y las tres parecen bugs del repo
+cuando en realidad son los ulimits del hosting compartido: los planes con SSH
+limitan la cantidad de threads por proceso, y las herramientas modernas de JS
+asumen que pueden abrir todos los que quieran.
+
+### `pnpm install` muere con `[ERR_WORKER_INIT_FAILED]` / `EAGAIN`
+
+pnpm 10 resuelve el árbol con worker threads. Bajo el límite de threads, el
+primer worker no arranca y pnpm aborta. Reintentar lo empeora: cada intento
+deja procesos colgados y el siguiente arranca con menos margen todavía.
+
+Workaround, sin worker threads:
+
+```bash
+npm install --legacy-peer-deps
+```
+
+### `tsx` / `drizzle-kit` panican con `newosproc`
+
+El binario de esbuild que usa `tsx` (y por debajo `drizzle-kit`) es Go, y el
+runtime de Go intenta abrir un thread por CPU visible. Bajo el mismo límite
+revienta con un panic de `runtime: newosproc` y un volcado de stack que no
+tiene nada que ver con tu código.
+
+Workaround, antes de **cualquier** comando `tsx` o `drizzle-kit`:
+
+```bash
+export GOMAXPROCS=1
+```
+
+### `node` y `npm` no están en el PATH, y el checkout no es la app
+
+Al entrar por SSH no hay `node`. Los binarios viven adentro del directorio de
+la app de Node.js; buscalos con:
+
+```bash
+ls ~/.nvm/versions/node
+export PATH="$HOME/.nvm/versions/node/v22.*/bin:$PATH"
+node -v
+```
+
+**Trampa:** el checkout de git queda en `hbuilds/last-source/` y **ese no es el
+filesystem de la app que está corriendo**. Es la fuente desde donde Hostinger
+buildea. Editar ahí no cambia nada de lo que sirve el sitio, y correr un script
+ahí puede correrlo contra un `.env` que no es el que usa la app. Si necesitás
+tocar la base, hacelo desde tu máquina con la URL remota, o mejor: usá la ruta
+de setup.
+
+---
+
+## 3. Base de datos
+
+### Crear la base y el usuario
+
+hPanel → **Databases → Management**. Creás base y usuario en el mismo
+formulario.
+
+**Trampa:** el panel lista **"MySQL Database"** y **"MySQL User"** en dos
+columnas pegadas, con nombres casi idénticos (`u123456789_tienda` y
+`u123456789_tiendausr`). Transponerlas es el error más común del deploy, y el
+error que devuelve MySQL —`Access denied`— no dice cuál de las dos está mal.
+
+Ante cualquier duda, el **primer** paso de debugging es:
+
+```bash
+pnpm db:check
+```
+
+Te imprime en castellano con qué usuario, contra qué base, en qué host y en qué
+puerto va a conectar (nunca la contraseña), corre un `SELECT 1` y te dice qué
+significa el error si falla.
+
+### Remote MySQL
+
+Para correr `pnpm db:check`, `pnpm db:push` o `pnpm reconcile` desde tu
+máquina, la base tiene que aceptar conexiones de afuera: hPanel → **Databases →
+Remote MySQL** → agregá tu IP pública (o `%` sólo mientras debuggeás, y sacalo
+después).
+
+Sin eso el error es `ETIMEDOUT` o `ECONNREFUSED` y parece que la base está
+caída, cuando lo único que pasa es que tu IP no está en la lista.
+
+### Cambiar la contraseña de la base
+
+```
+cambiaste la contraseña en el hPanel
+  → DATABASE_URL de la app quedó con la contraseña vieja
+  → la tienda entera tira Access denied
+```
+
+Cambiar la contraseña **no** actualiza la variable de la app. Hay que hacer las
+dos cosas:
+
+1. Editar `DATABASE_URL` en las Environment variables del sitio.
+2. Apretar **Redeploy** (ver el punto 1: guardar la variable no reinicia nada).
+
+**Trampa:** si la contraseña tiene `?`, `#`, `@` o `/`, hay que URL-encodearla o
+`mysql2` parsea cualquier cosa. Lo más simple es generar contraseñas sin
+símbolos raros.
+
+---
+
+## 4. Primer deploy de una tienda nueva
+
+Después de que el sitio buildeó y levantó, contra la base remota (Remote MySQL
+habilitado, ver el punto 3):
+
+```bash
+pnpm db:check      # ¿la URL de la base es la correcta?
+pnpm db:push       # schema + FULLTEXT + FK + contador
+pnpm db:seed       # catálogo de ejemplo — reemplazalo por el real
+pnpm create-owner  # única forma de crear usuario del panel
+```
+
+---
+
+## 5. Cron cada 15 minutos
+
+`/api/cron/vencer-pedidos` vence los pedidos sin pago y limpia reservas viejas.
+Sin él, los pedidos muertos quedan para siempre en `pendiente_pago` y el panel
+miente.
+
+hPanel → **Advanced → Cron Jobs** → cada 15 minutos:
+
+```bash
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/cron/vencer-pedidos
+```
+
+**Trampa:** si el cron de tu plan no deja mandar headers, la ruta también acepta
+`?secret=...`, pero entonces el secreto queda escrito en los logs de acceso del
+servidor. Preferí el header siempre que se pueda.
+
+Sin `CRON_SECRET` configurado (o con menos de 16 caracteres) la ruta responde
+503 y no vence nada: una ruta "abierta hasta que la configuren" es una ruta
+abierta.
+
+---
+
+## 6. Prueba de humo post-deploy
+
+```bash
+curl -fsS https://TU-DOMINIO/api/health
+```
+
+Tiene que devolver `{"ok":true,"db":true}`. `db:false` significa que la app
+levantó pero no llega a MySQL — volvé al punto 3 con `pnpm db:check`.
+
+Y desde tu máquina, apuntando al entorno real:
+
+```bash
+pnpm preflight
+```
+
+Lista qué falta para cobrar plata de verdad (datos bancarios, `CRON_SECRET`,
+modo de la pasarela, Cloudinary) y sale con código 1 si algo bloquea. No toca la
+base ni la red, así que se puede correr todas las veces que quieras.
+
+Después, a mano: entrar a la tienda, agregar algo al carrito, llegar al
+checkout, y entrar a `/admin` con la cuenta del dueño.
