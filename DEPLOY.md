@@ -264,3 +264,65 @@ base ni la red, así que se puede correr todas las veces que quieras.
 
 Después, a mano: entrar a la tienda, agregar algo al carrito, llegar al
 checkout, y entrar a `/admin` con la cuenta del dueño.
+
+---
+
+## 7. Copias de la base
+
+La tienda guarda pedidos, pagos y comprobantes de plata que entró de verdad. Si
+mañana la base desaparece —un `DROP` con la base equivocada, un plan que se
+vence, un disco— sin copia no hay a quién reclamarle.
+
+Desde **tu máquina**, con Remote MySQL habilitado (punto 3):
+
+```bash
+pnpm backup                 # copia comprimida en backups/
+pnpm backup --retener 30    # y borra las de más de 30 días (default: 14)
+```
+
+Deja un `.sql.gz` con la fecha en el nombre, así ordenar por nombre es ordenar
+por fecha. `backups/` está en `.gitignore`: son datos de clientes, nunca van al
+repo.
+
+No corre en el servidor: en el slot de Node de Hostinger no hay `mysqldump` y
+conseguirlo pelea con los mismos ulimits del punto 2. Corré esto desde tu
+máquina o desde cualquier máquina con `mysql-client` instalado.
+
+**Trampa:** una copia que nunca restauraste no es una copia, es un archivo.
+Probá el camino completo **hoy**, contra una base vacía, no el día que la
+necesites:
+
+```bash
+mysql -h HOST -u USUARIO -p -e "CREATE DATABASE prueba_restore"
+gunzip -c backups/TU-COPIA.sql.gz | mysql -h HOST -u USUARIO -p prueba_restore
+```
+
+Y contá las tablas y los productos ahí adentro antes de confiar.
+
+Para que corra sola, en tu máquina (no en Hostinger), un cron diario:
+
+```bash
+0 3 * * * cd /ruta/al/repo && /usr/local/bin/pnpm backup >> backups/backup.log 2>&1
+```
+
+El hPanel de Hostinger también ofrece sus propias copias según el plan. Usá las
+dos: la de ellos te salva del disco, ésta te salva de vos.
+
+---
+
+## 8. Monitoreo
+
+`/api/health` ya contesta si la tienda está viva; falta alguien que lo pregunte
+cada tanto. Cualquier servicio de uptime gratis sirve (UptimeRobot, Better
+Stack, Hetrix): apuntalo a `https://TU-DOMINIO/api/health` cada 5 minutos.
+
+> **Configuralo por palabra clave, no por código HTTP.** La ruta devuelve **200
+> igual cuando no llega a la base** —`{"ok":true,"db":false}`— justamente para
+> poder distinguir "el proceso murió" de "el proceso vive pero no ve MySQL". Un
+> monitor que sólo mira el 200 te va a decir que todo anda mientras la tienda no
+> puede vender nada.
+
+En el monitor, entonces: alertar si la respuesta **no contiene** `"db":true`.
+
+Con varias tiendas, uno por tienda y con el nombre del comercio en la alerta:
+a las 3 de la mañana no vas a adivinar cuál de las cuatro se cayó.
