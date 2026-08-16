@@ -105,13 +105,24 @@ Los repos creados desde un template **no reciben** los commits posteriores del
 template. Si arreglás un bug de checkout acá, las tiendas ya creadas no se
 enteran.
 
-Con dos o tres tiendas eso se maneja a mano:
+`pnpm template:diff` te dice cuáles le faltan a **esta** tienda:
 
 ```bash
 git remote add template git@github.com:antonmarklundcom/ecom.git
-git fetch template
-git cherry-pick <sha>
+pnpm template:diff              # qué commits del template no están acá
+git cherry-pick <sha> <sha>     # los que quieras traer
+pnpm template:diff --marcar     # "ya me puse al día"
 ```
+
+Marca con `*` los que tocan la maquinaria (`src/domain`, `src/lib`, `src/db`,
+`src/app/api`, `scripts`, `drizzle`): ésos los quiere toda tienda. El resto
+suele ser piel que vos reescribiste, y cherry-pickearlo te pisa el rediseño.
+
+**Trampa:** un repo hecho con "Use this template" **no comparte historia** con
+el original, así que `git log HEAD..template/main` lista todo y no sirve. Por
+eso el comando guarda un punto de partida en `.template-baseline` —commitealo—
+y `--marcar` es el que lo mueve. Si te olvidás de marcar, los mismos commits
+te vuelven a aparecer para siempre.
 
 Si algún día son muchas tiendas, recién ahí conviene sacar `src/domain` y
 `src/lib` a un paquete compartido. Antes de eso es complejidad sin pagar.
