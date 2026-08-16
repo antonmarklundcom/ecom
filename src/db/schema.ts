@@ -392,3 +392,24 @@ export const counters = mysqlTable('counters', {
   name: varchar('name', { length: 64 }).primaryKey(),
   value: bigint('value', { mode: 'number', unsigned: true }).notNull().default(0),
 });
+
+/**
+ * Marker written by `POST /api/setup/init` (DEPLOY.md §4).
+ *
+ * One row, `id` always 1. It exists so the setup route can tell a first deploy
+ * from a second call: without it, a curl repeated out of nerves re-seeds the
+ * catalogue over a store that is already selling. Migrations and schema extras
+ * are idempotent and always run; seeding and the owner upsert are what this
+ * gates, and `force: true` is what re-opens them.
+ *
+ * Timestamps and nothing else — no ids, no emails. Whoever reads this table is
+ * asking "did setup already run?", not "who ran it".
+ */
+export const setupState = mysqlTable('setup_state', {
+  id: tinyint('id').primaryKey(),
+  migratedAt: timestamp('migrated_at').notNull().defaultNow(),
+  seededAt: timestamp('seeded_at'),
+  ownerAt: timestamp('owner_at'),
+  /** How many times the route ran. Only ever climbs; useful in a post-mortem. */
+  runs: int('runs').notNull().default(1),
+});

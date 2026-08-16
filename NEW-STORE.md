@@ -41,6 +41,7 @@ Cambiá también el favicon y el `og-image` en `public/`.
 | `CLOUDINARY_*` | cuenta o folder propio de esta tienda |
 | `NEXT_PUBLIC_SITE_URL` | dominio final |
 | `CRON_SECRET` | ≥ 16 caracteres, nuevo por tienda |
+| `SETUP_SECRET` | sólo en el servidor y sólo durante el primer deploy: habilita `/api/setup/init` y después se borra (DEPLOY.md §4) |
 | `PAGOPAR_*` | credenciales del comercio; vacías = sin tarjeta, o `PAGOPAR_MODE="mock"` para demo |
 
 `.env.example` documenta cada trampa — leelo, no lo adivines.

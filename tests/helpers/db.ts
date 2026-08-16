@@ -43,6 +43,9 @@ const TABLES = [
   'shipping_zones',
   'users',
   'counters',
+  // La marca de `POST /api/setup/init`: sin vaciarla, el segundo test de esa
+  // ruta arranca creyendo que la tienda ya se inicializó.
+  'setup_state',
 ];
 
 /**

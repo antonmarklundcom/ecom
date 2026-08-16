@@ -65,6 +65,7 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkPagoparMode(env),
     checkBancoVars(env),
     checkCronSecret(env),
+    checkSetupSecret(env),
     checkSessionSecret(env),
     checkPagoparCredentials(env),
     checkCloudinary(env),
@@ -209,6 +210,51 @@ function checkCronSecret(env: PreflightEnv): PreflightCheck {
   }
 
   return { id: "cron_secret", severity: "ok", title: "Secreto del cron", detail: "configurado" };
+}
+
+/**
+ * `SETUP_SECRET` sobreviviendo al setup.
+ *
+ * `POST /api/setup/init` existe para inicializar la tienda una vez y después
+ * desaparecer: sacada la variable del hPanel, la ruta vuelve a 503. Dejarla
+ * puesta es dejar viva una ruta que corre migraciones, siembra el catálogo y
+ * puede cambiarle la contraseña al dueño — todo detrás de un solo secreto que
+ * ya circuló por un curl, por el historial de la terminal y por el panel.
+ *
+ * Advierte y no bloquea: la ruta igual pide `force` para volver a tocar datos,
+ * y frenar un deploy por esto sería frenar justo el deploy en el que se está
+ * usando. Lo que no puede pasar es que nadie lo mire.
+ */
+function checkSetupSecret(env: PreflightEnv): PreflightCheck {
+  const secret = value(env, "SETUP_SECRET");
+
+  if (secret === "") {
+    return {
+      id: "setup_secret",
+      severity: "ok",
+      title: "Secreto del setup",
+      detail: "SETUP_SECRET no está: /api/setup/init responde 503, que es como tiene que quedar",
+    };
+  }
+
+  if (isProduction(env)) {
+    return {
+      id: "setup_secret",
+      severity: "advierte",
+      title: "Secreto del setup",
+      detail:
+        "SETUP_SECRET sigue configurado con NODE_ENV=production: /api/setup/init está viva y " +
+        "corre migraciones, siembra y puede cambiar la contraseña del dueño. Terminado el " +
+        "setup, sacala del hPanel y apretá Redeploy (DEPLOY.md §4)",
+    };
+  }
+
+  return {
+    id: "setup_secret",
+    severity: "ok",
+    title: "Secreto del setup",
+    detail: "configurado fuera de producción",
+  };
 }
 
 /** iron-session revienta en runtime, no en build, si tiene menos de 32. */

@@ -108,6 +108,30 @@ Se entra con la cuenta que crea `pnpm create-owner` — **no hay ruta pública d
 | `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
 | `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado) |
 
+### `POST /api/setup/init` — inicializar una tienda recién deployada
+
+El slot de Node de Hostinger no tiene `node` en el PATH y el `pnpm install` por
+SSH muere con los ulimits del hosting compartido. Esta ruta hace el setup
+**desde adentro de la app que ya está corriendo**, con un curl:
+
+```bash
+curl -X POST https://TU-DOMINIO/api/setup/init \
+  -H "Authorization: Bearer $SETUP_SECRET" \
+  -H "content-type: application/json" \
+  -d '{"seed":true,"owner":{"email":"...","password":"..."}}'
+```
+
+Corre las migraciones versionadas de `./drizzle` (no `db:push`, no drizzle-kit
+en runtime), aplica los extras, siembra el catálogo de ejemplo y crea al dueño.
+Migrar es idempotente y corre en cada llamada, así que la misma ruta sirve de
+corredor de migraciones en los deploys siguientes; sembrar y tocar al dueño se
+cierran con la marca de `setup_state` y piden `{"force":true}` para reabrirse.
+
+Mismo candado que el cron: sin `SETUP_SECRET` responde 503, compara en tiempo
+constante, está rate-limited y el 401 no dice por qué. **Terminado el setup, se
+borra la variable del hPanel y se aprieta Redeploy** — `pnpm preflight` avisa si
+quedó puesta. El paso a paso está en [DEPLOY.md](./DEPLOY.md) §4.
+
 ### Cron de Hostinger
 
 Vence los pedidos sin pago que pasaron su `reserved_until` y limpia reservas viejas. En el hPanel, cada 15 minutos:

@@ -118,6 +118,17 @@ export const CRON_LIMIT = 30;
 export const CRON_WINDOW_MS = 60 * 1000;
 
 /**
+ * Límite de la ruta de setup (DEPLOY.md §4).
+ *
+ * Mucho más apretado que el del cron y a propósito: del otro lado hay un
+ * secreto que corre migraciones y crea al dueño de la tienda, y el uso legítimo
+ * es **una** llamada por deploy hecha por una persona con un curl. Cualquier
+ * volumen mayor que esto es alguien probando secretos.
+ */
+export const SETUP_LIMIT = 5;
+export const SETUP_WINDOW_MS = 10 * 60 * 1000;
+
+/**
  * Límite del webhook de Pagopar (PLAN.md 5.2).
  *
  * Más holgado que el resto y a propósito: del otro lado hay avisos de pago

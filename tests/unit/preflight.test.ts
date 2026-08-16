@@ -141,8 +141,30 @@ describe("preflight", () => {
     ).toBe("advierte");
   });
 
+  it("SETUP_SECRET olvidado en producción advierte", () => {
+    // La ruta de setup existe para correr una vez y desaparecer: con la
+    // variable puesta queda viva una ruta que migra, siembra y puede cambiarle
+    // la contraseña al dueño (DEPLOY.md §4).
+    expect(severityOf(envSano({ SETUP_SECRET: "s".repeat(32) }), "setup_secret")).toBe("advierte");
+  });
+
+  it("SETUP_SECRET no advierte fuera de producción ni cuando no está", () => {
+    // Advierte y no bloquea a propósito: frenar el deploy por esto sería
+    // frenar justo el deploy en el que se está usando.
+    expect(
+      severityOf(envSano({ NODE_ENV: "development", SETUP_SECRET: "s".repeat(32) }), "setup_secret"),
+    ).toBe("ok");
+    expect(severityOf(envSano(), "setup_secret")).toBe("ok");
+    expect(preflight(envSano({ SETUP_SECRET: "s".repeat(32) })).ok).toBe(
+      preflight(envSano()).ok,
+    );
+  });
+
   it("ningún detalle repite el valor de un secreto", () => {
-    const env = envSano({ SESSION_SECRET: "un-secreto-larguisimo-y-reconocible-1234" });
+    const env = envSano({
+      SESSION_SECRET: "un-secreto-larguisimo-y-reconocible-1234",
+      SETUP_SECRET: "otro-secreto-igual-de-reconocible-5678",
+    });
     const texto = preflight(env)
       .checks.map((check) => `${check.title} ${check.detail}`)
       .join("\n");
@@ -152,6 +174,7 @@ describe("preflight", () => {
       env.CRON_SECRET,
       env.PAGOPAR_PRIVATE_KEY,
       env.CLOUDINARY_API_SECRET,
+      env.SETUP_SECRET,
       env.DATABASE_URL,
     ]) {
       expect(texto).not.toContain(secreto as string);
