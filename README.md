@@ -51,6 +51,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm demo` | deja la base en un estado mostrable: catálogo + un pedido en cada estado |
 | `pnpm reconcile` | control de caja: los totales de cada pedido más cinco invariantes entre tablas; sale con código 1 si algo no cuadra |
 | `pnpm backfill:pagos-manuales` | completa la fila de `payments` de los pedidos cobrados por transferencia o contra entrega **antes** de que eso se registrara solo (ARCH.md §5.1). Ensayo por defecto: agregá `--apply` para escribir |
+| `pnpm backup` | copia comprimida de la base en `backups/` (`--retener N` para la limpieza por antigüedad). Se corre desde tu máquina, no desde Hostinger — DEPLOY.md §7 |
 | `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `BANCO_*`, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
 
 ### `pnpm demo` — la tienda lista para mostrar
@@ -152,6 +153,11 @@ Sin autenticar, para que la pueda llamar el monitoreo. Dos booleanos y nada
 más: ni versiones, ni nombre de base, ni el error de MySQL. `db:false` con
 `ok:true` es la `DATABASE_URL` mal cargada en el panel — de ahí se sigue con
 `pnpm db:check`.
+
+Ojo al configurar el monitor: la ruta devuelve **200 igual con `db:false`**, a
+propósito, para distinguir "el proceso murió" de "el proceso vive pero no ve
+MySQL". Alertá por la palabra clave `"db":true`, no por el código HTTP
+(DEPLOY.md §8).
 
 ### `pnpm preflight` — antes de cobrar de verdad
 
