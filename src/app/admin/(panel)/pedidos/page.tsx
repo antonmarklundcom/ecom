@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CsvDownloadButton } from "@/components/admin/csv-download";
 import { OrderFiltersForm } from "@/components/admin/order-filters";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { OrderStatusTabs } from "@/components/admin/order-status-tabs";
@@ -127,6 +128,18 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
         totalPages={result.totalPages}
         query={{ estado: status, metodo: method, desde, hasta, q: search }}
       />
+
+      {/* Abajo del listado y no arriba: bajar el archivo es lo último que se
+          hace, después de dejar el filtro como se lo quiere. */}
+      <div className="border-border mt-6 border-t pt-4">
+        <CsvDownloadButton
+          kind="pedidos"
+          params={{ estado: status, metodo: method, desde, hasta, q: search }}
+        />
+        <p className="text-muted-foreground mt-1 text-xs">
+          Baja los pedidos con los filtros puestos, no sólo esta página.
+        </p>
+      </div>
     </div>
   );
 }

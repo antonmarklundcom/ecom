@@ -9,6 +9,7 @@ import {
   type OrderStatus,
   type PaymentMethod,
 } from "@/db/schema";
+import { EXPORT_MAX_ROWS } from "@/lib/csv";
 import { normalizePhonePY } from "@/lib/py";
 
 import type { Executor } from "./executor";
@@ -182,6 +183,40 @@ export async function listOrders(
     perPage,
     totalPages,
   };
+}
+
+export type ExportOrderRow = {
+  orderNumber: string;
+  createdAt: Date;
+  customerName: string;
+  customerPhone: string;
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  totalPyg: number;
+};
+
+/** Los pedidos que pasan los filtros vigentes, para el CSV. */
+export async function listOrdersForExport(
+  filters: OrderFilters = {},
+  limit: number = EXPORT_MAX_ROWS,
+  executor?: Executor,
+): Promise<ExportOrderRow[]> {
+  const tx = executor ?? getDb();
+
+  return tx
+    .select({
+      orderNumber: orders.orderNumber,
+      createdAt: orders.createdAt,
+      customerName: orders.customerName,
+      customerPhone: orders.customerPhone,
+      status: orders.status,
+      paymentMethod: orders.paymentMethod,
+      totalPyg: orders.totalPyg,
+    })
+    .from(orders)
+    .where(buildWhere(filters))
+    .orderBy(desc(orders.createdAt), desc(orders.id))
+    .limit(limit);
 }
 
 export type OrderStatusCounts = {

@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 
 import type { AdminProductSort } from "@/lib/admin-product-sort";
+import { EXPORT_MAX_ROWS } from "@/lib/csv";
 
 import type { Executor } from "./executor";
 import { heldQtyMap } from "./stock";
@@ -64,13 +65,7 @@ export async function listAdminProducts(
   const perPage = Math.min(100, Math.max(1, options.perPage ?? PRODUCTS_PER_PAGE));
   const page = Math.max(1, options.page ?? 1);
 
-  const term = options.search?.trim();
-  const where = and(
-    term
-      ? sql`(${products.name} LIKE ${`%${escapeLike(term)}%`} OR ${products.slug} LIKE ${`%${escapeLike(term)}%`})`
-      : undefined,
-    options.categoryId ? eq(products.categoryId, options.categoryId) : undefined,
-  );
+  const where = productWhere(options);
 
   const [{ total = 0 } = {}] = await tx.select({ total: count() }).from(products).where(where);
   const totalPages = Math.max(1, Math.ceil(total / perPage));
@@ -144,6 +139,58 @@ export async function listAdminProducts(
 
 function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/** El filtro del listado, compartido con el export para que bajen lo mismo. */
+function productWhere(options: AdminProductFilters) {
+  const term = options.search?.trim();
+  return and(
+    term
+      ? sql`(${products.name} LIKE ${`%${escapeLike(term)}%`} OR ${products.slug} LIKE ${`%${escapeLike(term)}%`})`
+      : undefined,
+    options.categoryId ? eq(products.categoryId, options.categoryId) : undefined,
+  );
+}
+
+export type ExportVariantRow = {
+  sku: string;
+  productName: string;
+  categoryName: string;
+  label: string;
+  pricePyg: number;
+  onHand: number;
+};
+
+/**
+ * El catálogo para el CSV: **una fila por variante**, no por producto.
+ *
+ * Es la unidad que tiene SKU, precio y stock — que es exactamente lo que se
+ * va a hacer con este archivo (contar el depósito, mandarle la lista de
+ * precios a alguien). Un CSV por producto obligaría a inventar "desde ₲X" y
+ * a sumar stocks que después no se pueden contar contra la góndola.
+ */
+export async function listVariantsForExport(
+  options: AdminProductFilters = {},
+  limit = EXPORT_MAX_ROWS,
+  executor?: Executor,
+): Promise<ExportVariantRow[]> {
+  const tx = executor ?? getDb();
+
+  return tx
+    .select({
+      sku: variants.sku,
+      productName: products.name,
+      categoryName: categories.name,
+      label: variants.label,
+      pricePyg: variants.pricePyg,
+      onHand: variants.onHand,
+    })
+    .from(variants)
+    .innerJoin(products, eq(variants.productId, products.id))
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(productWhere(options))
+    .orderBy(asc(products.name), asc(variants.position), asc(variants.id))
+    .limit(limit);
 }
 
 export async function getAdminProduct(productId: number, executor?: Executor) {
