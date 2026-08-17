@@ -201,6 +201,15 @@ export const orders = mysqlTable(
     /** Cuándo contestó. Sin fecha, un "sí" no prueba nada dentro de un año. */
     marketingOptInAt: datetime('marketing_opt_in_at'),
 
+    /**
+     * Pedido para regalar. A diferencia del consentimiento, acá `false` y "no
+     * contestó" son lo mismo —un pedido que nadie marcó como regalo no lo
+     * es—, así que la columna es NOT NULL.
+     */
+    isGift: boolean('is_gift').notNull().default(false),
+    /** Mensajito para la tarjeta. Sólo se guarda si `is_gift` está en true. */
+    giftNote: varchar('gift_note', { length: 300 }),
+
     // FASE 2 — FacturaPY. Nullable, unused in the MVP (ARCH.md §7).
     invoiceStatus: mysqlEnum('invoice_status', INVOICE_STATUSES).notNull().default('none'),
     invoiceCdc: varchar('invoice_cdc', { length: 64 }),

@@ -49,6 +49,9 @@ export type CreateOrderInput = {
    * tal cual, sin convertirlo a `false` (ver `orders.marketing_opt_in`).
    */
   marketingOptIn?: boolean | null;
+  /** Pedido para regalar, con un mensaje opcional para la tarjeta. */
+  isGift?: boolean;
+  giftNote?: string | null;
 };
 
 export type CreatedOrder = {
@@ -141,6 +144,10 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       iva5Pyg,
       paymentMethod: input.paymentMethod,
       reservedUntil,
+      isGift: input.isGift ?? false,
+      // La nota se descarta si el pedido no es un regalo: si no, destildar la
+      // casilla dejaría el mensaje viejo colgado y alguien lo imprimiría.
+      giftNote: input.isGift ? input.giftNote?.trim() || null : null,
       marketingOptIn: input.marketingOptIn ?? null,
       // La fecha acompaña a cualquier respuesta explícita, no sólo al "sí":
       // saber cuándo dijo que no es lo que después evita mandarle igual.

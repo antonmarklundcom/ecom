@@ -70,6 +70,20 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         </a>
       </div>
 
+      {/* Arriba de todo y no en la ficha del cliente: esto se mira mientras
+          se arma el paquete, y un dato que hay que scrollear para encontrar
+          es un dato que se descubre después de cerrar la caja. */}
+      {order.isGift ? (
+        <section className="border-border bg-muted/40 mt-4 rounded-lg border p-3">
+          <h2 className="text-sm font-medium">🎁 Es un regalo</h2>
+          {order.giftNote ? (
+            <p className="mt-1 text-sm whitespace-pre-line">“{order.giftNote}”</p>
+          ) : (
+            <p className="text-muted-foreground mt-1 text-sm">Sin mensaje para la tarjeta.</p>
+          )}
+        </section>
+      ) : null}
+
       {receipts.length > 0 ? (
         <section className="mt-6">
           <h2 className="font-medium">Comprobantes</h2>
