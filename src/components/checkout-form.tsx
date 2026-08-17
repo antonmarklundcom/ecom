@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { submitCheckout } from "@/app/actions/checkout";
 import { quoteCartShipping, type CartQuote } from "@/app/actions/shipping-quote";
 import { TIENDA } from "@/config/tienda";
+import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ export function CheckoutForm({
   pagoparEnabled?: boolean;
 }) {
   const router = useRouter();
-  const { lines, clear } = useCart();
+  const { lines, clear, freeShipping } = useCart();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [docType, setDocType] = useState<"NINGUNO" | "CI" | "RUC">("NINGUNO");
@@ -323,6 +324,13 @@ export function CheckoutForm({
             : `No encontramos tu ciudad en nuestras zonas: te cotizamos la tarifa más alta (${currentQuote.shipping.zoneName}). Escribinos por WhatsApp y lo revisamos.`
           : "Poné tu ciudad y te calculamos el envío antes de confirmar."}
       </p>
+
+      {/* Con la ciudad puesta el número es el de su zona; sin ella, el que
+          dejó la revalidación del carrito, que se dibuja aclarado. */}
+      <FreeShippingBar
+        progress={currentQuote?.freeShipping ?? freeShipping}
+        subtotalPyg={currentQuote?.subtotalPyg ?? subtotal}
+      />
 
       <Button type="submit" size="lg" disabled={isPending}>
         {isPending ? "Creando tu pedido…" : "Confirmar pedido"}

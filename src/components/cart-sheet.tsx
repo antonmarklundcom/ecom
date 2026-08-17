@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Loader2, ShoppingBag, Trash2 } from "lucide-react";
 
+import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,7 @@ import { formatGs } from "@/lib/money";
  * muestra al abrirlo tiene que ser lo que dice la DB.
  */
 export function CartSheet() {
-  const { lines, isOpen, issues, isSyncing, close, setQty, remove } = useCart();
+  const { lines, isOpen, issues, freeShipping, isSyncing, close, setQty, remove } = useCart();
   const subtotal = cartSubtotal(lines);
 
   return (
@@ -103,6 +104,7 @@ export function CartSheet() {
               </span>
               <span className="text-base font-semibold tabular-nums">{formatGs(subtotal)}</span>
             </div>
+            <FreeShippingBar progress={freeShipping} subtotalPyg={subtotal} />
             <p className="text-muted-foreground text-xs">
               El envío se calcula en el checkout según tu ciudad.
             </p>

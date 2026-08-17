@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { revalidateCart } from "@/app/actions/cart";
+import type { FreeShippingProgress } from "@/domain/free-shipping";
 import type { CartIssue } from "@/lib/cart-issues";
 
 /**
@@ -29,6 +30,12 @@ export type CartState = {
   isOpen: boolean;
   /** Diferencias que encontró el servidor en la última revalidación. */
   issues: CartIssue[];
+  /**
+   * Progreso hacia el envío gratis, calculado en el servidor contra
+   * `shipping_zones`. `null` hasta la primera revalidación: sin dato no se
+   * dibuja nada, que es mejor que dibujar un umbral inventado.
+   */
+  freeShipping: FreeShippingProgress | null;
   isSyncing: boolean;
   add: (line: Omit<CartLine, "qty">, qty?: number) => void;
   setQty: (variantId: number, qty: number) => void;
@@ -82,6 +89,7 @@ export const useCart = create<CartState>()(
       lines: [],
       isOpen: false,
       issues: [],
+      freeShipping: null,
       isSyncing: false,
 
       add: (line, qty = 1) =>
@@ -118,7 +126,7 @@ export const useCart = create<CartState>()(
       remove: (variantId) =>
         set((state) => ({ lines: state.lines.filter((item) => item.variantId !== variantId) })),
 
-      clear: () => set({ lines: [], issues: [] }),
+      clear: () => set({ lines: [], issues: [], freeShipping: null }),
 
       open: () => {
         set({ isOpen: true });
@@ -130,7 +138,7 @@ export const useCart = create<CartState>()(
       sync: async () => {
         const { lines } = get();
         if (lines.length === 0) {
-          set({ issues: [], isSyncing: false });
+          set({ issues: [], freeShipping: null, isSyncing: false });
           return;
         }
 
@@ -153,6 +161,7 @@ export const useCart = create<CartState>()(
               unitPricePyg: line.unitPricePyg,
             })),
             issues: priced.issues,
+            freeShipping: priced.freeShipping,
           });
         } catch {
           // Sin red: seguimos con los snapshots del navegador. El checkout
