@@ -175,6 +175,34 @@ describe('clasificar', () => {
     }
   });
 
+  it('/admin es mixto, pero sus actions siguen siendo maquinaria', () => {
+    // NEW-STORE.md §5 llama a "/admin completo" maquinaria, y en el fondo tiene
+    // razón, pero son páginas: la tienda que le cambió el logo o los colores al
+    // panel las vería listadas para siempre. Va como mixto.
+    //
+    // Lo que no se negocia es la plata: las actions de admin están en
+    // MAQUINARIA y tienen que seguir ahí, no acá.
+    expect(MIXTOS).toContain('src/app/admin');
+    expect(MAQUINARIA).not.toContain('src/app/admin');
+
+    for (const accion of ['src/app/actions/admin-payments.ts', 'src/app/actions/admin-orders.ts']) {
+      expect(
+        MAQUINARIA.some((ruta) => accion.startsWith(`${ruta}/`)),
+        accion,
+      ).toBe(true);
+      expect(MIXTOS.some((ruta) => accion.startsWith(`${ruta}/`)), accion).toBe(false);
+    }
+  });
+
+  it('ninguna ruta está en las dos listas a la vez', () => {
+    // Estar en las dos haría que el mismo commit se explique con `*` y con `~`.
+    // `clasificar` ya le da prioridad a la maquinaria, pero la lista igual sería
+    // una contradicción sobre qué es cada carpeta.
+    for (const ruta of MIXTOS) {
+      expect(MAQUINARIA, ruta).not.toContain(ruta);
+    }
+  });
+
   it('checkout-form.tsx se avisa como mixto, no como maquinaria', () => {
     // Es markup que cada tienda rediseña, así que en MAQUINARIA iba a diferir
     // siempre y el ruido apagaría la señal del `*`. Pero tiene lógica

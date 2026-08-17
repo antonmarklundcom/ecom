@@ -44,18 +44,24 @@ export const MAQUINARIA = [
 ] as const;
 
 /**
- * Archivos mixtos: markup que cada tienda rediseña, con lógica compartida
- * adentro.
+ * Mixtos: markup que cada tienda rediseña, con lógica compartida adentro.
  *
- * `checkout-form.tsx` es el caso: los campos y el diseño son piel, pero también
- * tiene la lógica de cotizar el envío y la de reconfirmar cuando el total
- * cambió. No entran en MAQUINARIA porque van a diferir en **toda** tienda que
- * rediseñó —listarlos siempre sería ruido que apaga la señal del `*`— pero
- * callarlos del todo deja sin aviso el día que su lógica cambia.
+ * `checkout-form.tsx` es el caso claro: los campos y el diseño son piel, pero
+ * también tiene la lógica de cotizar el envío y la de reconfirmar cuando el
+ * total cambió.
  *
+ * `src/app/admin` entra por el mismo razonamiento. NEW-STORE.md §5 lo llama
+ * maquinaria ("`/admin` completo") y en el fondo tiene razón, pero son páginas:
+ * la tienda que le cambió el logo o los colores al panel las va a ver
+ * distintas para siempre. En MAQUINARIA serían ruido permanente que apaga la
+ * señal del `*`. Las *actions* de admin —admin-payments, admin-orders— sí son
+ * maquinaria de verdad y ya están arriba, que es donde vive la plata.
+ *
+ * Ninguno entra en MAQUINARIA porque van a diferir en **toda** tienda que
+ * rediseñó, pero callarlos del todo deja sin aviso el día que su lógica cambia.
  * O sea: se avisan aparte, con "miralo a mano", no con "cherry-pickealo".
  */
-export const MIXTOS = ['src/components/checkout-form.tsx'] as const;
+export const MIXTOS = ['src/components/checkout-form.tsx', 'src/app/admin'] as const;
 
 export const BASELINE_FILE = '.template-baseline';
 
