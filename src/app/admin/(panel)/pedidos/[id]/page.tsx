@@ -174,6 +174,21 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
                 : `${order.docType} ${order.docNumber ?? ""}`}
             </dd>
           </div>
+          {/* Se muestra sólo si contestó: en los pedidos anteriores a la
+              casilla la columna es NULL, y "no se preguntó" no es un "no". */}
+          {order.marketingOptIn !== null ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Novedades</dt>
+              <dd className="text-right">
+                {order.marketingOptIn ? "Acepta" : "No acepta"}
+                {order.marketingOptInAt ? (
+                  <span className="text-muted-foreground block text-xs tabular-nums">
+                    {formatDateTimePY(order.marketingOptInAt)}
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Envío</dt>
             <dd className="max-w-[60%] text-right">

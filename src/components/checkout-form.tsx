@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { submitCheckout } from "@/app/actions/checkout";
+import { TIENDA } from "@/config/tienda";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ export function CheckoutForm({
   const [paymentMethod, setPaymentMethod] = useState<"transferencia" | "contra_entrega" | "tarjeta">(
     "transferencia"
   );
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   const subtotal = cartSubtotal(lines);
 
@@ -69,6 +71,7 @@ export function CheckoutForm({
             shipAddress: String(data.get("shipAddress") ?? ""),
             shipReference: String(data.get("shipReference") ?? ""),
             paymentMethod,
+            marketingOptIn,
           });
 
           if (!result.ok) {
@@ -198,6 +201,27 @@ export function CheckoutForm({
           </label>
         ))}
       </fieldset>
+
+      {/* Sin tildar de entrada y con el texto completo al lado: un permiso
+          pre-aceptado no es un permiso. Lo que se guarda es la respuesta, no
+          la ausencia de respuesta (ver `orders.marketing_opt_in`). */}
+      <label className="border-border flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm">
+        <input
+          type="checkbox"
+          name="marketingOptIn"
+          checked={marketingOptIn}
+          onChange={(event) => setMarketingOptIn(event.target.checked)}
+          className="mt-1"
+        />
+        <span>
+          <span className="font-medium">Quiero recibir novedades y promociones</span>
+          <span className="text-muted-foreground block text-xs">
+            {TIENDA.nombre} te escribe al WhatsApp que pusiste arriba, sólo por ofertas y
+            productos nuevos. Nunca por este pedido —eso te llega igual— y nunca le pasamos tu
+            número a nadie. Pedinos que te saquemos cuando quieras.
+          </span>
+        </span>
+      </label>
 
       <div className="border-border flex items-center justify-between border-t pt-4 text-sm">
         <span className="text-muted-foreground">Subtotal (IVA incluido)</span>

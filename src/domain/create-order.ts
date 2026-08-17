@@ -45,6 +45,11 @@ export type CreateOrderInput = {
   shipReference?: string | null;
   shipMapsUrl?: string | null;
   paymentMethod: PaymentMethod;
+  /**
+   * Novedades y promociones. `null`/`undefined` = no se preguntó; se guarda
+   * tal cual, sin convertirlo a `false` (ver `orders.marketing_opt_in`).
+   */
+  marketingOptIn?: boolean | null;
 };
 
 export type CreatedOrder = {
@@ -143,6 +148,12 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       iva5Pyg,
       paymentMethod: input.paymentMethod,
       reservedUntil,
+      marketingOptIn: input.marketingOptIn ?? null,
+      // La fecha acompaña a cualquier respuesta explícita, no sólo al "sí":
+      // saber cuándo dijo que no es lo que después evita mandarle igual.
+      marketingOptInAt: input.marketingOptIn === null || input.marketingOptIn === undefined
+        ? null
+        : new Date(),
     });
 
     const inserted = await tx
