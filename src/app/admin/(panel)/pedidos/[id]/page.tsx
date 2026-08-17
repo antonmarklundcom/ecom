@@ -6,12 +6,12 @@ import { OrderActions } from "@/components/admin/order-actions";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
 import { ReceiptReview } from "@/components/admin/receipt-review";
-import { getAdminOrder } from "@/domain/admin-orders";
+import { RECOVERABLE_STATUSES, getAdminOrder } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
 import { listReceipts } from "@/domain/receipts";
-import { orderUrl } from "@/domain/order-access";
+import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
 import { formatGs, ivaIncluded } from "@/lib/money";
-import { formatDateTimePY, formatPhonePY, waLink } from "@/lib/py";
+import { formatDateTimePY, formatPhonePY } from "@/lib/py";
 
 export const metadata: Metadata = { title: "Pedido" };
 
@@ -33,15 +33,15 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
     listReceipts(order.id),
   ]);
 
-  // El link que se le manda al comprador lleva su token: se arma acá, en el
-  // servidor, y sale ya hecho dentro del href de WhatsApp.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  const buyerUrl = `${siteUrl}${orderUrl(order.orderNumber, order.accessToken)}`;
-  const waHref = waLink(
-    order.customerPhone,
-    `Hola ${order.customerName.split(" ")[0] ?? ""}! Te escribo por tu pedido ${order.orderNumber} ` +
-      `(${formatGs(order.totalPyg)}). Podés seguirlo acá: ${buyerUrl}`,
-  );
+  // Los dos mensajes salen del mismo armador que usa "Por cobrar": el link
+  // tokenizado y la regla de no listar lo comprado se escriben una sola vez
+  // (ver `src/domain/order-messages.ts`).
+  const waHref = buyerWaLink(order, followUpMessage(order));
+  const recoveryHref = RECOVERABLE_STATUSES.includes(
+    order.status as (typeof RECOVERABLE_STATUSES)[number],
+  )
+    ? buyerWaLink(order, recoveryMessage(order))
+    : null;
 
   const nextStatuses = ORDER_TRANSITIONS[order.status];
 
@@ -60,14 +60,26 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <a
-          href={waHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
-        >
-          Escribir por WhatsApp
-        </a>
+        {waHref ? (
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
+          >
+            Escribir por WhatsApp
+          </a>
+        ) : null}
+        {recoveryHref ? (
+          <a
+            href={recoveryHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
+          >
+            Mandar datos para pagar
+          </a>
+        ) : null}
       </div>
 
       {/* Arriba de todo y no en la ficha del cliente: esto se mira mientras
