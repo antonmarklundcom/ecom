@@ -12,12 +12,21 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 /** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
 const DEFAULT_TRANSFORMS = "f_auto,q_auto";
 
-export type ImageSize = "thumb" | "card" | "detail";
+export type ImageSize = "thumb" | "card" | "detail" | "og";
+
+/**
+ * 1200×630 es la caja que esperan WhatsApp, Instagram y Facebook. `c_fill` y
+ * no `c_fit`: una foto cuadrada metida en un lienzo 1.91:1 sale con dos
+ * franjas vacías a los costados, y en la previsualización del chat eso se ve
+ * como un error del comercio.
+ */
+export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
 
 const SIZE_TRANSFORMS: Record<ImageSize, string> = {
   thumb: "c_fill,w_160,h_160",
   card: "c_fill,w_600,h_600",
   detail: "c_fit,w_1200,h_1200",
+  og: `c_fill,w_${OG_IMAGE_SIZE.width},h_${OG_IMAGE_SIZE.height}`,
 };
 
 /**

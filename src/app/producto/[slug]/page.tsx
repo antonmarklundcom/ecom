@@ -7,6 +7,7 @@ import { AddToCart } from "@/components/add-to-cart";
 import { ProductImage } from "@/components/product-image";
 import { getProductBySlug } from "@/db/queries";
 import { comercioWaLink } from "@/lib/comercio";
+import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { formatGs } from "@/lib/money";
 
 /**
@@ -33,12 +34,36 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     undefined
   );
 
+  const description =
+    product.description?.slice(0, 160) ??
+    `${product.name} — ${cheapest ? formatGs(cheapest) : ""}, IVA incluido.`;
+
+  // La foto principal, recortada a la caja que espera WhatsApp. Si el
+  // producto todavía no tiene fotos (o falta el cloud de Cloudinary), se
+  // omite `images` y Next hereda la del sitio (`app/opengraph-image.tsx`):
+  // el link se comparte con la marca en vez de con un rectángulo gris.
+  const ogImage = productImageUrl(product.images[0]?.cloudinaryId, "og");
+
   return {
     title: product.name,
-    description:
-      product.description?.slice(0, 160) ??
-      `${product.name} — ${cheapest ? formatGs(cheapest) : ""}, IVA incluido.`,
-    openGraph: { title: product.name, type: "website" },
+    description,
+    openGraph: {
+      title: product.name,
+      description,
+      type: "website",
+      ...(ogImage
+        ? {
+            images: [
+              {
+                url: ogImage,
+                width: OG_IMAGE_SIZE.width,
+                height: OG_IMAGE_SIZE.height,
+                alt: product.images[0]?.alt ?? product.name,
+              },
+            ],
+          }
+        : {}),
+    },
   };
 }
 
