@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 
-import { CheckoutError, createOrder } from "@/domain/create-order";
+import { CheckoutError, TotalChangedError, createOrder } from "@/domain/create-order";
 import { orderUrl } from "@/domain/order-access";
 import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config";
 import { startPagoparCheckout } from "@/domain/pagopar/checkout";
@@ -48,11 +48,24 @@ const CheckoutActionSchema = z.object({
   marketingOptIn: z.boolean().optional(),
   isGift: z.boolean().optional(),
   giftNote: z.string().trim().max(300).optional().or(z.literal("")),
+  // El total que el navegador venía mostrando. Se compara contra el que
+  // calcula la DB para poder avisar que cambió; nunca se cobra (ver
+  // `CreateOrderInput.expectedTotalPyg`).
+  expectedTotalPyg: z.number().int().nonnegative().optional(),
 });
 
 export type CheckoutResult =
   | { ok: true; orderNumber: string; redirectTo: string }
-  | { ok: false; error: string; issues?: CartIssue[] };
+  | {
+      ok: false;
+      error: string;
+      issues?: CartIssue[];
+      /**
+       * El total cambió mientras completaba el formulario. No se creó nada:
+       * la pantalla muestra el número nuevo y ella confirma otra vez.
+       */
+      totalChanged?: { before: number; after: number };
+    };
 
 export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
   // Antes de mirar el cuerpo: lo caro de este endpoint no es validarlo sino la
@@ -118,6 +131,14 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       redirectTo: orderUrl(order.orderNumber, order.accessToken),
     };
   } catch (error) {
+    // Antes que CheckoutError: es una subclase suya.
+    if (error instanceof TotalChangedError) {
+      return {
+        ok: false,
+        error: error.message,
+        totalChanged: { before: error.before, after: error.after },
+      };
+    }
     if (error instanceof CheckoutError) {
       return { ok: false, error: error.message, issues: error.issues };
     }

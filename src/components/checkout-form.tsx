@@ -43,6 +43,12 @@ export function CheckoutForm({
   const [isQuoting, setIsQuoting] = useState(false);
   const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quoteTicket = useRef(0);
+  /**
+   * El total que ella ya vio y aceptó tras un aviso de cambio. Se manda para
+   * comparar, nunca para cobrar (`expectedTotalPyg`). Se invalida en cuanto
+   * cambia la ciudad o el carrito: a partir de ahí manda la cotización nueva.
+   */
+  const [acceptedTotal, setAcceptedTotal] = useState<number | null>(null);
 
   const subtotal = cartSubtotal(lines);
 
@@ -54,7 +60,7 @@ export function CheckoutForm({
    */
   const itemsKey = lines.map((line) => `${line.variantId}x${line.qty}`).join(",");
 
-  const requestQuote = (nextCity: string) => {
+  const requestQuote = (nextCity: string, delayMs = 400) => {
     if (quoteTimer.current) clearTimeout(quoteTimer.current);
 
     const target = nextCity.trim();
@@ -84,13 +90,15 @@ export function CheckoutForm({
           setQuote(null);
           setIsQuoting(false);
         });
-    }, 400);
+    }, delayMs);
   };
 
   // Si el carrito cambió desde el slide-over, la cotización de recién ya no
   // corresponde: se muestra el subtotal del navegador hasta que se vuelva a
   // cotizar, en vez de un total de otro carrito.
   const currentQuote = quote?.itemsKey === itemsKey ? quote : null;
+  // Un total aceptado deja de valer si el carrito cambió debajo.
+  const expectedTotal = quote?.itemsKey === itemsKey ? acceptedTotal : null;
 
   if (lines.length === 0) {
     return (
@@ -128,11 +136,25 @@ export function CheckoutForm({
             marketingOptIn,
             isGift,
             giftNote: String(data.get("giftNote") ?? ""),
+            // Lo que hay en pantalla, para que el servidor pueda avisar si no
+            // coincide con lo que corresponde cobrar. Si nunca vio un total
+            // —no llegó a poner la ciudad— no va nada y no hay nada que
+            // comparar.
+            expectedTotalPyg: expectedTotal ?? currentQuote?.totalPyg ?? undefined,
           });
 
           if (!result.ok) {
             setError(result.error);
             result.issues?.forEach((issue) => toast.error(describeIssue(issue)));
+            if (result.totalChanged) {
+              // El pedido NO se creó. Se guarda el total nuevo —el que acaba
+              // de calcular el servidor— para que el segundo click pase, y se
+              // vuelve a cotizar para que la pantalla muestre de dónde sale.
+              setAcceptedTotal(result.totalChanged.after);
+              // Sin esperar los 400ms del debounce: la pantalla tiene que
+              // mostrar el número nuevo antes de que ella vuelva a apretar.
+              requestQuote(city, 0);
+            }
             return;
           }
 
@@ -207,6 +229,9 @@ export function CheckoutForm({
             value={city}
             onChange={(event) => {
               setCity(event.target.value);
+              // Otra ciudad es otro envío: lo que aceptó para la anterior no
+              // vale más.
+              setAcceptedTotal(null);
               requestQuote(event.target.value);
             }}
           />

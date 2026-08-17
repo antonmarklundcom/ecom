@@ -10,6 +10,7 @@ import {
   type DocType,
   type PaymentMethod,
 } from "@/db/schema";
+import { formatGs } from "@/lib/money";
 import { normalizePhonePY, validateDoc } from "@/lib/py";
 
 import type { CartInput } from "./cart";
@@ -52,6 +53,17 @@ export type CreateOrderInput = {
   /** Pedido para regalar, con un mensaje opcional para la tarjeta. */
   isGift?: boolean;
   giftNote?: string | null;
+  /**
+   * El total que el navegador venía **mostrando**, para poder avisar si
+   * cambió. Se compara, nunca se cobra: lo que se cobra sale de
+   * `computeOrderTotals` unas líneas más abajo, contra la DB y adentro de
+   * esta transacción (ARCH.md §1 regla 1). Mismo criterio que
+   * `expectedPrices` en `priceCart`.
+   *
+   * `undefined` = no se le mostró ningún total (no llegó a poner la ciudad),
+   * así que no hay nada que comparar y el pedido sigue de largo.
+   */
+  expectedTotalPyg?: number | null;
 };
 
 export type CreatedOrder = {
@@ -73,6 +85,32 @@ export class CheckoutError extends Error {
   ) {
     super(message);
     this.name = "CheckoutError";
+  }
+}
+
+/**
+ * El total cambió entre lo que ella vio y lo que corresponde cobrar.
+ *
+ * Existe porque el umbral de envío gratis hace que el total **no** sea
+ * monótono en el precio: un producto de ₲500.000 con envío gratis a partir de
+ * ₲500.000 que el comercio baja a ₲490.000 cae abajo del umbral y pasa a
+ * pagar flete — más barato el producto, más caro el total. Sin este aviso,
+ * cobrarle de más después de una rebaja es indistinguible de un error.
+ *
+ * No se cobra ninguno de los dos números por venir del navegador: `after` es
+ * el que acaba de calcular el servidor, y es el que se cobra si ella
+ * confirma de nuevo.
+ */
+export class TotalChangedError extends CheckoutError {
+  constructor(
+    readonly before: number,
+    readonly after: number
+  ) {
+    super(
+      `El total cambió de ${formatGs(before)} a ${formatGs(after)} mientras completabas los datos. ` +
+        "Revisalo y confirmá de nuevo."
+    );
+    this.name = "TotalChangedError";
   }
 }
 
@@ -112,6 +150,21 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
         "Algunos productos ya no están disponibles. Revisá tu carrito.",
         cart.issues
       );
+    }
+
+    // 2.b. ¿Le estamos por cobrar algo distinto de lo que vio?
+    //
+    //      La comparación va **adentro** de la transacción y antes de
+    //      escribir nada: si no coincide, esto tira y no queda ni el pedido,
+    //      ni el número consumido, ni la reserva. El número del navegador no
+    //      participa del cobro en ningún caso — sólo dice qué había en
+    //      pantalla.
+    if (
+      input.expectedTotalPyg !== undefined &&
+      input.expectedTotalPyg !== null &&
+      input.expectedTotalPyg !== totalPyg
+    ) {
+      throw new TotalChangedError(input.expectedTotalPyg, totalPyg);
     }
 
     // 3. Número de pedido del contador, adentro de la misma transacción.

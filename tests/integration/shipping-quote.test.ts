@@ -152,3 +152,106 @@ describe.skipIf(!hasTestDb)("cotización de envío", () => {
     expect(quote.totalPyg).toBe(500_000);
   });
 });
+
+/**
+ * El aviso de "el total cambió".
+ *
+ * La cotización es sólo para mostrar, pero cobrar en silencio algo distinto
+ * de lo que ella vio es la forma de perder la confianza que esta pantalla
+ * existe para dar. El navegador manda el total que tenía en pantalla; el
+ * servidor lo **compara** con el que acaba de calcular y, si no coinciden, no
+ * escribe nada y lo dice. Ninguno de los dos números se cobra por venir del
+ * navegador: se cobra el de la DB.
+ */
+describe.skipIf(!hasTestDb)("el total cambió entre la cotización y el pedido", () => {
+  beforeEach(async () => {
+    await resetTables();
+    await getTestDb().insert(shippingZones).values({
+      slug: "asuncion",
+      name: "Asunción",
+      cities: ["Asunción"],
+      pricePyg: 25_000,
+      freeThresholdPyg: 500_000,
+      position: 1,
+    });
+  });
+
+  function pedido(variantId: number, expectedTotalPyg?: number) {
+    return {
+      items: [{ variantId, qty: 1 }],
+      customerName: "Rosa Giménez",
+      customerPhone: "0981 123 456",
+      docType: "NINGUNO" as const,
+      isConsumidorFinal: true,
+      shipCity: "Asunción",
+      shipAddress: "Av. Mcal. López 1234",
+      paymentMethod: "transferencia" as const,
+      expectedTotalPyg,
+    };
+  }
+
+  it("una rebaja que cruza el umbral SUBE el total, y se avisa en vez de cobrarlo", async () => {
+    // El caso que motivó todo esto: el umbral hace que el total no sea
+    // monótono en el precio. Producto a ₲500.000 con envío gratis desde
+    // ₲500.000 → total ₲500.000. El comercio lo baja a ₲490.000, cae abajo
+    // del umbral y aparece el flete: ₲515.000. Más barato el producto, más
+    // caro el total.
+    const variantId = await createVariant({ onHand: 5, pricePyg: 500_000 });
+    const quote = await computeOrderTotals([{ variantId, qty: 1 }], "Asunción");
+    expect(quote.totalPyg).toBe(500_000);
+    expect(quote.shipping.isFree).toBe(true);
+
+    await getTestDb().update(variants).set({ pricePyg: 490_000 }).where(eq(variants.id, variantId));
+
+    await expect(createOrder(pedido(variantId, quote.totalPyg))).rejects.toMatchObject({
+      name: "TotalChangedError",
+      before: 500_000,
+      after: 515_000,
+    });
+  });
+
+  it("el pedido rechazado no deja nada escrito: ni pedido, ni reserva, ni número consumido", async () => {
+    const db = getTestDb();
+    const variantId = await createVariant({ onHand: 5, pricePyg: 500_000 });
+
+    await expect(createOrder(pedido(variantId, 999_999))).rejects.toThrow();
+
+    expect(await db.select().from(orders)).toHaveLength(0);
+    expect(await db.select().from(stockReservations)).toHaveLength(0);
+    expect(await getAvailability(variantId)).toBe(5);
+
+    // El contador tampoco se gastó: el pedido siguiente es el PY-000001.
+    const ok = await createOrder(pedido(variantId));
+    expect(ok.orderNumber).toBe("PY-000001");
+  });
+
+  it("confirmando el total nuevo, el pedido entra y se cobra el de la DB", async () => {
+    const variantId = await createVariant({ onHand: 5, pricePyg: 490_000 });
+
+    const order = await createOrder(pedido(variantId, 515_000));
+
+    expect(order.totalPyg).toBe(515_000);
+    expect(order.shippingPyg).toBe(25_000);
+  });
+
+  it("sin total en pantalla no hay nada que comparar y el pedido sigue de largo", async () => {
+    // No llegó a poner la ciudad, así que nunca vio un total. El pedido se
+    // crea igual, como antes de que existiera la cotización.
+    const variantId = await createVariant({ onHand: 5, pricePyg: 490_000 });
+
+    const order = await createOrder(pedido(variantId, undefined));
+
+    expect(order.totalPyg).toBe(515_000);
+  });
+
+  it("el número del navegador nunca se cobra, ni cuando coincide por casualidad", async () => {
+    // Manda un total correcto para un precio viejo; la DB manda igual.
+    const variantId = await createVariant({ onHand: 5, pricePyg: 300_000 });
+
+    const order = await createOrder(pedido(variantId, 325_000));
+
+    expect(order.totalPyg).toBe(325_000);
+    const [row] = await getTestDb().select().from(orders).where(eq(orders.id, order.orderId));
+    expect(row?.totalPyg).toBe(325_000);
+  });
+});
