@@ -15,8 +15,17 @@ import { createOrder as makeOrder } from "../helpers/factories";
  * está más cerca de perderse.
  */
 
+/**
+ * Envejece un pedido `days` días **y seis horas**.
+ *
+ * Las seis horas no son decoración: con un múltiplo exacto de 24 h el pedido
+ * queda parado justo en el borde que `TIMESTAMPDIFF(DAY, ...)` trunca, y
+ * cualquier desfasaje de milisegundos entre el reloj del proceso de tests y
+ * el del servidor MySQL devuelve `days - 1`. El test se volvía cara o cruz.
+ * Con margen, sigue afirmando lo mismo y ya no depende del reloj.
+ */
 async function ageOrder(orderId: number, days: number): Promise<void> {
-  const when = new Date(Date.now() - days * 86_400_000);
+  const when = new Date(Date.now() - (days * 24 + 6) * 3_600_000);
   await getTestDb().update(orders).set({ createdAt: when }).where(eq(orders.id, orderId));
 }
 
