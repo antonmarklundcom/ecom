@@ -162,9 +162,21 @@ dos caminos y a propósito no hay un tercero:
 2. `createOrder` — la vuelve a llamar **adentro de su transacción**, con el
    executor de esa transacción, y cobra lo que salga de ahí.
 
-El total cotizado no viaja de vuelta al confirmar y no se compara con nada.
-No es que las dos versiones "estén de acuerdo": es la misma función corriendo
-dos veces, y un precio que cambia en el medio se cobra nuevo (§1 regla 1).
+El total cotizado **no se cobra nunca**: es la misma función corriendo dos
+veces, y lo que se cobra es lo que sale de la segunda (§1 regla 1).
+
+Lo que sí viaja de vuelta es el total que ella tenía **en pantalla**, para
+poder comparar. Si no coincide con el recalculado, `createOrder` tira
+`TotalChangedError` adentro de la transacción y antes de escribir: no queda
+pedido, ni reserva, ni número de pedido consumido. La pantalla muestra el
+número nuevo y ella confirma otra vez. El número del navegador se compara,
+nunca se cobra — mismo criterio que `expectedPrices` en `priceCart`.
+
+Existe porque el umbral de envío gratis hace que el total **no** sea monótono
+en el precio: un producto de ₲500.000 con envío gratis desde ₲500.000 que el
+comercio baja a ₲490.000 cae abajo del umbral y pasa a pagar flete, o sea
+₲515.000. Producto más barato, total más caro. Cobrar eso sin avisar es
+indistinguible de un error de la tienda.
 
 El progreso hacia el envío gratis (`free-shipping.ts`) devuelve un estado y no
 un número, porque `free_threshold_pyg` es nullable y por zona: antes de que la
