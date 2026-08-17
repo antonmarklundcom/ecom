@@ -122,8 +122,10 @@ pnpm template:diff --marcar     # "ya me puse al día"
 ```
 
 Marca con `*` los que tocan la maquinaria (`src/domain`, `src/lib`, `src/db`,
-`src/app/api`, `scripts`, `drizzle`): ésos los quiere toda tienda. El resto
-suele ser piel que vos reescribiste, y cherry-pickearlo te pisa el rediseño.
+`src/app/api`, `src/app/actions`, `scripts`, `drizzle`): ésos los quiere toda
+tienda. El resto suele ser piel que vos reescribiste, y cherry-pickearlo te pisa
+el rediseño. Con `~` marca `src/components/checkout-form.tsx`: markup tuyo con
+lógica compartida adentro, así que ahí leé el diff en vez de cherry-pickear.
 
 **Trampa:** un repo hecho con "Use this template" **no comparte historia** con
 el original, así que `git log HEAD..template/main` lista todo y no sirve. Por

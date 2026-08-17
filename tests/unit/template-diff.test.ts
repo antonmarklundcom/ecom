@@ -5,6 +5,7 @@ import {
   clasificar,
   contenidoBaseline,
   MAQUINARIA,
+  MIXTOS,
   parseArgs,
   parseBaseline,
   parseCommits,
@@ -99,13 +100,36 @@ describe('clasificar', () => {
 
   it('marca los que tocan la maquinaria', () => {
     expect(clasificar(commits, ['aaa1111'])).toEqual([
-      { sha: 'aaa1111', asunto: 'Arreglo de stock', maquinaria: true },
-      { sha: 'bbb2222', asunto: 'Nueva foto en la home', maquinaria: false },
+      { sha: 'aaa1111', asunto: 'Arreglo de stock', maquinaria: true, mixto: false },
+      { sha: 'bbb2222', asunto: 'Nueva foto en la home', maquinaria: false, mixto: false },
     ]);
   });
 
   it('sin maquinaria tocada, ninguno queda marcado', () => {
     expect(clasificar(commits, []).every((commit) => !commit.maquinaria)).toBe(true);
+  });
+
+  it('los mixtos se marcan aparte, y la maquinaria le gana al mixto', () => {
+    // El `~` es "leé el diff", el `*` es "cherry-pickealo". Un commit que toca
+    // las dos cosas ya está cubierto por el `*`; marcarlo también como mixto
+    // haría que el mismo commit se explique dos veces con consejos distintos.
+    const [soloMixto, ambos] = clasificar(
+      [
+        { sha: 'ccc3333', asunto: 'Checkout: campos y validación' },
+        { sha: 'ddd4444', asunto: 'Cotización de envío, form y action' },
+      ],
+      ['ddd4444'],
+      ['ccc3333', 'ddd4444'],
+    );
+
+    expect(soloMixto).toEqual({
+      sha: 'ccc3333',
+      asunto: 'Checkout: campos y validación',
+      maquinaria: false,
+      mixto: true,
+    });
+    expect(ambos?.maquinaria).toBe(true);
+    expect(ambos?.mixto).toBe(false);
   });
 
   it('la lista de maquinaria es la de NEW-STORE.md', () => {
@@ -116,5 +140,50 @@ describe('clasificar', () => {
     expect(MAQUINARIA).toContain('src/db');
     expect(MAQUINARIA).toContain('src/app/api');
     expect(MAQUINARIA).toContain('drizzle');
+  });
+
+  it('las server actions son maquinaria: ahí está el camino de la plata', () => {
+    // El bug que esto fija: sin `src/app/actions`, `pnpm template:diff` no
+    // miraba el archivo que crea pedidos y cobra. En una tienda real listó 29
+    // archivos de maquinaria con diferencias y ninguno era una action, mientras
+    // `checkout.ts` difería del template y `shipping-quote.ts` faltaba.
+    //
+    // Y con `--marcar` era peor: el listado por commits filtra con la misma
+    // lista, así que un commit del template que SÓLO tocara server actions no
+    // se le mostraba nunca a ninguna tienda.
+    expect(MAQUINARIA).toContain('src/app/actions');
+  });
+
+  it('los archivos de plata de src/app/actions caen adentro de la maquinaria', () => {
+    // Prefijos, no nombres: lo que se le pasa a `git log -- <ruta>` es la
+    // carpeta. Este test es el que cae si alguien la saca o la escribe mal
+    // ("src/actions", "app/actions"), que compilaría igual porque es un string.
+    const plata = [
+      'src/app/actions/checkout.ts',
+      'src/app/actions/shipping-quote.ts',
+      'src/app/actions/cart.ts',
+      'src/app/actions/admin-payments.ts',
+      'src/app/actions/receipt.ts',
+      'src/app/actions/order-lookup.ts',
+    ];
+
+    for (const archivo of plata) {
+      expect(
+        MAQUINARIA.some((ruta) => archivo.startsWith(`${ruta}/`)),
+        archivo,
+      ).toBe(true);
+    }
+  });
+
+  it('checkout-form.tsx se avisa como mixto, no como maquinaria', () => {
+    // Es markup que cada tienda rediseña, así que en MAQUINARIA iba a diferir
+    // siempre y el ruido apagaría la señal del `*`. Pero tiene lógica
+    // compartida adentro, así que callarlo del todo deja sin aviso el día que
+    // esa lógica cambia. Va en la lista de al lado.
+    expect(MIXTOS).toContain('src/components/checkout-form.tsx');
+    expect(MAQUINARIA).not.toContain('src/components');
+    expect(
+      MAQUINARIA.some((ruta) => 'src/components/checkout-form.tsx'.startsWith(`${ruta}/`)),
+    ).toBe(false);
   });
 });
