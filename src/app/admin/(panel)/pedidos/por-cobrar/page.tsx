@@ -30,10 +30,8 @@ export const dynamic = "force-dynamic";
  * (ver `listOrdersToRecover`).
  */
 export default async function PorCobrarPage() {
-  const [rows, banco] = await Promise.all([
-    listOrdersToRecover(),
-    Promise.resolve(comercioDatosBancarios()),
-  ]);
+  const { rows, total } = await listOrdersToRecover();
+  const banco = comercioDatosBancarios();
 
   const vencidos = rows.filter((row) => row.status === "vencido").length;
 
@@ -46,14 +44,22 @@ export default async function PorCobrarPage() {
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight">Por cobrar</h1>
         <p className="text-muted-foreground text-sm tabular-nums">
-          {rows.length} {rows.length === 1 ? "pedido" : "pedidos"}
+          {total} {total === 1 ? "pedido" : "pedidos"}
           {vencidos > 0 ? ` · ${vencidos} vencido${vencidos === 1 ? "" : "s"}` : ""}
         </p>
       </div>
       <p className="text-muted-foreground mt-1 text-sm">
-        Pendientes de pago y vencidos, del más viejo al más nuevo. El mensaje ya lleva los datos
-        para transferir, el total y el link del pedido.
+        Pendientes de pago, vencidos y con el comprobante rechazado, del más viejo al más nuevo.
+        El mensaje ya lleva los datos para transferir, el total y el link del pedido.
       </p>
+
+      {/* Un listado cortado que no dice que está cortado es peor que uno
+          paginado: el dueño llega al final y cree que terminó. */}
+      {rows.length < total ? (
+        <p className="text-muted-foreground mt-2 text-sm">
+          Mostramos los {rows.length} más viejos de {total}. Cobrá estos y volvé a entrar.
+        </p>
+      ) : null}
 
       {!banco ? (
         <p className="border-border bg-muted/40 mt-4 rounded-lg border p-3 text-sm">
@@ -64,7 +70,7 @@ export default async function PorCobrarPage() {
 
       {rows.length === 0 ? (
         <p className="text-muted-foreground border-border mt-6 rounded-xl border border-dashed p-8 text-center text-sm">
-          No hay pedidos esperando pago. 🎉
+          No hay pedidos esperando pago.
         </p>
       ) : (
         <ul className="mt-4 grid gap-3">
@@ -119,6 +125,7 @@ function RecoveryLink({ order }: { order: RecoverableOrderRow }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
+        referrerPolicy="no-referrer"
         className="text-sm font-medium underline"
       >
         Escribirle por WhatsApp →
