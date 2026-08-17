@@ -43,6 +43,11 @@ const CheckoutActionSchema = z.object({
   shipAddress: z.string().trim().min(5, "Falta la dirección").max(255),
   shipReference: z.string().trim().max(255).optional().or(z.literal("")),
   paymentMethod: z.enum(PAYMENT_METHODS),
+  // Ausente = no se preguntó (un POST viejo, o el formulario sin la casilla).
+  // No se completa con `false`: ver `orders.marketing_opt_in`.
+  marketingOptIn: z.boolean().optional(),
+  isGift: z.boolean().optional(),
+  giftNote: z.string().trim().max(300).optional().or(z.literal("")),
 });
 
 export type CheckoutResult =
@@ -79,6 +84,7 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       docNumber: parsed.data.docNumber || null,
       shipBarrio: parsed.data.shipBarrio || null,
       shipReference: parsed.data.shipReference || null,
+      giftNote: parsed.data.giftNote || null,
     });
 
     if (parsed.data.paymentMethod === "tarjeta") {

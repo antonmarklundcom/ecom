@@ -36,6 +36,12 @@ jobs:
       DATABASE_URL: mysql://root:root@127.0.0.1:3306/ecom
       TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/ecom_test
       SESSION_SECRET: ci-session-secret-de-al-menos-32-caracteres
+      # Sin esto, `next build` avisa que no puede resolver la URL absoluta de
+      # la imagen de Open Graph y cae en localhost. En la tienda real lo
+      # bloquea `pnpm preflight`; acá alcanza con un dominio de mentira, que
+      # es justamente lo que el código se niega a inventar por su cuenta
+      # (ver src/lib/site-url.ts).
+      NEXT_PUBLIC_SITE_URL: https://ci.example.py
 
     steps:
       - uses: actions/checkout@v4

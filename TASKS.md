@@ -403,3 +403,57 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Un id inexistente en el formulario no rompe nada
 - [x] **Concurrencia**: dos dueños tocando "reintentar" a la vez sobre la misma fila → ninguno explota, un solo descuento, una sola fila en `order_events`
 - [x] **Concurrencia**: reintentar y devolver a la vez → o pedido cobrado con el pago `paid`, o pedido cancelado con el pago `refunded`. Nunca cobrado con la plata devuelta ni cancelado con el stock descontado
+
+---
+
+# PR #12 · Que el link se comparta, que el envío se sepa antes, y que el pedido colgado se pueda cobrar
+
+## 34. Compartir un producto *(OG)*
+- [x] La ficha manda su foto principal recortada a 1200×630 (`c_fill`, la caja de WhatsApp e Instagram)
+- [x] `metadataBase` desde `NEXT_PUBLIC_SITE_URL`: sin eso la URL de la imagen sale relativa y ningún scraper la resuelve
+- [x] Respaldo del sitio dibujado desde `TIENDA` (`app/opengraph-image.tsx`), no un PNG commiteado que cada tienda nueva se olvidaría de reemplazar
+- [x] Producto sin fotos → hereda el respaldo, nunca el rectángulo gris
+- [x] NEW-STORE.md decía que había que cambiar un `og-image` de `public/` que no existía — corregido
+
+## 35. Consentimiento de novedades
+- [x] `orders.marketing_opt_in` **nullable**: NULL = no se preguntó, false = dijo que no, true = aceptó
+- [x] `marketing_opt_in_at` en cualquier respuesta explícita, no sólo en el "sí"
+- [x] Casilla sin tildar de entrada, copy que dice quién escribe y por qué
+- [x] Se muestra en el panel sólo si hubo respuesta
+- [x] **Sin mecanismo de envío**: no hay proveedor de mensajería en el stack y no se quiere uno
+
+## 36. Cotización de envío antes del pedido *(la grande)*
+- [x] `computeOrderTotals` — una sola cuenta, usada por la cotización pública y por `createOrder` adentro de su transacción
+- [x] Server action de sólo lectura: no crea pedido, no reserva, no toca `on_hand`; con rate limit igual (60/min por IP)
+- [x] El total cotizado no viaja de vuelta ni se compara con nada: un precio que cambia en el medio se cobra nuevo
+- [x] `ShippingQuote.matched` — la ciudad que no cae en ninguna zona cotiza la tarifa más cara **y la pantalla lo dice**
+- [x] Tests: cotizar no escribe nada · cotizado === cobrado hasta el guaraní · guardarraíl de que nadie rehaga la aritmética del otro lado
+
+## 37. Envío gratis: cuánto falta
+- [x] Cuatro estados y no un número: `sin_umbral`, `falta`, `alcanzado`, `indefinido`
+- [x] Sin ciudad sólo se afirma un número si **todas** las zonas coinciden; una zona sin umbral rompe la uniformidad
+- [x] Pasado el umbral más bajo sin saber la zona se dice "puede que tengas", no "tenés"
+- [x] El número siempre lo calcula el servidor contra `shipping_zones`
+
+## 38. Consultar por WhatsApp desde el carrito
+- [x] Server action porque `WHATSAPP_NUMBER` es del servidor; de paso el total del mensaje sale de la DB re-preciada
+- [x] Reusa `comercioWaLink`; test que falla si alguien vuelve a escribir una URL de `wa.me` a mano
+- [x] `location.href` y no `window.open`: después de un `await`, Safari en iPhone lo bloquea como popup
+
+## 39. "Es un regalo"
+- [x] `is_gift` NOT NULL + `gift_note` que se descarta si el pedido no quedó marcado como regalo
+- [x] Visible arriba de todo en el detalle del panel: se mira mientras se arma el paquete
+- [x] Copy genérica — esto es el template
+
+## 40. "Por cobrar"
+- [x] `pendiente_pago` + `vencido` juntos, del más viejo al más nuevo (`TIMESTAMPDIFF` en MySQL, sin zona horaria de por medio)
+- [x] El `wa.me` en la fila y no un click más adentro
+- [x] El mensaje lleva banco + total exacto + link tokenizado; sin `BANCO_*` sale sin la parte bancaria en vez de inventarla
+- [x] **Nunca itemiza lo comprado**: el tipo de entrada no recibe ítems (aterriza en una pantalla de bloqueo)
+- [x] **Nunca toca una reserva**: la disponibilidad se calcula en vivo; reservar para "ayudar" bloquea la unidad al resto en silencio (ARCH.md §2 y §4.1)
+- [x] El armado del mensaje se mudó a `src/domain/order-messages.ts`; el detalle del pedido lo reusa
+
+## 41. Recordar el talle elegido
+- [x] `localStorage` por producto, sólo preselecciona entre las variantes ya dibujadas y con stock
+- [x] `useSyncExternalStore` en vez de un efecto: sin desajuste de hidratación
+- [x] Falla blandito (JSON roto, Safari privado, variante que ya no existe) y se queda con los últimos 30 productos

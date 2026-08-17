@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { submitCheckout } from "@/app/actions/checkout";
+import { quoteCartShipping, type CartQuote } from "@/app/actions/shipping-quote";
+import { TIENDA } from "@/config/tienda";
+import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,15 +29,68 @@ export function CheckoutForm({
   pagoparEnabled?: boolean;
 }) {
   const router = useRouter();
-  const { lines, clear } = useCart();
+  const { lines, clear, freeShipping } = useCart();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [docType, setDocType] = useState<"NINGUNO" | "CI" | "RUC">("NINGUNO");
   const [paymentMethod, setPaymentMethod] = useState<"transferencia" | "contra_entrega" | "tarjeta">(
     "transferencia"
   );
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [isGift, setIsGift] = useState(false);
+  const [city, setCity] = useState("");
+  const [quote, setQuote] = useState<(CartQuote & { itemsKey: string }) | null>(null);
+  const [isQuoting, setIsQuoting] = useState(false);
+  const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quoteTicket = useRef(0);
 
   const subtotal = cartSubtotal(lines);
+
+  /**
+   * Cotización del envío, disparada por lo que hace la compradora al tipear la
+   * ciudad y no por un efecto — mismo criterio que la revalidación del
+   * carrito. Es sólo lectura y no crea nada (ver `quoteCartShipping`), así que
+   * se puede volver a pedir en cada corrección.
+   */
+  const itemsKey = lines.map((line) => `${line.variantId}x${line.qty}`).join(",");
+
+  const requestQuote = (nextCity: string) => {
+    if (quoteTimer.current) clearTimeout(quoteTimer.current);
+
+    const target = nextCity.trim();
+    const items = useCart
+      .getState()
+      .lines.map((line) => ({ variantId: line.variantId, qty: line.qty }));
+
+    if (target.length < 2 || items.length === 0) {
+      setQuote(null);
+      setIsQuoting(false);
+      return;
+    }
+
+    // Cada pedido lleva su número: la respuesta de una ciudad ya corregida
+    // llega tarde y no tiene que pisar a la actual.
+    const ticket = ++quoteTicket.current;
+    setIsQuoting(true);
+    quoteTimer.current = setTimeout(() => {
+      void quoteCartShipping({ items, city: target })
+        .then((result) => {
+          if (ticket !== quoteTicket.current) return;
+          setQuote(result.shipping ? { ...result, itemsKey } : null);
+          setIsQuoting(false);
+        })
+        .catch(() => {
+          if (ticket !== quoteTicket.current) return;
+          setQuote(null);
+          setIsQuoting(false);
+        });
+    }, 400);
+  };
+
+  // Si el carrito cambió desde el slide-over, la cotización de recién ya no
+  // corresponde: se muestra el subtotal del navegador hasta que se vuelva a
+  // cotizar, en vez de un total de otro carrito.
+  const currentQuote = quote?.itemsKey === itemsKey ? quote : null;
 
   if (lines.length === 0) {
     return (
@@ -69,6 +125,9 @@ export function CheckoutForm({
             shipAddress: String(data.get("shipAddress") ?? ""),
             shipReference: String(data.get("shipReference") ?? ""),
             paymentMethod,
+            marketingOptIn,
+            isGift,
+            giftNote: String(data.get("giftNote") ?? ""),
           });
 
           if (!result.ok) {
@@ -139,7 +198,18 @@ export function CheckoutForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="shipCity">Ciudad</Label>
-          <Input id="shipCity" name="shipCity" required list="ciudades" autoComplete="address-level2" />
+          <Input
+            id="shipCity"
+            name="shipCity"
+            required
+            list="ciudades"
+            autoComplete="address-level2"
+            value={city}
+            onChange={(event) => {
+              setCity(event.target.value);
+              requestQuote(event.target.value);
+            }}
+          />
           <datalist id="ciudades">
             {cities.map((city) => (
               <option key={city} value={city} />
@@ -199,13 +269,103 @@ export function CheckoutForm({
         ))}
       </fieldset>
 
-      <div className="border-border flex items-center justify-between border-t pt-4 text-sm">
-        <span className="text-muted-foreground">Subtotal (IVA incluido)</span>
-        <span className="font-semibold tabular-nums">{formatGs(subtotal)}</span>
+      <div className="grid gap-2">
+        <label className="border-border flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm">
+          <input
+            type="checkbox"
+            name="isGift"
+            checked={isGift}
+            onChange={(event) => setIsGift(event.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            <span className="font-medium">Es un regalo</span>
+            <span className="text-muted-foreground block text-xs">
+              Lo preparamos para regalar y, si querés, le sumamos un mensaje.
+            </span>
+          </span>
+        </label>
+
+        {isGift ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="giftNote">Mensaje para la tarjeta (opcional)</Label>
+            <textarea
+              id="giftNote"
+              name="giftNote"
+              rows={2}
+              maxLength={300}
+              placeholder="¡Feliz cumple! Con mucho cariño."
+              className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+        ) : null}
       </div>
+
+      {/* Sin tildar de entrada y con el texto completo al lado: un permiso
+          pre-aceptado no es un permiso. Lo que se guarda es la respuesta, no
+          la ausencia de respuesta (ver `orders.marketing_opt_in`). */}
+      <label className="border-border flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm">
+        <input
+          type="checkbox"
+          name="marketingOptIn"
+          checked={marketingOptIn}
+          onChange={(event) => setMarketingOptIn(event.target.checked)}
+          className="mt-1"
+        />
+        <span>
+          <span className="font-medium">Quiero recibir novedades y promociones</span>
+          <span className="text-muted-foreground block text-xs">
+            {TIENDA.nombre} te escribe al WhatsApp que pusiste arriba, sólo por ofertas y
+            productos nuevos. Nunca por este pedido —eso te llega igual— y nunca le pasamos tu
+            número a nadie. Pedinos que te saquemos cuando quieras.
+          </span>
+        </span>
+      </label>
+
+      <div className="border-border grid gap-1 border-t pt-4 text-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Subtotal (IVA incluido)</span>
+          <span className="tabular-nums">{formatGs(currentQuote?.subtotalPyg ?? subtotal)}</span>
+        </div>
+
+        {currentQuote?.shipping ? (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">
+                Envío{currentQuote.shipping.matched ? ` — ${currentQuote.shipping.zoneName}` : ""}
+                {isQuoting ? "…" : ""}
+              </span>
+              <span className="tabular-nums">
+                {currentQuote.shipping.isFree ? "Gratis" : formatGs(currentQuote.shipping.shippingPyg)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="font-medium">Total</span>
+              <span className="text-base font-semibold tabular-nums">
+                {formatGs(currentQuote.totalPyg ?? 0)}
+              </span>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      {/* La cotización es para mostrar. El total que se cobra lo recalcula
+          `createOrder` desde la DB cuando se confirma, así que decirlo acá no
+          es una nota al pie: es lo que pasa. */}
       <p className="text-muted-foreground -mt-3 text-xs">
-        El envío se calcula según tu ciudad y se confirma en la próxima pantalla.
+        {currentQuote?.shipping
+          ? currentQuote.shipping.matched
+            ? "El total se confirma al crear el pedido."
+            : `No encontramos tu ciudad en nuestras zonas: te cotizamos la tarifa más alta (${currentQuote.shipping.zoneName}). Escribinos por WhatsApp y lo revisamos.`
+          : "Poné tu ciudad y te calculamos el envío antes de confirmar."}
       </p>
+
+      {/* Con la ciudad puesta el número es el de su zona; sin ella, el que
+          dejó la revalidación del carrito, que se dibuja aclarado. */}
+      <FreeShippingBar
+        progress={currentQuote?.freeShipping ?? freeShipping}
+        subtotalPyg={currentQuote?.subtotalPyg ?? subtotal}
+      />
 
       <Button type="submit" size="lg" disabled={isPending}>
         {isPending ? "Creando tu pedido…" : "Confirmar pedido"}

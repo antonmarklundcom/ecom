@@ -56,9 +56,16 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight">Pedidos</h1>
-        <p className="text-muted-foreground text-sm tabular-nums">
-          {result.total} {result.total === 1 ? "pedido" : "pedidos"}
-        </p>
+        <div className="flex items-center gap-3">
+          {/* El trabajo de cobrar es una tarea aparte de mirar el listado:
+              tiene su pantalla y se llega de un toque. */}
+          <Link href="/admin/pedidos/por-cobrar" className="text-sm underline">
+            Por cobrar
+          </Link>
+          <p className="text-muted-foreground text-sm tabular-nums">
+            {result.total} {result.total === 1 ? "pedido" : "pedidos"}
+          </p>
+        </div>
       </div>
 
       {/* Los accesos rápidos van arriba del buscador: la pregunta más común

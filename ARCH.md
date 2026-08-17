@@ -140,6 +140,37 @@ MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaran�
 - `line_total_pyg = unit_price_pyg * qty`, `total_pyg = subtotal_pyg + shipping_pyg` — asserted in the same server function that writes them, and by a nightly reconciliation query.
 - Prices are **IVA incluido** (PY consumer convention). Included IVA per line = `round(line_total * rate / (100 + rate))`, summed into `iva_10_pyg` / `iva_5_pyg`. Never added on top of the displayed price.
 
+### Columnas de la compra que no son plata
+
+`orders` guarda además tres cosas que no entran en la cuenta pero se deciden
+en el mismo formulario:
+
+| Columna | Por qué es así |
+|---|---|
+| `marketing_opt_in` **nullable** | Tres estados, no dos: `NULL` = no se preguntó, `false` = dijo que no, `true` = aceptó. Un `NOT NULL DEFAULT false` mezcla el primero con el segundo, y el consentimiento es lo único que no se puede completar retroactivamente. `marketing_opt_in_at` guarda cuándo contestó. **El MVP no manda nada**: no hay proveedor de mensajería en el stack. |
+| `is_gift` **NOT NULL** | Acá `false` y "no contestó" sí son lo mismo: un pedido que nadie marcó no es un regalo. `gift_note` sólo se escribe si `is_gift`, para que destildar la casilla no deje un mensaje viejo colgado. |
+
+### La cotización de envío no cobra
+
+`computeOrderTotals(items, ciudad, { executor })` es **la** cuenta del pedido:
+subtotal re-preciado, flete por zona, IVA incluido del flete, total. La usan
+dos caminos y a propósito no hay un tercero:
+
+1. `quoteCartShipping` — server action pública, sólo lectura. No crea pedido,
+   no reserva stock, no toca `on_hand`. Es lo que ve la compradora antes de
+   confirmar.
+2. `createOrder` — la vuelve a llamar **adentro de su transacción**, con el
+   executor de esa transacción, y cobra lo que salga de ahí.
+
+El total cotizado no viaja de vuelta al confirmar y no se compara con nada.
+No es que las dos versiones "estén de acuerdo": es la misma función corriendo
+dos veces, y un precio que cambia en el medio se cobra nuevo (§1 regla 1).
+
+El progreso hacia el envío gratis (`free-shipping.ts`) devuelve un estado y no
+un número, porque `free_threshold_pyg` es nullable y por zona: antes de que la
+compradora ponga su ciudad puede no existir ninguna respuesta verdadera, y
+"indefinido" se dibuja con la aclaración en vez de con una promesa.
+
 ### Stock: holds, not decrements
 `on_hand` is the physical count and only changes when money confirms. What the storefront shows is:
 

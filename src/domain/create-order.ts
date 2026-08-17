@@ -10,12 +10,11 @@ import {
   type DocType,
   type PaymentMethod,
 } from "@/db/schema";
-import { assertGs, ivaIncluded } from "@/lib/money";
 import { normalizePhonePY, validateDoc } from "@/lib/py";
 
-import { priceCart, type CartInput } from "./cart";
+import type { CartInput } from "./cart";
 import { nextOrderNumber } from "./order-number";
-import { SHIPPING_IVA_RATE, quoteShipping } from "./shipping";
+import { computeOrderTotals } from "./order-totals";
 import { RESERVATION_TTL_MINUTES, reserveStock } from "./stock";
 import type { CartIssue } from "@/lib/cart-issues";
 
@@ -45,6 +44,14 @@ export type CreateOrderInput = {
   shipReference?: string | null;
   shipMapsUrl?: string | null;
   paymentMethod: PaymentMethod;
+  /**
+   * Novedades y promociones. `null`/`undefined` = no se preguntó; se guarda
+   * tal cual, sin convertirlo a `false` (ver `orders.marketing_opt_in`).
+   */
+  marketingOptIn?: boolean | null;
+  /** Pedido para regalar, con un mensaje opcional para la tarjeta. */
+  isGift?: boolean;
+  giftNote?: string | null;
 };
 
 export type CreatedOrder = {
@@ -92,8 +99,12 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
   }
 
   return getDb().transaction(async (tx) => {
-    // 1. Re-precio: precio, IVA y stock salen de la DB.
-    const cart = await priceCart(input.items, { executor: tx });
+    // 1 y 2. Re-precio y envío, con el executor de **esta** transacción. Es la
+    //    misma función que usa la cotización pública (`computeOrderTotals`),
+    //    corrida de nuevo acá: lo que la compradora vio en pantalla no viaja
+    //    en el input y no se compara con nada, se recalcula.
+    const { cart, shipping, subtotalPyg, shippingPyg, totalPyg, iva10Pyg, iva5Pyg } =
+      await computeOrderTotals(input.items, input.shipCity, { executor: tx });
 
     const blocking = cart.issues.filter((issue) => issue.type !== "precio_cambio");
     if (cart.lines.length === 0 || blocking.length > 0) {
@@ -102,16 +113,6 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
         cart.issues
       );
     }
-
-    // 2. Envío por zona, con umbral de envío gratis.
-    const shipping = await quoteShipping(input.shipCity, cart.subtotalPyg, tx);
-
-    const subtotalPyg = assertGs(cart.subtotalPyg, "subtotal_pyg");
-    const shippingPyg = assertGs(shipping.shippingPyg, "shipping_pyg");
-    const totalPyg = assertGs(subtotalPyg + shippingPyg, "total_pyg");
-    // El flete también viene con IVA incluido (ver SHIPPING_IVA_RATE).
-    const iva10Pyg = cart.iva10Pyg + ivaIncluded(shippingPyg, SHIPPING_IVA_RATE);
-    const iva5Pyg = cart.iva5Pyg;
 
     // 3. Número de pedido del contador, adentro de la misma transacción.
     const orderNumber = await nextOrderNumber(tx);
@@ -143,6 +144,16 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       iva5Pyg,
       paymentMethod: input.paymentMethod,
       reservedUntil,
+      isGift: input.isGift ?? false,
+      // La nota se descarta si el pedido no es un regalo: si no, destildar la
+      // casilla dejaría el mensaje viejo colgado y alguien lo imprimiría.
+      giftNote: input.isGift ? input.giftNote?.trim() || null : null,
+      marketingOptIn: input.marketingOptIn ?? null,
+      // La fecha acompaña a cualquier respuesta explícita, no sólo al "sí":
+      // saber cuándo dijo que no es lo que después evita mandarle igual.
+      marketingOptInAt: input.marketingOptIn === null || input.marketingOptIn === undefined
+        ? null
+        : new Date(),
     });
 
     const inserted = await tx

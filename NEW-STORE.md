@@ -26,7 +26,14 @@ Hay un test que falla si alguien vuelve a escribir el nombre a mano en otro
 archivo (`tests/unit/marca-centralizada.test.ts`). Si te grita, la solución es
 leer de `TIENDA`, no agregar una excepción.
 
-Cambiá también el favicon y el `og-image` en `public/`.
+Cambiá también el favicon (`src/app/favicon.ico`).
+
+La imagen que se ve cuando alguien comparte un link por WhatsApp o Instagram
+**no hay que cargarla**: `src/app/opengraph-image.tsx` la dibuja con el nombre
+y el tagline de `TIENDA`. Cada ficha de producto usa su foto principal y sólo
+cae en esa imagen si el producto todavía no tiene fotos. Lo que sí es
+obligatorio es `NEXT_PUBLIC_SITE_URL`: sin el dominio final, la URL de la
+imagen sale relativa y el link se comparte sin foto.
 
 ### 3. Entorno
 

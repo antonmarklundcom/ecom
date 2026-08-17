@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -99,5 +101,24 @@ describe('comercioWaLink', () => {
     const { comercioWaLink } = await import('../../src/lib/comercio');
     const link = comercioWaLink('Hola!');
     expect(link).toBe('https://wa.me/595981123456?text=Hola!');
+  });
+});
+
+describe('un solo armador de links de WhatsApp', () => {
+  it('nadie construye la URL de wa.me a mano', async () => {
+    // Hay cuatro lugares que mandan a WhatsApp —ficha de producto, carrito,
+    // aviso al dueño y el mensaje al comprador desde el panel— y todos pasan
+    // por `waLink`/`comercioWaLink`. Un segundo armador es un lugar más donde
+    // olvidarse del `encodeURIComponent` o del recorte de largo.
+    const { listSourceFiles, readCode } = await import('../helpers/source');
+    const ALLOWED = new Set([path.join('src', 'lib', 'py.ts')]);
+
+    const offenders: string[] = [];
+    for (const file of await listSourceFiles(['src'])) {
+      if (ALLOWED.has(file)) continue;
+      if (/wa\.me\//.test(await readCode(file))) offenders.push(file);
+    }
+
+    expect(offenders).toEqual([]);
   });
 });

@@ -6,12 +6,12 @@ import { OrderActions } from "@/components/admin/order-actions";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
 import { ReceiptReview } from "@/components/admin/receipt-review";
-import { getAdminOrder } from "@/domain/admin-orders";
+import { RECOVERABLE_STATUSES, getAdminOrder } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
 import { listReceipts } from "@/domain/receipts";
-import { orderUrl } from "@/domain/order-access";
+import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
 import { formatGs, ivaIncluded } from "@/lib/money";
-import { formatDateTimePY, formatPhonePY, waLink } from "@/lib/py";
+import { formatDateTimePY, formatPhonePY } from "@/lib/py";
 
 export const metadata: Metadata = { title: "Pedido" };
 
@@ -33,15 +33,15 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
     listReceipts(order.id),
   ]);
 
-  // El link que se le manda al comprador lleva su token: se arma acá, en el
-  // servidor, y sale ya hecho dentro del href de WhatsApp.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  const buyerUrl = `${siteUrl}${orderUrl(order.orderNumber, order.accessToken)}`;
-  const waHref = waLink(
-    order.customerPhone,
-    `Hola ${order.customerName.split(" ")[0] ?? ""}! Te escribo por tu pedido ${order.orderNumber} ` +
-      `(${formatGs(order.totalPyg)}). Podés seguirlo acá: ${buyerUrl}`,
-  );
+  // Los dos mensajes salen del mismo armador que usa "Por cobrar": el link
+  // tokenizado y la regla de no listar lo comprado se escriben una sola vez
+  // (ver `src/domain/order-messages.ts`).
+  const waHref = buyerWaLink(order, followUpMessage(order));
+  const recoveryHref = RECOVERABLE_STATUSES.includes(
+    order.status as (typeof RECOVERABLE_STATUSES)[number],
+  )
+    ? buyerWaLink(order, recoveryMessage(order))
+    : null;
 
   const nextStatuses = ORDER_TRANSITIONS[order.status];
 
@@ -60,15 +60,41 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <a
-          href={waHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
-        >
-          Escribir por WhatsApp
-        </a>
+        {waHref ? (
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
+          >
+            Escribir por WhatsApp
+          </a>
+        ) : null}
+        {recoveryHref ? (
+          <a
+            href={recoveryHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
+          >
+            Mandar datos para pagar
+          </a>
+        ) : null}
       </div>
+
+      {/* Arriba de todo y no en la ficha del cliente: esto se mira mientras
+          se arma el paquete, y un dato que hay que scrollear para encontrar
+          es un dato que se descubre después de cerrar la caja. */}
+      {order.isGift ? (
+        <section className="border-border bg-muted/40 mt-4 rounded-lg border p-3">
+          <h2 className="text-sm font-medium">🎁 Es un regalo</h2>
+          {order.giftNote ? (
+            <p className="mt-1 text-sm whitespace-pre-line">“{order.giftNote}”</p>
+          ) : (
+            <p className="text-muted-foreground mt-1 text-sm">Sin mensaje para la tarjeta.</p>
+          )}
+        </section>
+      ) : null}
 
       {receipts.length > 0 ? (
         <section className="mt-6">
@@ -174,6 +200,21 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
                 : `${order.docType} ${order.docNumber ?? ""}`}
             </dd>
           </div>
+          {/* Se muestra sólo si contestó: en los pedidos anteriores a la
+              casilla la columna es NULL, y "no se preguntó" no es un "no". */}
+          {order.marketingOptIn !== null ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Novedades</dt>
+              <dd className="text-right">
+                {order.marketingOptIn ? "Acepta" : "No acepta"}
+                {order.marketingOptInAt ? (
+                  <span className="text-muted-foreground block text-xs tabular-nums">
+                    {formatDateTimePY(order.marketingOptInAt)}
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Envío</dt>
             <dd className="max-w-[60%] text-right">

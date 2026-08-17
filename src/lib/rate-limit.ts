@@ -155,3 +155,15 @@ export const PAGOPAR_WEBHOOK_WINDOW_MS = 60 * 1000;
  */
 export const CHECKOUT_LIMIT = 20;
 export const CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Límite de la cotización de envío.
+ *
+ * Es sólo lectura —no crea pedidos ni reserva stock— así que no hay nada que
+ * agotar del otro lado; lo único que se cuida es el slot de Node, porque cada
+ * llamada son tres consultas y la ruta es pública y anónima. Holgado porque el
+ * uso legítimo es tipear: la compradora corrige la ciudad, agrega algo al
+ * carrito y vuelve, y cada uno de esos gestos cotiza de nuevo.
+ */
+export const QUOTE_LIMIT = 60;
+export const QUOTE_WINDOW_MS = 60 * 1000;

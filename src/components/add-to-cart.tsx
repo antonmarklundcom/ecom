@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { QuantityStepper } from "@/components/quantity-stepper";
@@ -8,6 +8,7 @@ import { StockBadge } from "@/components/stock-badge";
 import { PriceTag } from "@/components/price-tag";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-store";
+import { recallVariant, rememberVariant } from "@/lib/variant-memory";
 import { cn } from "@/lib/utils";
 import type { CatalogProductDetail } from "@/db/queries";
 
@@ -22,11 +23,30 @@ import type { CatalogProductDetail } from "@/db/queries";
 export function AddToCart({ product }: { product: CatalogProductDetail }) {
   const add = useCart((state) => state.add);
   const firstAvailable = product.variants.find((variant) => variant.available > 0);
-  const [variantId, setVariantId] = useState<number | undefined>(
-    firstAvailable?.id ?? product.variants[0]?.id
-  );
+  const [picked, setPicked] = useState<number | undefined>(undefined);
   const [qty, setQty] = useState(1);
 
+  /**
+   * La variante que venía eligiendo, si la hay.
+   *
+   * Va por `useSyncExternalStore` y no por un efecto: localStorage no existe
+   * en el servidor, así que el snapshot del servidor es `null` y React aplica
+   * el del navegador después de hidratar, sin desajuste ni render en cascada.
+   * `subscribe` no hace nada porque el dato no cambia solo mientras la página
+   * está abierta.
+   */
+  const rememberedId = useSyncExternalStore(
+    () => () => {},
+    () => recallVariant(product.slug),
+    () => null
+  );
+  // Sólo vale si esa variante sigue existiendo y con stock: es un atajo, no
+  // una decisión. Todo lo que se cobra lo recalcula el servidor.
+  const remembered = product.variants.find(
+    (variant) => variant.id === rememberedId && variant.available > 0
+  );
+
+  const variantId = picked ?? remembered?.id ?? firstAvailable?.id ?? product.variants[0]?.id;
   const selected = product.variants.find((variant) => variant.id === variantId);
   const max = Math.max(1, Math.min(99, selected?.available ?? 0));
   const canAdd = Boolean(selected && selected.available > 0);
@@ -45,8 +65,9 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
                   type="button"
                   disabled={disabled}
                   onClick={() => {
-                    setVariantId(variant.id);
+                    setPicked(variant.id);
                     setQty(1);
+                    rememberVariant(product.slug, variant.id);
                   }}
                   className={cn(
                     "rounded-lg border px-3 py-2 text-sm transition-colors",
@@ -83,6 +104,7 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
           disabled={!canAdd}
           onClick={() => {
             if (!selected) return;
+            rememberVariant(product.slug, selected.id);
             add(
               {
                 variantId: selected.id,

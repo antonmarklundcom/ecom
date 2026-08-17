@@ -185,6 +185,31 @@ export const orders = mysqlTable(
     paymentMethod: mysqlEnum('payment_method', PAYMENT_METHODS).notNull(),
     reservedUntil: datetime('reserved_until'),
 
+    /**
+     * Consentimiento para novedades y promociones.
+     *
+     * Nullable a propósito, y son tres estados distintos: NULL es "no se le
+     * preguntó" (todo pedido anterior a esta columna), `false` es "dijo que
+     * no" y `true` es "aceptó". Un `NOT NULL DEFAULT false` los mezclaría, y
+     * el consentimiento es justamente lo que no se puede completar después:
+     * nadie puede decidir hoy qué habría contestado una compradora en marzo.
+     *
+     * El MVP no manda nada —no hay proveedor de mensajería en el stack— pero
+     * el permiso sólo se puede pedir en el momento de la compra.
+     */
+    marketingOptIn: boolean('marketing_opt_in'),
+    /** Cuándo contestó. Sin fecha, un "sí" no prueba nada dentro de un año. */
+    marketingOptInAt: datetime('marketing_opt_in_at'),
+
+    /**
+     * Pedido para regalar. A diferencia del consentimiento, acá `false` y "no
+     * contestó" son lo mismo —un pedido que nadie marcó como regalo no lo
+     * es—, así que la columna es NOT NULL.
+     */
+    isGift: boolean('is_gift').notNull().default(false),
+    /** Mensajito para la tarjeta. Sólo se guarda si `is_gift` está en true. */
+    giftNote: varchar('gift_note', { length: 300 }),
+
     // FASE 2 — FacturaPY. Nullable, unused in the MVP (ARCH.md §7).
     invoiceStatus: mysqlEnum('invoice_status', INVOICE_STATUSES).notNull().default('none'),
     invoiceCdc: varchar('invoice_cdc', { length: 64 }),

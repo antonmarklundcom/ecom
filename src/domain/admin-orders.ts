@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, like, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, like, lt, or, sql, type SQL } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -282,4 +282,66 @@ export async function countAwaitingVerification(executor?: Executor): Promise<nu
     .from(orders)
     .where(eq(orders.status, "esperando_verificacion"));
   return row?.total ?? 0;
+}
+
+/**
+ * "Por cobrar": los pedidos que quedaron a mitad de camino.
+ *
+ * `pendiente_pago` y `vencido` juntos y ordenados por antigüedad, porque para
+ * recuperarlos son el mismo trabajo: alguien tiene que escribirle. El más
+ * viejo primero — es el que está más cerca de perderse del todo.
+ *
+ * Trae el `access_token` porque el mensaje de recuperación lleva el link
+ * tokenizado del pedido (ver `order-messages.ts`). Sale sólo hacia el panel,
+ * que se sirve con `no-store` y `noindex`.
+ *
+ * Lo que esta consulta **no** hace es tocar reservas. La disponibilidad se
+ * calcula en vivo (ARCH.md §2): extender o rehacer la reserva de un pedido
+ * que alguien va a "empujar" le bloquearía la unidad a todos los demás
+ * compradores, en silencio y por tiempo indefinido. La reserva vence sola y,
+ * si el pago llega, `transitionOrder` vuelve a asegurar el stock contra la
+ * disponibilidad viva o se niega (ARCH.md §4.1).
+ */
+export const RECOVERABLE_STATUSES = ["pendiente_pago", "vencido"] as const;
+
+export type RecoverableOrderRow = {
+  id: number;
+  orderNumber: string;
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  customerName: string;
+  customerPhone: string;
+  accessToken: string;
+  totalPyg: number;
+  createdAt: Date;
+  reservedUntil: Date | null;
+  /** Días enteros transcurridos. Sale de MySQL: no depende de zona horaria. */
+  ageDays: number;
+};
+
+export async function listOrdersToRecover(
+  limit = 100,
+  executor?: Executor,
+): Promise<RecoverableOrderRow[]> {
+  const tx = executor ?? getDb();
+
+  return tx
+    .select({
+      id: orders.id,
+      orderNumber: orders.orderNumber,
+      status: orders.status,
+      paymentMethod: orders.paymentMethod,
+      customerName: orders.customerName,
+      customerPhone: orders.customerPhone,
+      accessToken: orders.accessToken,
+      totalPyg: orders.totalPyg,
+      createdAt: orders.createdAt,
+      reservedUntil: orders.reservedUntil,
+      ageDays: sql<number>`TIMESTAMPDIFF(DAY, \`orders\`.\`created_at\`, NOW())`,
+    })
+    .from(orders)
+    .where(inArray(orders.status, [...RECOVERABLE_STATUSES]))
+    .orderBy(asc(orders.createdAt), asc(orders.id))
+    .limit(Math.min(500, Math.max(1, limit)))
+    .then((rows) => rows.map((row) => ({ ...row, ageDays: Number(row.ageDays) })));
 }
