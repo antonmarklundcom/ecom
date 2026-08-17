@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useTransition } from "react";
 import { Loader2, ShoppingBag, Trash2 } from "lucide-react";
+
+import { cartWhatsAppLink } from "@/app/actions/cart-consulta";
 
 import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { QuantityStepper } from "@/components/quantity-stepper";
@@ -15,7 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { describeIssue } from "@/lib/cart-issues";
-import { cartSubtotal, useCart } from "@/lib/cart-store";
+import { cartSubtotal, useCart, type CartLine } from "@/lib/cart-store";
 import { formatGs } from "@/lib/money";
 
 /**
@@ -116,9 +119,43 @@ export function CartSheet() {
             <Button variant="outline" onClick={close}>
               Seguí comprando
             </Button>
+            <ConsultarPorWhatsApp lines={lines} />
           </SheetFooter>
         ) : null}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * El link se pide al servidor recién al tocar el botón: el número del
+ * comercio vive en una variable de servidor y el total del mensaje sale de la
+ * DB, no del snapshot del navegador (ver `cartWhatsAppLink`).
+ *
+ * Se navega con `location.href` en vez de `window.open`: después de un await,
+ * Safari en iPhone trata la ventana nueva como popup y la bloquea, y ahí el
+ * botón no hace nada. Si el comercio todavía no cargó su WhatsApp, la acción
+ * devuelve `null` y no se muestra nada — mismo criterio que el resto del
+ * sitio.
+ */
+function ConsultarPorWhatsApp({ lines }: { lines: CartLine[] }) {
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <button
+      type="button"
+      disabled={isPending}
+      onClick={() =>
+        startTransition(async () => {
+          const href = await cartWhatsAppLink(
+            lines.map((line) => ({ variantId: line.variantId, qty: line.qty }))
+          );
+          if (href) window.location.href = href;
+        })
+      }
+      className="text-muted-foreground hover:text-foreground text-center text-sm underline disabled:opacity-60"
+    >
+      {isPending ? "Abriendo WhatsApp…" : "¿Tenés una duda? Consultanos por WhatsApp"}
+    </button>
   );
 }
