@@ -76,6 +76,17 @@ describe('mensaje de recuperación', () => {
     expect(message).toMatch(/disponibilidad/i);
   });
 
+  it('a un comprobante rechazado lo manda a leer el motivo, sin repetirlo', async () => {
+    const { recoveryMessage } = await load();
+    const message = recoveryMessage({ ...PEDIDO, status: 'rechazado' }, BANCO);
+
+    expect(message).toMatch(/no pudimos validar el comprobante/i);
+    // El motivo lo escribió el dueño y ella lo lee en la página del pedido.
+    // Repetirlo por WhatsApp es contar en una pantalla de bloqueo por qué no
+    // le aceptaron un pago.
+    expect(message).toContain(`https://tienda.com.py/pedido/PY-000123?t=${PEDIDO.accessToken}`);
+  });
+
   it('entra cómodo en un deeplink de wa.me', async () => {
     const { buyerWaLink, recoveryMessage } = await load();
     const href = buyerWaLink(PEDIDO, recoveryMessage(PEDIDO, BANCO));
