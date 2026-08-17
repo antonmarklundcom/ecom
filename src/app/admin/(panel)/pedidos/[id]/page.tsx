@@ -6,7 +6,7 @@ import { OrderActions } from "@/components/admin/order-actions";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
 import { ReceiptReview } from "@/components/admin/receipt-review";
-import { RECOVERABLE_STATUSES, getAdminOrder } from "@/domain/admin-orders";
+import { getAdminOrder, isRecoverableStatus } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
 import { listReceipts } from "@/domain/receipts";
 import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
@@ -37,9 +37,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   // tokenizado y la regla de no listar lo comprado se escriben una sola vez
   // (ver `src/domain/order-messages.ts`).
   const waHref = buyerWaLink(order, followUpMessage(order));
-  const recoveryHref = RECOVERABLE_STATUSES.includes(
-    order.status as (typeof RECOVERABLE_STATUSES)[number],
-  )
+  const recoveryHref = isRecoverableStatus(order.status)
     ? buyerWaLink(order, recoveryMessage(order))
     : null;
 
@@ -87,7 +85,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
           es un dato que se descubre después de cerrar la caja. */}
       {order.isGift ? (
         <section className="border-border bg-muted/40 mt-4 rounded-lg border p-3">
-          <h2 className="text-sm font-medium">🎁 Es un regalo</h2>
+          <h2 className="text-sm font-medium">Es un regalo</h2>
           {order.giftNote ? (
             <p className="mt-1 text-sm whitespace-pre-line">“{order.giftNote}”</p>
           ) : (

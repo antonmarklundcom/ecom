@@ -63,10 +63,16 @@ export function recoveryMessage(
   order: OrderContact,
   banco: DatosBancarios | null = comercioDatosBancarios()
 ): string {
+  const hola = `Hola ${firstName(order.customerName)}!`;
   const saludo =
     order.status === "vencido"
-      ? `Hola ${firstName(order.customerName)}! Tu pedido ${order.orderNumber} quedó sin pagar y se venció la reserva. Si todavía lo querés, avisanos y lo revisamos según disponibilidad.`
-      : `Hola ${firstName(order.customerName)}! Te recuerdo tu pedido ${order.orderNumber}, que quedó pendiente de pago.`;
+      ? `${hola} Tu pedido ${order.orderNumber} quedó sin pagar y se venció la reserva. Si todavía lo querés, avisanos y lo revisamos según disponibilidad.`
+      : order.status === "rechazado"
+        ? // El comprobante no se pudo validar. El motivo lo escribió el dueño y
+          // ella lo lee en la página del pedido; repetirlo por WhatsApp sería
+          // contar en una pantalla de bloqueo por qué no le aceptaron un pago.
+          `${hola} No pudimos validar el comprobante de tu pedido ${order.orderNumber}. Entrá al link de abajo, mirá el motivo y subí uno nuevo.`
+        : `${hola} Te recuerdo tu pedido ${order.orderNumber}, que quedó pendiente de pago.`;
 
   const datos = banco
     ? [

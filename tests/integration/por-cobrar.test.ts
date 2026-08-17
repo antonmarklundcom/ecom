@@ -27,7 +27,10 @@ describe.skipIf(!hasTestDb)("listOrdersToRecover", () => {
   afterAll(closeTestDb);
 
   it("trae sólo los pedidos que se pueden recuperar", async () => {
-    const incluidos: OrderStatus[] = ["pendiente_pago", "vencido"];
+    // `rechazado` entra: el comprobante no se pudo validar y el pedido queda
+    // esperando que ella suba otro. Es un pedido sin pagar como cualquier
+    // otro, y sin este estado nadie lo empujaba nunca.
+    const incluidos: OrderStatus[] = ["pendiente_pago", "vencido", "rechazado"];
     const excluidos: OrderStatus[] = [
       "pagado",
       "esperando_verificacion",
@@ -40,8 +43,9 @@ describe.skipIf(!hasTestDb)("listOrdersToRecover", () => {
       await makeOrder({ status });
     }
 
-    const rows = await listOrdersToRecover();
+    const { rows, total } = await listOrdersToRecover();
     expect(rows.map((row) => row.status).sort()).toEqual([...incluidos].sort());
+    expect(total).toBe(incluidos.length);
   });
 
   it("ordena por antigüedad, el más viejo primero", async () => {
@@ -52,7 +56,7 @@ describe.skipIf(!hasTestDb)("listOrdersToRecover", () => {
     await ageOrder(viejo, 9);
     await ageOrder(medio, 3);
 
-    const rows = await listOrdersToRecover();
+    const { rows } = await listOrdersToRecover();
     expect(rows.map((row) => row.id)).toEqual([viejo, medio, nuevo]);
     expect(rows[0]?.ageDays).toBe(9);
     expect(rows[2]?.ageDays).toBe(0);
@@ -61,9 +65,36 @@ describe.skipIf(!hasTestDb)("listOrdersToRecover", () => {
   it("trae el token: sin él la fila no puede armar el link del pedido", async () => {
     const orderId = await makeOrder({ status: "pendiente_pago" });
 
-    const [row] = await listOrdersToRecover();
+    const { rows } = await listOrdersToRecover();
+    const row = rows[0];
     expect(row?.id).toBe(orderId);
     expect(row?.accessToken).toHaveLength(64);
+  });
+
+  it("dice cuántos hay en total cuando la lista está cortada", async () => {
+    // Un listado cortado que no dice que está cortado hace que el dueño
+    // termine la lista creyendo que cobró todo.
+    for (let i = 0; i < 5; i += 1) await makeOrder({ status: "pendiente_pago" });
+
+    const { rows, total } = await listOrdersToRecover(2);
+
+    expect(rows).toHaveLength(2);
+    expect(total).toBe(5);
+  });
+
+  it("la antigüedad no depende de la zona horaria del servidor MySQL", async () => {
+    // `NOW()` devuelve la hora de sesión del servidor y `created_at` está en
+    // UTC: con `time_zone` local (el default de Hostinger es SYSTEM) la resta
+    // se iba por el offset. Un pedido de 25 horas tiene que ser 1 día en
+    // cualquier servidor.
+    const orderId = await makeOrder({ status: "pendiente_pago" });
+    await getTestDb()
+      .update(orders)
+      .set({ createdAt: new Date(Date.now() - 25 * 3_600_000) })
+      .where(eq(orders.id, orderId));
+
+    const { rows } = await listOrdersToRecover();
+    expect(rows[0]?.ageDays).toBe(1);
   });
 
   it("es sólo lectura: no crea ni modifica reservas", async () => {
