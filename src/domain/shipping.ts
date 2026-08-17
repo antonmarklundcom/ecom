@@ -19,6 +19,15 @@ export type ShippingQuote = {
   zoneName: string;
   shippingPyg: number;
   isFree: boolean;
+  /**
+   * `false` cuando la ciudad no cayó en ninguna zona y se usó la tarifa más
+   * cara. No cambia lo que se cobra —eso ya está decidido abajo— pero deja
+   * que la pantalla lo diga en vez de mostrar el nombre de una zona que la
+   * compradora no eligió.
+   */
+  matched: boolean;
+  /** Umbral de envío gratis de la zona elegida. NULL = la zona no lo ofrece. */
+  freeThresholdPyg: number | null;
 };
 
 /** Ciudad sin acentos, sin dobles espacios y en minúsculas. */
@@ -50,22 +59,30 @@ export async function quoteShipping(
     .orderBy(asc(shippingZones.position));
 
   if (zones.length === 0) {
-    return { zoneId: null, zoneName: "Sin zonas configuradas", shippingPyg: 0, isFree: true };
+    return {
+      zoneId: null,
+      zoneName: "Sin zonas configuradas",
+      shippingPyg: 0,
+      isFree: true,
+      matched: false,
+      freeThresholdPyg: null,
+    };
   }
 
   const target = normalizeCity(city);
-  const matched =
-    zones.find((zone) => zone.cities.some((name) => normalizeCity(name) === target)) ??
-    zones.reduce((worst, zone) => (zone.pricePyg > worst.pricePyg ? zone : worst), zones[0]!);
+  const found = zones.find((zone) => zone.cities.some((name) => normalizeCity(name) === target));
+  const zone =
+    found ?? zones.reduce((worst, item) => (item.pricePyg > worst.pricePyg ? item : worst), zones[0]!);
 
-  const isFree =
-    matched.freeThresholdPyg !== null && subtotalPyg >= matched.freeThresholdPyg;
+  const isFree = zone.freeThresholdPyg !== null && subtotalPyg >= zone.freeThresholdPyg;
 
   return {
-    zoneId: matched.id,
-    zoneName: matched.name,
-    shippingPyg: isFree ? 0 : matched.pricePyg,
+    zoneId: zone.id,
+    zoneName: zone.name,
+    shippingPyg: isFree ? 0 : zone.pricePyg,
     isFree,
+    matched: found !== undefined,
+    freeThresholdPyg: zone.freeThresholdPyg,
   };
 }
 
