@@ -30,10 +30,32 @@ export const MAQUINARIA = [
   'src/lib',
   'src/db',
   'src/app/api',
+  // Las server actions son el camino de la plata: checkout.ts crea el pedido y
+  // cobra, shipping-quote.ts cotiza el envío, admin-payments.ts confirma pagos.
+  // NEW-STORE.md §5 pone "checkout y sus rutas API" del lado de la maquinaria y
+  // acá vive la mitad de eso, así que sin esta línea el comando contradecía al
+  // documento que dice implementar: en una tienda real listó 29 archivos con
+  // diferencias y ninguno era una action, mientras checkout.ts difería del
+  // template y shipping-quote.ts no existía.
+  'src/app/actions',
   'scripts',
   'drizzle',
   '.github/workflows',
 ] as const;
+
+/**
+ * Archivos mixtos: markup que cada tienda rediseña, con lógica compartida
+ * adentro.
+ *
+ * `checkout-form.tsx` es el caso: los campos y el diseño son piel, pero también
+ * tiene la lógica de cotizar el envío y la de reconfirmar cuando el total
+ * cambió. No entran en MAQUINARIA porque van a diferir en **toda** tienda que
+ * rediseñó —listarlos siempre sería ruido que apaga la señal del `*`— pero
+ * callarlos del todo deja sin aviso el día que su lógica cambia.
+ *
+ * O sea: se avisan aparte, con "miralo a mano", no con "cherry-pickealo".
+ */
+export const MIXTOS = ['src/components/checkout-form.tsx'] as const;
 
 export const BASELINE_FILE = '.template-baseline';
 
@@ -68,7 +90,7 @@ export function parseArgs(argv: string[]): Opciones {
   return opciones;
 }
 
-export type Commit = { sha: string; asunto: string; maquinaria: boolean };
+export type Commit = { sha: string; asunto: string; maquinaria: boolean; mixto: boolean };
 
 /** `git log --format=%h %s` → filas. Ignora líneas vacías del final. */
 export function parseCommits(salida: string): Array<{ sha: string; asunto: string }> {
@@ -94,9 +116,17 @@ export function parseCommits(salida: string): Array<{ sha: string; asunto: strin
 export function clasificar(
   commits: Array<{ sha: string; asunto: string }>,
   shasDeMaquinaria: readonly string[],
+  shasDeMixtos: readonly string[] = [],
 ): Commit[] {
   const importantes = new Set(shasDeMaquinaria);
-  return commits.map((commit) => ({ ...commit, maquinaria: importantes.has(commit.sha) }));
+  const aMano = new Set(shasDeMixtos);
+  return commits.map((commit) => ({
+    ...commit,
+    maquinaria: importantes.has(commit.sha),
+    // Un commit que toca las dos cosas ya se lleva el `*`: cherry-pickearlo es
+    // el consejo que manda, y avisarlo dos veces no agrega nada.
+    mixto: !importantes.has(commit.sha) && aMano.has(commit.sha),
+  }));
 }
 
 /** El SHA guardado, o `null` si el archivo no está o quedó ilegible. */
@@ -189,11 +219,15 @@ function main(): void {
     return;
   }
 
+  const shasQueTocan = (...rutas: readonly string[]): string[] =>
+    parseCommits(git('log', '--format=%h %s', `${baseline}..${ref}`, '--', ...rutas)).map(
+      (commit) => commit.sha,
+    );
+
   const commits = clasificar(
     parseCommits(git('log', '--format=%h %s', `${baseline}..${ref}`)),
-    parseCommits(git('log', '--format=%h %s', `${baseline}..${ref}`, '--', ...MAQUINARIA)).map(
-      (commit) => commit.sha,
-    ),
+    shasQueTocan(...MAQUINARIA),
+    shasQueTocan(...MIXTOS),
   );
 
   if (commits.length === 0) {
@@ -202,11 +236,13 @@ function main(): void {
   }
 
   const deMaquinaria = commits.filter((commit) => commit.maquinaria);
+  const mixtos = commits.filter((commit) => commit.mixto);
 
   console.log(`\n${commits.length} commit(s) del template que no están acá:\n`);
   for (const commit of commits) {
     // El asterisco es el que te dice cuáles mirar primero.
-    console.log(`  ${commit.maquinaria ? '*' : ' '} ${commit.sha}  ${commit.asunto}`);
+    const marca = commit.maquinaria ? '*' : commit.mixto ? '~' : ' ';
+    console.log(`  ${marca} ${commit.sha}  ${commit.asunto}`);
   }
 
   console.log(
@@ -214,6 +250,14 @@ function main(): void {
       '      El resto suele ser piel —copy, diseño— que cada tienda reescribió a su gusto;\n' +
       '      cherry-pickearlos puede pisarte el rediseño.\n',
   );
+
+  if (mixtos.length > 0) {
+    console.log(
+      `  ~ = toca ${MIXTOS.join(', ')}: markup tuyo con lógica compartida adentro.\n` +
+        '      No lo cherry-pickees a ciegas —te pisa el rediseño— pero leé el diff:\n' +
+        '      si lo que cambió es la lógica, te falta.\n',
+    );
+  }
 
   if (deMaquinaria.length > 0) {
     console.log('Para traerlos, del más viejo al más nuevo:\n');
@@ -239,9 +283,12 @@ function sinBaseline(ref: string): void {
       'y sin un punto de partida "qué falta" sería la lista entera.\n',
   );
 
-  const cambiados = git('diff', '--name-only', `HEAD..${ref}`, '--', ...MAQUINARIA)
-    .split('\n')
-    .filter((linea) => linea.trim() !== '');
+  const difieren = (...rutas: readonly string[]): string[] =>
+    git('diff', '--name-only', `HEAD..${ref}`, '--', ...rutas)
+      .split('\n')
+      .filter((linea) => linea.trim() !== '');
+
+  const cambiados = difieren(...MAQUINARIA);
 
   if (cambiados.length === 0) {
     console.log('Mientras tanto: la maquinaria es idéntica a la del template. Buena señal.\n');
@@ -249,6 +296,15 @@ function sinBaseline(ref: string): void {
     console.log(`Mientras tanto, ${cambiados.length} archivo(s) de la maquinaria difieren:\n`);
     for (const archivo of cambiados) console.log(`    ${archivo}`);
     console.log(`\n  Miralos con:  git diff HEAD..${ref} -- <archivo>\n`);
+  }
+
+  const aMano = difieren(...MIXTOS);
+  if (aMano.length > 0) {
+    console.log(
+      'Y aparte, markup tuyo con lógica compartida adentro (leé el diff, no lo pises):\n',
+    );
+    for (const archivo of aMano) console.log(`    ${archivo}`);
+    console.log('');
   }
 
   console.log(
