@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { freeShippingForZone, type FreeShippingProgress } from "@/domain/free-shipping";
 import { computeOrderTotals } from "@/domain/order-totals";
+import type { ShippingQuote } from "@/domain/shipping";
 import type { CartIssue } from "@/lib/cart-issues";
 import { QUOTE_LIMIT, QUOTE_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -48,8 +49,8 @@ export type ShippingQuoteView = {
   zoneName: string;
   shippingPyg: number;
   isFree: boolean;
-  /** `false` = la ciudad no está en ninguna zona y se cotizó la tarifa más cara. */
-  matched: boolean;
+  /** Ver `ShippingQuote.match`: la pantalla dice algo distinto en cada caso. */
+  match: ShippingQuote["match"];
 };
 
 export type CartQuote = {
@@ -96,7 +97,7 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
       zoneName: totals.shipping.zoneName,
       shippingPyg: totals.shippingPyg,
       isFree: totals.shipping.isFree,
-      matched: totals.shipping.matched,
+      match: totals.shipping.match,
     },
     freeShipping: freeShippingForZone(totals.shipping, totals.subtotalPyg),
     issues: totals.cart.issues,

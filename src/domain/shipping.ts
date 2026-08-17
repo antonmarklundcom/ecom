@@ -20,12 +20,20 @@ export type ShippingQuote = {
   shippingPyg: number;
   isFree: boolean;
   /**
-   * `false` cuando la ciudad no cayó en ninguna zona y se usó la tarifa más
-   * cara. No cambia lo que se cobra —eso ya está decidido abajo— pero deja
-   * que la pantalla lo diga en vez de mostrar el nombre de una zona que la
-   * compradora no eligió.
+   * De dónde salió el precio. No cambia lo que se cobra —eso ya está decidido
+   * arriba— pero la pantalla dice cosas distintas en cada caso, y son tres, no
+   * dos:
+   *
+   * - `exacta`: la ciudad cayó en una zona. Se puede nombrar.
+   * - `mas_cara`: no cayó en ninguna y se cobró la tarifa más alta por
+   *   descarte. Hay que avisarlo: el nombre de esa zona no significa nada
+   *   para quien compra.
+   * - `sin_zonas`: la tienda todavía no configuró zonas, así que el envío es
+   *   ₲0 de verdad. Antes esto se mezclaba con `mas_cara` y el checkout
+   *   mostraba "Gratis" y "te cobramos la tarifa más alta" en la misma
+   *   pantalla — el estado en el que sale toda tienda recién clonada.
    */
-  matched: boolean;
+  match: "exacta" | "mas_cara" | "sin_zonas";
   /** Umbral de envío gratis de la zona elegida. NULL = la zona no lo ofrece. */
   freeThresholdPyg: number | null;
 };
@@ -64,7 +72,7 @@ export async function quoteShipping(
       zoneName: "Sin zonas configuradas",
       shippingPyg: 0,
       isFree: true,
-      matched: false,
+      match: "sin_zonas",
       freeThresholdPyg: null,
     };
   }
@@ -81,7 +89,7 @@ export async function quoteShipping(
     zoneName: zone.name,
     shippingPyg: isFree ? 0 : zone.pricePyg,
     isFree,
-    matched: found !== undefined,
+    match: found !== undefined ? "exacta" : "mas_cara",
     freeThresholdPyg: zone.freeThresholdPyg,
   };
 }

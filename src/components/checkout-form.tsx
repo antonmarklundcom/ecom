@@ -322,6 +322,18 @@ export function CheckoutForm({
         </span>
       </label>
 
+      {/* Lo que el servidor encontró al re-preciar. Sin esto, un carrito con
+          stock parcial mostraba un total más chico que el carrito —el
+          re-precio recorta la cantidad a lo que hay— sin decir por qué, y el
+          error recién aparecía al confirmar. */}
+      {currentQuote && currentQuote.issues.length > 0 ? (
+        <ul className="border-border bg-muted/40 space-y-1 rounded-lg border p-3 text-xs">
+          {currentQuote.issues.map((issue) => (
+            <li key={`${issue.type}-${issue.variantId}`}>{describeIssue(issue)}</li>
+          ))}
+        </ul>
+      ) : null}
+
       <div className="border-border grid gap-1 border-t pt-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Subtotal (IVA incluido)</span>
@@ -332,7 +344,7 @@ export function CheckoutForm({
           <>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">
-                Envío{currentQuote.shipping.matched ? ` — ${currentQuote.shipping.zoneName}` : ""}
+                Envío{currentQuote.shipping.match === "exacta" ? ` — ${currentQuote.shipping.zoneName}` : ""}
                 {isQuoting ? "…" : ""}
               </span>
               <span className="tabular-nums">
@@ -353,11 +365,14 @@ export function CheckoutForm({
           `createOrder` desde la DB cuando se confirma, así que decirlo acá no
           es una nota al pie: es lo que pasa. */}
       <p className="text-muted-foreground -mt-3 text-xs">
-        {currentQuote?.shipping
-          ? currentQuote.shipping.matched
-            ? "El total se confirma al crear el pedido."
-            : `No encontramos tu ciudad en nuestras zonas: te cotizamos la tarifa más alta (${currentQuote.shipping.zoneName}). Escribinos por WhatsApp y lo revisamos.`
-          : "Poné tu ciudad y te calculamos el envío antes de confirmar."}
+        {!currentQuote?.shipping
+          ? "Poné tu ciudad y te calculamos el envío antes de confirmar."
+          : currentQuote.shipping.match === "mas_cara"
+            ? `No encontramos tu ciudad en nuestras zonas: te cotizamos la tarifa más alta (${currentQuote.shipping.zoneName}). Escribinos por WhatsApp y lo revisamos.`
+            : // `exacta` y `sin_zonas` comparten esta línea: en la segunda el
+              // envío es ₲0 de verdad, así que no hay nada que aclararle a
+              // quien compra (el que tiene que configurar zonas es el dueño).
+              "El total se confirma al crear el pedido."}
       </p>
 
       {/* Con la ciudad puesta el número es el de su zona; sin ella, el que

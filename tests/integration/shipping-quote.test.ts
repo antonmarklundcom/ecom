@@ -119,12 +119,26 @@ describe.skipIf(!hasTestDb)("cotización de envío", () => {
     expect(order.totalPyg).toBe(175_000);
   });
 
+  it("una tienda sin zonas configuradas no cobra envío, y no lo confunde con la tarifa más cara", async () => {
+    // Es el estado en el que sale toda tienda recién clonada del template.
+    // `sin_zonas` existe para que el checkout no diga "Gratis" y "te cobramos
+    // la tarifa más alta" en la misma pantalla.
+    await getTestDb().delete(shippingZones);
+    const variantId = await createVariant({ onHand: 4, pricePyg: 100_000 });
+
+    const quote = await computeOrderTotals([{ variantId, qty: 1 }], "Asunción");
+
+    expect(quote.shipping.match).toBe("sin_zonas");
+    expect(quote.shippingPyg).toBe(0);
+    expect(quote.totalPyg).toBe(100_000);
+  });
+
   it("una ciudad que no está en ninguna zona cotiza la tarifa más cara, y lo dice", async () => {
     const variantId = await createVariant({ onHand: 4, pricePyg: 100_000 });
 
     const quote = await computeOrderTotals([{ variantId, qty: 1 }], "Pedro Juan Caballero");
 
-    expect(quote.shipping.matched).toBe(false);
+    expect(quote.shipping.match).toBe("mas_cara");
     expect(quote.shippingPyg).toBe(60_000);
   });
 
