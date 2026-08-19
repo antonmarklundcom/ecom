@@ -1,3 +1,5 @@
+import { TIENDA } from "@/config/tienda";
+
 import { WEBHOOK_ENVELOPE_CONFIRMED } from "./pagopar/protocol";
 import { PAGOPAR_MOCK_MODE } from "./pagopar/mode";
 
@@ -67,6 +69,7 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkCronSecret(env),
     checkSetupSecret(env),
     checkSessionSecret(env),
+    checkCustomerSessionSecret(env),
     checkPagoparCredentials(env),
     checkCloudinary(env),
     checkWhatsApp(env),
@@ -287,6 +290,75 @@ function checkSessionSecret(env: PreflightEnv): PreflightCheck {
   }
 
   return { id: "session_secret", severity: "ok", title: "Secreto de sesión", detail: "configurado" };
+}
+
+/**
+ * El secreto de la sesión de cliente (FASE 2, PR E).
+ *
+ * Sólo aplica si esta tienda prendió `cuentasClientes`. Con el flag apagado
+ * —el default— nadie lee esta variable y no tenerla es lo correcto.
+ *
+ * Con el flag prendido, en cambio, **bloquea**: sin el secreto las rutas de
+ * `/cuenta` tiran en runtime, y este script existe justamente para que eso se
+ * descubra antes del deploy y no con una compradora en la pantalla.
+ *
+ * El caso que más se chequea es el que más va a pasar: copiar el valor de
+ * `SESSION_SECRET`. Compartir el secreto entre las dos poblaciones —empleados
+ * del panel y compradoras— es lo que hace posible que una cookie de una sirva
+ * del otro lado.
+ */
+function checkCustomerSessionSecret(env: PreflightEnv): PreflightCheck {
+  const title = "Secreto de sesión de cliente";
+
+  if (!TIENDA.cuentasClientes) {
+    return {
+      id: "customer_session_secret",
+      severity: "ok",
+      title,
+      detail: "esta tienda no tiene cuentas de cliente: no hace falta",
+    };
+  }
+
+  const secret = value(env, "CUSTOMER_SESSION_SECRET");
+
+  if (secret === "") {
+    return {
+      id: "customer_session_secret",
+      severity: "bloquea",
+      title,
+      detail:
+        "cuentasClientes está prendido y CUSTOMER_SESSION_SECRET está vacío: /cuenta revienta en runtime",
+    };
+  }
+  if (secret.length < 32) {
+    return {
+      id: "customer_session_secret",
+      severity: "bloquea",
+      title,
+      detail: `CUSTOMER_SESSION_SECRET tiene ${secret.length} caracteres; iron-session exige 32 o más`,
+    };
+  }
+  if (secret === value(env, "SESSION_SECRET")) {
+    return {
+      id: "customer_session_secret",
+      severity: "bloquea",
+      title,
+      detail:
+        "CUSTOMER_SESSION_SECRET es una copia de SESSION_SECRET: las sesiones del panel y las de " +
+        "las compradoras tienen que ser criptográficamente independientes. Generá uno nuevo con " +
+        "openssl rand -base64 32",
+    };
+  }
+  if (/changeme|generate/i.test(secret)) {
+    return {
+      id: "customer_session_secret",
+      severity: "bloquea",
+      title,
+      detail: "CUSTOMER_SESSION_SECRET sigue siendo un placeholder",
+    };
+  }
+
+  return { id: "customer_session_secret", severity: "ok", title, detail: "configurado" };
 }
 
 /**
