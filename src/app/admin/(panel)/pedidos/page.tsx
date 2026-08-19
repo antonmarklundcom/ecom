@@ -5,7 +5,7 @@ import { CsvDownloadButton } from "@/components/admin/csv-download";
 import { OrderFiltersForm } from "@/components/admin/order-filters";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { OrderStatusTabs } from "@/components/admin/order-status-tabs";
-import { PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
+import { PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import {
   countOrdersByStatus,
   isOrderStatus,

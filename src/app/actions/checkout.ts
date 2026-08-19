@@ -34,7 +34,13 @@ const CheckoutActionSchema = z.object({
     .min(1, "El carrito está vacío"),
   customerName: z.string().trim().min(3, "Poné tu nombre completo").max(160),
   customerPhone: z.string().trim().min(6, "Falta tu WhatsApp").max(30),
-  customerEmail: z.string().trim().max(200).optional().or(z.literal("")),
+  // Opcional de verdad: vacío es lo normal y se guarda como NULL. Lo que no
+  // pasa es un email mal escrito — desde que el campo se renderiza (PR A.3)
+  // esta columna recibe lo que tipeó una persona, y un "juan@" guardado es un
+  // dato que nadie va a poder usar el día que el WhatsApp falle.
+  customerEmail: z
+    .union([z.literal(""), z.email("Revisá el email: parece incompleto").max(200)])
+    .optional(),
   docType: z.enum(DOC_TYPES),
   docNumber: z.string().trim().max(32).optional().or(z.literal("")),
   isConsumidorFinal: z.boolean(),

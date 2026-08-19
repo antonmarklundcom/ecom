@@ -209,3 +209,45 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
     await expect(createOrder(input({ items: [] }))).rejects.toThrow(/vacío/);
   });
 });
+
+/**
+ * PR A.3: el `<Input>` del email por fin se renderiza, así que esta columna
+ * dejó de estar siempre vacía. El test cubre las dos puntas del camino: que
+ * un email tipeado llega a `orders.customer_email`, y que no ponerlo —el caso
+ * normal, el campo es opcional— sigue guardando NULL y no un string vacío.
+ */
+describe.skipIf(!hasTestDb)("createOrder · email del comprador", () => {
+  beforeEach(async () => {
+    await resetTables();
+    await seedZone();
+  });
+  afterAll(closeTestDb);
+
+  it("persiste el email cuando el comprador lo completa", async () => {
+    const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
+
+    const order = await createOrder(
+      input({ items: [{ variantId, qty: 1 }], customerEmail: "rosa@ejemplo.com.py" }),
+    );
+
+    const [row] = await getTestDb()
+      .select({ email: orders.customerEmail })
+      .from(orders)
+      .where(eq(orders.id, order.orderId));
+
+    expect(row?.email).toBe("rosa@ejemplo.com.py");
+  });
+
+  it("guarda NULL —no cadena vacía— cuando lo deja en blanco", async () => {
+    const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
+
+    const order = await createOrder(input({ items: [{ variantId, qty: 1 }], customerEmail: "" }));
+
+    const [row] = await getTestDb()
+      .select({ email: orders.customerEmail })
+      .from(orders)
+      .where(eq(orders.id, order.orderId));
+
+    expect(row?.email).toBeNull();
+  });
+});

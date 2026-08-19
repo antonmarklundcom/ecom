@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import type { OrderStatus } from "@/db/schema";
 
-import { ORDER_STATUS_LABEL } from "./labels";
+import { ORDER_STATUS_LABEL } from "@/lib/order-labels";
 
 /**
  * El color codifica "¿tengo que hacer algo?", no la etapa del pedido:

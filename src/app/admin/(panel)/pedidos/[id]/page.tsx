@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { OrderActions } from "@/components/admin/order-actions";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
-import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { ReceiptReview } from "@/components/admin/receipt-review";
 import { getAdminOrder, isRecoverableStatus } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";

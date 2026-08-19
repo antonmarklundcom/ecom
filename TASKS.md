@@ -9,7 +9,7 @@ comercio. La sección **"Bloqueado por terceros"** de abajo los junta todos en
 un solo lugar con quién tiene que resolver cada uno — antes había que
 peinar los cinco PRs para armar esa lista.
 
-Stack: Next.js 15 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudinary.
+Stack: Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudinary.
 Marcá `[x]` al terminar. Cada bloque es un commit.
 
 ---

@@ -8,9 +8,9 @@ import { ReceiptUpload } from "@/components/receipt-upload";
 import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
-import type { OrderStatus } from "@/db/schema";
 import { comercioDatosBancarios, comercioWaLink } from "@/lib/comercio";
 import { formatGs, formatGsPlain } from "@/lib/money";
+import { ORDER_STATUS_LABEL_COMPRADOR } from "@/lib/order-labels";
 import { formatDateTimePY } from "@/lib/py";
 
 export const dynamic = "force-dynamic";
@@ -23,19 +23,6 @@ export const metadata: Metadata = {
 
 type Params = Promise<{ orderNumber: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  pendiente_pago: "Esperando tu pago",
-  esperando_verificacion: "Comprobante en revisión",
-  pagado: "Pago confirmado",
-  preparando: "Preparando tu pedido",
-  enviado: "En camino",
-  entregado: "Entregado",
-  rechazado: "Comprobante rechazado",
-  vencido: "Vencido",
-  cancelado: "Cancelado",
-  reembolsado: "Reembolsado",
-};
 
 export default async function OrderPage({
   params,
@@ -80,7 +67,7 @@ export default async function OrderPage({
       <p className="text-muted-foreground text-sm">Pedido</p>
       <h1 className="text-2xl font-semibold tracking-tight">{order.orderNumber}</h1>
       <p className="mt-1 text-sm">
-        Estado: <strong>{STATUS_LABEL[order.status]}</strong>
+        Estado: <strong>{ORDER_STATUS_LABEL_COMPRADOR[order.status]}</strong>
       </p>
 
       {order.status === "pendiente_pago" && order.paymentMethod === "transferencia" ? (
@@ -223,7 +210,7 @@ export default async function OrderPage({
               <span className="text-muted-foreground w-36 shrink-0 tabular-nums">
                 {formatDateTimePY(event.createdAt)}
               </span>
-              <span>{STATUS_LABEL[event.toStatus]}</span>
+              <span>{ORDER_STATUS_LABEL_COMPRADOR[event.toStatus]}</span>
             </li>
           ))}
         </ol>

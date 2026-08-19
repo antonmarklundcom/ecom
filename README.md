@@ -6,7 +6,7 @@ base y productos — ver **[NEW-STORE.md](./NEW-STORE.md)**.
 
 Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 
-**Stack:** Next.js 15 (App Router, TS) · Drizzle ORM · Hostinger MySQL · Hostinger Node.js · Cloudinary · Tailwind + shadcn/ui · Zustand · Zod
+**Stack:** Next.js 16 (App Router, TS) · Drizzle ORM · Hostinger MySQL · Hostinger Node.js · Cloudinary · Tailwind + shadcn/ui · Zustand · Zod
 
 ## Documentos
 

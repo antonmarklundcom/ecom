@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
-import { PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
+import { PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { listOrdersToRecover, type RecoverableOrderRow } from "@/domain/admin-orders";
 import { buyerWaLink, recoveryMessage } from "@/domain/order-messages";
 import { comercioDatosBancarios } from "@/lib/comercio";
