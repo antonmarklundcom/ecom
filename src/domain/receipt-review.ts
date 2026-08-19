@@ -88,7 +88,9 @@ export async function reviewReceipt(input: {
       target,
       input.actor,
       note === "" ? `comprobante ${input.decision === "approved" ? "aprobado" : "rechazado"}` : note,
-      { executor: tx },
+      // `reviewerId` ya es el `users.id` de quien decidió: la misma persona que
+      // queda en `receipts.reviewed_by` queda ahora en el evento del pedido.
+      { executor: tx, actorUserId: input.reviewerId },
     );
 
     return { orderId: receipt.orderId, status: target, changed: transition.changed };

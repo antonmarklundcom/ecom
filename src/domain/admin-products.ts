@@ -387,6 +387,11 @@ export type StockAdjustment = {
   delta: number;
   reason: string;
   actor: string;
+  /**
+   * `users.id` de quien lo hizo (PR D). Opcional por el mismo motivo que en
+   * `TransitionOptions`: hay caminos legítimos sin persona detrás.
+   */
+  actorUserId?: number | null;
 };
 
 export const ADJUSTMENT_MIN_REASON = 4;
@@ -443,6 +448,7 @@ export async function adjustStock(input: StockAdjustment): Promise<{
       newOnHand,
       reason: reason.slice(0, 300),
       actor: input.actor,
+      actorUserId: input.actorUserId ?? null,
     });
 
     return { previousOnHand: variant.onHand, newOnHand };

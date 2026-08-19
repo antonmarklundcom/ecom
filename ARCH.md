@@ -96,6 +96,29 @@ Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le
 
 Nota sobre `VENDEDOR_TRANSITIONS`: el plan lo escribe como "sólo `pagado → enviado → entregado`", pero la máquina de estados (§3) pasa obligatoriamente por `preparando` entre `pagado` y `enviado`. Sin ese destino el rol no podría completar ni una vez el camino que se le asigna, así que los tres del despacho están adentro.
 
+#### Quién hizo qué (`actor_user_id`)
+
+`order_events` y `stock_adjustments` guardan **las dos cosas**:
+
+| Columna | Qué es | Cuándo |
+|---|---|---|
+| `actor` | El texto de ese momento: `admin:due@tienda.py`, `cron`, `pagopar:webhook`, `buyer` | Siempre |
+| `actor_user_id` | FK a `users.id` | Sólo cuando lo disparó una persona del panel |
+
+No es redundancia. `actor` es la **verdad histórica**: no cambia si esa persona
+cambia de email, y sobrevive al borrado de su usuario (la FK es
+`ON DELETE SET NULL`, porque borrar a alguien no puede borrar el historial de
+lo que hizo). `actor_user_id` es para **preguntar**: "todo lo que hizo el
+usuario 4 en agosto" no se puede consultar contra un string sin adivinar.
+
+Nullable en los dos sentidos: el histórico anterior a la columna **no se
+backfillea** —inventar la atribución del pasado es peor que no tenerla— y hay
+escrituras legítimas sin persona detrás (el cron que vence pedidos, el webhook
+de Pagopar, la compradora subiendo su comprobante).
+
+`tests/unit/atribucion.test.ts` verifica en CI que toda acción de admin que
+dispare una escritura auditada pase el id que ya tiene en la mano.
+
 `tests/unit/admin-guards.test.ts` clava esta tabla acción por acción en CI: una acción nueva que no declare su guard falla el test, y cambiar `requireOwnerSession` por el genérico en la acción de reembolsos también.
 
 ---

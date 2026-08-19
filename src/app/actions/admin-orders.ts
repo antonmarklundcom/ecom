@@ -53,6 +53,9 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
       parsed.data.to,
       actorLabel(actor),
       parsed.data.reason || null,
+      // El string `admin:email` es la verdad histórica; el id es lo que hace
+      // consultable "qué hizo esta persona" (PR D).
+      { actorUserId: actor.userId },
     );
 
     revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);

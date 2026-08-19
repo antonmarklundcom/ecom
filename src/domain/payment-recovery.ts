@@ -148,6 +148,11 @@ export type RecoveryResult = {
 export async function retryOrderRevival(input: {
   paymentId: number;
   actor: string;
+  /**
+   * `users.id` de quien lo hizo (PR D). Opcional por el mismo motivo que en
+   * `TransitionOptions`: hay caminos legítimos sin persona detrás.
+   */
+  actorUserId?: number | null;
 }): Promise<RecoveryResult> {
   return getDb().transaction(async (tx) => {
     const { payment, order } = await lockPaymentAndOrder(tx, input.paymentId);
@@ -189,7 +194,7 @@ export async function retryOrderRevival(input: {
       "pagado",
       input.actor,
       "reintento de recuperación del pago tardío desde el panel",
-      { executor: tx },
+      { executor: tx, actorUserId: input.actorUserId ?? null },
     );
 
     return {
@@ -222,6 +227,11 @@ export async function refundPayment(input: {
   paymentId: number;
   reason: string;
   actor: string;
+  /**
+   * `users.id` de quien lo hizo (PR D). Opcional por el mismo motivo que en
+   * `TransitionOptions`: hay caminos legítimos sin persona detrás.
+   */
+  actorUserId?: number | null;
 }): Promise<RecoveryResult> {
   const reason = input.reason.trim();
   if (reason.length < REFUND_MIN_REASON) {
@@ -274,7 +284,7 @@ export async function refundPayment(input: {
       "cancelado",
       input.actor,
       `pago devuelto: ${reason}`.slice(0, 500),
-      { executor: tx },
+      { executor: tx, actorUserId: input.actorUserId ?? null },
     );
 
     return {

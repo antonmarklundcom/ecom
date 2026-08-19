@@ -109,6 +109,18 @@ export type TransitionResult = {
 export type TransitionOptions = {
   /** Para encadenar la transición dentro de una transacción ya abierta. */
   executor?: Executor;
+  /**
+   * `users.id` de quien la disparó, cuando fue una persona del panel (PR D).
+   *
+   * Va en las opciones y no como parámetro posicional a propósito: la mayoría
+   * de las transiciones **no** tienen usuario detrás —el cron que vence, el
+   * webhook de Pagopar, la compradora que sube el comprobante— y volverlo
+   * obligatorio empujaría a pasar un id inventado con tal de compilar, que es
+   * exactamente la mentira que este PR existe para evitar.
+   *
+   * `actor` (el string) sigue siendo obligatorio y no cambia.
+   */
+  actorUserId?: number | null;
 };
 
 /**
@@ -192,6 +204,7 @@ export async function transitionOrder(
       fromStatus: from,
       toStatus: to,
       actor,
+      actorUserId: options.actorUserId ?? null,
       reason: reason ?? null,
     });
 

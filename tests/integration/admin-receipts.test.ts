@@ -5,7 +5,7 @@ import { orderEvents, receipts, stockReservations, variants } from '../../src/db
 import { reviewReceipt } from '../../src/domain/receipt-review';
 import { reserveStock } from '../../src/domain/stock';
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
-import { createOrder, createVariant, getOnHand, getStatus } from '../helpers/factories';
+import { createAdminUser, createOrder, createVariant, getOnHand, getStatus } from '../helpers/factories';
 
 /**
  * Revisión de comprobantes (PLAN.md 4.4 / 4.5).
@@ -17,11 +17,20 @@ import { createOrder, createVariant, getOnHand, getStatus } from '../helpers/fac
 describe.skipIf(!hasTestDb)('reviewReceipt', () => {
   beforeEach(async () => {
     await resetTables();
+    reviewerId = await createAdminUser();
   });
 
   afterAll(async () => {
     await closeTestDb();
   });
+
+  /**
+   * Quien revisa. Desde el PR D el id viaja a `order_events.actor_user_id`,
+   * que es una FK contra `users`: un id inventado ya no es un número
+   * cualquiera. Es además lo que pasa en producción, donde el id sale siempre
+   * de una sesión abierta contra esa tabla.
+   */
+  let reviewerId: number;
 
   async function seedOrderWithReceipt(options: { onHand?: number; qty?: number } = {}) {
     const db = getTestDb();
@@ -54,7 +63,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     const result = await reviewReceipt({
       receiptId,
       decision: 'approved',
-      reviewerId: 1,
+      reviewerId,
       actor: 'admin:due@tienda.py',
     });
 
@@ -76,14 +85,14 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     await reviewReceipt({
       receiptId,
       decision: 'approved',
-      reviewerId: 7,
+      reviewerId,
       actor: 'admin:due@tienda.py',
     });
 
     const db = getTestDb();
     const row = (await db.select().from(receipts).where(eq(receipts.id, receiptId)))[0];
     expect(row?.review).toBe('approved');
-    expect(row?.reviewedBy).toBe(7);
+    expect(row?.reviewedBy).toBe(reviewerId);
     expect(row?.reviewedAt).toBeInstanceOf(Date);
   });
 
@@ -93,7 +102,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     await reviewReceipt({
       receiptId,
       decision: 'approved',
-      reviewerId: 1,
+      reviewerId,
       actor: 'admin:due@tienda.py',
     });
 
@@ -108,7 +117,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     const { orderId, variantId, receiptId } = await seedOrderWithReceipt({ onHand: 10, qty: 2 });
 
     await expect(
-      reviewReceipt({ receiptId, decision: 'rejected', reviewerId: 1, actor: 'admin:x' }),
+      reviewReceipt({ receiptId, decision: 'rejected', reviewerId, actor: 'admin:x' }),
     ).rejects.toThrow(/motivo/i);
 
     // Falló: ni el comprobante ni el pedido se movieron.
@@ -119,7 +128,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
       receiptId,
       decision: 'rejected',
       note: 'el monto transferido no coincide',
-      reviewerId: 1,
+      reviewerId,
       actor: 'admin:due@tienda.py',
     });
 
@@ -136,7 +145,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
       receiptId,
       decision: 'rejected',
       note: 'la fecha del comprobante es de otro mes',
-      reviewerId: 1,
+      reviewerId,
       actor: 'admin:due@tienda.py',
     });
 
@@ -148,10 +157,10 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
   it('un comprobante ya revisado no se puede revisar de nuevo', async () => {
     const { receiptId } = await seedOrderWithReceipt();
 
-    await reviewReceipt({ receiptId, decision: 'approved', reviewerId: 1, actor: 'admin:x' });
+    await reviewReceipt({ receiptId, decision: 'approved', reviewerId, actor: 'admin:x' });
 
     await expect(
-      reviewReceipt({ receiptId, decision: 'approved', reviewerId: 1, actor: 'admin:x' }),
+      reviewReceipt({ receiptId, decision: 'approved', reviewerId, actor: 'admin:x' }),
     ).rejects.toThrow(/ya estaba aprobado/i);
   });
 
@@ -173,7 +182,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     ).find((row) => row.id !== receiptId);
     if (!second) throw new Error('no pude crear el segundo comprobante');
 
-    await reviewReceipt({ receiptId, decision: 'approved', reviewerId: 1, actor: 'admin:x' });
+    await reviewReceipt({ receiptId, decision: 'approved', reviewerId, actor: 'admin:x' });
     expect(await getOnHand(variantId)).toBe(7);
 
     // El segundo se aprueba igual, pero el pedido ya está en `pagado`: la
@@ -181,7 +190,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     const result = await reviewReceipt({
       receiptId: second.id,
       decision: 'approved',
-      reviewerId: 1,
+      reviewerId,
       actor: 'admin:x',
     });
 
@@ -208,7 +217,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     if (!receipt) throw new Error('no pude crear el comprobante');
 
     await expect(
-      reviewReceipt({ receiptId: receipt.id, decision: 'approved', reviewerId: 1, actor: 'admin:x' }),
+      reviewReceipt({ receiptId: receipt.id, decision: 'approved', reviewerId, actor: 'admin:x' }),
     ).rejects.toThrow(/Transición inválida/i);
 
     // La transacción se deshizo entera: el comprobante sigue pendiente.
