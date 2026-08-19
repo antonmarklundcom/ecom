@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CheckoutForm } from "@/components/checkout-form";
+import { hasUsableCoupons } from "@/domain/coupons";
 import { findCustomerByPhone } from "@/domain/customers";
 import { isPagoparConfigured } from "@/domain/pagopar/config";
 import { listShippingZones } from "@/domain/shipping";
@@ -18,6 +19,8 @@ export default async function CheckoutPage() {
   const zones = await listShippingZones().catch(() => []);
   const cities = zones.flatMap((zone) => zone.cities).sort((a, b) => a.localeCompare(b, "es"));
   const pagoparEnabled = isPagoparConfigured();
+  // Sin cupones cargados el campo de descuento no se dibuja.
+  const hayCupones = await hasUsableCoupons().catch(() => false);
 
   // Con las cuentas apagadas —el default— esto es null y todo lo de abajo se
   // comporta como antes de que la feature existiera.
@@ -37,6 +40,7 @@ export default async function CheckoutPage() {
         <CheckoutForm
           cities={cities}
           pagoparEnabled={pagoparEnabled}
+          hayCupones={hayCupones}
           prefill={
             customer
               ? {

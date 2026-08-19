@@ -47,7 +47,15 @@ describe('cotizar y cobrar hacen la misma cuenta', () => {
     const code = await readCode(CREATE_ORDER);
     // Sin el executor de la transacción, el re-precio leería afuera del
     // candado y `FOR UPDATE` de las reservas dejaría de proteger nada.
-    expect(code).toMatch(/computeOrderTotals\([^)]*\{\s*executor:\s*tx\s*\}/);
+    //
+    // Se verifica que `executor: tx` esté entre las opciones, no que sea la
+    // única: desde los cupones (PR G) también viajan el código de descuento y
+    // la identidad de quien compra, y clavar la forma exacta del objeto
+    // convertiría este control —que cuida el candado— en un control de estilo
+    // que hay que aflojar cada vez que se agrega una opción.
+    const call = code.match(/computeOrderTotals\(([\s\S]*?)\);/);
+    expect(call, 'create-order.ts no llama a computeOrderTotals').not.toBeNull();
+    expect(call?.[1]).toMatch(/executor:\s*tx\b/);
   });
 
   it('la cotización no escribe: el módulo compartido no reserva ni inserta', async () => {

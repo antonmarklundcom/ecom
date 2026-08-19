@@ -12,8 +12,12 @@ import { ORDER_TRANSITIONS } from "./orders";
  * el dinero de la tienda (ARCH.md §2 "Money invariants"):
  *
  *   1. `subtotal_pyg = Σ(order_items.line_total_pyg)`
- *   2. `total_pyg = subtotal_pyg + shipping_pyg`
+ *   2. `total_pyg = subtotal_pyg − discount_pyg + shipping_pyg`
  *   3. `line_total_pyg = unit_price_pyg × qty` en cada línea
+ *
+ * El descuento entró en la identidad 2 con los cupones (PR G): es plata que
+ * sale del subtotal, así que tiene que cuadrar como todo lo demás. Un cupón que
+ * descuente sin dejar rastro en `discount_pyg` cae en este control.
  *
  * La segunda —los controles cruzados, más abajo— verifica que las tablas
  * cuenten todas la misma historia: pedidos cobrados sin pago registrado, pagos
@@ -34,6 +38,7 @@ export type ReconciliationRow = {
   status: string;
   storedSubtotalPyg: number;
   itemsSubtotalPyg: number;
+  discountPyg: number;
   shippingPyg: number;
   storedTotalPyg: number;
   expectedTotalPyg: number;
@@ -61,12 +66,21 @@ export async function findTotalMismatches(
       o.status                                    AS status,
       o.subtotal_pyg                              AS storedSubtotalPyg,
       COALESCE(i.items_subtotal, 0)               AS itemsSubtotalPyg,
+      o.discount_pyg                              AS discountPyg,
       o.shipping_pyg                              AS shippingPyg,
       o.total_pyg                                 AS storedTotalPyg,
-      (o.subtotal_pyg + o.shipping_pyg)           AS expectedTotalPyg,
+      -- CAST a SIGNED antes de restar. Las columnas son BIGINT UNSIGNED, y
+      -- restar un descuento corrupto (mayor que el subtotal) no da negativo:
+      -- aborta la consulta entera con ER_DATA_OUT_OF_RANGE. Sin el cast, la
+      -- reconciliación se cae con un error de MySQL justo en el pedido que
+      -- existe para encontrar.
+      (CAST(o.subtotal_pyg AS SIGNED) - CAST(o.discount_pyg AS SIGNED)
+        + CAST(o.shipping_pyg AS SIGNED))         AS expectedTotalPyg,
       CAST(o.subtotal_pyg AS SIGNED) - CAST(COALESCE(i.items_subtotal, 0) AS SIGNED)
                                                   AS subtotalDiffPyg,
-      CAST(o.total_pyg AS SIGNED) - CAST(o.subtotal_pyg + o.shipping_pyg AS SIGNED)
+      CAST(o.total_pyg AS SIGNED)
+        - (CAST(o.subtotal_pyg AS SIGNED) - CAST(o.discount_pyg AS SIGNED)
+           + CAST(o.shipping_pyg AS SIGNED))
                                                   AS totalDiffPyg
     FROM orders o
     LEFT JOIN (
@@ -75,7 +89,8 @@ export async function findTotalMismatches(
       GROUP BY order_id
     ) i ON i.order_id = o.id
     WHERE o.subtotal_pyg <> COALESCE(i.items_subtotal, 0)
-       OR o.total_pyg <> o.subtotal_pyg + o.shipping_pyg
+       OR CAST(o.total_pyg AS SIGNED) <> CAST(o.subtotal_pyg AS SIGNED)
+            - CAST(o.discount_pyg AS SIGNED) + CAST(o.shipping_pyg AS SIGNED)
     ORDER BY o.id DESC
     LIMIT ${limit}
   `);
@@ -86,6 +101,7 @@ export async function findTotalMismatches(
     status: String(row.status),
     storedSubtotalPyg: Number(row.storedSubtotalPyg),
     itemsSubtotalPyg: Number(row.itemsSubtotalPyg),
+    discountPyg: Number(row.discountPyg),
     shippingPyg: Number(row.shippingPyg),
     storedTotalPyg: Number(row.storedTotalPyg),
     expectedTotalPyg: Number(row.expectedTotalPyg),
@@ -162,7 +178,10 @@ export type CrossCheckKind =
   | "pago_sin_transicion"
   | "monto_del_pago_distinto"
   | "comprobante_aprobado_sin_movimiento"
-  | "arista_imposible";
+  | "arista_imposible"
+  | "descuento_sin_cupon"
+  | "descuento_mayor_al_subtotal"
+  | "usos_del_cupon_no_cuadran";
 
 export type CrossCheckFinding = {
   kind: CrossCheckKind;
@@ -333,6 +352,126 @@ export async function findApprovedReceiptsWithoutMove(
 }
 
 /**
+ * Descuento sin cupón que lo explique, y cupón sin descuento.
+ *
+ * Las dos direcciones son la misma pregunta: **¿de dónde salió esta plata que
+ * no se cobró?** Un `discount_pyg > 0` con `coupon_code` en NULL es un pedido
+ * al que alguien le bajó el total sin dejar rastro de por qué. Al revés —cupón
+ * anotado y descuento en cero— es más raro y también hay que mirarlo: o el
+ * cupón no descontaba nada, o el descuento se perdió al escribir.
+ *
+ * Se mira contra `coupon_code` (el snapshot) y no contra `coupon_id`, porque
+ * la FK es `ON DELETE SET NULL`: borrar el cupón no puede convertir pedidos
+ * viejos y correctos en hallazgos de reconciliación.
+ */
+export async function findDiscountsWithoutCoupon(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      o.id            AS orderId,
+      o.order_number  AS orderNumber,
+      o.status        AS orderStatus,
+      o.discount_pyg  AS discountPyg,
+      o.coupon_code   AS couponCode
+    FROM orders o
+    WHERE (o.discount_pyg > 0 AND o.coupon_code IS NULL)
+       OR (o.discount_pyg = 0 AND o.coupon_code IS NOT NULL)
+    ORDER BY o.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "descuento_sin_cupon" as const,
+    ...identity(row),
+    detail:
+      Number(row.discountPyg) > 0
+        ? `descuenta ${row.discountPyg} ₲ y no dice con qué cupón`
+        : `dice cupón "${row.couponCode}" y no descontó nada`,
+  }));
+}
+
+/**
+ * Descuento más grande que el subtotal.
+ *
+ * `computeDiscount` lo topea al subtotal, así que una fila acá significa que
+ * alguien escribió un total sin pasar por `computeOrderTotals` — que es
+ * exactamente lo que `pnpm reconcile` existe para encontrar. El daño concreto
+ * sería un pedido cuyo descuento se está comiendo el envío.
+ */
+export async function findDiscountsOverSubtotal(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      o.id            AS orderId,
+      o.order_number  AS orderNumber,
+      o.status        AS orderStatus,
+      o.discount_pyg  AS discountPyg,
+      o.subtotal_pyg  AS subtotalPyg
+    FROM orders o
+    WHERE o.discount_pyg > o.subtotal_pyg
+    ORDER BY o.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "descuento_mayor_al_subtotal" as const,
+    ...identity(row),
+    detail: `descuenta ${row.discountPyg} ₲ sobre un subtotal de ${row.subtotalPyg} ₲`,
+  }));
+}
+
+/**
+ * El contador de usos del cupón contra los pedidos que lo usaron.
+ *
+ * `coupons.times_used` es lo que decide si un cupón sigue disponible, y se
+ * incrementa adentro de la transacción que crea el pedido. Si se despega de la
+ * cantidad de pedidos que lo tienen, el tope de usos deja de significar lo que
+ * dice: de menos, el cupón se puede seguir usando después de agotado; de más,
+ * se agota antes de tiempo.
+ *
+ * Tolera `times_used` **mayor** sólo por los pedidos borrados, que hoy no
+ * existen — no hay borrado de pedidos en la app. O sea que cualquier desvío se
+ * reporta.
+ */
+export async function findCouponUsageMismatches(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      c.id                          AS couponId,
+      c.code                        AS code,
+      c.times_used                  AS timesUsed,
+      COALESCE(u.n, 0)              AS actualUses
+    FROM coupons c
+    LEFT JOIN (
+      SELECT coupon_id, COUNT(*) AS n FROM orders WHERE coupon_id IS NOT NULL GROUP BY coupon_id
+    ) u ON u.coupon_id = c.id
+    WHERE c.times_used <> COALESCE(u.n, 0)
+    ORDER BY c.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  // Este control mira cupones, no pedidos: las tres columnas de identidad que
+  // el resto trae no aplican, así que se completan con lo que sí identifica al
+  // hallazgo. El `detail` es lo que se lee en la salida del script.
+  return rowsOf(result).map((row) => ({
+    kind: "usos_del_cupon_no_cuadran" as const,
+    orderId: 0,
+    orderNumber: `cupón ${row.code}`,
+    orderStatus: "—",
+    detail: `el cupón "${row.code}" dice ${row.timesUsed} usos y hay ${row.actualUses} pedidos con él`,
+  }));
+}
+
+/**
  * Filas de `order_events` con una arista que la máquina de estados no permite.
  *
  * La lista blanca se arma acá con `ORDER_TRANSITIONS`, la misma constante que
@@ -400,6 +539,9 @@ export async function reconcile(executor?: Executor): Promise<ReconciliationRepo
     findPaymentAmountMismatches(executor),
     findApprovedReceiptsWithoutMove(executor),
     findImpossibleEdges(executor),
+    findDiscountsWithoutCoupon(executor),
+    findDiscountsOverSubtotal(executor),
+    findCouponUsageMismatches(executor),
   ]);
 
   const crossChecks = cross.flat();

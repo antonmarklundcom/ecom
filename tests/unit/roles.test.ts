@@ -106,6 +106,7 @@ describe('la matriz de capacidades', () => {
     expect(can('staff', 'reembolsos')).toBe(false);
     expect(can('staff', 'exports')).toBe(false);
     expect(can('staff', 'usuarios')).toBe(false);
+    expect(can('staff', 'cupones')).toBe(false);
     // …pero sí la operación diaria completa.
     expect(can('staff', 'comprobantes')).toBe(true);
     expect(can('staff', 'stock')).toBe(true);

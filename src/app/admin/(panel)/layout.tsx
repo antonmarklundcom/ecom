@@ -50,6 +50,9 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             {can(actor.role, "clientes") ? (
               <NavLink href="/admin/clientes">Clientes</NavLink>
             ) : null}
+            {can(actor.role, "cupones") ? (
+              <NavLink href="/admin/cupones">Cupones</NavLink>
+            ) : null}
             {can(actor.role, "usuarios") ? (
               <NavLink href="/admin/usuarios">Usuarios</NavLink>
             ) : null}

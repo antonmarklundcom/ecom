@@ -38,6 +38,8 @@ export const CAPABILITIES = [
   "reembolsos",
   /** Alta, baja y cambio de rol de los usuarios del panel (PR C). */
   "usuarios",
+  /** ABM de cupones (PR G): plata que la tienda resigna en cada venta. */
+  "cupones",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

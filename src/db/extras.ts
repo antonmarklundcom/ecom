@@ -7,6 +7,7 @@ import type { Pool } from 'mysql2/promise';
 export const FULLTEXT_INDEX_NAME = 'ft_products_name_description';
 export const CATEGORIES_PARENT_FK = 'categories_parent_fk';
 export const ORDERS_CUSTOMER_FK = 'orders_customer_fk';
+export const ORDERS_COUPON_FK = 'orders_coupon_fk';
 export const ORDER_EVENTS_ACTOR_FK = 'order_events_actor_fk';
 export const STOCK_ADJUSTMENTS_ACTOR_FK = 'stock_adjustments_actor_fk';
 
@@ -57,6 +58,23 @@ export async function applySchemaExtras(pool: Pool): Promise<string[]> {
         'FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON DELETE SET NULL ON UPDATE CASCADE',
     );
     applied.push('FK orders.customer_id → customers.id');
+  }
+
+  // `orders.coupon_id` → `coupons.id` (PR G). `ON DELETE SET NULL`: borrar un
+  // cupón no puede borrar los pedidos que lo usaron. El pedido conserva
+  // `coupon_code` y `discount_pyg`, que es lo que explica su total dentro de
+  // seis meses — por eso el código se guarda como snapshot y no sólo como FK.
+  const [ordersCouponFk] = await pool.query<never>(
+    `SELECT COUNT(*) AS n FROM information_schema.table_constraints
+      WHERE table_schema = DATABASE() AND table_name = 'orders' AND constraint_name = ?`,
+    [ORDERS_COUPON_FK],
+  );
+  if (count(ordersCouponFk) === 0) {
+    await pool.query(
+      `ALTER TABLE \`orders\` ADD CONSTRAINT \`${ORDERS_COUPON_FK}\` ` +
+        'FOREIGN KEY (`coupon_id`) REFERENCES `coupons`(`id`) ON DELETE SET NULL ON UPDATE CASCADE',
+    );
+    applied.push('FK orders.coupon_id → coupons.id');
   }
 
   // Atribución auditable (PR D). Van acá y no en el schema por lo mismo que la

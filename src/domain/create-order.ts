@@ -14,6 +14,7 @@ import { formatGs } from "@/lib/money";
 import { normalizePhonePY, validateDoc } from "@/lib/py";
 
 import type { CartInput } from "./cart";
+import { lockCouponForUse, type CouponRejection } from "./coupons";
 import { nextOrderNumber } from "./order-number";
 import { computeOrderTotals } from "./order-totals";
 import { RESERVATION_TTL_MINUTES, reserveStock } from "./stock";
@@ -54,6 +55,12 @@ export type CreateOrderInput = {
    * checkout de invitado, que no se toca— y queda NULL en la columna.
    */
   customerId?: number | null;
+  /**
+   * El **código** de descuento que tipeó, si tipeó alguno (PR G). Nunca un
+   * monto: el descuento lo calcula `computeOrderTotals` contra la DB, adentro
+   * de esta misma transacción.
+   */
+  couponCode?: string | null;
   /**
    * Novedades y promociones. `null`/`undefined` = no se preguntó; se guarda
    * tal cual, sin convertirlo a `false` (ver `orders.marketing_opt_in`).
@@ -123,6 +130,21 @@ export class TotalChangedError extends CheckoutError {
   }
 }
 
+/**
+ * El código de descuento dejó de servir entre que lo aplicó y que confirmó.
+ *
+ * Se venció, se agotó, el dueño lo desactivó, o el carrito cambió y ya no
+ * llega al mínimo. En todos los casos el pedido **no** se crea: cobrarle el
+ * precio sin descuento a alguien que confirmó contando con él es la clase de
+ * sorpresa que hace que no vuelva.
+ */
+export class CouponRejectedError extends CheckoutError {
+  constructor(readonly reason: CouponRejection) {
+    super("El código de descuento ya no se puede usar. Revisá el total y confirmá de nuevo.");
+    this.name = "CouponRejectedError";
+  }
+}
+
 /** 32 bytes de aleatoriedad: el link de WhatsApp es la única llave del pedido. */
 function mintAccessToken(): string {
   return randomBytes(32).toString("hex");
@@ -150,8 +172,30 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
     //    misma función que usa la cotización pública (`computeOrderTotals`),
     //    corrida de nuevo acá: lo que la compradora vio en pantalla no viaja
     //    en el input y no se compara con nada, se recalcula.
-    const { cart, shipping, subtotalPyg, shippingPyg, totalPyg, iva10Pyg, iva5Pyg } =
-      await computeOrderTotals(input.items, input.shipCity, { executor: tx });
+    const {
+      cart,
+      shipping,
+      subtotalPyg,
+      discountPyg,
+      shippingPyg,
+      totalPyg,
+      iva10Pyg,
+      iva5Pyg,
+      coupon,
+      couponRejection,
+    } = await computeOrderTotals(input.items, input.shipCity, {
+      executor: tx,
+      couponCode: input.couponCode ?? null,
+      customerId: input.customerId ?? null,
+      customerPhone: phone,
+    });
+
+    // Si mandó un código y no sirve, el pedido **no** se crea en silencio sin
+    // el descuento: ella lo confirmó contando con ese precio. Se lo decimos y
+    // vuelve a confirmar, igual que con un cambio de total.
+    if (couponRejection) {
+      throw new CouponRejectedError(couponRejection);
+    }
 
     const blocking = cart.issues.filter((issue) => issue.type !== "precio_cambio");
     if (cart.lines.length === 0 || blocking.length > 0) {
@@ -174,6 +218,20 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       input.expectedTotalPyg !== totalPyg
     ) {
       throw new TotalChangedError(input.expectedTotalPyg, totalPyg);
+    }
+
+    // 2.c. Gastar el uso del cupón, **con la fila bloqueada**.
+    //
+    //       La validación de arriba pasó antes del candado, así que no decide
+    //       nada por sí sola: dos checkouts simultáneos con un cupón de un
+    //       solo uso la pasan los dos. Lo que decide es esta re-lectura con
+    //       `FOR UPDATE`, exactamente igual que el stock. El que pierde la
+    //       carrera recibe `CouponRaceError` y no se crea su pedido.
+    if (coupon) {
+      await lockCouponForUse(tx, coupon.coupon.id, {
+        customerId: input.customerId ?? null,
+        customerPhone: phone,
+      });
     }
 
     // 3. Número de pedido del contador, adentro de la misma transacción.
@@ -206,6 +264,11 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       iva5Pyg,
       paymentMethod: input.paymentMethod,
       customerId: input.customerId ?? null,
+      couponId: coupon?.coupon.id ?? null,
+      // Snapshot del código, como los nombres de los ítems: si mañana el dueño
+      // borra el cupón, este pedido tiene que seguir explicando su descuento.
+      couponCode: coupon?.coupon.code ?? null,
+      discountPyg,
       reservedUntil,
       isGift: input.isGift ?? false,
       // La nota se descarta si el pedido no es un regalo: si no, destildar la

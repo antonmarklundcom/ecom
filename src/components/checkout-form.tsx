@@ -10,6 +10,7 @@ import { TIENDA } from "@/config/tienda";
 import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { couponRejectionMessage } from "@/lib/coupon-messages";
 import { Label } from "@/components/ui/label";
 import { describeIssue } from "@/lib/cart-issues";
 import { cartSubtotal, useCart } from "@/lib/cart-store";
@@ -25,9 +26,15 @@ export function CheckoutForm({
   cities,
   pagoparEnabled = false,
   prefill,
+  hayCupones = false,
 }: {
   cities: string[];
   pagoparEnabled?: boolean;
+  /**
+   * ¿Esta tienda tiene algún cupón usable? Lo cuenta el servidor. Sin cupones
+   * cargados el campo no se dibuja: cero filas = invisible.
+   */
+  hayCupones?: boolean;
   /**
    * Datos de la cuenta, cuando hay sesión de cliente (PR E.5). Los arma el
    * servidor desde la cookie; el checkout de invitado los recibe vacíos y se
@@ -59,6 +66,14 @@ export function CheckoutForm({
    * cambia la ciudad o el carrito: a partir de ahí manda la cotización nueva.
    */
   const [acceptedTotal, setAcceptedTotal] = useState<number | null>(null);
+  /**
+   * El código de descuento. Se guarda el texto tipeado y se manda al servidor
+   * con cada cotización: el descuento **nunca** se calcula acá (README
+   * §"Reglas no negociables"). Lo que vuelve es cuánto descontó o por qué no.
+   */
+  const [couponInput, setCouponInput] = useState("");
+  const [couponApplied, setCouponApplied] = useState("");
+  const [couponOpen, setCouponOpen] = useState(false);
 
   const subtotal = cartSubtotal(lines);
 
@@ -70,7 +85,7 @@ export function CheckoutForm({
    */
   const itemsKey = lines.map((line) => `${line.variantId}x${line.qty}`).join(",");
 
-  const requestQuote = (nextCity: string, delayMs = 400) => {
+  const requestQuote = (nextCity: string, delayMs = 400, code = couponApplied) => {
     if (quoteTimer.current) clearTimeout(quoteTimer.current);
 
     const target = nextCity.trim();
@@ -89,7 +104,7 @@ export function CheckoutForm({
     const ticket = ++quoteTicket.current;
     setIsQuoting(true);
     quoteTimer.current = setTimeout(() => {
-      void quoteCartShipping({ items, city: target })
+      void quoteCartShipping({ items, city: target, couponCode: code || undefined })
         .then((result) => {
           if (ticket !== quoteTicket.current) return;
           setQuote(result.shipping ? { ...result, itemsKey } : null);
@@ -143,6 +158,7 @@ export function CheckoutForm({
             shipAddress: String(data.get("shipAddress") ?? ""),
             shipReference: String(data.get("shipReference") ?? ""),
             paymentMethod,
+            couponCode: couponApplied || undefined,
             marketingOptIn,
             isGift,
             giftNote: String(data.get("giftNote") ?? ""),
@@ -395,11 +411,104 @@ export function CheckoutForm({
         </ul>
       ) : null}
 
+      {/*
+        El campo de descuento, plegado. Sólo existe si la tienda tiene cupones
+        cargados: cero filas = nada visible (guardarraíl 1 del PLAN.md).
+      */}
+      {hayCupones ? (
+        <div className="border-border border-t pt-4 text-sm">
+          {couponOpen || couponApplied ? (
+            <div className="grid gap-2">
+              <Label htmlFor="couponCode">Código de descuento</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="couponCode"
+                  value={couponInput}
+                  onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+                  placeholder="BIENVENIDA"
+                  maxLength={40}
+                  autoComplete="off"
+                  className="uppercase"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isQuoting || couponInput.trim() === ""}
+                  onClick={() => {
+                    const code = couponInput.trim().toUpperCase();
+                    setCouponApplied(code);
+                    // El total lo recalcula el servidor: se re-cotiza sin
+                    // esperar el debounce, con el código puesto.
+                    setAcceptedTotal(null);
+                    requestQuote(city, 0, code);
+                  }}
+                >
+                  Aplicar
+                </Button>
+              </div>
+
+              {currentQuote?.couponRejection ? (
+                <p role="alert" className="text-destructive text-xs">
+                  {couponRejectionMessage(currentQuote.couponRejection, {
+                    minOrderPyg: currentQuote.couponMinOrderPyg,
+                    subtotalPyg: currentQuote.subtotalPyg,
+                  })}
+                </p>
+              ) : null}
+
+              {currentQuote && currentQuote.discountPyg > 0 ? (
+                <p className="text-muted-foreground text-xs">
+                  Listo: {currentQuote.couponCode} descuenta{" "}
+                  {formatGs(currentQuote.discountPyg)}.{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      setCouponInput("");
+                      setCouponApplied("");
+                      setAcceptedTotal(null);
+                      requestQuote(city, 0, "");
+                    }}
+                  >
+                    Quitar
+                  </button>
+                </p>
+              ) : null}
+
+              {city.trim().length < 2 ? (
+                <p className="text-muted-foreground text-xs">
+                  Poné tu ciudad para ver el total con el descuento aplicado.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="text-muted-foreground underline"
+              onClick={() => setCouponOpen(true)}
+            >
+              ¿Tenés un código de descuento?
+            </button>
+          )}
+        </div>
+      ) : null}
+
       <div className="border-border grid gap-1 border-t pt-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Subtotal (IVA incluido)</span>
           <span className="tabular-nums">{formatGs(currentQuote?.subtotalPyg ?? subtotal)}</span>
         </div>
+
+        {/* El descuento se muestra **arriba** del envío y con signo, porque es
+            lo que explica por qué el total no es la suma de lo de arriba. */}
+        {currentQuote && currentQuote.discountPyg > 0 ? (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">
+              Descuento{currentQuote.couponCode ? ` — ${currentQuote.couponCode}` : ""}
+            </span>
+            <span className="tabular-nums">−{formatGs(currentQuote.discountPyg)}</span>
+          </div>
+        ) : null}
 
         {currentQuote?.shipping ? (
           <>

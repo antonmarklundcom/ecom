@@ -208,6 +208,12 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   cambiarEstadoUsuario: 'Owner',
   cambiarRolUsuario: 'Owner',
   resetearPassword: 'Owner',
+
+  // Un cupón es plata que la tienda resigna en cada venta, y uno mal puesto se
+  // descubre cuando ya lo usaron cien personas.
+  crearCupon: 'Owner',
+  editarCupon: 'Owner',
+  cambiarEstadoCupon: 'Owner',
 };
 
 describe('cada acción llama al guard que le corresponde', () => {
