@@ -42,6 +42,8 @@ const TABLES = [
   'categories',
   'shipping_zones',
   'users',
+  // Antes que `customers`, que la referencia con FK.
+  'login_tokens',
   'customers',
   // Después de `orders`, que la referencia con FK.
   'coupons',

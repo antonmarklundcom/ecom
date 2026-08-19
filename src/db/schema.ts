@@ -591,6 +591,46 @@ export const customers = mysqlTable(
   ],
 );
 
+/**
+ * Códigos de un solo uso para entrar sin contraseña (PLAN.md FASE 2, PR F).
+ *
+ * **El código nunca se guarda.** Se guarda su SHA-256, igual que una
+ * contraseña: quien lea esta tabla —un backup, un dump, una consulta de
+ * soporte— no puede entrar a ninguna cuenta con lo que ve. La comparación es
+ * por hash, y el hash es de un valor de 32 bytes aleatorios, así que no hay
+ * nada que rainbow-tablear y no hace falta bcrypt (que además haría lento un
+ * flujo que la gente espera mirando el teléfono).
+ *
+ * Append-only en la práctica: `consumed_at` marca el usado y `invalidated_at`
+ * los que quedaron viejos al pedir uno nuevo. No se borran, porque "¿cuántos
+ * códigos pidió esta cuenta anoche?" es la pregunta de un incidente.
+ */
+export const loginTokens = mysqlTable(
+  'login_tokens',
+  {
+    id: int('id').autoincrement().primaryKey(),
+
+    customerId: int('customer_id').notNull(),
+
+    /** SHA-256 hex del código. Nunca el código. */
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+
+    /** Por dónde se mandó, para poder explicar un "no me llegó". */
+    channel: varchar('channel', { length: 20 }).notNull(),
+
+    expiresAt: datetime('expires_at').notNull(),
+    consumedAt: datetime('consumed_at'),
+    /** Lo invalidó un pedido posterior: sólo el último código vale. */
+    invalidatedAt: datetime('invalidated_at'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('login_tokens_hash_uq').on(t.tokenHash),
+    index('login_tokens_customer_idx').on(t.customerId, t.createdAt),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Admin / operación
 // ---------------------------------------------------------------------------

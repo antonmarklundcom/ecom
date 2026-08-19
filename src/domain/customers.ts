@@ -112,6 +112,24 @@ export async function findCustomerByPhone(
   };
 }
 
+export async function findCustomerById(
+  id: number,
+  executor?: Executor,
+): Promise<Customer | null> {
+  const tx = executor ?? getDb();
+  const rows = await tx.select().from(customers).where(eq(customers.id, id)).limit(1);
+  const row = rows[0];
+  if (!row || !row.isActive) return null;
+  return {
+    id: row.id,
+    phone: row.phone,
+    email: row.email,
+    name: row.name,
+    marketingOptIn: row.marketingOptIn,
+    phoneVerifiedAt: row.phoneVerifiedAt,
+  };
+}
+
 /**
  * Login de cliente: **teléfono O email**, más contraseña.
  *

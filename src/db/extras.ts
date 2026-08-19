@@ -8,6 +8,7 @@ export const FULLTEXT_INDEX_NAME = 'ft_products_name_description';
 export const CATEGORIES_PARENT_FK = 'categories_parent_fk';
 export const ORDERS_CUSTOMER_FK = 'orders_customer_fk';
 export const ORDERS_COUPON_FK = 'orders_coupon_fk';
+export const LOGIN_TOKENS_CUSTOMER_FK = 'login_tokens_customer_fk';
 export const ORDER_EVENTS_ACTOR_FK = 'order_events_actor_fk';
 export const STOCK_ADJUSTMENTS_ACTOR_FK = 'stock_adjustments_actor_fk';
 
@@ -75,6 +76,23 @@ export async function applySchemaExtras(pool: Pool): Promise<string[]> {
         'FOREIGN KEY (`coupon_id`) REFERENCES `coupons`(`id`) ON DELETE SET NULL ON UPDATE CASCADE',
     );
     applied.push('FK orders.coupon_id → coupons.id');
+  }
+
+  // `login_tokens.customer_id` → `customers.id` (PR F). `ON DELETE CASCADE` y
+  // no SET NULL: al revés que la auditoría, acá no hay nada que conservar. Un
+  // código de acceso de una cuenta que ya no existe es basura con capacidad de
+  // abrir sesiones, y lo correcto es que se vaya con ella.
+  const [loginTokensFk] = await pool.query<never>(
+    `SELECT COUNT(*) AS n FROM information_schema.table_constraints
+      WHERE table_schema = DATABASE() AND table_name = 'login_tokens' AND constraint_name = ?`,
+    [LOGIN_TOKENS_CUSTOMER_FK],
+  );
+  if (count(loginTokensFk) === 0) {
+    await pool.query(
+      `ALTER TABLE \`login_tokens\` ADD CONSTRAINT \`${LOGIN_TOKENS_CUSTOMER_FK}\` ` +
+        'FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE',
+    );
+    applied.push('FK login_tokens.customer_id → customers.id');
   }
 
   // Atribución auditable (PR D). Van acá y no en el schema por lo mismo que la
