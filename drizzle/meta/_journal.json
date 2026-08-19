@@ -50,6 +50,13 @@
       "when": 1787134429994,
       "tag": "0006_red_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787135915470,
+      "tag": "0007_gray_kree",
+      "breakpoints": true
     }
   ]
 }

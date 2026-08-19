@@ -48,6 +48,7 @@ export async function retryPaymentRevival(
     const result = await retryOrderRevival({
       paymentId: parsed.data.paymentId,
       actor: actorLabel(actor),
+      actorUserId: actor.userId,
     });
 
     revalidatePayment(result.orderId);
@@ -81,6 +82,7 @@ export async function markPaymentRefunded(
       paymentId: parsed.data.paymentId,
       reason: parsed.data.reason,
       actor: actorLabel(actor),
+      actorUserId: actor.userId,
     });
 
     revalidatePayment(result.orderId);

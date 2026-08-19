@@ -371,9 +371,27 @@ export const stockAdjustments = mysqlTable(
     /** Obligatorio por diseño: un ajuste sin motivo no se puede auditar. */
     reason: varchar('reason', { length: 300 }).notNull(),
     actor: varchar('actor', { length: 120 }).notNull(),
+    /**
+     * Quién, como FK consultable (PR D).
+     *
+     * `actor` sigue existiendo y sigue siendo la verdad histórica: es el texto
+     * que había en el momento (`admin:due@tienda.py`), y no cambia si después
+     * esa persona cambia de email o se borra su usuario. Esta columna es para
+     * **preguntar**: "todo lo que hizo el usuario 4 en agosto" no se puede
+     * consultar contra un string sin adivinar.
+     *
+     * Nullable, y las dos razones importan: lo escrito antes de esta columna
+     * no se backfillea —inventar la atribución del histórico es peor que no
+     * tenerla— y hay escrituras legítimas sin usuario detrás (el cron, un
+     * webhook de Pagopar, la compradora subiendo su comprobante).
+     */
+    actorUserId: int('actor_user_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
-  (t) => [index('stock_adjustments_variant_idx').on(t.variantId, t.createdAt)],
+  (t) => [
+    index('stock_adjustments_variant_idx').on(t.variantId, t.createdAt),
+    index('stock_adjustments_actor_idx').on(t.actorUserId, t.createdAt),
+  ],
 );
 
 /** Append-only audit log. Written by transitionOrder() and nothing else. */
@@ -387,10 +405,23 @@ export const orderEvents = mysqlTable(
     fromStatus: mysqlEnum('from_status', ORDER_STATUSES),
     toStatus: mysqlEnum('to_status', ORDER_STATUSES).notNull(),
     actor: varchar('actor', { length: 120 }).notNull(),
+    /**
+     * Quién, como FK consultable (PR D). Ver el comentario largo en
+     * `stock_adjustments.actor_user_id`: `actor` es la verdad histórica, esto
+     * es para poder preguntar.
+     *
+     * NULL en todo lo que no lo movió una persona del panel — el cron que
+     * vence pedidos, el webhook de Pagopar, la compradora que sube su
+     * comprobante — y en todo lo anterior a esta columna.
+     */
+    actorUserId: int('actor_user_id'),
     reason: varchar('reason', { length: 500 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
-  (t) => [index('order_events_order_idx').on(t.orderId, t.createdAt)],
+  (t) => [
+    index('order_events_order_idx').on(t.orderId, t.createdAt),
+    index('order_events_actor_idx').on(t.actorUserId, t.createdAt),
+  ],
 );
 
 // ---------------------------------------------------------------------------

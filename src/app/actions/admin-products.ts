@@ -144,6 +144,7 @@ export async function adjustVariantStock(
       delta: parsed.data.delta,
       reason: parsed.data.reason,
       actor: actorLabel(actor),
+      actorUserId: actor.userId,
     });
 
     if (parsed.data.productId) revalidatePath(`/admin/productos/${parsed.data.productId}`);
