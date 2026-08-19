@@ -60,7 +60,7 @@ imagen sale relativa y el link se comparte sin foto.
 docker compose up -d     # MySQL local (base `ecom`)
 pnpm db:push             # schema + FULLTEXT + FK + contador
 pnpm db:seed             # catálogo de ejemplo — reemplazalo por el real
-pnpm create-owner        # única forma de crear usuario del panel
+pnpm create-owner        # el primer dueño; el resto se crean desde /admin/usuarios
 pnpm dev                 # tienda en / y panel en /admin
 ```
 
