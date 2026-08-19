@@ -50,6 +50,7 @@ imagen sale relativa y el link se comparte sin foto.
 | `CRON_SECRET` | ≥ 16 caracteres, nuevo por tienda |
 | `SETUP_SECRET` | sólo en el servidor y sólo durante el primer deploy: habilita `/api/setup/init` y después se borra (DEPLOY.md §4) |
 | `PAGOPAR_*` | credenciales del comercio; vacías = sin tarjeta, o `PAGOPAR_MODE="mock"` para demo |
+| `CUSTOMER_SESSION_SECRET` | **sólo** si esta tienda prende las cuentas de cliente (ver abajo). Otro secreto, nunca una copia de `SESSION_SECRET` |
 
 `.env.example` documenta cada trampa — leelo, no lo adivines.
 
@@ -71,6 +72,37 @@ adaptando `scripts/seed.ts` si vienen de un CSV/planilla.
 
 Las zonas de envío del seed son las de Gran Asunción — ajustalas al alcance
 real del comercio.
+
+### 4b. ¿Esta tienda quiere cuentas de cliente?
+
+**Por defecto no**, y para la mayoría de las tiendas ese default está bien: en
+Paraguay se compra por WhatsApp y obligar a registrarse antes de la primera
+compra es el mayor asesino de conversión que hay. El checkout de invitado es y
+va a seguir siendo el camino principal.
+
+La cuenta sirve cuando el comercio quiere **volver a hablarle** a quien ya le
+compró: historial de pedidos, datos guardados para la próxima, y una lista de
+gente que aceptó recibir novedades (la única que se puede usar para promociones
+— comprar no es aceptar que te escriban).
+
+Para prenderla:
+
+1. `cuentasClientes: true` en `src/config/tienda.ts`.
+2. `CUSTOMER_SESSION_SECRET` en el entorno: `openssl rand -base64 32`, **uno
+   nuevo**, distinto de `SESSION_SECRET`. Con el flag prendido y sin este
+   secreto, `/cuenta` rompe con un error explícito — a propósito.
+
+Con el flag apagado, `/cuenta/*` responde 404, el header no muestra nada y el
+checkout es exactamente el de siempre. Hay un test de CI
+(`tests/unit/flags-apagados.test.ts`) que lo verifica en cada commit.
+
+**Limitación conocida de esta fase:** no hay verificación de teléfono ni de
+email — el stack todavía no tiene con qué mandar un mensaje. Consecuencia
+concreta: los pedidos que alguien hizo *como invitada* antes de crear su cuenta
+**no** aparecen en `/cuenta`, aunque el WhatsApp coincida. Mostrarlos sin
+verificar el número dejaría ver el historial de compras de otra persona a
+cualquiera que tipee su número al registrarse. Se habilitan solos cuando el
+teléfono quede verificado (login por OTP).
 
 ### 5. Diseño
 

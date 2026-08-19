@@ -223,12 +223,24 @@ export const orders = mysqlTable(
     invoiceCdc: varchar('invoice_cdc', { length: 64 }),
     invoicePdfUrl: varchar('invoice_pdf_url', { length: 500 }),
 
+    /**
+     * La cuenta que hizo el pedido, si había una (PR E). **Nullable para
+     * siempre**: el checkout de invitado es el camino principal y no se toca,
+     * así que la enorme mayoría de los pedidos van a tener NULL acá.
+     *
+     * Declarada como columna suelta y con la FK agregada en los extras, igual
+     * que `categories.parent_id`: la tabla `customers` se declara después en
+     * este archivo y drizzle-kit no maneja la referencia hacia adelante.
+     */
+    customerId: int('customer_id'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
     paidAt: datetime('paid_at'),
   },
   (t) => [
     unique('orders_number_uq').on(t.orderNumber),
+    index('orders_customer_idx').on(t.customerId),
     unique('orders_access_token_uq').on(t.accessToken),
     index('orders_status_created_idx').on(t.status, t.createdAt),
     index('orders_phone_idx').on(t.customerPhone),
@@ -379,6 +391,79 @@ export const orderEvents = mysqlTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [index('order_events_order_idx').on(t.orderId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Cuentas de cliente (PLAN.md FASE 2, PR E) — detrás de `TIENDA.cuentasClientes`
+// ---------------------------------------------------------------------------
+
+/**
+ * Compradoras con cuenta.
+ *
+ * **Tabla propia, separada de `users`, y no es un detalle de estilo.** Un
+ * cliente jamás tiene que poder pisar el panel: si compartieran tabla, un bug
+ * de rol o un `UPDATE` mal escrito convierte a una compradora en staff. Acá no
+ * hay ningún camino desde esta tabla hacia `/admin` — ni columna de rol, ni
+ * sesión compartida (la cookie y el secreto son propios, ver
+ * `src/lib/customer-session.ts`).
+ *
+ * **La cuenta es opcional y siempre lo va a ser.** El checkout de invitado no
+ * se toca: obligar a registrarse antes de la primera compra es el mayor
+ * asesino de conversión del e-commerce paraguayo (ARCH.md §1). Esto existe
+ * para quien *quiere* que le guardemos los datos.
+ */
+export const customers = mysqlTable(
+  'customers',
+  {
+    id: int('id').autoincrement().primaryKey(),
+
+    /**
+     * La llave real. Normalizado `+595XXXXXXXXX` por `normalizePhonePY` antes
+     * de insertar — igual que `orders.customer_phone`, para que las dos
+     * columnas se puedan comparar entre sí.
+     */
+    phone: varchar('phone', { length: 20 }).notNull(),
+
+    /** Opcional: en PY se compra con WhatsApp, no con email. */
+    email: varchar('email', { length: 200 }),
+
+    /**
+     * bcrypt. **Nullable a propósito**: el PR F agrega login sin contraseña
+     * (OTP por WhatsApp), y una cuenta creada por ese camino nunca tuvo una.
+     * NULL significa "esta cuenta no entra con contraseña", y `verifyPassword`
+     * ya devuelve false contra un hash señuelo en ese caso.
+     */
+    passwordHash: varchar('password_hash', { length: 255 }),
+
+    name: varchar('name', { length: 160 }).notNull(),
+
+    /**
+     * Consentimiento para novedades. Tres estados como en `orders`: NULL es
+     * "no se le preguntó", y no se completa con `false`.
+     */
+    marketingOptIn: boolean('marketing_opt_in'),
+    marketingOptInAt: datetime('marketing_opt_in_at'),
+
+    /**
+     * Cuándo se probó que el teléfono es suyo. **Siempre NULL en este PR**: no
+     * hay proveedor de mensajería todavía, así que nadie puede probar nada.
+     *
+     * Existe desde ahora porque es lo que decide si `/cuenta` le muestra los
+     * pedidos viejos que sólo matchean por número de teléfono. Sin esta
+     * columna, cualquiera que se registre tipeando el WhatsApp de otra persona
+     * ve el historial de compras de esa persona — nombre, dirección y todo.
+     * El PR F (OTP) es el único que la va a escribir.
+     */
+    phoneVerifiedAt: datetime('phone_verified_at'),
+
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    lastLoginAt: datetime('last_login_at'),
+  },
+  (t) => [
+    unique('customers_phone_uq').on(t.phone),
+    unique('customers_email_uq').on(t.email),
+  ],
 );
 
 // ---------------------------------------------------------------------------

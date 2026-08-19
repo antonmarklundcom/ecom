@@ -9,6 +9,7 @@ import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config
 import { startPagoparCheckout } from "@/domain/pagopar/checkout";
 import { DOC_TYPES, PAYMENT_METHODS } from "@/db/schema";
 import type { CartIssue } from "@/lib/cart-issues";
+import { currentCustomer } from "@/lib/customer-session";
 import {
   CHECKOUT_LIMIT,
   CHECKOUT_WINDOW_MS,
@@ -97,8 +98,15 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
   }
 
   try {
+    // La cuenta sale de **la cookie**, no del formulario: un `customerId` que
+    // viaje en el input deja atar la compra propia a la cuenta de cualquiera.
+    // Sin sesión —el checkout de invitado, que es el camino principal— queda
+    // null y el pedido es exactamente el de siempre.
+    const customer = await currentCustomer();
+
     const order = await createOrder({
       ...parsed.data,
+      customerId: customer?.customerId ?? null,
       customerEmail: parsed.data.customerEmail || null,
       docNumber: parsed.data.docNumber || null,
       shipBarrio: parsed.data.shipBarrio || null,

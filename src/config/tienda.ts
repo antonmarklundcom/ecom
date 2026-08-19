@@ -26,6 +26,26 @@ export type Tienda = {
   lang: string;
   /** `locale` de Open Graph. */
   ogLocale: string;
+
+  /**
+   * ¿Esta tienda ofrece cuentas de cliente? (PLAN.md FASE 2, PR E)
+   *
+   * **Apagado por defecto, y ése es el default correcto.** Con `false` la
+   * tienda se comporta exactamente como antes de que existiera la feature:
+   * `/cuenta/*` devuelve 404, el header no muestra nada, el checkout no
+   * cambia. Prenderlo es una decisión por tienda, no algo que se hereda del
+   * template.
+   *
+   * Lo que **nunca** cambia con este flag: el checkout de invitado. La cuenta
+   * es un "guardá tus datos para la próxima", jamás una pared antes de
+   * comprar.
+   *
+   * (Este archivo es presentación y no lo lee el dominio. Un flag de feature
+   * es la excepción declarada en el plan: lo leen las rutas y la UI para
+   * decidir qué existe, nunca `src/domain/**` para decidir una regla de
+   * negocio.)
+   */
+  cuentasClientes: boolean;
 };
 
 export const TIENDA: Tienda = {
@@ -36,4 +56,16 @@ export const TIENDA: Tienda = {
   tagline: "Precios en guaraníes, IVA incluido. Enviamos a todo el país.",
   lang: "es-PY",
   ogLocale: "es_PY",
+  cuentasClientes: false,
 };
+
+/**
+ * El único lugar que decide si las cuentas de cliente existen.
+ *
+ * Una función y no el booleano suelto para que haya un solo símbolo que
+ * grepear: hay un test de CI que verifica que **toda** ruta y acción de
+ * `/cuenta` pase por acá antes de tocar nada.
+ */
+export function cuentasClientesHabilitadas(): boolean {
+  return TIENDA.cuentasClientes;
+}

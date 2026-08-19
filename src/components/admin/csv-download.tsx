@@ -3,7 +3,11 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { exportOrdersCsv, exportProductsCsv } from "@/app/actions/admin-export";
+import {
+  exportMarketingOptInsCsv,
+  exportOrdersCsv,
+  exportProductsCsv,
+} from "@/app/actions/admin-export";
 
 /**
  * Botón de "Descargar CSV".
@@ -19,7 +23,7 @@ export function CsvDownloadButton({
   params,
   label = "Descargar CSV",
 }: {
-  kind: "pedidos" | "productos";
+  kind: "pedidos" | "productos" | "clientes-opt-in";
   /** Los filtros de la URL, tal cual están en pantalla. */
   params: Record<string, string | undefined>;
   label?: string;
@@ -33,7 +37,11 @@ export function CsvDownloadButton({
         Object.entries(params).filter(([, value]) => value !== undefined && value !== ""),
       );
       const result =
-        kind === "pedidos" ? await exportOrdersCsv(clean) : await exportProductsCsv(clean);
+        kind === "pedidos"
+          ? await exportOrdersCsv(clean)
+          : kind === "productos"
+            ? await exportProductsCsv(clean)
+            : await exportMarketingOptInsCsv();
 
       if (!result.ok) {
         toast.error(result.error);

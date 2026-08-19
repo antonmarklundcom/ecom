@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CsvDownloadButton } from "@/components/admin/csv-download";
+import { cuentasClientesHabilitadas } from "@/config/tienda";
 import { listCustomers } from "@/domain/admin-customers";
+import { customersByPhone } from "@/domain/customers";
+import { can } from "@/lib/permissions";
 import { formatGs } from "@/lib/money";
 import { formatDatePY, formatPhonePY } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
@@ -30,7 +34,7 @@ export default async function AdminCustomersPage({
 }: {
   searchParams: SearchParams;
 }) {
-  await requireCapabilityPage("clientes");
+  const actor = await requireCapabilityPage("clientes");
 
   const query = await searchParams;
   const search = first(query.q);
@@ -40,6 +44,13 @@ export default async function AdminCustomersPage({
     search,
     page: Number.isFinite(rawPage) ? rawPage : 1,
   });
+
+  // Con las cuentas apagadas esto ni se consulta y la pantalla queda igual que
+  // antes de la feature: "cliente" sigue siendo lo que siempre fue, una vista
+  // sobre los pedidos agrupados por WhatsApp.
+  const conCuenta = cuentasClientesHabilitadas()
+    ? await customersByPhone(result.rows.map((row) => row.phone))
+    : new Map();
 
   const href = (page: number): string => {
     const params = new URLSearchParams();
@@ -62,6 +73,22 @@ export default async function AdminCustomersPage({
         Sale de los pedidos, agrupados por WhatsApp. Lo gastado cuenta sólo los pedidos ya
         cobrados (pagado en adelante).
       </p>
+
+      {/* La lista de marketing que hasta ahora no existía: sólo las cuentas
+          activas que dijeron que sí, y sólo para el dueño — es la base de
+          clientes en un archivo que sale del edificio (ARCH.md §1). */}
+      {cuentasClientesHabilitadas() && can(actor.role, "exports") ? (
+        <div className="mt-4">
+          <CsvDownloadButton
+            kind="clientes-opt-in"
+            params={{}}
+            label="Descargar lista de novedades"
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Sólo las cuentas activas que aceptaron recibir novedades.
+          </p>
+        </div>
+      ) : null}
 
       <form className="mt-4 flex gap-2" action="/admin/clientes">
         <input
@@ -102,6 +129,17 @@ export default async function AdminCustomersPage({
                   {formatPhonePY(customer.phone)}
                   {customer.docNumber ? ` · ${customer.docNumber}` : ""}
                 </p>
+
+                {/* Quién tiene cuenta y quién aceptó novedades. Sin cuentas
+                    prendidas, este bloque no existe. */}
+                {conCuenta.has(customer.phone) ? (
+                  <p className="mt-1 text-xs">
+                    <span className="border-border rounded border px-1.5 py-0.5">Con cuenta</span>
+                    {conCuenta.get(customer.phone)?.marketingOptIn === true ? (
+                      <span className="text-muted-foreground"> · acepta novedades</span>
+                    ) : null}
+                  </p>
+                ) : null}
 
                 <p className="text-muted-foreground mt-1 text-xs">
                   {customer.orders} {customer.orders === 1 ? "pedido" : "pedidos"}

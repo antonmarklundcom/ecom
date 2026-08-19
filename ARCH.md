@@ -27,7 +27,35 @@ The entire security model is four rules:
 | **Primary — the WhatsApp link** | `/pedido/PY-000123?t=<32-byte random token>`. Token stored in `orders.access_token`, compared with `crypto.timingSafeEqual`. This is the exact URL pasted into WhatsApp. |
 | **Fallback — lookup form** | `/pedido/buscar`: order number + the phone number used on the order. Rate-limited (5 attempts / 15 min / IP), generic error message so it can't be used to enumerate orders. On success, redirects to the tokenized URL. |
 
-Accounts are a v2 feature (repeat buyers, order history). Forcing registration before a first purchase is the single biggest conversion killer in PY e-commerce.
+Forcing registration before a first purchase is the single biggest conversion killer in PY e-commerce, so **the guest checkout above is the main path and does not change**.
+
+Desde la FASE 2 hay cuentas de cliente **opcionales**, detrás de
+`TIENDA.cuentasClientes` (apagado por defecto). Lo que hay que saber:
+
+| | Panel | Cliente |
+|---|---|---|
+| Tabla | `users` | `customers` |
+| Cookie | `ecom_admin` | `ecom_cliente` |
+| Secreto | `SESSION_SECRET` | `CUSTOMER_SESSION_SECRET` |
+| Guard | `requireAdminSession` | `requireCustomerSession` |
+| Duración | 8 h | 30 días |
+
+Tablas, cookies y secretos **separados**, no por prolijidad: si compartieran
+cookie, un bug de rol convertiría a una compradora en staff. No hay ningún
+camino desde `customers` hacia `/admin` — la tabla ni siquiera tiene columna de
+rol.
+
+`orders.customer_id` es nullable para siempre: lo pone la server action leyendo
+**la cookie**, nunca el navegador. Un `customerId` que viajara en el input
+dejaría atar la compra propia a la cuenta de cualquiera.
+
+**`customers.phone_verified_at` y por qué existe vacía.** `/cuenta` muestra los
+pedidos por `customer_id`. Los pedidos viejos de invitada que sólo matchean por
+teléfono se muestran **únicamente** si ese teléfono está verificado. En esta
+fase no hay proveedor de mensajería, así que la columna es siempre NULL y ese
+camino está cerrado: sin la condición, registrarse tipeando el WhatsApp de otra
+persona muestra su historial completo, con nombre, dirección y el token de
+acceso de cada pedido. El login por OTP es lo que la va a escribir.
 
 ### Admin
 `iron-session` cookie + `users` table (bcrypt hashes, `role` enum `owner | staff | vendedor`). Middleware protects `/admin/*`; **every** server action re-checks the role. No public signup route — the first owner is created by `pnpm create-owner`, el resto desde `/admin/usuarios`.

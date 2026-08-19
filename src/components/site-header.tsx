@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { TIENDA } from "@/config/tienda";
 import { CartButton } from "@/components/cart-button";
+import { CuentaHeaderEntry } from "@/components/cuenta/header-entry";
 import { SearchBox } from "@/components/search-box";
 import { getCategories } from "@/db/queries";
 
@@ -25,7 +26,12 @@ export async function SiteHeader() {
           <SearchBox className="ml-auto hidden w-full max-w-sm sm:block" />
         </Suspense>
 
-        <div className="ml-auto sm:ml-0">
+        <div className="ml-auto flex items-center gap-3 sm:ml-0">
+          {/* Devuelve null con `TIENDA.cuentasClientes` apagado: sin el flag,
+              este header es idéntico al de antes de la feature. */}
+          <Suspense fallback={null}>
+            <CuentaHeaderEntry />
+          </Suspense>
           <CartButton />
         </div>
       </div>

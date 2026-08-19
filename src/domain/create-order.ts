@@ -46,6 +46,15 @@ export type CreateOrderInput = {
   shipMapsUrl?: string | null;
   paymentMethod: PaymentMethod;
   /**
+   * La cuenta que hizo el pedido, si había sesión de cliente abierta (PR E).
+   *
+   * Lo pone la server action leyendo **la cookie**, nunca el navegador: si
+   * viniera del formulario, cualquiera podría atar su compra a la cuenta de
+   * otra persona mandando un id distinto. `undefined` es el caso normal —el
+   * checkout de invitado, que no se toca— y queda NULL en la columna.
+   */
+  customerId?: number | null;
+  /**
    * Novedades y promociones. `null`/`undefined` = no se preguntó; se guarda
    * tal cual, sin convertirlo a `false` (ver `orders.marketing_opt_in`).
    */
@@ -196,6 +205,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       iva10Pyg,
       iva5Pyg,
       paymentMethod: input.paymentMethod,
+      customerId: input.customerId ?? null,
       reservedUntil,
       isGift: input.isGift ?? false,
       // La nota se descarta si el pedido no es un regalo: si no, destildar la

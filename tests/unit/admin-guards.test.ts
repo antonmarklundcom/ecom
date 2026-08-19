@@ -198,6 +198,9 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   // Un CSV es la base del comercio en un archivo que sale del edificio.
   exportOrdersCsv: 'Owner',
   exportProductsCsv: 'Owner',
+  // La lista de gente que consintió recibir mensajes: lo que se lleva quien
+  // se va a la competencia.
+  exportMarketingOptInsCsv: 'Owner',
 };
 
 describe('cada acción llama al guard que le corresponde', () => {

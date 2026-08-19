@@ -45,7 +45,13 @@ export async function createVariant(options: { onHand: number; pricePyg?: number
 }
 
 export async function createOrder(
-  options: { status?: OrderStatus; paymentMethod?: PaymentMethod; totalPyg?: number } = {},
+  options: {
+    status?: OrderStatus;
+    paymentMethod?: PaymentMethod;
+    totalPyg?: number;
+    customerPhone?: string;
+    customerId?: number | null;
+  } = {},
 ): Promise<number> {
   const db = getTestDb();
   const orderNumber = `PY-T${randomBytes(4).toString('hex').toUpperCase()}`;
@@ -54,7 +60,8 @@ export async function createOrder(
     accessToken: randomBytes(32).toString('hex'),
     status: options.status ?? 'pendiente_pago',
     customerName: 'Cliente de Prueba',
-    customerPhone: '+595981123456',
+    customerPhone: options.customerPhone ?? '+595981123456',
+    customerId: options.customerId ?? null,
     shipCity: 'Asunción',
     shipAddress: 'Av. Mcal. López 1234',
     paymentMethod: options.paymentMethod ?? 'transferencia',

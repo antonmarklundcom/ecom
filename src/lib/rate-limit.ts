@@ -111,6 +111,28 @@ export const LOGIN_LIMIT = 8;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 /**
+ * Límite del login y del registro de clientes (PLAN.md FASE 2, PR E).
+ *
+ * Más holgado que el del panel y por un motivo concreto: del otro lado no hay
+ * una contraseña que abra todos los pedidos del comercio, sino la de una
+ * compradora que ve los suyos. Y la que se equivoca acá es una clienta con el
+ * carrito lleno — bloquearla de más es perder la venta, que es el daño que
+ * este límite tendría que estar evitando.
+ *
+ * Sigue siendo mucho más apretado que "sin límite": alcanza para que nadie
+ * pruebe contraseñas en volumen, que es lo único que se está cuidando.
+ */
+export const CUSTOMER_LOGIN_LIMIT = 10;
+export const CUSTOMER_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Límite del alta de cuenta. Más apretado que el login: registrarse es un
+ * gesto que se hace una vez, y el volumen sólo puede ser automático.
+ */
+export const CUSTOMER_REGISTER_LIMIT = 5;
+export const CUSTOMER_REGISTER_WINDOW_MS = 60 * 60 * 1000;
+
+/**
  * Límite del cron: la ruta es pública y compara un secreto, así que sin esto
  * es un oráculo para adivinarlo a fuerza de intentos.
  */

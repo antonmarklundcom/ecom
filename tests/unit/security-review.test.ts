@@ -228,7 +228,7 @@ describe('cobertura de la revisión', () => {
     // del comprador (token del pedido) o el rate limit. Las de carrito son
     // stateless y no tocan nada del servidor.
     const GUARDS =
-      /requireAdminSession|requireStaffSession|requireOwnerSession|requireOrderAccess|rateLimit\s*\(/;
+      /requireAdminSession|requireStaffSession|requireOwnerSession|requireCustomerSession|requireOrderAccess|rateLimit\s*\(|cuentasClientesHabilitadas\s*\(/;
     const SIN_ESTADO = new Set([path.join(ACTIONS, 'cart.ts')]);
 
     const offenders: string[] = [];

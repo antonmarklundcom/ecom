@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CopyField } from "@/components/copy-field";
+import { GuardarDatosCta } from "@/components/cuenta/guardar-datos";
 import { ReceiptUpload } from "@/components/receipt-upload";
 import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
@@ -231,6 +232,10 @@ export default async function OrderPage({
           Seguir comprando
         </Link>
       </div>
+      {/* Devuelve null con las cuentas apagadas: sin el flag, esta página
+          es idéntica a la de antes de la feature. */}
+      <GuardarDatosCta orderNumber={order.orderNumber} />
+
     </main>
   );
 }
