@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/db/schema";
-import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/components/admin/labels";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { listOrdersForExport } from "@/domain/admin-orders";
 import { listVariantsForExport } from "@/domain/admin-products";
 import {

@@ -1,6 +1,6 @@
 # ARCH.md — Tienda PY: Technical Architecture
 
-**Stack:** Next.js 15 (App Router, TS) · **Hostinger Node.js** · **Hostinger MySQL + Drizzle ORM** · Cloudinary (images + receipts) · Tailwind + shadcn/ui · Zustand · Zod
+**Stack:** Next.js 16 (App Router, TS) · **Hostinger Node.js** · **Hostinger MySQL + Drizzle ORM** · Cloudinary (images + receipts) · Tailwind + shadcn/ui · Zustand · Zod
 **Currency:** PYG only, stored as `BIGINT` integers. No decimals anywhere in the money path.
 **Timezone:** all business logic in `America/Asuncion`; all timestamps stored UTC (`timezone: "Z"` on the pool).
 **Language:** Spanish (Paraguayan voseo) UI, `dd/mm/yyyy`.

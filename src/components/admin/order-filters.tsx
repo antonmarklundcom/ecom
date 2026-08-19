@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "./labels";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 
 type Defaults = { estado: string; metodo: string; desde: string; hasta: string; q: string };
 

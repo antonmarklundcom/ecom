@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ORDER_STATUSES, type OrderStatus } from "@/db/schema";
 import type { OrderStatusCounts } from "@/domain/admin-orders";
 
-import { ORDER_STATUS_LABEL } from "./labels";
+import { ORDER_STATUS_LABEL } from "@/lib/order-labels";
 
 /**
  * Accesos rápidos por estado, arriba del listado de pedidos.

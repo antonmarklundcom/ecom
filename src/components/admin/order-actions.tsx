@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { OrderStatus } from "@/db/schema";
 
-import { DESTRUCTIVE_TRANSITIONS, ORDER_STATUS_LABEL, TRANSITION_LABEL } from "./labels";
+import { DESTRUCTIVE_TRANSITIONS, ORDER_STATUS_LABEL, TRANSITION_LABEL } from "@/lib/order-labels";
 
 /**
  * Botones de cambio de estado.

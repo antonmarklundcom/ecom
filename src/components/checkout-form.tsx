@@ -194,6 +194,23 @@ export function CheckoutForm({
         </div>
       </div>
 
+      <div className="grid gap-1.5">
+        <Label htmlFor="customerEmail">
+          Email <span className="text-muted-foreground font-normal">(opcional)</span>
+        </Label>
+        <Input
+          id="customerEmail"
+          name="customerEmail"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="tucorreo@ejemplo.com"
+        />
+        <p className="text-muted-foreground text-xs">
+          Por si tu WhatsApp falla. No es obligatorio y no lo usamos para nada más.
+        </p>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="docType">Documento</Label>
