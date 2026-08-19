@@ -1,6 +1,11 @@
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
+import { readCode } from '../helpers/source';
+
 import { ORDER_STATUSES, USER_ROLES, type OrderStatus, type UserRole } from '@/db/schema';
+import { USER_ROLES as ROLES_DEL_MODULO } from '@/lib/roles';
 import { CAPABILITIES, ROLE_CAPABILITIES, can } from '@/lib/permissions';
 import {
   ForbiddenError,
@@ -119,5 +124,33 @@ describe('la matriz de capacidades', () => {
     for (const role of USER_ROLES) {
       expect(ROLE_CAPABILITIES[role]).toBeDefined();
     }
+  });
+});
+
+/**
+ * El proxy (`src/proxy.ts`) corre en el runtime **edge** y necesita saber qué
+ * roles son del panel. Leerlo de `@/db/schema` le arrastraría el grafo de
+ * `drizzle-orm/mysql-core` al bundle del edge; por eso la lista vive en
+ * `@/lib/roles`, sin dependencias, y el schema la re-exporta.
+ *
+ * Lo que este test cuida es que ese rodeo no se convierta en dos listas.
+ */
+describe('la lista de roles es una sola', () => {
+  it('el schema re-exporta exactamente la del módulo sin dependencias', () => {
+    expect([...USER_ROLES]).toEqual([...ROLES_DEL_MODULO]);
+  });
+
+  it('el proxy decide contra la lista, no contra literales sueltos', async () => {
+    const proxy = await readCode(path.join('src', 'proxy.ts'));
+
+    // Un rol nuevo agregado al ENUM y olvidado en el proxy queda rebotando al
+    // login para siempre, con la cookie válida y sin ningún error visible.
+    expect(proxy).toContain('USER_ROLES');
+    expect(proxy).not.toMatch(/session\.role\s*===\s*"(owner|staff|vendedor)"/);
+  });
+
+  it('el proxy no importa el schema: en el edge eso es drizzle entero', async () => {
+    const proxy = await readCode(path.join('src', 'proxy.ts'));
+    expect(proxy).not.toMatch(/from\s+"@\/db\/schema"/);
   });
 });

@@ -55,18 +55,15 @@ export const DOC_TYPES = ['RUC', 'CI', 'NINGUNO'] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 
 /**
- * Roles del panel, de más a menos poder (ARCH.md §1).
- *
- * - `owner`   — todo, más lo que no se delega: usuarios, reembolsos, exports.
- * - `staff`   — la operación diaria: pedidos, comprobantes, productos, stock.
- * - `vendedor` — sólo el mostrador: ve pedidos y los despacha. Sin plata.
- *
- * El orden importa: `requireStaff` y `requireOwner` lo usan para decidir, y
- * agregar un rol nuevo en el medio cambia quién puede qué. La matriz completa,
- * acción por acción, está en ARCH.md §1.
+ * Los roles viven en `src/lib/roles.ts`, sin dependencias, y se re-exportan
+ * acá para que el resto del código los siga leyendo del schema. El motivo del
+ * rodeo está escrito en ese archivo: `src/proxy.ts` corre en el edge y no
+ * puede arrastrar `drizzle-orm` sólo para conocer tres strings.
  */
-export const USER_ROLES = ['owner', 'staff', 'vendedor'] as const;
-export type UserRole = (typeof USER_ROLES)[number];
+export { USER_ROLES, type UserRole } from '../lib/roles';
+// El `export ... from` de arriba re-exporta pero no trae el binding a este
+// módulo, y `users.role` lo necesita como valor.
+import { USER_ROLES } from '../lib/roles';
 
 export const INVOICE_STATUSES = ['none', 'queued', 'approved', 'rejected'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];

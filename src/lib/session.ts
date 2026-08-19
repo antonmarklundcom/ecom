@@ -1,7 +1,8 @@
 import { getIronSession, type IronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 
-import { USER_ROLES, type OrderStatus, type UserRole } from "@/db/schema";
+import type { OrderStatus } from "@/db/schema";
+import { USER_ROLES, type UserRole } from "@/lib/roles";
 
 /**
  * Sesión de admin. No hay cuentas de comprador en v1: el comprador entra a su
