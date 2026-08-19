@@ -58,7 +58,9 @@ persona muestra su historial completo, con nombre, dirección y el token de
 acceso de cada pedido. El login por OTP es lo que la va a escribir.
 
 ### Admin
-`iron-session` cookie + `users` table (bcrypt hashes, `role` enum `owner | staff | vendedor`). Middleware protects `/admin/*`; **every** server action re-checks the role. No public signup route — the first owner is created by `pnpm create-owner`, el resto desde `/admin/usuarios`.
+`iron-session` cookie + `users` table (bcrypt hashes, `role` enum `owner | staff | vendedor`). Middleware protects `/admin/*`; **every** server action re-checks the role. No public signup route — the first owner is created by `pnpm create-owner`, el resto se dan de alta desde `/admin/usuarios` (owner-only).
+
+**Los usuarios no se borran, se desactivan.** `order_events.actor_user_id` y `stock_adjustments.actor_user_id` apuntan a esta tabla: el historial de lo que hizo una persona tiene que sobrevivir a su salida del comercio. `is_active = false` corta el acceso igual de rápido (`authenticate()` lo rechaza) y conserva la auditoría. Dos reglas duras, validadas **adentro de la transacción y con la fila bloqueada**, no en el formulario: nadie se desactiva ni se degrada a sí mismo, y no se puede dejar la tienda sin ningún `owner` activo.
 
 `users.last_login_at` la escribe `authenticate()` en el login exitoso y nadie más. NULL es "nunca entró", que es información distinta de "entró hace mucho".
 

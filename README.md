@@ -34,7 +34,7 @@ cp .env.example .env.local          # completá SESSION_PASSWORD: openssl rand -
 docker compose up -d                # MySQL 8 en localhost:3306 (base `ecom`)
 pnpm db:push                        # schema + FULLTEXT + FK self-ref + contador
 pnpm db:seed                        # 4 categorías, 24 productos, 43 variantes, 4 zonas de envío
-pnpm create-owner                   # única forma de crear un usuario del panel
+pnpm create-owner                   # el primer dueño (el resto, desde /admin/usuarios)
 pnpm dev                            # http://localhost:3000 · panel en /admin
 ```
 
@@ -103,12 +103,19 @@ mismos guardarraíles que el real, en `tests/integration/pagopar-mock-flow.test.
 
 Se entra con la cuenta que crea `pnpm create-owner` — **no hay ruta pública de registro**.
 
+`pnpm create-owner` es el **bootstrap del primer dueño y nada más**: el resto de
+los usuarios se crean desde `/admin/usuarios`, sin SSH y sin llamar al
+desarrollador. Sirve además como rescate (vuelto a correr con un email que ya
+existe, le resetea la contraseña y lo devuelve a `owner` activo), que es la
+salida si alguien se queda afuera.
+
 | Ruta | Qué hace |
 |---|---|
 | `/admin` | ventas del día y del mes, comprobantes por revisar, stock bajo |
 | `/admin/pedidos` | accesos rápidos por estado con su cuenta, filtros por método/fecha, búsqueda por nro., WhatsApp o RUC, paginación server-side, descarga CSV de lo filtrado |
 | `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
 | `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado), descarga CSV por variante |
+| `/admin/usuarios` | owner-only: quién puede entrar y con qué rol. Alta, cambio de rol, reseteo de contraseña y activar/desactivar. Nadie se borra — se desactiva, y así el historial de lo que hizo sigue siendo consultable |
 | `/admin/clientes` | quién compró, cuántas veces y cuánto gastó — sale de agrupar los pedidos por WhatsApp. Con las cuentas de cliente prendidas marca además quién tiene cuenta y quién aceptó novedades, y el dueño puede bajar esa lista |
 
 ### `POST /api/setup/init` — inicializar una tienda recién deployada

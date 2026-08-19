@@ -201,6 +201,13 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   // La lista de gente que consintió recibir mensajes: lo que se lleva quien
   // se va a la competencia.
   exportMarketingOptInsCsv: 'Owner',
+
+  // Repartir accesos es repartir todo lo de arriba: quien puede crear un
+  // usuario puede crearse un segundo dueño.
+  crearUsuario: 'Owner',
+  cambiarEstadoUsuario: 'Owner',
+  cambiarRolUsuario: 'Owner',
+  resetearPassword: 'Owner',
 };
 
 describe('cada acción llama al guard que le corresponde', () => {
