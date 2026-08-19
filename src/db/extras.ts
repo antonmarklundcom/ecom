@@ -6,6 +6,7 @@ import type { Pool } from 'mysql2/promise';
  */
 export const FULLTEXT_INDEX_NAME = 'ft_products_name_description';
 export const CATEGORIES_PARENT_FK = 'categories_parent_fk';
+export const ORDERS_CUSTOMER_FK = 'orders_customer_fk';
 
 export async function applySchemaExtras(pool: Pool): Promise<string[]> {
   const applied: string[] = [];
@@ -33,6 +34,27 @@ export async function applySchemaExtras(pool: Pool): Promise<string[]> {
         'FOREIGN KEY (`parent_id`) REFERENCES `categories`(`id`) ON DELETE SET NULL ON UPDATE CASCADE',
     );
     applied.push('FK categories.parent_id → categories.id');
+  }
+
+  // `orders.customer_id` → `customers.id` (PR E). Va acá y no en el schema
+  // por lo mismo que la FK de categorías: `customers` se declara después de
+  // `orders` en schema.ts y drizzle-kit no maneja la referencia hacia
+  // adelante.
+  //
+  // `ON DELETE SET NULL` y no `CASCADE`: borrar una cuenta no puede borrar
+  // los pedidos que esa persona pagó. El pedido sobrevive como lo que
+  // siempre pudo ser —uno de invitado— y la contabilidad no se mueve.
+  const [ordersCustomerFk] = await pool.query<never>(
+    `SELECT COUNT(*) AS n FROM information_schema.table_constraints
+      WHERE table_schema = DATABASE() AND table_name = 'orders' AND constraint_name = ?`,
+    [ORDERS_CUSTOMER_FK],
+  );
+  if (count(ordersCustomerFk) === 0) {
+    await pool.query(
+      `ALTER TABLE \`orders\` ADD CONSTRAINT \`${ORDERS_CUSTOMER_FK}\` ` +
+        'FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON DELETE SET NULL ON UPDATE CASCADE',
+    );
+    applied.push('FK orders.customer_id → customers.id');
   }
 
   await pool.query(

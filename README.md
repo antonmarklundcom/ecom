@@ -109,7 +109,7 @@ Se entra con la cuenta que crea `pnpm create-owner` — **no hay ruta pública d
 | `/admin/pedidos` | accesos rápidos por estado con su cuenta, filtros por método/fecha, búsqueda por nro., WhatsApp o RUC, paginación server-side, descarga CSV de lo filtrado |
 | `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
 | `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado), descarga CSV por variante |
-| `/admin/clientes` | quién compró, cuántas veces y cuánto gastó — sale de agrupar los pedidos por WhatsApp, sin cuentas de cliente |
+| `/admin/clientes` | quién compró, cuántas veces y cuánto gastó — sale de agrupar los pedidos por WhatsApp. Con las cuentas de cliente prendidas marca además quién tiene cuenta y quién aceptó novedades, y el dueño puede bajar esa lista |
 
 ### `POST /api/setup/init` — inicializar una tienda recién deployada
 
@@ -186,7 +186,7 @@ y si tiene el largo mínimo.
 
 - **Hosting:** Hostinger (cuenta LATAM), slot Node.js + MySQL propio. No Supabase, no Vercel.
 - **Pagos MVP:** transferencia SPI/QR manual + contra entrega. Pagopar es el PR #5, post-lanzamiento.
-- **Sin cuentas de usuario** para compradores: link con token vía WhatsApp + búsqueda por nro. de pedido + teléfono.
+- **Cuentas de compradores opcionales y apagadas por defecto** (`TIENDA.cuentasClientes`): el camino principal sigue siendo el link con token vía WhatsApp + búsqueda por nro. de pedido y teléfono. El checkout de invitado no cambia nunca — ver NEW-STORE.md §4b.
 - **Sin facturación legal en el MVP.** El schema queda listo para conectar FacturaPY después (contrato en `ARCH.md` §7).
 
 ## Reglas no negociables

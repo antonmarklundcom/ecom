@@ -1,0 +1,37 @@
+import Link from "next/link";
+
+import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { currentCustomer } from "@/lib/customer-session";
+
+/**
+ * "¿Querés guardar tus datos?" — el upsell de la cuenta, **después** de la
+ * compra (PLAN.md FASE 2, PR E.5).
+ *
+ * Que aparezca acá y no en el checkout es toda la decisión: en el checkout
+ * sería una pared antes de pagar, y esta tienda no tiene paredes. Acá el
+ * pedido ya está hecho, la compradora ya consiguió lo que vino a buscar, y la
+ * oferta es honesta — "para la próxima", no "para poder seguir".
+ *
+ * No se muestra con el flag apagado ni a quien ya entró con su cuenta.
+ */
+export async function GuardarDatosCta({ orderNumber }: { orderNumber: string }) {
+  if (!cuentasClientesHabilitadas()) return null;
+  if (await currentCustomer()) return null;
+
+  return (
+    <section className="border-border bg-muted/40 mt-6 rounded-xl border p-4">
+      <h2 className="text-sm font-medium">¿Guardamos tus datos para la próxima?</h2>
+      <p className="text-muted-foreground mt-1 text-sm">
+        Con una cuenta no volvés a tipear tu dirección, y tenés todos tus
+        pedidos en un solo lugar. Tu pedido {orderNumber} ya está hecho: esto es
+        sólo para la próxima vez.
+      </p>
+      <Link
+        href="/cuenta/registro"
+        className="border-border mt-3 inline-block rounded-lg border px-4 py-2 text-sm font-medium"
+      >
+        Crear mi cuenta
+      </Link>
+    </section>
+  );
+}

@@ -24,9 +24,19 @@ import { formatGs } from "@/lib/money";
 export function CheckoutForm({
   cities,
   pagoparEnabled = false,
+  prefill,
 }: {
   cities: string[];
   pagoparEnabled?: boolean;
+  /**
+   * Datos de la cuenta, cuando hay sesión de cliente (PR E.5). Los arma el
+   * servidor desde la cookie; el checkout de invitado los recibe vacíos y se
+   * comporta exactamente igual que siempre.
+   *
+   * Es un prefill y nada más: los campos siguen siendo editables, y el
+   * servidor recalcula todo lo que importa igual que antes.
+   */
+  prefill?: { name?: string; phone?: string; email?: string };
 }) {
   const router = useRouter();
   const { lines, clear, freeShipping } = useCart();
@@ -179,7 +189,14 @@ export function CheckoutForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="customerName">Nombre y apellido</Label>
-          <Input id="customerName" name="customerName" required minLength={3} autoComplete="name" />
+          <Input
+            id="customerName"
+            name="customerName"
+            required
+            minLength={3}
+            defaultValue={prefill?.name ?? ""}
+            autoComplete="name"
+          />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="customerPhone">WhatsApp</Label>
@@ -187,6 +204,7 @@ export function CheckoutForm({
             id="customerPhone"
             name="customerPhone"
             required
+            defaultValue={prefill?.phone ?? ""}
             placeholder="0981 123 456"
             inputMode="tel"
             autoComplete="tel"
@@ -203,6 +221,7 @@ export function CheckoutForm({
           name="customerEmail"
           type="email"
           inputMode="email"
+          defaultValue={prefill?.email ?? ""}
           autoComplete="email"
           placeholder="tucorreo@ejemplo.com"
         />

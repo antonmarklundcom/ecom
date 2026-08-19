@@ -43,6 +43,13 @@
       "when": 1787132890021,
       "tag": "0005_overconfident_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787134429994,
+      "tag": "0006_red_sunspot",
+      "breakpoints": true
     }
   ]
 }

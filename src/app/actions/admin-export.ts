@@ -2,10 +2,12 @@
 
 import { z } from "zod";
 
+import { cuentasClientesHabilitadas } from "@/config/tienda";
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/db/schema";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { listOrdersForExport } from "@/domain/admin-orders";
 import { listVariantsForExport } from "@/domain/admin-products";
+import { listMarketingOptIns } from "@/domain/customers";
 import {
   adminActionError,
   requireOwnerSession,
@@ -132,4 +134,43 @@ export async function exportProductsCsv(input: unknown): Promise<AdminActionResu
 function isoDayPY(): string {
   const [day, month, year] = formatDatePY(new Date()).split("/");
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * La lista de marketing (PLAN.md FASE 2, PR E.6).
+ *
+ * Es la única lista de contactos que esta tienda puede usar legítimamente para
+ * mandar promociones: **sólo** cuentas activas que marcaron la casilla. No
+ * sale de los pedidos —comprar no es aceptar que te escriban— y por eso no
+ * existía hasta que existieron las cuentas.
+ *
+ * `requireOwnerSession()` por el mismo motivo que los otros exports, y con más
+ * razón: una lista de gente que consintió recibir mensajes es exactamente lo
+ * que se lleva quien se va a trabajar a la competencia.
+ */
+export async function exportMarketingOptInsCsv(): Promise<AdminActionResult<CsvExport>> {
+  try {
+    await requireOwnerSession();
+
+    if (!cuentasClientesHabilitadas()) {
+      return { ok: false, error: "Esta tienda no tiene cuentas de cliente." };
+    }
+
+    const rows = await listMarketingOptIns();
+
+    const csv = toCsv(
+      ["Nombre", "WhatsApp", "Email", "Aceptó el"],
+      rows.map((row) => [row.name, row.phone, row.email ?? "", formatDatePY(row.since)]),
+    );
+
+    return {
+      ok: true,
+      csv,
+      filename: csvFilename("clientes-novedades", isoDayPY()),
+      rows: rows.length,
+      truncated: false,
+    };
+  } catch (error) {
+    return adminActionError("exportMarketingOptInsCsv", error);
+  }
 }
