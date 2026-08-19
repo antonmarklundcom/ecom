@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   const report = await reconcile();
 
   if (report.ok) {
-    console.log("✓ Todo cuadra: totales, líneas y las cinco invariantes entre tablas.");
+    console.log("✓ Todo cuadra: totales, líneas y las invariantes entre tablas.");
     return;
   }
 

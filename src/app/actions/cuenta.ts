@@ -9,9 +9,13 @@ import {
   CustomerError,
   authenticateCustomer,
   claimGuestOrder,
+  findCustomerById,
+  findCustomerByPhone,
   registerCustomer,
   updateCustomerProfile,
 } from "@/domain/customers";
+import { consumeLoginToken, issueLoginToken, loginCodeMessage } from "@/domain/login-tokens";
+import { resolveMessageSender } from "@/domain/messaging";
 import {
   destroyCustomerSession,
   getCustomerSession,
@@ -22,11 +26,16 @@ import {
   CUSTOMER_LOGIN_WINDOW_MS,
   CUSTOMER_REGISTER_LIMIT,
   CUSTOMER_REGISTER_WINDOW_MS,
+  OTP_REQUEST_LIMIT,
+  OTP_REQUEST_WINDOW_MS,
+  OTP_VERIFY_LIMIT,
+  OTP_VERIFY_WINDOW_MS,
   clientIp,
   rateLimit,
   resetRateLimitKey,
 } from "@/lib/rate-limit";
 import { MIN_PASSWORD_LENGTH, validatePasswordStrength } from "@/lib/password";
+import { normalizePhonePY } from "@/lib/py";
 
 /**
  * Acciones de las cuentas de cliente (PLAN.md FASE 2, PR E).
@@ -52,6 +61,9 @@ const APAGADO = { ok: false as const, error: "No encontramos esa página." };
 
 /** Un único mensaje para los tres motivos de fallo del login. */
 const GENERIC_LOGIN_ERROR = "WhatsApp/email o contraseña incorrectos.";
+
+/** Un solo mensaje para todos los motivos por los que un código no sirve. */
+const CODIGO_INVALIDO = "Ese código no sirve o ya venció. Pedí uno nuevo.";
 
 export type CuentaResult = { ok: true } | { ok: false; error: string };
 
@@ -235,4 +247,121 @@ async function abrirSesion(customerId: number, phone: string, name: string): Pro
   session.phone = phone;
   session.name = name;
   await session.save();
+}
+
+// ---------------------------------------------------------------------------
+// Login sin contraseña (PLAN.md FASE 2, PR F)
+// ---------------------------------------------------------------------------
+
+const PedirCodigoSchema = z.object({
+  phone: z.string().trim().min(6, "Falta tu WhatsApp").max(30),
+});
+
+/**
+ * Pide un código de acceso por WhatsApp.
+ *
+ * **Nunca dice si la cuenta existe.** La respuesta es la misma para un número
+ * con cuenta y para uno sin cuenta: "si hay una cuenta con ese número, te
+ * mandamos un código". Si respondiera distinto, este formulario sería un
+ * verificador de quién compra en esta tienda, y no cuesta nada consultarlo.
+ *
+ * Con `messagingConfigured()` en false —la mayoría de las tiendas hoy— la
+ * acción ni existe: el login sólo ofrece contraseña.
+ */
+export async function pedirCodigoAcceso(input: unknown): Promise<CuentaResult> {
+  if (!cuentasClientesHabilitadas()) return APAGADO;
+
+  const sender = resolveMessageSender();
+  if (!sender) {
+    // No debería llegar acá: el formulario no ofrece la opción sin sender.
+    // Si llega, es un POST directo — y le contesta lo mismo que a todos.
+    return { ok: false, error: "Esa forma de entrar no está disponible en esta tienda." };
+  }
+
+  const parsed = PedirCodigoSchema.safeParse(input);
+  if (!parsed.success) return { ok: true };
+
+  const phone = normalizePhonePY(parsed.data.phone);
+  if (!phone) return { ok: true };
+
+  // Por IP **y** por teléfono: cada intento manda un mensaje de verdad, y el
+  // que recibe la avalancha es el dueño del número, no quien la provoca.
+  const ip = clientIp(await headers());
+  const options = { limit: OTP_REQUEST_LIMIT, windowMs: OTP_REQUEST_WINDOW_MS };
+  if (!rateLimit(`cuenta:otp:ip:${ip}`, options).ok) return { ok: true };
+  if (!rateLimit(`cuenta:otp:tel:${phone}`, options).ok) return { ok: true };
+
+  try {
+    const customer = await findCustomerByPhone(phone);
+
+    if (customer) {
+      const { code } = await issueLoginToken(customer.id, sender.channel);
+
+      // **Sin `await`**, y es la parte importante de esta acción.
+      //
+      // El cuerpo de la respuesta ya era idéntico existiera o no la cuenta.
+      // Lo que no era idéntico era **cuánto tardaba**: con cuenta se hacían
+      // dos escrituras y una llamada HTTP a Meta (hasta 10 segundos); sin
+      // cuenta, un SELECT por índice y listo. Esa diferencia se mide con un
+      // cronómetro desde cualquier lado, y convierte este formulario en el
+      // detector de clientas que el mensaje genérico quería evitar.
+      //
+      // Soltando el envío, las dos ramas contestan igual de rápido. El
+      // mensaje sale igual: lo único que se pierde es enterarse del fallo en
+      // esta request, y eso ya no se le contaba a nadie.
+      void sender
+        .send({ to: phone, body: loginCodeMessage(code) })
+        .catch((error) => console.error("No pude mandar el código de acceso", error));
+    }
+  } catch (error) {
+    // Tampoco se distingue un fallo de emisión: se registra y se contesta igual.
+    console.error("pedirCodigoAcceso falló", error);
+  }
+
+  return { ok: true };
+}
+
+const CanjearSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "El código son 6 dígitos"),
+});
+
+/**
+ * Canjea el código y abre la sesión.
+ *
+ * Un solo mensaje de error para todos los motivos —no existe, ya se usó,
+ * venció, lo invalidó un pedido posterior, la cuenta está desactivada— por lo
+ * mismo de siempre.
+ */
+export async function entrarConCodigo(input: unknown): Promise<CuentaResult> {
+  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!resolveMessageSender()) {
+    return { ok: false, error: "Esa forma de entrar no está disponible en esta tienda." };
+  }
+
+  const ip = clientIp(await headers());
+  if (
+    !rateLimit(`cuenta:otp-verify:${ip}`, {
+      limit: OTP_VERIFY_LIMIT,
+      windowMs: OTP_VERIFY_WINDOW_MS,
+    }).ok
+  ) {
+    return { ok: false, error: "Demasiados intentos. Pedí un código nuevo en unos minutos." };
+  }
+
+  const parsed = CanjearSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: CODIGO_INVALIDO };
+
+  try {
+    const consumed = await consumeLoginToken(parsed.data.code);
+    if (!consumed) return { ok: false, error: CODIGO_INVALIDO };
+
+    const customer = await findCustomerById(consumed.customerId);
+    if (!customer) return { ok: false, error: CODIGO_INVALIDO };
+
+    await abrirSesion(customer.id, customer.phone, customer.name);
+    return { ok: true };
+  } catch (error) {
+    console.error("entrarConCodigo falló", error);
+    return { ok: false, error: CODIGO_INVALIDO };
+  }
 }

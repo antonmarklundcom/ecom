@@ -104,6 +104,37 @@ verificar el número dejaría ver el historial de compras de otra persona a
 cualquiera que tipee su número al registrarse. Se habilitan solos cuando el
 teléfono quede verificado (login por OTP).
 
+### 4c. ¿Entrar sin contraseña? (opcional, apagado)
+
+El login por código de WhatsApp está **construido y listo**, y apagado hasta
+que la tienda tenga con qué mandar mensajes. Sin credenciales, el login sólo
+ofrece contraseña — nunca aparece un botón que no pueda funcionar.
+
+Para prenderlo hace falta **WhatsApp Cloud API de Meta**, y conviene saber qué
+implica antes de prometérselo a un cliente:
+
+1. App en Meta for Developers con el producto WhatsApp.
+2. Un número verificado por Meta. **No sirve el WhatsApp común del comercio**:
+   tiene que darse de alta en la plataforma, y ese número deja de poder usarse
+   en la app normal de WhatsApp.
+3. Un token de acceso permanente (los de la consola duran 24 h).
+4. Una **plantilla de mensaje aprobada**, con un parámetro en el cuerpo. Ésta es
+   la que sorprende: fuera de la ventana de 24 h desde el último mensaje de la
+   persona, Meta no permite texto libre, y un código de login siempre cae
+   fuera. La aprobación puede tardar días.
+
+Las variables están en `.env.example` (`WHATSAPP_CLOUD_*`).
+
+**En dev no hace falta nada de esto:** sin credenciales y con
+`NODE_ENV != production`, el código se imprime en la consola del servidor y el
+flujo completo se puede probar. Ese sender **no existe en producción**, a
+propósito: los logs de un hosting compartido no son lugar para un código que
+abre la sesión de una compradora.
+
+Efecto secundario que vale la pena: entrar con un código **verifica el
+teléfono**, y ahí `/cuenta` empieza a mostrar los pedidos que esa persona hizo
+como invitada con ese número (ver la limitación del §4b).
+
 ### 5. Diseño
 
 Todo el color y el radio viven en `src/app/globals.css` (`:root` y `.dark`,

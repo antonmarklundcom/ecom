@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { preflight, type PreflightEnv, type PreflightSeverity } from "../../src/domain/preflight";
 
@@ -191,5 +191,82 @@ describe("preflight", () => {
       report.checks.filter((check) => check.severity === "advierte").length,
     );
     expect(report.ok).toBe(false);
+  });
+});
+
+/**
+ * El secreto de la sesión de cliente (FASE 2, PR E).
+ *
+ * El flag vive en `src/config/tienda.ts`, que es un módulo y no una variable
+ * de entorno, así que se lo mockea. El default del template es apagado.
+ */
+describe("preflight · secreto de sesión de cliente", () => {
+  const buscar = (env: PreflightEnv) =>
+    preflight(env).checks.find((check) => check.id === "customer_session_secret");
+
+  it("con las cuentas apagadas, no hace falta", () => {
+    // El default del template: la variable no existe y está bien que no exista.
+    expect(buscar(envSano())?.severity).toBe("ok");
+  });
+
+  it("con las cuentas prendidas y sin secreto, bloquea", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/tienda", () => ({
+      TIENDA: { cuentasClientes: true },
+      cuentasClientesHabilitadas: () => true,
+    }));
+
+    const { preflight: conCuentas } = await import("../../src/domain/preflight");
+    const check = conCuentas(envSano()).checks.find(
+      (c) => c.id === "customer_session_secret",
+    );
+
+    // Sin el secreto, /cuenta tira en runtime. Este script existe para que eso
+    // se descubra antes del deploy y no con una compradora en la pantalla.
+    expect(check?.severity).toBe("bloquea");
+
+    vi.doUnmock("@/config/tienda");
+    vi.resetModules();
+  });
+
+  it("con las cuentas prendidas, copiar SESSION_SECRET bloquea", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/tienda", () => ({
+      TIENDA: { cuentasClientes: true },
+      cuentasClientesHabilitadas: () => true,
+    }));
+
+    const { preflight: conCuentas } = await import("../../src/domain/preflight");
+    const compartido = "un-secreto-de-mas-de-treinta-y-dos-caracteres";
+    const check = conCuentas(
+      envSano({ SESSION_SECRET: compartido, CUSTOMER_SESSION_SECRET: compartido }),
+    ).checks.find((c) => c.id === "customer_session_secret");
+
+    // Es el error que más se va a cometer: copiar el valor de al lado.
+    // Compartir el secreto entre empleados del panel y compradoras es lo que
+    // hace posible que una cookie de una sirva del otro lado.
+    expect(check?.severity).toBe("bloquea");
+    expect(check?.detail).toMatch(/copia de SESSION_SECRET/);
+
+    vi.doUnmock("@/config/tienda");
+    vi.resetModules();
+  });
+
+  it("con las cuentas prendidas y un secreto propio, pasa", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/tienda", () => ({
+      TIENDA: { cuentasClientes: true },
+      cuentasClientesHabilitadas: () => true,
+    }));
+
+    const { preflight: conCuentas } = await import("../../src/domain/preflight");
+    const check = conCuentas(
+      envSano({ CUSTOMER_SESSION_SECRET: "otro-secreto-largo-y-distinto-del-panel-ok" }),
+    ).checks.find((c) => c.id === "customer_session_secret");
+
+    expect(check?.severity).toBe("ok");
+
+    vi.doUnmock("@/config/tienda");
+    vi.resetModules();
   });
 });
