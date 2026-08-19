@@ -160,11 +160,14 @@ Slot de hero/banner en `tienda.ts` (imagen Cloudinary + título + CTA, o lista p
 | PR | Task |
 |---|---|
 | P | Infra: catálogo de mensajes (next-intl sin routing o equivalente liviano), `TIENDA.lang` elige el catálogo, `es-PY` completo como default y fallback. *Branch: `feat/i18n-infra`* |
+| P+ | El template shippea **dos catálogos completos**: `es-PY` (default) y `en` — inglés pulido de verdad, no de prueba. Se completan a medida que Q/R/S extraen. Otros idiomas (sv, pt) quedan como "una hora de trabajo" documentada en NEW-STORE.md |
 | Q | Extraer strings de la vidriera (~90) usando el módulo unificado de labels del PR A.2. *Branch: `feat/i18n-vidriera`* (depende de: P) |
 | R | Extraer strings del panel (~150). *Branch: `feat/i18n-admin`* (depende de: P) |
 | S | Los difíciles: templates de WhatsApp (`order-messages.ts`) parametrizados, y errores de dominio convertidos a **códigos** + lookup de mensaje (los ~20 throw sites de `src/domain/*` que hoy llevan prosa). *Branch: `feat/i18n-dominio`* (depende de: P, Q) |
 
-**Exit del chat 2:** con `lang: "es-PY"` la tienda es byte-idéntica en textos a la actual; un segundo catálogo (`en`) de prueba renderiza la vidriera completa sin strings hardcodeados; CI verde en todo.
+**Exit del chat 2:** con `lang: "es-PY"` la tienda es byte-idéntica en textos a la actual; con `lang: "en"` la vidriera y el panel completos renderizan en inglés pulido sin un solo string hardcodeado; CI verde en todo.
+
+**Primera tienda real (después de la auditoría final):** `productos.com.py` — tienda general de productos propia, para probar el template y los productos en el mercado. El deploy sigue DEPLOY.md + NEW-STORE.md; arranca con `cuentasClientes` apagado y se prende cuando la tienda ya vende.
 
 **Cierre del chat 2:** mismo informe final: hecho, riesgos, ideas.
 
