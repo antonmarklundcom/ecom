@@ -13,7 +13,7 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | Archivo | Qué contiene |
 |---|---|
 | [ARCH.md](./ARCH.md) | Modelo de datos (ERD), modelo de seguridad, máquina de estados del pedido, flujos de pago, integración FacturaPY (fase 2) |
-| [PLAN.md](./PLAN.md) | Los 5 PRs con tareas etiquetadas `[Opus 5]` / `[Sonnet 5]` |
+| [PLAN.md](./PLAN.md) | Plan de la FASE 2 (roles, cuentas de cliente, cupones, ABMs, i18n) en dos chats de build, con tareas etiquetadas `[Opus 5]` / `[Sonnet 5]` |
 | [TASKS.md](./TASKS.md) | Checklist por PR |
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
