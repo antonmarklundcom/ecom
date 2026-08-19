@@ -224,6 +224,28 @@ export const orders = mysqlTable(
     invoicePdfUrl: varchar('invoice_pdf_url', { length: 500 }),
 
     /**
+     * El cupón aplicado, si hubo uno (PR G). Columna suelta con la FK en los
+     * extras: `coupons` se declara después en este archivo.
+     */
+    couponId: int('coupon_id'),
+    /**
+     * El código tal como estaba al comprar. Snapshot, igual que
+     * `order_items.name_snapshot`: si mañana el dueño renombra o borra el
+     * cupón, este pedido tiene que seguir explicando de dónde salió su
+     * descuento.
+     */
+    couponCode: varchar('coupon_code', { length: 40 }),
+    /**
+     * Lo que se descontó, en guaraníes enteros. **Siempre** se resta del
+     * subtotal, nunca del envío:
+     *
+     *   total = subtotal − descuento + envío
+     *
+     * `pnpm reconcile` verifica esa identidad en cada pedido.
+     */
+    discountPyg: pyg('discount_pyg').notNull().default(0),
+
+    /**
      * La cuenta que hizo el pedido, si había una (PR E). **Nullable para
      * siempre**: el checkout de invitado es el camino principal y no se toca,
      * así que la enorme mayoría de los pedidos van a tener NULL acá.
@@ -241,6 +263,7 @@ export const orders = mysqlTable(
   (t) => [
     unique('orders_number_uq').on(t.orderNumber),
     index('orders_customer_idx').on(t.customerId),
+    index('orders_coupon_idx').on(t.couponId),
     unique('orders_access_token_uq').on(t.accessToken),
     index('orders_status_created_idx').on(t.status, t.createdAt),
     index('orders_phone_idx').on(t.customerPhone),
@@ -422,6 +445,77 @@ export const orderEvents = mysqlTable(
     index('order_events_order_idx').on(t.orderId, t.createdAt),
     index('order_events_actor_idx').on(t.actorUserId, t.createdAt),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Cupones (PLAN.md FASE 2, PR G) — cero filas = invisible
+// ---------------------------------------------------------------------------
+
+export const COUPON_TYPES = ['porcentaje', 'monto_fijo'] as const;
+export type CouponType = (typeof COUPON_TYPES)[number];
+
+/**
+ * Códigos de descuento.
+ *
+ * **Un descuento es plata**, así que valen las mismas reglas que el resto del
+ * camino del dinero (README §"Reglas no negociables"):
+ *
+ * - `value` es un **entero** en las dos variantes: el porcentaje (1..100) o el
+ *   monto en guaraníes. Nunca un float, nunca un decimal.
+ * - El navegador manda el **código**, jamás el descuento. Lo calcula
+ *   `computeOrderTotals` en el servidor, contra estas filas.
+ *
+ * Sin filas en esta tabla no hay campo de cupón en el checkout: cero cupones =
+ * la tienda de siempre.
+ */
+export const coupons = mysqlTable(
+  'coupons',
+  {
+    id: int('id').autoincrement().primaryKey(),
+
+    /** Siempre en mayúsculas y sin espacios: se normaliza antes de guardar. */
+    code: varchar('code', { length: 40 }).notNull(),
+
+    type: mysqlEnum('type', COUPON_TYPES).notNull(),
+
+    /**
+     * `porcentaje` → 1..100. `monto_fijo` → guaraníes enteros.
+     *
+     * Una sola columna para los dos casos porque son excluyentes, y en los dos
+     * es un entero. Qué significa lo dice `type`, y el dominio lo valida.
+     */
+    value: bigint('value', { mode: 'number', unsigned: true }).notNull(),
+
+    /** Mínimo de compra (sobre el subtotal, sin envío). NULL = sin mínimo. */
+    minOrderPyg: pyg('min_order_pyg'),
+
+    /** Vigencia. NULL de cada lado = sin límite por ese lado. */
+    startsAt: datetime('starts_at'),
+    endsAt: datetime('ends_at'),
+
+    /** Tope global de usos. NULL = ilimitado. */
+    maxUses: int('max_uses', { unsigned: true }),
+    /** Tope por comprador. NULL = ilimitado. */
+    maxUsesPerCustomer: int('max_uses_per_customer', { unsigned: true }),
+
+    /**
+     * Cuántas veces se usó. La incrementa `createOrder` **adentro de la
+     * transacción y con la fila bloqueada** (`FOR UPDATE`), igual que el stock:
+     * sin eso, dos checkouts simultáneos gastan dos veces un cupón de un uso.
+     */
+    timesUsed: int('times_used', { unsigned: true }).notNull().default(0),
+
+    /**
+     * Sólo para quien tenga cuenta (PR E). Con `TIENDA.cuentasClientes`
+     * apagado nadie tiene sesión de cliente, así que estos cupones
+     * simplemente no validan — degradan solos, sin romper nada.
+     */
+    soloClientes: boolean('solo_clientes').notNull().default(false),
+
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [unique('coupons_code_uq').on(t.code), index('coupons_active_idx').on(t.isActive)],
 );
 
 // ---------------------------------------------------------------------------

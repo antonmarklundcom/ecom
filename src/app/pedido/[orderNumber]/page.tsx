@@ -173,6 +173,16 @@ export default async function OrderPage({
         <dl className="border-border mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-sm">
           <dt className="text-muted-foreground">Subtotal</dt>
           <dd className="text-right tabular-nums">{formatGs(order.subtotalPyg)}</dd>
+          {/* El descuento, con el código que lo explica: es lo primero que se
+              busca cuando el total no coincide con lo que se recordaba. */}
+          {order.discountPyg > 0 ? (
+            <>
+              <dt className="text-muted-foreground">
+                Descuento{order.couponCode ? ` — ${order.couponCode}` : ""}
+              </dt>
+              <dd className="text-right tabular-nums">−{formatGs(order.discountPyg)}</dd>
+            </>
+          ) : null}
           <dt className="text-muted-foreground">Envío</dt>
           <dd className="text-right tabular-nums">{formatGs(order.shippingPyg)}</dd>
           <dt className="font-medium">Total</dt>

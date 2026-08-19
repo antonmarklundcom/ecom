@@ -49,7 +49,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm db:check` | prueba la `DATABASE_URL`: imprime con qué usuario, base, host y puerto conecta (nunca la contraseña) y traduce el error si falla. Primer paso de debugging del deploy (DEPLOY.md §3) |
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |
 | `pnpm demo` | deja la base en un estado mostrable: catálogo + un pedido en cada estado |
-| `pnpm reconcile` | control de caja: los totales de cada pedido más cinco invariantes entre tablas; sale con código 1 si algo no cuadra |
+| `pnpm reconcile` | control de caja: los totales de cada pedido (incluido el descuento de cupones) más ocho invariantes entre tablas; sale con código 1 si algo no cuadra |
 | `pnpm backfill:pagos-manuales` | completa la fila de `payments` de los pedidos cobrados por transferencia o contra entrega **antes** de que eso se registrara solo (ARCH.md §5.1). Ensayo por defecto: agregá `--apply` para escribir |
 | `pnpm backup` | copia comprimida de la base en `backups/` (`--retener N` para la limpieza por antigüedad). Se corre desde tu máquina, no desde Hostinger — DEPLOY.md §7 |
 | `pnpm template:diff` | qué arreglos del template le faltan a esta tienda (`--marcar` para fijar el punto de partida) — NEW-STORE.md |
@@ -116,6 +116,7 @@ salida si alguien se queda afuera.
 | `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
 | `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado), descarga CSV por variante |
 | `/admin/usuarios` | owner-only: quién puede entrar y con qué rol. Alta, cambio de rol, reseteo de contraseña y activar/desactivar. Nadie se borra — se desactiva, y así el historial de lo que hizo sigue siendo consultable |
+| `/admin/cupones` | owner-only: ABM de códigos de descuento con sus usos consumidos. Cero cupones = el checkout no muestra ningún campo de descuento |
 | `/admin/clientes` | quién compró, cuántas veces y cuánto gastó — sale de agrupar los pedidos por WhatsApp. Con las cuentas de cliente prendidas marca además quién tiene cuenta y quién aceptó novedades, y el dueño puede bajar esa lista |
 
 ### `POST /api/setup/init` — inicializar una tienda recién deployada
@@ -198,7 +199,7 @@ y si tiene el largo mínimo.
 
 ## Reglas no negociables
 
-- Todo monto es **entero** en guaraníes (`BIGINT UNSIGNED`). Nunca `float`, nunca `DECIMAL`, nunca `toFixed(2)`.
+- Todo monto es **entero** en guaraníes (`BIGINT UNSIGNED`). Nunca `float`, nunca `DECIMAL`, nunca `toFixed(2)`. Vale también para los descuentos: el navegador manda el **código** del cupón, nunca el monto.
 - Precios son **IVA incluido**. El IVA se desglosa, no se suma encima.
 - El navegador nunca decide precios ni stock — el servidor recalcula todo desde la DB.
 - El estado de un pedido sólo cambia vía `transitionOrder()`. Nunca un `UPDATE orders SET status` suelto.

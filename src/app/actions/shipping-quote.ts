@@ -4,9 +4,11 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { freeShippingForZone, type FreeShippingProgress } from "@/domain/free-shipping";
+import type { CouponRejection } from "@/domain/coupons";
 import { computeOrderTotals } from "@/domain/order-totals";
 import type { ShippingQuote } from "@/domain/shipping";
 import type { CartIssue } from "@/lib/cart-issues";
+import { currentCustomer } from "@/lib/customer-session";
 import { QUOTE_LIMIT, QUOTE_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-limit";
 
 /**
@@ -43,6 +45,12 @@ const QuoteInputSchema = z.object({
   ),
   /** Vacía = todavía no la eligió; se cotiza sólo el subtotal. */
   city: z.string().trim().max(120).optional(),
+  /**
+   * El código de descuento tipeado, para poder mostrar el total con descuento
+   * **antes** de confirmar. Es el código, no el monto: acá tampoco hay
+   * aritmética de dinero (ver el punto 2 de arriba).
+   */
+  couponCode: z.string().trim().max(40).optional(),
 });
 
 export type ShippingQuoteView = {
@@ -60,6 +68,14 @@ export type CartQuote = {
   shipping: ShippingQuoteView | null;
   freeShipping: FreeShippingProgress;
   issues: CartIssue[];
+  /** Lo que descuenta el cupón aplicado. 0 si no hay ninguno. */
+  discountPyg: number;
+  /** El código que quedó aplicado, ya normalizado. */
+  couponCode: string | null;
+  /** Por qué no se aplicó el que tipeó. La pantalla lo traduce a una frase. */
+  couponRejection: CouponRejection | null;
+  /** El mínimo del cupón, para poder decir cuánto le falta. */
+  couponMinOrderPyg: number | null;
 };
 
 const EMPTY_QUOTE: CartQuote = {
@@ -68,6 +84,10 @@ const EMPTY_QUOTE: CartQuote = {
   shipping: null,
   freeShipping: { kind: "sin_umbral" },
   issues: [],
+  discountPyg: 0,
+  couponCode: null,
+  couponRejection: null,
+  couponMinOrderPyg: null,
 };
 
 export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
@@ -88,7 +108,16 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
     return EMPTY_QUOTE;
   }
 
-  const totals = await computeOrderTotals(parsed.data.items, city);
+  // La identidad de quien compra sale de la cookie, nunca del input: si el
+  // `customerId` viajara acá, cualquiera cotizaría un cupón `solo_clientes`
+  // mandando un id ajeno.
+  const customer = await currentCustomer();
+
+  const totals = await computeOrderTotals(parsed.data.items, city, {
+    couponCode: parsed.data.couponCode || null,
+    customerId: customer?.customerId ?? null,
+    customerPhone: customer?.phone ?? null,
+  });
 
   return {
     subtotalPyg: totals.subtotalPyg,
@@ -101,5 +130,9 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
     },
     freeShipping: freeShippingForZone(totals.shipping, totals.subtotalPyg),
     issues: totals.cart.issues,
+    discountPyg: totals.discountPyg,
+    couponCode: totals.coupon?.coupon.code ?? null,
+    couponRejection: totals.couponRejection,
+    couponMinOrderPyg: totals.couponMinOrderPyg,
   };
 }

@@ -43,6 +43,8 @@ const TABLES = [
   'shipping_zones',
   'users',
   'customers',
+  // Después de `orders`, que la referencia con FK.
+  'coupons',
   'counters',
   // La marca de `POST /api/setup/init`: sin vaciarla, el segundo test de esa
   // ruta arranca creyendo que la tienda ya se inicializó.

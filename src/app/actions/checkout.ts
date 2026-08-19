@@ -52,6 +52,8 @@ const CheckoutActionSchema = z.object({
   paymentMethod: z.enum(PAYMENT_METHODS),
   // Ausente = no se preguntó (un POST viejo, o el formulario sin la casilla).
   // No se completa con `false`: ver `orders.marketing_opt_in`.
+  /** El código tipeado. El descuento lo calcula el servidor (PR G). */
+  couponCode: z.string().trim().max(40).optional(),
   marketingOptIn: z.boolean().optional(),
   isGift: z.boolean().optional(),
   giftNote: z.string().trim().max(300).optional().or(z.literal("")),
@@ -107,6 +109,7 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
     const order = await createOrder({
       ...parsed.data,
       customerId: customer?.customerId ?? null,
+      couponCode: parsed.data.couponCode || null,
       customerEmail: parsed.data.customerEmail || null,
       docNumber: parsed.data.docNumber || null,
       shipBarrio: parsed.data.shipBarrio || null,

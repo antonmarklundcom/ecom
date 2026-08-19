@@ -153,6 +153,14 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
             <dl className="border-border mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-sm">
               <dt className="text-muted-foreground">Subtotal</dt>
               <dd className="text-right tabular-nums">{formatGs(order.subtotalPyg)}</dd>
+              {order.discountPyg > 0 ? (
+                <>
+                  <dt className="text-muted-foreground">
+                    Descuento{order.couponCode ? ` — ${order.couponCode}` : ""}
+                  </dt>
+                  <dd className="text-right tabular-nums">−{formatGs(order.discountPyg)}</dd>
+                </>
+              ) : null}
               <dt className="text-muted-foreground">Envío</dt>
               <dd className="text-right tabular-nums">{formatGs(order.shippingPyg)}</dd>
               <dt className="font-medium">Total</dt>

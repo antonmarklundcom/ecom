@@ -225,6 +225,46 @@ MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaran�
                                          └────────────────────────────┘
 ```
 
+### Cupones y descuentos (FASE 2, PR G)
+
+La identidad del pedido pasa a ser:
+
+```
+total_pyg = subtotal_pyg − discount_pyg + shipping_pyg
+```
+
+Reglas, todas verificadas por `pnpm reconcile`:
+
+1. **El descuento sale del subtotal, nunca del envío.** El flete es un costo
+   real; una promoción de la tienda no puede convertirlo en pérdida.
+2. **El navegador manda el código, jamás el monto.** El descuento lo calcula
+   `computeOrderTotals` en el servidor, contra la tabla `coupons`.
+3. **Todo entero.** El porcentaje se aplica con `Math.floor` — ante medio
+   guaraní, el redondeo favorece a quien paga la promoción.
+4. **El descuento se topea al subtotal.** Un cupón de ₲100.000 sobre una compra
+   de ₲80.000 descuenta ₲80.000: nunca deja un total negativo ni empieza a
+   pagar el envío.
+5. **El IVA se sigue desglosando por línea.** El descuento se reparte entre las
+   líneas en proporción a lo que pesa cada una (`distributeDiscount`, con el
+   resto a la línea más grande para que la suma cierre exacta) y el IVA sale de
+   cada base descontada con el mismo `ivaIncluded` de siempre.
+6. **El umbral de envío gratis se mira contra el subtotal sin descontar.** Si
+   no, un cupón le sacaría a la compradora el envío gratis que ya tenía en
+   pantalla — un cupón nunca puede empeorar el total.
+
+`coupons.times_used` se incrementa **adentro de la transacción que crea el
+pedido y con la fila bloqueada** (`SELECT … FOR UPDATE`), igual que el stock:
+sin eso, dos checkouts simultáneos gastan dos veces un cupón de un solo uso. La
+validación previa no decide nada por sí sola — decide la re-lectura con el
+candado tomado.
+
+El pedido guarda `coupon_code` como **snapshot** además de la FK: si el dueño
+borra el cupón (`ON DELETE SET NULL`), ese pedido tiene que seguir explicando de
+dónde salió su descuento.
+
+Controles cruzados nuevos: `descuento_sin_cupon` (y su inverso),
+`descuento_mayor_al_subtotal` y `usos_del_cupon_no_cuadran`.
+
 ### Money invariants
 - Every `*_pyg` column is `BIGINT UNSIGNED`. **No `DECIMAL`, no `FLOAT`, ever** — guaraníes have no céntimos.
 - Display: `new Intl.NumberFormat('es-PY', { style:'currency', currency:'PYG', maximumFractionDigits:0 })` → `₲ 1.234.567`.
