@@ -74,9 +74,6 @@ export async function issueLoginToken(
   executor?: Executor,
 ): Promise<{ code: string; expiresAt: Date }> {
   const tx = executor ?? getDb();
-
-  const code = generateLoginCode();
-  const tokenHash = hashLoginCode(code);
   const expiresAt = new Date(Date.now() + LOGIN_TOKEN_TTL_MS);
 
   // Invalidar primero: si esto fallara después de insertar, quedarían dos
@@ -92,9 +89,35 @@ export async function issueLoginToken(
       ),
     );
 
-  await tx.insert(loginTokens).values({ customerId, tokenHash, channel, expiresAt });
+  /**
+   * Reintentar ante una colisión de hash.
+   *
+   * `token_hash` es UNIQUE sobre **toda la tabla**, y las filas no se borran
+   * nunca (consumidas e invalidadas se conservan para poder reconstruir un
+   * incidente). Con seis dígitos, el código nuevo que choca contra *cualquiera*
+   * de los históricos rompe el INSERT — y el efecto es el peor posible: la
+   * persona nunca recibe su código y no hay nada en pantalla que lo explique.
+   *
+   * La probabilidad crece con el uso: son N/1.000.000 por emisión, con N el
+   * total histórico. Arranca en cero y a los diez mil logins ya es un 1%.
+   *
+   * La unicidad global **tiene** que quedarse: `consumeLoginToken` busca sólo
+   * por hash, y dos filas con el mismo hash harían ambigua esa búsqueda. Lo
+   * que se arregla es la reacción — tirar de nuevo, que es gratis.
+   */
+  for (let intento = 0; intento < 5; intento += 1) {
+    const code = generateLoginCode();
+    const tokenHash = hashLoginCode(code);
 
-  return { code, expiresAt };
+    try {
+      await tx.insert(loginTokens).values({ customerId, tokenHash, channel, expiresAt });
+      return { code, expiresAt };
+    } catch (error) {
+      if (!esColisionDeHash(error)) throw error;
+    }
+  }
+
+  throw new LoginTokenError('No pude generar un código. Probá de nuevo.');
 }
 
 export type ConsumedToken = { customerId: number };
@@ -176,6 +199,13 @@ export async function consumeLoginToken(code: string): Promise<ConsumedToken | n
 
     return { customerId: token.customerId };
   });
+}
+
+/** El INSERT chocó contra el UNIQUE de `token_hash` y no contra otra cosa. */
+function esColisionDeHash(error: unknown): boolean {
+  const code = (error as { code?: string; errno?: number } | null)?.code;
+  const errno = (error as { errno?: number } | null)?.errno;
+  return code === 'ER_DUP_ENTRY' || errno === 1062;
 }
 
 /** El texto que se manda. Corto: entra entero en la notificación del celular. */

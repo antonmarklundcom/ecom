@@ -293,13 +293,28 @@ export async function pedirCodigoAcceso(input: unknown): Promise<CuentaResult> {
 
   try {
     const customer = await findCustomerByPhone(phone);
-    // Silencio deliberado: la respuesta de arriba y la de abajo son idénticas.
+
     if (customer) {
       const { code } = await issueLoginToken(customer.id, sender.channel);
-      await sender.send({ to: phone, body: loginCodeMessage(code) });
+
+      // **Sin `await`**, y es la parte importante de esta acción.
+      //
+      // El cuerpo de la respuesta ya era idéntico existiera o no la cuenta.
+      // Lo que no era idéntico era **cuánto tardaba**: con cuenta se hacían
+      // dos escrituras y una llamada HTTP a Meta (hasta 10 segundos); sin
+      // cuenta, un SELECT por índice y listo. Esa diferencia se mide con un
+      // cronómetro desde cualquier lado, y convierte este formulario en el
+      // detector de clientas que el mensaje genérico quería evitar.
+      //
+      // Soltando el envío, las dos ramas contestan igual de rápido. El
+      // mensaje sale igual: lo único que se pierde es enterarse del fallo en
+      // esta request, y eso ya no se le contaba a nadie.
+      void sender
+        .send({ to: phone, body: loginCodeMessage(code) })
+        .catch((error) => console.error("No pude mandar el código de acceso", error));
     }
   } catch (error) {
-    // Tampoco se distingue un fallo de envío: se registra y se contesta igual.
+    // Tampoco se distingue un fallo de emisión: se registra y se contesta igual.
     console.error("pedirCodigoAcceso falló", error);
   }
 

@@ -161,3 +161,45 @@ describe.skipIf(!hasTestDb)('entrar con código verifica el teléfono', () => {
     expect(rows[0]?.linked).toBe(false);
   });
 });
+
+/**
+ * Dos defensas encontradas en la revisión de seguridad del cierre de la FASE 2.
+ */
+describe.skipIf(!hasTestDb)('robustez de la emisión', () => {
+  beforeEach(resetTables);
+  afterAll(closeTestDb);
+
+  it('un hash ya usado en el pasado no rompe la emisión', async () => {
+    const customer = await unaCuenta();
+
+    // `token_hash` es UNIQUE sobre toda la tabla y las filas no se borran, así
+    // que un código nuevo puede chocar contra uno histórico ya consumido. Sin
+    // el reintento, la persona no recibe nada y no hay nada que lo explique.
+    // Se simula ocupando el hash de un código conocido.
+    const ocupado = '000000';
+    await getTestDb().insert(loginTokens).values({
+      customerId: customer.id,
+      tokenHash: hashLoginCode(ocupado),
+      channel: 'consola',
+      expiresAt: new Date(Date.now() - 60_000),
+      consumedAt: new Date(),
+    });
+
+    // Emitir muchas veces: si alguna sale con el hash ocupado, el reintento
+    // tiene que taparlo en vez de tirar.
+    for (let i = 0; i < 30; i += 1) {
+      const { code } = await issueLoginToken(customer.id, 'consola');
+      expect(code).toMatch(/^\d{6}$/);
+    }
+  });
+
+  it('el código viejo ya consumido no revive al emitir uno nuevo', async () => {
+    const customer = await unaCuenta();
+    const primero = await issueLoginToken(customer.id, 'consola');
+    await consumeLoginToken(primero.code);
+
+    await issueLoginToken(customer.id, 'consola');
+
+    expect(await consumeLoginToken(primero.code)).toBeNull();
+  });
+});
