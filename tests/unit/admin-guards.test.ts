@@ -118,7 +118,7 @@ describe('server actions de admin', () => {
     for (const file of await adminActionModules()) {
       const code = await readCode(file);
       for (const action of exportedActions(code)) {
-        if (!/require(Admin|Owner)Session\s*\(/.test(action.body)) {
+        if (!/require(Admin|Staff|Owner)Session\s*\(/.test(action.body)) {
           offenders.push(`${file} → ${action.name}()`);
         }
       }
@@ -133,7 +133,7 @@ describe('server actions de admin', () => {
     for (const file of await adminActionModules()) {
       const code = await readCode(file);
       for (const action of exportedActions(code)) {
-        const guardAt = action.body.search(/require(Admin|Owner)Session\s*\(/);
+        const guardAt = action.body.search(/require(Admin|Staff|Owner)Session\s*\(/);
         const parseAt = action.body.search(/\.safeParse\s*\(|formData\.get\s*\(/);
         // Validar la entrada antes de saber quién llama no rompe nada por sí
         // solo, pero es el orden en el que después se cuela una consulta a la
@@ -159,5 +159,90 @@ describe('server actions de admin', () => {
     );
 
     expect(unguarded).toEqual([]);
+  });
+});
+
+/**
+ * La matriz de PLAN.md PR B, clavada acción por acción.
+ *
+ * El test de arriba pide "algún guard"; éste pide **el que corresponde**.
+ * Sin esto, cambiar `requireOwnerSession` por `requireAdminSession` en la
+ * acción de reembolsos —un carácter de diferencia en un merge apurado— pasa
+ * CI verde y le devuelve a cualquier `vendedor` el poder de registrar plata
+ * que sale.
+ *
+ * Agregar una acción obliga a decidir acá quién la puede llamar: una acción
+ * que no está en esta tabla falla el test. Esa es la idea.
+ */
+const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
+  // Los tres roles avanzan pedidos; qué destino puede cada uno lo decide
+  // `assertCanTransitionTo` adentro, no el guard del módulo.
+  advanceOrder: 'Admin',
+
+  // Comprobantes: decidir si una transferencia entró es plata.
+  decideReceipt: 'Staff',
+  previewReceipt: 'Staff',
+
+  // Recuperar un pedido con un pago huérfano es operación; devolverlo es
+  // plata que sale y no se delega.
+  retryPaymentRevival: 'Staff',
+  markPaymentRefunded: 'Owner',
+
+  // Catálogo y stock: la operación diaria, sin el mostrador.
+  saveProduct: 'Staff',
+  saveProductVariant: 'Staff',
+  adjustVariantStock: 'Staff',
+  uploadProductImage: 'Staff',
+  removeProductImage: 'Staff',
+
+  // Un CSV es la base del comercio en un archivo que sale del edificio.
+  exportOrdersCsv: 'Owner',
+  exportProductsCsv: 'Owner',
+};
+
+describe('cada acción llama al guard que le corresponde', () => {
+  it('ninguna acción quedó fuera de la matriz', async () => {
+    const sinDeclarar: string[] = [];
+
+    for (const file of await adminActionModules()) {
+      for (const action of exportedActions(await readCode(file))) {
+        if (!(action.name in GUARD_ESPERADO)) sinDeclarar.push(`${file} → ${action.name}()`);
+      }
+    }
+
+    expect(sinDeclarar).toEqual([]);
+  });
+
+  it('la matriz no quedó con acciones que ya no existen', async () => {
+    const existentes = new Set<string>();
+    for (const file of await adminActionModules()) {
+      for (const action of exportedActions(await readCode(file))) existentes.add(action.name);
+    }
+
+    const fantasmas = Object.keys(GUARD_ESPERADO).filter((name) => !existentes.has(name));
+    expect(fantasmas).toEqual([]);
+  });
+
+  it('el guard de cada acción es exactamente el declarado', async () => {
+    const offenders: string[] = [];
+
+    for (const file of await adminActionModules()) {
+      for (const action of exportedActions(await readCode(file))) {
+        const esperado = GUARD_ESPERADO[action.name];
+        if (!esperado) continue;
+
+        const usados = [...action.body.matchAll(/require(Admin|Staff|Owner)Session\s*\(/g)].map(
+          (match) => match[1],
+        );
+
+        if (usados.length !== 1 || usados[0] !== esperado) {
+          offenders.push(
+            `${file} → ${action.name}(): esperaba require${esperado}Session, encontré [${usados.join(', ') || 'ninguno'}]`,
+          );
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 });

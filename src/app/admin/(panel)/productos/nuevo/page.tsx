@@ -3,12 +3,15 @@ import Link from "next/link";
 
 import { ProductForm } from "@/components/admin/product-form";
 import { listCategories } from "@/domain/admin-products";
+import { requireCapabilityPage } from "@/lib/admin-guard";
 
 export const metadata: Metadata = { title: "Nuevo producto" };
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
+  await requireCapabilityPage("productos");
+
   const categories = await listCategories();
 
   return (

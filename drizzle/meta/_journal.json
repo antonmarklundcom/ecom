@@ -36,6 +36,13 @@
       "when": 1786958000311,
       "tag": "0004_chunky_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1787132890021,
+      "tag": "0005_overconfident_giant_man",
+      "breakpoints": true
     }
   ]
 }

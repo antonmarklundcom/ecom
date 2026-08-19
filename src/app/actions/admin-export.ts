@@ -8,7 +8,7 @@ import { listOrdersForExport } from "@/domain/admin-orders";
 import { listVariantsForExport } from "@/domain/admin-products";
 import {
   adminActionError,
-  requireAdminSession,
+  requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { EXPORT_MAX_ROWS, csvFilename, toCsv } from "@/lib/csv";
@@ -21,10 +21,15 @@ import { formatDatePY, formatDateTimePY, parsePyDateInput, parsePyDateInputEnd }
  * está mostrando: si se armara en el navegador con lo que hay en pantalla,
  * bajaría una página de veinte filas creyendo que bajó el listado entero.
  *
- * Igual que toda acción de `/admin`, `requireAdminSession()` es la primera
- * línea: una server action es un endpoint HTTP propio y se la puede invocar
- * sin pasar por ninguna URL `/admin` (ARCH.md §1). Acá encima el resultado es
- * la base de datos del comercio en texto plano.
+ * Igual que toda acción de `/admin`, el guard es la primera línea: una server
+ * action es un endpoint HTTP propio y se la puede invocar sin pasar por
+ * ninguna URL `/admin` (ARCH.md §1). Acá encima el resultado es la base de
+ * datos del comercio en texto plano.
+ *
+ * Y por eso el guard es `requireOwnerSession()` y no el genérico: un CSV de
+ * pedidos es la lista completa de clientes, teléfonos, direcciones y cuánto
+ * gastó cada uno, en un archivo que sale del edificio. Es lo que se lleva
+ * quien renuncia. Que lo baje el dueño y nadie más (ARCH.md §1).
  */
 
 export type CsvExport = { csv: string; filename: string; rows: number; truncated: boolean };
@@ -39,7 +44,7 @@ const OrdersFiltersSchema = z.object({
 
 export async function exportOrdersCsv(input: unknown): Promise<AdminActionResult<CsvExport>> {
   try {
-    await requireAdminSession();
+    await requireOwnerSession();
 
     const parsed = OrdersFiltersSchema.safeParse(input ?? {});
     if (!parsed.success) {
@@ -87,7 +92,7 @@ const ProductsFiltersSchema = z.object({
 
 export async function exportProductsCsv(input: unknown): Promise<AdminActionResult<CsvExport>> {
   try {
-    await requireAdminSession();
+    await requireOwnerSession();
 
     const parsed = ProductsFiltersSchema.safeParse(input ?? {});
     if (!parsed.success) {

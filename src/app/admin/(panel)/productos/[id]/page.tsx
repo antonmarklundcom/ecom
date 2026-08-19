@@ -7,6 +7,7 @@ import { ProductImages } from "@/components/admin/product-images";
 import { VariantEditor } from "@/components/admin/variant-editor";
 import { getAdminProduct, listCategories, listStockAdjustments } from "@/domain/admin-products";
 import { formatDateTimePY } from "@/lib/py";
+import { requireCapabilityPage } from "@/lib/admin-guard";
 
 export const metadata: Metadata = { title: "Producto" };
 
@@ -15,6 +16,8 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ id: string }>;
 
 export default async function AdminProductPage({ params }: { params: Params }) {
+  await requireCapabilityPage("productos");
+
   const { id } = await params;
   const productId = Number(id);
   if (!Number.isInteger(productId) || productId <= 0) notFound();

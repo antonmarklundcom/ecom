@@ -9,7 +9,9 @@ import { receiptPreview, reviewReceipt } from "@/domain/receipt-review";
 import {
   actorLabel,
   adminActionError,
+  assertCanTransitionTo,
   requireAdminSession,
+  requireStaffSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
 
@@ -42,6 +44,10 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
       return { ok: false, error: "No entendí qué querés hacer con el pedido." };
     }
 
+    // El destino es lo que decide el permiso: los tres roles usan esta misma
+    // acción, y el vendedor sólo puede despachar (ARCH.md §1).
+    assertCanTransitionTo(actor, parsed.data.to);
+
     await transitionOrder(
       parsed.data.orderId,
       parsed.data.to,
@@ -67,7 +73,7 @@ const ReviewSchema = z.object({
 /** Aprobar / rechazar un comprobante. El estado lo mueve `reviewReceipt`. */
 export async function decideReceipt(input: unknown): Promise<AdminActionResult> {
   try {
-    const actor = await requireAdminSession();
+    const actor = await requireStaffSession();
 
     const parsed = ReviewSchema.safeParse(input);
     if (!parsed.success) {
@@ -105,7 +111,7 @@ export async function previewReceipt(
   input: unknown,
 ): Promise<AdminActionResult<{ url: string; mime: string }>> {
   try {
-    await requireAdminSession();
+    await requireStaffSession();
 
     const parsed = PreviewSchema.safeParse(input);
     if (!parsed.success) {

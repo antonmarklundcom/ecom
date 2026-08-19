@@ -16,7 +16,7 @@ import { CLOUDINARY_PRODUCTS_FOLDER, cloudinary } from "@/lib/cloudinary";
 import {
   actorLabel,
   adminActionError,
-  requireAdminSession,
+  requireStaffSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
 
@@ -47,7 +47,7 @@ export async function saveProduct(
   input: unknown,
 ): Promise<AdminActionResult<{ productId: number }>> {
   try {
-    await requireAdminSession();
+    await requireStaffSession();
 
     const parsed = ProductSchema.safeParse(input);
     if (!parsed.success) {
@@ -95,7 +95,7 @@ const VariantSchema = z.object({
 
 export async function saveProductVariant(input: unknown): Promise<AdminActionResult> {
   try {
-    await requireAdminSession();
+    await requireStaffSession();
 
     const parsed = VariantSchema.safeParse(input);
     if (!parsed.success) {
@@ -132,7 +132,7 @@ export async function adjustVariantStock(
   input: unknown,
 ): Promise<AdminActionResult<{ newOnHand: number }>> {
   try {
-    const actor = await requireAdminSession();
+    const actor = await requireStaffSession();
 
     const parsed = AdjustSchema.safeParse(input);
     if (!parsed.success) {
@@ -164,7 +164,7 @@ export async function adjustVariantStock(
  */
 export async function uploadProductImage(formData: FormData): Promise<AdminActionResult> {
   try {
-    await requireAdminSession();
+    await requireStaffSession();
 
     const productId = Number(formData.get("productId"));
     if (!Number.isInteger(productId) || productId <= 0) {
@@ -205,7 +205,7 @@ const RemoveImageSchema = z.object({
 
 export async function removeProductImage(input: unknown): Promise<AdminActionResult> {
   try {
-    await requireAdminSession();
+    await requireStaffSession();
 
     const parsed = RemoveImageSchema.safeParse(input);
     if (!parsed.success) {

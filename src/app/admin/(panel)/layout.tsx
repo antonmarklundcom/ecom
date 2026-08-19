@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import type React from "react";
 
 import { LogoutButton } from "@/components/admin/logout-button";
-import { UnauthorizedError, getSession, requireAdmin } from "@/lib/session";
+import { can } from "@/lib/permissions";
+import { UnauthorizedError, getSession, requireAdmin, type AdminActor } from "@/lib/session";
 
 /**
  * Puerta del panel. Todo lo que cuelga de este layout exige sesión de admin.
@@ -16,8 +17,9 @@ import { UnauthorizedError, getSession, requireAdmin } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
+  let actor: AdminActor;
   try {
-    requireAdmin(await getSession());
+    actor = requireAdmin(await getSession());
   } catch (error) {
     if (error instanceof UnauthorizedError) redirect("/admin/login");
     throw error;
@@ -27,14 +29,27 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     <div className="flex min-h-full flex-col">
       <header className="border-border bg-background sticky top-0 z-10 border-b">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3">
-          <Link href="/admin" className="font-semibold tracking-tight">
+          <Link
+            href={can(actor.role, "dashboard") ? "/admin" : "/admin/pedidos"}
+            className="font-semibold tracking-tight"
+          >
             Panel
           </Link>
+          {/*
+            Nav por rol: un vendedor ve "Pedidos" y nada más. Esconder el link
+            no es la defensa —las acciones tienen su guard y las pantallas su
+            `requireCapability`—, es no ofrecerle a alguien una puerta que le
+            va a contestar 403.
+          */}
           <nav className="flex flex-1 items-center gap-1 overflow-x-auto text-sm">
-            <NavLink href="/admin">Resumen</NavLink>
+            {can(actor.role, "dashboard") ? <NavLink href="/admin">Resumen</NavLink> : null}
             <NavLink href="/admin/pedidos">Pedidos</NavLink>
-            <NavLink href="/admin/productos">Productos</NavLink>
-            <NavLink href="/admin/clientes">Clientes</NavLink>
+            {can(actor.role, "productos") ? (
+              <NavLink href="/admin/productos">Productos</NavLink>
+            ) : null}
+            {can(actor.role, "clientes") ? (
+              <NavLink href="/admin/clientes">Clientes</NavLink>
+            ) : null}
           </nav>
           <LogoutButton />
         </div>
@@ -46,10 +61,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link
-      href={href}
-      className="hover:bg-muted shrink-0 rounded-lg px-3 py-1.5 whitespace-nowrap"
-    >
+    <Link href={href} className="hover:bg-muted shrink-0 rounded-lg px-3 py-1.5 whitespace-nowrap">
       {children}
     </Link>
   );

@@ -16,7 +16,7 @@
 The entire security model is four rules:
 
 1. **Never trust the client about money or identity.** Prices, totals, stock and order ownership are always re-read from the DB server-side. The cart in the browser is a *wish list*, not a source of truth.
-2. **Every mutating server action calls a guard first.** `requireAdmin(session)` for admin routes, `requireOrderAccess(orderNumber, token)` for buyer routes. Hiding a button is UX, not security.
+2. **Every mutating server action calls a guard first.** `requireAdmin` / `requireStaff` / `requireOwner` for admin routes (see the permission matrix below), `requireOrderAccess(orderNumber, token)` for buyer routes. Hiding a button is UX, not security.
 3. **Buyers are anonymous, identified by an unguessable token.** No accounts in v1.
 4. **Secrets live in `.env` on the server only.** Anything `NEXT_PUBLIC_*` is public by definition.
 
@@ -30,7 +30,45 @@ The entire security model is four rules:
 Accounts are a v2 feature (repeat buyers, order history). Forcing registration before a first purchase is the single biggest conversion killer in PY e-commerce.
 
 ### Admin
-`iron-session` cookie + `users` table (bcrypt hashes, `role` enum `owner | staff` from day one). Middleware protects `/admin/*`; **every** server action re-checks the role. No public signup route — the owner account is created by a seed script.
+`iron-session` cookie + `users` table (bcrypt hashes, `role` enum `owner | staff | vendedor`). Middleware protects `/admin/*`; **every** server action re-checks the role. No public signup route — the first owner is created by `pnpm create-owner`, el resto desde `/admin/usuarios`.
+
+`users.last_login_at` la escribe `authenticate()` en el login exitoso y nadie más. NULL es "nunca entró", que es información distinta de "entró hace mucho".
+
+#### Matriz de permisos
+
+Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
+
+| | `owner` | `staff` | `vendedor` |
+|---|:---:|:---:|:---:|
+| Ver pedidos y su ficha | ✅ | ✅ | ✅ |
+| Preparar / despachar / entregar | ✅ | ✅ | ✅ |
+| Dar por cobrado, cancelar, vencer, rechazar | ✅ | ✅ | ❌ |
+| Ver montos (totales, IVA, precios) | ✅ | ✅ | ❌ |
+| Comprobantes: ver, aprobar, rechazar | ✅ | ✅ | ❌ |
+| Productos y variantes (ABM) | ✅ | ✅ | ❌ |
+| Ajustar stock a mano | ✅ | ✅ | ❌ |
+| Resumen de ventas (`/admin`) | ✅ | ✅ | ❌ |
+| Listado de clientes | ✅ | ✅ | ❌ |
+| Registrar una devolución | ✅ | ❌ | ❌ |
+| Exports CSV | ✅ | ❌ | ❌ |
+| Gestión de usuarios del panel | ✅ | ❌ | ❌ |
+
+Las tres cosas que el `owner` no delega tienen el mismo motivo: son irreversibles hacia afuera. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior.
+
+Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado.
+
+**Cómo se implementa** (la tabla de arriba es la especificación, no la defensa):
+
+| Capa | Archivo | Qué hace |
+|---|---|---|
+| Guards | `src/lib/session.ts` | `requireAdmin` (los tres), `requireStaff` (owner+staff), `requireOwner`. Tiran `ForbiddenError`. |
+| Guards async | `src/lib/admin-guard.ts` | `requireAdminSession` / `requireStaffSession` / `requireOwnerSession` — **primera línea de cada server action**. |
+| Transiciones | `src/lib/session.ts` | `assertCanTransitionTo(actor, to)`: `advanceOrder` es la misma acción para los tres roles y lo que cambia es el destino. `VENDEDOR_TRANSITIONS = preparando, enviado, entregado`. |
+| Matriz de UI | `src/lib/permissions.ts` | `can(role, capability)` — decide qué botón se dibuja. **Es UX**: esconder un botón no frena nada. |
+
+Nota sobre `VENDEDOR_TRANSITIONS`: el plan lo escribe como "sólo `pagado → enviado → entregado`", pero la máquina de estados (§3) pasa obligatoriamente por `preparando` entre `pagado` y `enviado`. Sin ese destino el rol no podría completar ni una vez el camino que se le asigna, así que los tres del despacho están adentro.
+
+`tests/unit/admin-guards.test.ts` clava esta tabla acción por acción en CI: una acción nueva que no declare su guard falla el test, y cambiar `requireOwnerSession` por el genérico en la acción de reembolsos también.
 
 ---
 

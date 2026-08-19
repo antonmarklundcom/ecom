@@ -1,10 +1,15 @@
+import { redirect } from "next/navigation";
+
+import { can, type Capability } from "@/lib/permissions";
 import {
   ForbiddenError,
   UnauthorizedError,
   actorLabel,
+  assertCanTransitionTo,
   getSession,
   requireAdmin,
   requireOwner,
+  requireStaff,
   type AdminActor,
 } from "@/lib/session";
 
@@ -25,6 +30,14 @@ export async function requireAdminSession(): Promise<AdminActor> {
   return requireAdmin(await getSession());
 }
 
+/**
+ * Igual, para la operación diaria: plata, stock, productos, comprobantes.
+ * Pasan `owner` y `staff`; el `vendedor` no (ver la matriz de ARCH.md §1).
+ */
+export async function requireStaffSession(): Promise<AdminActor> {
+  return requireStaff(await getSession());
+}
+
 /** Igual, para lo que sólo puede hacer el dueño (altas de usuario, borrados). */
 export async function requireOwnerSession(): Promise<AdminActor> {
   return requireOwner(await getSession());
@@ -32,6 +45,43 @@ export async function requireOwnerSession(): Promise<AdminActor> {
 
 /** `admin:due@tienda.py` — lo que queda escrito en `order_events.actor`. */
 export { actorLabel };
+
+/**
+ * El permiso de transición, por rol. No es un guard de módulo porque
+ * `advanceOrder` es la misma acción para los tres roles y lo que cambia es el
+ * destino — ver `assertCanTransitionTo` en `session.ts`.
+ */
+export { assertCanTransitionTo };
+
+/**
+ * El rol de quien está mirando, para decidir qué dibujar.
+ *
+ * Sólo para páginas: una página del panel ya corre detrás del layout con
+ * guard, y lo que necesita de la sesión es el rol, no un permiso. Una server
+ * action **no** usa esto — usa su guard, que además tira.
+ */
+export async function adminActor(): Promise<AdminActor> {
+  return requireAdmin(await getSession());
+}
+
+/**
+ * Guard de página por capacidad: la pantalla que un rol no puede ver, no se
+ * dibuja.
+ *
+ * Es UX —lo que frena una escritura es el guard de la acción— pero evita el
+ * caso feo de una pantalla a medio dibujar con todos los botones apagados, y
+ * el peor: una lista de precios renderizada para quien no tiene que verla.
+ *
+ * Redirige a `/admin/pedidos` en vez de tirar: es la única pantalla que los
+ * tres roles pueden abrir, así que siempre es un destino válido. Un error
+ * 403 acá sería correcto y también inútil — quien llegó por el link de otro
+ * no hizo nada malo.
+ */
+export async function requireCapabilityPage(capability: Capability): Promise<AdminActor> {
+  const actor = await adminActor();
+  if (!can(actor.role, capability)) redirect("/admin/pedidos");
+  return actor;
+}
 
 /**
  * Lo que devuelve una acción de admin al formulario. `T` son los datos extra
@@ -60,7 +110,10 @@ export function adminActionError(context: string, error: unknown): { ok: false; 
     return { ok: false, error: error.message };
   }
   console.error(`${context} falló`, error);
-  return { ok: false, error: "No pudimos completar la acción. Probá de nuevo." };
+  return {
+    ok: false,
+    error: "No pudimos completar la acción. Probá de nuevo.",
+  };
 }
 
 const KNOWN_DOMAIN_ERRORS = [

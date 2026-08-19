@@ -54,7 +54,18 @@ export type ReceiptReview = (typeof RECEIPT_REVIEWS)[number];
 export const DOC_TYPES = ['RUC', 'CI', 'NINGUNO'] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 
-export const USER_ROLES = ['owner', 'staff'] as const;
+/**
+ * Roles del panel, de más a menos poder (ARCH.md §1).
+ *
+ * - `owner`   — todo, más lo que no se delega: usuarios, reembolsos, exports.
+ * - `staff`   — la operación diaria: pedidos, comprobantes, productos, stock.
+ * - `vendedor` — sólo el mostrador: ve pedidos y los despacha. Sin plata.
+ *
+ * El orden importa: `requireStaff` y `requireOwner` lo usan para decidir, y
+ * agregar un rol nuevo en el medio cambia quién puede qué. La matriz completa,
+ * acción por acción, está en ARCH.md §1.
+ */
+export const USER_ROLES = ['owner', 'staff', 'vendedor'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const INVOICE_STATUSES = ['none', 'queued', 'approved', 'rejected'] as const;
@@ -388,6 +399,14 @@ export const users = mysqlTable(
     role: mysqlEnum('role', USER_ROLES).notNull().default('staff'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    /**
+     * Última vez que entró al panel. La escribe `authenticate()` y nadie más.
+     *
+     * NULL es "nunca entró", que es información distinta de "entró hace
+     * mucho": es lo que le dice al dueño que la cuenta que creó el martes
+     * sigue sin usarse, o que la de alguien que ya no trabaja acá quedó viva.
+     */
+    lastLoginAt: datetime('last_login_at'),
   },
   (t) => [unique('users_email_uq').on(t.email)],
 );
