@@ -227,7 +227,8 @@ describe('cobertura de la revisión', () => {
     // Cada acción exportada tiene que llamar a *algún* guard: el de admin, el
     // del comprador (token del pedido) o el rate limit. Las de carrito son
     // stateless y no tocan nada del servidor.
-    const GUARDS = /requireAdminSession|requireOwnerSession|requireOrderAccess|rateLimit\s*\(/;
+    const GUARDS =
+      /requireAdminSession|requireStaffSession|requireOwnerSession|requireOrderAccess|rateLimit\s*\(/;
     const SIN_ESTADO = new Set([path.join(ACTIONS, 'cart.ts')]);
 
     const offenders: string[] = [];

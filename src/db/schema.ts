@@ -54,8 +54,16 @@ export type ReceiptReview = (typeof RECEIPT_REVIEWS)[number];
 export const DOC_TYPES = ['RUC', 'CI', 'NINGUNO'] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 
-export const USER_ROLES = ['owner', 'staff'] as const;
-export type UserRole = (typeof USER_ROLES)[number];
+/**
+ * Los roles viven en `src/lib/roles.ts`, sin dependencias, y se re-exportan
+ * acá para que el resto del código los siga leyendo del schema. El motivo del
+ * rodeo está escrito en ese archivo: `src/proxy.ts` corre en el edge y no
+ * puede arrastrar `drizzle-orm` sólo para conocer tres strings.
+ */
+export { USER_ROLES, type UserRole } from '../lib/roles';
+// El `export ... from` de arriba re-exporta pero no trae el binding a este
+// módulo, y `users.role` lo necesita como valor.
+import { USER_ROLES } from '../lib/roles';
 
 export const INVOICE_STATUSES = ['none', 'queued', 'approved', 'rejected'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
@@ -388,6 +396,14 @@ export const users = mysqlTable(
     role: mysqlEnum('role', USER_ROLES).notNull().default('staff'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    /**
+     * Última vez que entró al panel. La escribe `authenticate()` y nadie más.
+     *
+     * NULL es "nunca entró", que es información distinta de "entró hace
+     * mucho": es lo que le dice al dueño que la cuenta que creó el martes
+     * sigue sin usarse, o que la de alguien que ya no trabaja acá quedó viva.
+     */
+    lastLoginAt: datetime('last_login_at'),
   },
   (t) => [unique('users_email_uq').on(t.email)],
 );

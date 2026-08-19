@@ -13,8 +13,10 @@ import {
   listOrders,
   type AdminOrderRow,
 } from "@/domain/admin-orders";
+import { adminActor } from "@/lib/admin-guard";
 import { comercioWaLink } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
+import { can } from "@/lib/permissions";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
 
 export const metadata: Metadata = { title: "Pedidos" };
@@ -30,6 +32,7 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 export default async function AdminOrdersPage({ searchParams }: { searchParams: SearchParams }) {
+  const actor = await adminActor();
   const query = await searchParams;
 
   const status = first(query.estado);
@@ -52,6 +55,8 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
     countOrdersByStatus(filters),
   ]);
 
+  const verPrecios = can(actor.role, "precios");
+
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -59,9 +64,11 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
         <div className="flex items-center gap-3">
           {/* El trabajo de cobrar es una tarea aparte de mirar el listado:
               tiene su pantalla y se llega de un toque. */}
-          <Link href="/admin/pedidos/por-cobrar" className="text-sm underline">
-            Por cobrar
-          </Link>
+          {can(actor.role, "pedidos.cobrar") ? (
+            <Link href="/admin/pedidos/por-cobrar" className="text-sm underline">
+              Por cobrar
+            </Link>
+          ) : null}
           <p className="text-muted-foreground text-sm tabular-nums">
             {result.total} {result.total === 1 ? "pedido" : "pedidos"}
           </p>
@@ -99,10 +106,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
         <ul className="mt-4 grid gap-3">
           {result.rows.map((order) => (
             <li key={order.id} className="border-border rounded-xl border">
-              <Link
-                href={`/admin/pedidos/${order.id}`}
-                className="hover:bg-muted/50 block p-4"
-              >
+              <Link href={`/admin/pedidos/${order.id}`} className="hover:bg-muted/50 block p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium tabular-nums">{order.orderNumber}</span>
                   <OrderStatusBadge status={order.status} />
@@ -110,7 +114,11 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
 
                 <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <span className="text-sm">{order.customerName}</span>
-                  <span className="font-semibold tabular-nums">{formatGs(order.totalPyg)}</span>
+                  {/* El vendedor despacha pedidos; cuánto pagó cada uno no es
+                      parte de ese trabajo (ARCH.md §1). */}
+                  {verPrecios ? (
+                    <span className="font-semibold tabular-nums">{formatGs(order.totalPyg)}</span>
+                  ) : null}
                 </div>
 
                 <p className="text-muted-foreground mt-1 text-xs">
@@ -137,16 +145,19 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
       />
 
       {/* Abajo del listado y no arriba: bajar el archivo es lo último que se
-          hace, después de dejar el filtro como se lo quiere. */}
-      <div className="border-border mt-6 border-t pt-4">
-        <CsvDownloadButton
-          kind="pedidos"
-          params={{ estado: status, metodo: method, desde, hasta, q: search }}
-        />
-        <p className="text-muted-foreground mt-1 text-xs">
-          Baja los pedidos con los filtros puestos, no sólo esta página.
-        </p>
-      </div>
+          hace, después de dejar el filtro como se lo quiere. Sólo el dueño:
+          el CSV es la lista completa de clientes en un archivo portátil. */}
+      {can(actor.role, "exports") ? (
+        <div className="border-border mt-6 border-t pt-4">
+          <CsvDownloadButton
+            kind="pedidos"
+            params={{ estado: status, metodo: method, desde, hasta, q: search }}
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Baja los pedidos con los filtros puestos, no sólo esta página.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -32,17 +32,39 @@ export type UnmatchedPaymentCard = {
   paidAt: string;
 };
 
-export function UnmatchedPayments({ payments }: { payments: UnmatchedPaymentCard[] }) {
+/**
+ * `puedeDevolver` lo decide la página con la matriz de roles: registrar una
+ * devolución es owner-only (ARCH.md §1). Esconder el botón es UX —el guard de
+ * `markPaymentRefunded` es lo que frena la escritura—, pero un botón que
+ * siempre contesta 403 es peor que no tenerlo.
+ */
+export function UnmatchedPayments({
+  payments,
+  puedeDevolver,
+}: {
+  payments: UnmatchedPaymentCard[];
+  puedeDevolver: boolean;
+}) {
   return (
     <ul className="divide-border mt-3 divide-y text-sm">
       {payments.map((payment) => (
-        <UnmatchedPaymentRow key={payment.paymentId} payment={payment} />
+        <UnmatchedPaymentRow
+          key={payment.paymentId}
+          payment={payment}
+          puedeDevolver={puedeDevolver}
+        />
       ))}
     </ul>
   );
 }
 
-function UnmatchedPaymentRow({ payment }: { payment: UnmatchedPaymentCard }) {
+function UnmatchedPaymentRow({
+  payment,
+  puedeDevolver,
+}: {
+  payment: UnmatchedPaymentCard;
+  puedeDevolver: boolean;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [refunding, setRefunding] = useState(false);
@@ -52,7 +74,9 @@ function UnmatchedPaymentRow({ payment }: { payment: UnmatchedPaymentCard }) {
   const retry = (): void => {
     setError(null);
     startTransition(async () => {
-      const result = await retryPaymentRevival({ paymentId: payment.paymentId });
+      const result = await retryPaymentRevival({
+        paymentId: payment.paymentId,
+      });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -60,7 +84,7 @@ function UnmatchedPaymentRow({ payment }: { payment: UnmatchedPaymentCard }) {
       toast.success(
         result.changed
           ? `${result.orderNumber} volvió a estar cobrado.`
-          : `${result.orderNumber} ya estaba cobrado.`,
+          : `${result.orderNumber} ya estaba cobrado.`
       );
       router.refresh();
     });
@@ -69,7 +93,10 @@ function UnmatchedPaymentRow({ payment }: { payment: UnmatchedPaymentCard }) {
   const refund = (): void => {
     setError(null);
     startTransition(async () => {
-      const result = await markPaymentRefunded({ paymentId: payment.paymentId, reason });
+      const result = await markPaymentRefunded({
+        paymentId: payment.paymentId,
+        reason,
+      });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -102,7 +129,7 @@ function UnmatchedPaymentRow({ payment }: { payment: UnmatchedPaymentCard }) {
         </p>
       ) : null}
 
-      {refunding ? (
+      {refunding && puedeDevolver ? (
         <div className="border-border mt-2 grid gap-2 rounded-lg border p-3">
           <label className="text-muted-foreground text-xs" htmlFor={`motivo-${payment.paymentId}`}>
             Motivo de la devolución (queda en el historial del pedido)
@@ -140,15 +167,17 @@ function UnmatchedPaymentRow({ payment }: { payment: UnmatchedPaymentCard }) {
           <Button type="button" size="sm" disabled={isPending} onClick={retry}>
             Reintentar el pedido
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={isPending}
-            onClick={() => setRefunding(true)}
-          >
-            Marcar como devuelto
-          </Button>
+          {puedeDevolver ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setRefunding(true)}
+            >
+              Marcar como devuelto
+            </Button>
+          ) : null}
         </div>
       )}
     </li>

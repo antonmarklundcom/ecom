@@ -7,6 +7,8 @@ import { ProductImage } from "@/components/product-image";
 import { listAdminProducts, listCategories } from "@/domain/admin-products";
 import { isAdminProductSort } from "@/lib/admin-product-sort";
 import { formatGs } from "@/lib/money";
+import { requireCapabilityPage } from "@/lib/admin-guard";
+import { can } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Productos" };
 
@@ -20,6 +22,8 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 export default async function AdminProductsPage({ searchParams }: { searchParams: SearchParams }) {
+  const actor = await requireCapabilityPage("productos");
+
   const query = await searchParams;
   const search = first(query.q);
   const rawCategory = Number(first(query.categoria));
@@ -79,7 +83,10 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
       </form>
 
       <ProductFilters
-        categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+        categories={categories.map((category) => ({
+          id: category.id,
+          name: category.name,
+        }))}
         categoryId={categoryId}
         sort={sort}
         search={search}
@@ -144,7 +151,10 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
       {result.totalPages > 1 ? (
         <nav className="mt-6 flex items-center justify-between text-sm" aria-label="Paginación">
           {result.page > 1 ? (
-            <Link href={href(result.page - 1)} className="border-border rounded-lg border px-3 py-2">
+            <Link
+              href={href(result.page - 1)}
+              className="border-border rounded-lg border px-3 py-2"
+            >
               ← Anteriores
             </Link>
           ) : (
@@ -154,7 +164,10 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             Página {result.page} de {result.totalPages}
           </span>
           {result.page < result.totalPages ? (
-            <Link href={href(result.page + 1)} className="border-border rounded-lg border px-3 py-2">
+            <Link
+              href={href(result.page + 1)}
+              className="border-border rounded-lg border px-3 py-2"
+            >
               Siguientes →
             </Link>
           ) : (
@@ -164,16 +177,22 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
       ) : null}
 
       {/* Una fila por variante: es la unidad que tiene SKU, precio y stock, y
-          es con lo que se cuenta el depósito. */}
-      <div className="border-border mt-6 border-t pt-4">
-        <CsvDownloadButton
-          kind="productos"
-          params={{ q: search, categoria: categoryId ? String(categoryId) : undefined }}
-        />
-        <p className="text-muted-foreground mt-1 text-xs">
-          Una fila por variante, con los filtros puestos.
-        </p>
-      </div>
+          es con lo que se cuenta el depósito. Sólo el dueño lo baja: es el
+          catálogo con costos y existencias en un archivo portátil. */}
+      {can(actor.role, "exports") ? (
+        <div className="border-border mt-6 border-t pt-4">
+          <CsvDownloadButton
+            kind="productos"
+            params={{
+              q: search,
+              categoria: categoryId ? String(categoryId) : undefined,
+            }}
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Una fila por variante, con los filtros puestos.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

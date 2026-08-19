@@ -1,6 +1,7 @@
 import { getIronSession } from "iron-session";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { USER_ROLES } from "@/lib/roles";
 import { sessionOptions, type AdminSession } from "@/lib/session";
 
 /**
@@ -40,7 +41,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   if (isAdmin && !isLogin) {
     const session = await getIronSession<AdminSession>(request, NextResponse.next(), sessionOptions());
-    const authenticated = Boolean(session.userId && (session.role === "owner" || session.role === "staff"));
+    // Contra la lista del ENUM y no contra literales sueltos: un rol nuevo
+    // agregado a `USER_ROLES` y olvidado acá quedaría rebotando al login para
+    // siempre, con la cookie válida y sin ningún error que lo explique.
+    const authenticated = Boolean(
+      session.userId && session.role && USER_ROLES.includes(session.role),
+    );
 
     if (!authenticated) {
       const login = new URL("/admin/login", request.url);

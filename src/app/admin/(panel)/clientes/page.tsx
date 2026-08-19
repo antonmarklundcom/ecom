@@ -4,6 +4,7 @@ import Link from "next/link";
 import { listCustomers } from "@/domain/admin-customers";
 import { formatGs } from "@/lib/money";
 import { formatDatePY, formatPhonePY } from "@/lib/py";
+import { requireCapabilityPage } from "@/lib/admin-guard";
 
 export const metadata: Metadata = { title: "Clientes" };
 
@@ -29,6 +30,8 @@ export default async function AdminCustomersPage({
 }: {
   searchParams: SearchParams;
 }) {
+  await requireCapabilityPage("clientes");
+
   const query = await searchParams;
   const search = first(query.q);
   const rawPage = Number(first(query.pagina) ?? 1);

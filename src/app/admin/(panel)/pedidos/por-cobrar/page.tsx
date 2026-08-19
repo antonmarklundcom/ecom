@@ -8,6 +8,7 @@ import { buyerWaLink, recoveryMessage } from "@/domain/order-messages";
 import { comercioDatosBancarios } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
+import { requireCapabilityPage } from "@/lib/admin-guard";
 
 export const metadata: Metadata = { title: "Por cobrar" };
 
@@ -30,6 +31,8 @@ export const dynamic = "force-dynamic";
  * (ver `listOrdersToRecover`).
  */
 export default async function PorCobrarPage() {
+  await requireCapabilityPage("pedidos.cobrar");
+
   const { rows, total } = await listOrdersToRecover();
   const banco = comercioDatosBancarios();
 

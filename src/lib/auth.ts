@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { users, type UserRole } from '@/db/schema';
@@ -31,6 +31,23 @@ export async function authenticate(
   const user = rows[0];
   const ok = await verifyPassword(password, user?.passwordHash);
   if (!ok || !user || !user.isActive) return null;
+
+  // Sólo el login exitoso escribe la marca: un intento fallido no es una
+  // entrada, y contarlo convertiría la columna en un contador de ataques en
+  // vez de en lo que el dueño necesita —"¿esta cuenta sigue en uso?"— al
+  // decidir si desactivarla (PR C).
+  //
+  // `NOW()` de MySQL y no una fecha de Node: es el mismo reloj con el que se
+  // escriben `created_at` y `order_events`, y compararlas contra la hora de
+  // otra máquina es cómo aparecen los "entró antes de existir".
+  //
+  // No revienta el login si falla: quedarse afuera del panel porque no se pudo
+  // escribir una columna informativa sería un caso peor que el que resuelve.
+  try {
+    await tx.update(users).set({ lastLoginAt: sql`NOW()` }).where(eq(users.id, user.id));
+  } catch (error) {
+    console.error('No pude registrar last_login_at', error);
+  }
 
   return { id: user.id, email: user.email, role: user.role, name: user.name };
 }

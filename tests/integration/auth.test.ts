@@ -1,9 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { authenticate, createUser } from '@/lib/auth';
-import { requireAdmin, requireOwner } from '@/lib/session';
+import { eq } from 'drizzle-orm';
 
-import { closeTestDb, hasTestDb, resetTables } from '../helpers/db';
+import { users } from '@/db/schema';
+import { authenticate, createUser } from '@/lib/auth';
+import { ForbiddenError, requireAdmin, requireOwner, requireStaff } from '@/lib/session';
+
+import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
 
 describe.skipIf(!hasTestDb)('auth', () => {
   beforeEach(resetTables);
@@ -53,5 +56,91 @@ describe.skipIf(!hasTestDb)('auth', () => {
     const row = (await getTestDb().select().from(users).where(eq(users.id, id)))[0];
     expect(row?.passwordHash).toMatch(/^\$2[aby]\$/);
     expect(row?.passwordHash).not.toContain('tienda2026segura');
+  });
+});
+
+/**
+ * `users.last_login_at` (PR B.1): la columna que le dice al dueño si la
+ * cuenta que creó sigue en uso antes de decidir si la desactiva (PR C).
+ */
+describe.skipIf(!hasTestDb)('last_login_at', () => {
+  beforeEach(resetTables);
+  afterAll(closeTestDb);
+
+  it('arranca en NULL: creada no es lo mismo que usada', async () => {
+    await createUser({ email: 'nuevo@tienda.py', password: 'tienda2026segura', role: 'staff' });
+
+    const [row] = await getTestDb()
+      .select({ lastLoginAt: users.lastLoginAt })
+      .from(users)
+      .where(eq(users.email, 'nuevo@tienda.py'));
+
+    expect(row?.lastLoginAt).toBeNull();
+  });
+
+  it('un login exitoso la escribe', async () => {
+    await createUser({ email: 'staff@tienda.py', password: 'tienda2026segura', role: 'staff' });
+    expect(await authenticate('staff@tienda.py', 'tienda2026segura')).not.toBeNull();
+
+    const [row] = await getTestDb()
+      .select({ lastLoginAt: users.lastLoginAt })
+      .from(users)
+      .where(eq(users.email, 'staff@tienda.py'));
+
+    expect(row?.lastLoginAt).toBeInstanceOf(Date);
+  });
+
+  it('un intento fallido no la toca: no es una entrada', async () => {
+    await createUser({ email: 'staff@tienda.py', password: 'tienda2026segura', role: 'staff' });
+    expect(await authenticate('staff@tienda.py', 'la-que-no-es')).toBeNull();
+
+    const [row] = await getTestDb()
+      .select({ lastLoginAt: users.lastLoginAt })
+      .from(users)
+      .where(eq(users.email, 'staff@tienda.py'));
+
+    expect(row?.lastLoginAt).toBeNull();
+  });
+
+  it('un usuario desactivado no entra, y la marca queda como estaba', async () => {
+    await createUser({ email: 'baja@tienda.py', password: 'tienda2026segura', role: 'staff' });
+    await getTestDb()
+      .update(users)
+      .set({ isActive: false })
+      .where(eq(users.email, 'baja@tienda.py'));
+
+    expect(await authenticate('baja@tienda.py', 'tienda2026segura')).toBeNull();
+
+    const [row] = await getTestDb()
+      .select({ lastLoginAt: users.lastLoginAt })
+      .from(users)
+      .where(eq(users.email, 'baja@tienda.py'));
+
+    expect(row?.lastLoginAt).toBeNull();
+  });
+});
+
+/**
+ * El rol nuevo del PR B, de punta a punta contra MySQL: el ENUM lo acepta y
+ * los guards lo tratan como corresponde.
+ */
+describe.skipIf(!hasTestDb)('el rol vendedor', () => {
+  beforeEach(resetTables);
+  afterAll(closeTestDb);
+
+  it('se crea, entra al panel, y no pasa los guards de plata', async () => {
+    await createUser({
+      email: 'mostrador@tienda.py',
+      password: 'tienda2026segura',
+      role: 'vendedor',
+    });
+
+    const user = await authenticate('mostrador@tienda.py', 'tienda2026segura');
+    expect(user).toMatchObject({ role: 'vendedor' });
+
+    const session = { userId: user!.id, email: user!.email, role: user!.role };
+    expect(requireAdmin(session).role).toBe('vendedor');
+    expect(() => requireStaff(session)).toThrow(ForbiddenError);
+    expect(() => requireOwner(session)).toThrow(ForbiddenError);
   });
 });

@@ -8,12 +8,16 @@ import { lowStockVariants } from "@/domain/admin-products";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
 import { formatGs } from "@/lib/money";
 import { formatDatePY, formatDateTimePY } from "@/lib/py";
+import { requireCapabilityPage } from "@/lib/admin-guard";
+import { can } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Resumen" };
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
+  const actor = await requireCapabilityPage("dashboard");
+
   const [summary, awaiting, lowStock, unmatched, top, trend] = await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
@@ -36,11 +40,11 @@ export default async function AdminDashboardPage() {
         <section className="border-destructive/40 bg-destructive/5 mt-4 rounded-xl border p-4">
           <h2 className="text-destructive font-medium">Pagos sin pedido vivo</h2>
           <p className="text-muted-foreground mt-1 text-xs">
-            Entró la plata pero el pedido no está cobrado — normalmente el pago llegó justo
-            después de que el pedido venciera y la mercadería ya se había vendido.
+            Entró la plata pero el pedido no está cobrado — normalmente el pago llegó justo después
+            de que el pedido venciera y la mercadería ya se había vendido.
             <strong> Reintentar</strong> vuelve a probar si hoy hay stock; si no lo hay, no pasa
-            nada y podés volver a intentarlo. <strong>Marcar como devuelto</strong> es para
-            cuando ya le transferiste la plata de vuelta al comprador.
+            nada y podés volver a intentarlo. <strong>Marcar como devuelto</strong> es para cuando
+            ya le transferiste la plata de vuelta al comprador.
           </p>
           <UnmatchedPayments
             payments={unmatched.map((payment) => ({
@@ -52,6 +56,7 @@ export default async function AdminDashboardPage() {
               amountPyg: payment.amountPyg,
               paidAt: formatDateTimePY(payment.paidAt),
             }))}
+            puedeDevolver={can(actor.role, "reembolsos")}
           />
         </section>
       )}
@@ -91,9 +96,7 @@ export default async function AdminDashboardPage() {
           <ol className="divide-border mt-2 divide-y text-sm">
             {top.map((product, index) => (
               <li key={product.productId} className="flex items-baseline gap-3 py-2">
-                <span className="text-muted-foreground w-4 shrink-0 tabular-nums">
-                  {index + 1}
-                </span>
+                <span className="text-muted-foreground w-4 shrink-0 tabular-nums">{index + 1}</span>
                 <Link
                   href={`/admin/productos/${product.productId}`}
                   className="min-w-0 flex-1 truncate hover:underline"

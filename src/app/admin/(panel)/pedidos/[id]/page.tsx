@@ -10,7 +10,10 @@ import { getAdminOrder, isRecoverableStatus } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
 import { listReceipts } from "@/domain/receipts";
 import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
+import { adminActor } from "@/lib/admin-guard";
 import { formatGs, ivaIncluded } from "@/lib/money";
+import { can } from "@/lib/permissions";
+import { VENDEDOR_TRANSITIONS } from "@/lib/session";
 import { formatDateTimePY, formatPhonePY } from "@/lib/py";
 
 export const metadata: Metadata = { title: "Pedido" };
@@ -20,6 +23,7 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ id: string }>;
 
 export default async function AdminOrderDetailPage({ params }: { params: Params }) {
+  const actor = await adminActor();
   const { id } = await params;
   const orderId = Number(id);
   if (!Number.isInteger(orderId) || orderId <= 0) notFound();
@@ -28,10 +32,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   if (!found) notFound();
 
   const { order, items } = found;
-  const [events, receipts] = await Promise.all([
-    getOrderEvents(order.id),
-    listReceipts(order.id),
-  ]);
+  const [events, receipts] = await Promise.all([getOrderEvents(order.id), listReceipts(order.id)]);
 
   // Los dos mensajes salen del mismo armador que usa "Por cobrar": el link
   // tokenizado y la regla de no listar lo comprado se escriben una sola vez
@@ -41,7 +42,16 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
     ? buyerWaLink(order, recoveryMessage(order))
     : null;
 
-  const nextStatuses = ORDER_TRANSITIONS[order.status];
+  const verPrecios = can(actor.role, "precios");
+  const verComprobantes = can(actor.role, "comprobantes");
+
+  // La máquina de estados dice qué transiciones existen desde acá; el rol dice
+  // cuáles de ésas puede apretar quien está mirando. `advanceOrder` vuelve a
+  // chequear las dos cosas del lado del servidor (`assertCanTransitionTo` +
+  // `transitionOrder`), así que un botón fabricado a mano no mueve nada.
+  const nextStatuses = ORDER_TRANSITIONS[order.status].filter(
+    (status) => actor.role !== "vendedor" || VENDEDOR_TRANSITIONS.includes(status)
+  );
 
   return (
     <div>
@@ -94,7 +104,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         </section>
       ) : null}
 
-      {receipts.length > 0 ? (
+      {receipts.length > 0 && verComprobantes ? (
         <section className="mt-6">
           <h2 className="font-medium">Comprobantes</h2>
           <div className="mt-2">
@@ -112,6 +122,12 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         </section>
       ) : null}
 
+      {/*
+        Los ítems los ven los tres roles —sin saber qué armar no se despacha
+        nada— pero los montos no: el vendedor arma el paquete, no audita la
+        caja (ARCH.md §1). Lo que le queda es qué producto, qué SKU y cuántas
+        unidades, que es exactamente su trabajo.
+      */}
       <section className="mt-6">
         <h2 className="font-medium">Ítems</h2>
         <ul className="divide-border mt-2 divide-y text-sm">
@@ -121,56 +137,63 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
                 {item.nameSnapshot}
                 <span className="text-muted-foreground"> × {item.qty}</span>
                 <span className="text-muted-foreground block text-xs">
-                  {item.skuSnapshot} · {formatGs(item.unitPricePyg)} c/u · IVA {item.ivaRate}%
+                  {item.skuSnapshot}
+                  {verPrecios ? ` · ${formatGs(item.unitPricePyg)} c/u · IVA ${item.ivaRate}%` : ""}
                 </span>
               </span>
-              <span className="shrink-0 tabular-nums">{formatGs(item.lineTotalPyg)}</span>
+              {verPrecios ? (
+                <span className="shrink-0 tabular-nums">{formatGs(item.lineTotalPyg)}</span>
+              ) : null}
             </li>
           ))}
         </ul>
 
-        <dl className="border-border mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-sm">
-          <dt className="text-muted-foreground">Subtotal</dt>
-          <dd className="text-right tabular-nums">{formatGs(order.subtotalPyg)}</dd>
-          <dt className="text-muted-foreground">Envío</dt>
-          <dd className="text-right tabular-nums">{formatGs(order.shippingPyg)}</dd>
-          <dt className="font-medium">Total</dt>
-          <dd className="text-right font-semibold tabular-nums">{formatGs(order.totalPyg)}</dd>
-        </dl>
+        {verPrecios ? (
+          <>
+            <dl className="border-border mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-sm">
+              <dt className="text-muted-foreground">Subtotal</dt>
+              <dd className="text-right tabular-nums">{formatGs(order.subtotalPyg)}</dd>
+              <dt className="text-muted-foreground">Envío</dt>
+              <dd className="text-right tabular-nums">{formatGs(order.shippingPyg)}</dd>
+              <dt className="font-medium">Total</dt>
+              <dd className="text-right font-semibold tabular-nums">{formatGs(order.totalPyg)}</dd>
+            </dl>
 
-        {/* El IVA está INCLUIDO en el total (convención PY): esto es el
+            {/* El IVA está INCLUIDO en el total (convención PY): esto es el
             desglose de lo que ya se cobró, no algo que se suma. */}
-        <dl className="border-border bg-muted/40 mt-3 grid grid-cols-2 gap-1 rounded-lg border p-3 text-xs">
-          <dt className="text-muted-foreground col-span-2 font-medium">
-            IVA incluido en el total
-          </dt>
-          <dt className="text-muted-foreground">IVA 10%</dt>
-          <dd className="text-right tabular-nums">{formatGs(order.iva10Pyg)}</dd>
-          <dt className="text-muted-foreground">IVA 5%</dt>
-          <dd className="text-right tabular-nums">{formatGs(order.iva5Pyg)}</dd>
-          <dt className="text-muted-foreground">Gravado</dt>
-          <dd className="text-right tabular-nums">
-            {formatGs(order.totalPyg - order.iva10Pyg - order.iva5Pyg)}
-          </dd>
-        </dl>
+            <dl className="border-border bg-muted/40 mt-3 grid grid-cols-2 gap-1 rounded-lg border p-3 text-xs">
+              <dt className="text-muted-foreground col-span-2 font-medium">
+                IVA incluido en el total
+              </dt>
+              <dt className="text-muted-foreground">IVA 10%</dt>
+              <dd className="text-right tabular-nums">{formatGs(order.iva10Pyg)}</dd>
+              <dt className="text-muted-foreground">IVA 5%</dt>
+              <dd className="text-right tabular-nums">{formatGs(order.iva5Pyg)}</dd>
+              <dt className="text-muted-foreground">Gravado</dt>
+              <dd className="text-right tabular-nums">
+                {formatGs(order.totalPyg - order.iva10Pyg - order.iva5Pyg)}
+              </dd>
+            </dl>
 
-        <details className="mt-2">
-          <summary className="text-muted-foreground cursor-pointer text-xs">
-            Ver IVA por línea
-          </summary>
-          <ul className="text-muted-foreground mt-2 space-y-1 text-xs">
-            {items.map((item) => (
-              <li key={item.id} className="flex justify-between gap-4">
-                <span>
-                  {item.nameSnapshot} · IVA {item.ivaRate}%
-                </span>
-                <span className="tabular-nums">
-                  {formatGs(ivaIncluded(item.lineTotalPyg, item.ivaRate))}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </details>
+            <details className="mt-2">
+              <summary className="text-muted-foreground cursor-pointer text-xs">
+                Ver IVA por línea
+              </summary>
+              <ul className="text-muted-foreground mt-2 space-y-1 text-xs">
+                {items.map((item) => (
+                  <li key={item.id} className="flex justify-between gap-4">
+                    <span>
+                      {item.nameSnapshot} · IVA {item.ivaRate}%
+                    </span>
+                    <span className="tabular-nums">
+                      {formatGs(ivaIncluded(item.lineTotalPyg, item.ivaRate))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </>
+        ) : null}
       </section>
 
       <section className="mt-6">
@@ -231,8 +254,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       <section className="mt-6">
         <h2 className="font-medium">Cambiar estado</h2>
         {nextStatuses.length === 0 ? (
+          // Dos motivos distintos para no tener botones, y decir el que no es
+          // manda a alguien a buscar un problema que no existe: el pedido
+          // terminó, o este rol no despacha desde acá.
           <p className="text-muted-foreground mt-2 text-sm">
-            Este pedido está en un estado final: ya no se puede mover.
+            {ORDER_TRANSITIONS[order.status].length === 0
+              ? "Este pedido está en un estado final: ya no se puede mover."
+              : "Tu usuario no puede mover este pedido desde este estado."}
           </p>
         ) : (
           <div className="mt-2">

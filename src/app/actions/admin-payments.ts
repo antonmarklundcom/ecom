@@ -7,7 +7,8 @@ import { refundPayment, retryOrderRevival } from "@/domain/payment-recovery";
 import {
   actorLabel,
   adminActionError,
-  requireAdminSession,
+  requireOwnerSession,
+  requireStaffSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
 
@@ -37,7 +38,7 @@ export async function retryPaymentRevival(
   input: unknown,
 ): Promise<AdminActionResult<{ orderNumber: string; changed: boolean }>> {
   try {
-    const actor = await requireAdminSession();
+    const actor = await requireStaffSession();
 
     const parsed = PaymentSchema.safeParse(input);
     if (!parsed.success) {
@@ -58,11 +59,18 @@ export async function retryPaymentRevival(
 
 const RefundSchema = PaymentSchema.extend({ reason: z.string().trim().max(500) });
 
+/**
+ * Registrar una devolución. **Sólo el dueño** (ARCH.md §1).
+ *
+ * Es la única acción del panel que reconoce plata que sale, y ningún otro
+ * control la revisa después: quien la aprieta decide solo. Hasta este PR la
+ * podía hacer cualquier `staff`.
+ */
 export async function markPaymentRefunded(
   input: unknown,
 ): Promise<AdminActionResult<{ orderNumber: string; changed: boolean }>> {
   try {
-    const actor = await requireAdminSession();
+    const actor = await requireOwnerSession();
 
     const parsed = RefundSchema.safeParse(input);
     if (!parsed.success) {
