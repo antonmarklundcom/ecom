@@ -46,6 +46,42 @@ export type Tienda = {
    * negocio.)
    */
   cuentasClientes: boolean;
+
+  /**
+   * El bloque de arriba de todo de la home (PLAN.md FASE 2, PR O).
+   *
+   * **`null` = la home de siempre**, con el texto por defecto del template.
+   * Ése es el default y está bien para arrancar: una tienda recién clonada no
+   * tiene una foto de portada, y un hueco gris arriba de todo es peor que un
+   * párrafo honesto.
+   *
+   * Esto es **piel**, la única de la FASE 2 (NEW-STORE.md §5): cada tienda lo
+   * rediseña libre. Lo que hay acá es el mínimo que sirve sin tocar código —
+   * foto, título, bajada y un botón— para que el comercio pueda cambiar su
+   * portada de temporada sin llamar a nadie. Una portada más ambiciosa
+   * (carrusel, vídeo, dos columnas) se escribe en `src/app/page.tsx`, que es
+   * de la tienda.
+   */
+  hero: Hero | null;
+};
+
+/** La portada de la home. Ver `Tienda["hero"]`. */
+export type Hero = {
+  /**
+   * Foto de fondo. El id público de Cloudinary, igual que en las fotos de
+   * producto (ej. `"portadas/verano-2026"`). Sin `CLOUDINARY_CLOUD_NAME` en el
+   * entorno o sin id, el hero se dibuja sin foto y con el fondo de siempre —
+   * nunca con un rectángulo roto.
+   */
+  imagen?: { cloudinaryId: string; alt: string } | null;
+  titulo: string;
+  /** Una o dos líneas abajo del título. */
+  texto?: string;
+  /**
+   * El botón. `href` puede ser cualquier ruta interna (`/categoria/ofertas`).
+   * Sin CTA, el hero es sólo un cartel — que también es una decisión válida.
+   */
+  cta?: { label: string; href: string };
 };
 
 export const TIENDA: Tienda = {
@@ -57,6 +93,7 @@ export const TIENDA: Tienda = {
   lang: "es-PY",
   ogLocale: "es_PY",
   cuentasClientes: false,
+  hero: null,
 };
 
 /**

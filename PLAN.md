@@ -175,8 +175,12 @@ Las sugerencias son `suggestProducts`, que es `searchProducts` **sin `hydrate()`
 
 El buscador pasó a ser un `<form method="get" action="/buscar">`: sin JavaScript, o mientras el bundle baja en una 3G paraguaya, escribir y apretar Enter lleva igual a los resultados. Las sugerencias son una mejora encima de algo que ya funciona.
 
-## PR O — Hero de la home (piel, config-driven)
-Slot de hero/banner en `tienda.ts` (imagen Cloudinary + título + CTA, o lista para carrusel simple). Sin configurar ⇒ la home actual intacta. **Es piel**: cada tienda lo rediseña libre. *Branch: `feat/home-hero`*
+## PR O — Hero de la home (piel, config-driven) — **hecho**
+Slot `hero` en `tienda.ts`: foto de Cloudinary + título + bajada + un botón. Sin configurar (`hero: null`, el default) la home queda **exactamente** como estaba — el texto que hoy tiene escrito a mano pasó a ser el hero por defecto, así que una tienda que se actualiza no ve ningún cambio.
+
+**Sin carrusel, a propósito.** El plan lo dejaba abierto ("o lista para carrusel simple") y la respuesta es que no: un carrusel es JavaScript, autoplay, gestos y un estado que se sincroniza, o sea maquinaria, en el único lugar de la FASE 2 que es piel. Una portada más ambiciosa se escribe en `src/app/page.tsx`, que es de la tienda y se puede reescribir entero.
+
+Dos bordes que el test fija: sin `CLOUDINARY_CLOUD_NAME` en el entorno —el estado de toda tienda recién clonada— el hero sale de texto y no con un `<img>` roto; y sin categorías cargadas todavía, el hero por defecto sale sin botón en vez de con uno que lleva a un 404.
 
 ## PR P–S — i18n por tienda (Nivel A: un idioma por tienda, elegido en `tienda.ts`)
 **En serie y al final** (así las features de arriba se extraen una sola vez). No hay switcher para el visitante ni rutas por locale — eso sería un Nivel B futuro sobre esta base. Las URLs quedan en español para siempre (decisión: son parte del template). Moneda y dinero **fuera de alcance**: `money.ts` queda PYG-entero con su `₲` literal.

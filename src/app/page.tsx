@@ -1,7 +1,8 @@
 import Link from "next/link";
 
+import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
-import { Button } from "@/components/ui/button";
+import { TIENDA, type Hero } from "@/config/tienda";
 import { getCatalog, getCategories, type CatalogProduct } from "@/db/queries";
 
 /**
@@ -23,22 +24,17 @@ export default async function HomePage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <section className="border-border bg-muted/30 rounded-2xl border p-6 sm:p-10">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">
-          Comprá fácil, pagá como quieras
-        </h1>
-        <p className="text-muted-foreground mt-3 max-w-xl text-sm sm:text-base">
-          Transferencia, QR o contra entrega. Precios en guaraníes con IVA incluido y envíos a
-          todo el país. ¿Dudas? Escribinos por WhatsApp.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          {categories[0] ? (
-            <Button asChild size="lg">
-              <Link href={`/categoria/${categories[0].slug}`}>Ver productos</Link>
-            </Button>
-          ) : null}
-        </div>
-      </section>
+      {/*
+        La portada. Sin `TIENDA.hero` configurado sale la de siempre, con el
+        texto del template: una tienda recién clonada no tiene foto de
+        portada, y un hueco gris arriba de todo es peor que un párrafo
+        honesto. Configurarlo la reemplaza entera — ver `src/config/tienda.ts`.
+
+        El "Ver productos" apunta a la primera categoría porque es lo único
+        que se sabe seguro que existe; sin categorías todavía, no se dibuja un
+        botón que lleve a un 404.
+      */}
+      <HomeHero hero={TIENDA.hero ?? heroPorDefecto(categories[0]?.slug)} />
 
       {error ? (
         <div className="border-border border-l-primary mt-8 rounded-lg border border-l-2 p-4">
@@ -89,4 +85,25 @@ export default async function HomePage() {
       )}
     </main>
   );
+}
+
+/**
+ * La portada con la que sale el template. Es exactamente el bloque que la home
+ * tenía escrito a mano antes del PR O: una tienda que se actualiza y no
+ * configura nada no ve ningún cambio.
+ *
+ * El botón necesita un destino que exista, y lo único que se sabe seguro es la
+ * primera categoría. Sin ninguna categoría todavía —el estado de una tienda
+ * recién instalada— el hero sale sin botón, que es mejor que uno que lleva a
+ * un 404.
+ */
+function heroPorDefecto(primeraCategoria: string | undefined): Hero {
+  return {
+    titulo: "Comprá fácil, pagá como quieras",
+    texto:
+      "Transferencia, QR o contra entrega. Precios en guaraníes con IVA incluido y envíos a todo el país. ¿Dudas? Escribinos por WhatsApp.",
+    cta: primeraCategoria
+      ? { label: "Ver productos", href: `/categoria/${primeraCategoria}` }
+      : undefined,
+  };
 }
