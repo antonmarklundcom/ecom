@@ -125,7 +125,11 @@ function normalizar(input: ShippingZoneInput): ZonaNormalizada {
     if (city.length > 120) {
       throw new AdminShippingError(`"${city.slice(0, 30)}…" es demasiado largo para una ciudad.`);
     }
-    vistas.set(normalizeCity(city), city);
+    // `set` a secas pisaría el valor: entre "LAMBARÉ" y "lambare" quedaría la
+    // última, y lo que la compradora tiene que leer en el checkout es la
+    // primera forma que el dueño escribió, no la que tipeó apurado al final.
+    const key = normalizeCity(city);
+    if (!vistas.has(key)) vistas.set(key, city);
   }
   const cities = [...vistas.values()];
 

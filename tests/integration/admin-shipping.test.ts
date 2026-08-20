@@ -204,9 +204,9 @@ describe.skipIf(!hasTestDb)('orden de las zonas', () => {
   afterAll(closeTestDb);
 
   it('renumera aunque las posiciones vengan repetidas', async () => {
-    const a = await createShippingZone({ ...ASUNCION, name: 'A', cities: ['Asunción'] });
-    const b = await createShippingZone({ ...ASUNCION, name: 'B', cities: ['Luque'] });
-    const c = await createShippingZone({ ...ASUNCION, name: 'C', cities: ['Capiatá'] });
+    const a = await createShippingZone({ ...ASUNCION, name: 'Zona uno', cities: ['Asunción'] });
+    const b = await createShippingZone({ ...ASUNCION, name: 'Zona dos', cities: ['Luque'] });
+    const c = await createShippingZone({ ...ASUNCION, name: 'Zona tres', cities: ['Capiatá'] });
 
     const db = getTestDb();
     for (const zona of [a, b, c]) {
@@ -217,7 +217,7 @@ describe.skipIf(!hasTestDb)('orden de las zonas', () => {
 
     const filas = await listAdminShippingZones();
     expect(filas.map((row) => row.position)).toEqual([0, 1, 2]);
-    expect(filas.map((row) => row.name)).toEqual(['A', 'C', 'B']);
+    expect(filas.map((row) => row.name)).toEqual(['Zona uno', 'Zona tres', 'Zona dos']);
   });
 });
 

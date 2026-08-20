@@ -178,9 +178,9 @@ describe.skipIf(!hasTestDb)('orden del menú', () => {
   afterAll(closeTestDb);
 
   async function tresCategorias() {
-    const a = await createCategory({ name: 'A' });
-    const b = await createCategory({ name: 'B' });
-    const c = await createCategory({ name: 'C' });
+    const a = await createCategory({ name: 'Uno' });
+    const b = await createCategory({ name: 'Dos' });
+    const c = await createCategory({ name: 'Tres' });
     return [a.id, b.id, c.id];
   }
 
@@ -188,25 +188,25 @@ describe.skipIf(!hasTestDb)('orden del menú', () => {
 
   it('las nuevas se agregan al final', async () => {
     await tresCategorias();
-    expect(await nombres()).toEqual(['A', 'B', 'C']);
+    expect(await nombres()).toEqual(['Uno', 'Dos', 'Tres']);
   });
 
   it('subir intercambia con la de arriba', async () => {
     const [, b] = await tresCategorias();
     await moveCategory({ categoryId: b!, direction: 'up' });
-    expect(await nombres()).toEqual(['B', 'A', 'C']);
+    expect(await nombres()).toEqual(['Dos', 'Uno', 'Tres']);
   });
 
   it('bajar intercambia con la de abajo', async () => {
     const [, b] = await tresCategorias();
     await moveCategory({ categoryId: b!, direction: 'down' });
-    expect(await nombres()).toEqual(['A', 'C', 'B']);
+    expect(await nombres()).toEqual(['Uno', 'Tres', 'Dos']);
   });
 
   it('subir la primera no hace nada y no explota', async () => {
     const [a] = await tresCategorias();
     await moveCategory({ categoryId: a!, direction: 'up' });
-    expect(await nombres()).toEqual(['A', 'B', 'C']);
+    expect(await nombres()).toEqual(['Uno', 'Dos', 'Tres']);
   });
 
   it('con posiciones repetidas igual ordena, y las deja limpias', async () => {
@@ -222,7 +222,7 @@ describe.skipIf(!hasTestDb)('orden del menú', () => {
 
     const filas = await listAdminCategories();
     expect(filas.map((row) => row.position)).toEqual([0, 1, 2]);
-    expect(filas.map((row) => row.name)).toEqual(['A', 'C', 'B']);
+    expect(filas.map((row) => row.name)).toEqual(['Uno', 'Tres', 'Dos']);
   });
 
   it('la vidriera respeta ese orden', async () => {
@@ -230,7 +230,7 @@ describe.skipIf(!hasTestDb)('orden del menú', () => {
     await moveCategory({ categoryId: b!, direction: 'up' });
 
     const menu = await getCategories();
-    expect(menu.map((row) => row.name)).toEqual(['B', 'A', 'C']);
+    expect(menu.map((row) => row.name)).toEqual(['Dos', 'Uno', 'Tres']);
     expect(menu[1]?.id).toBe(a);
   });
 });
