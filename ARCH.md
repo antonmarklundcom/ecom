@@ -128,6 +128,38 @@ dispare una escritura auditada pase el id que ya tiene en la mano.
 
 ---
 
+
+##### El feed: `/admin/actividad` (FASE 2, PR L)
+
+`order_events` y `stock_adjustments` guardaban todo desde el principio, pero
+repartido: los eventos de un pedido sólo se veían abriendo ese pedido, y los
+ajustes de stock abriendo esa variante. `/admin/actividad` los junta en un solo
+feed paginado, filtrable por persona, por tipo y por fecha. Es de **lectura
+pura** —las dos tablas son append-only y nadie las edita— y lo ven `owner` y
+`staff`: muestra el trabajo de cada persona con nombre y apellido, o sea
+supervisión, no mostrador.
+
+Dos decisiones que valen:
+
+- **El orden y la paginación los hace MySQL sobre el conjunto entero**, con un
+  `UNION ALL` que trae sólo `(tipo, id, fecha)`. Traer N filas de cada tabla y
+  ordenarlas en memoria funciona en la página 1 y miente en la 2: con 300
+  eventos y 3 ajustes en el rango, los eventos tapan a los ajustes y la segunda
+  página muestra filas que en un feed real irían antes. Los detalles (número de
+  pedido, SKU, nombre del producto) se buscan después y sólo para las filas de
+  esa página.
+- **El desempate es por `id`, no sólo por fecha.** Dos eventos escritos en la
+  misma transacción comparten `created_at` al segundo; sin un segundo criterio,
+  MySQL puede devolverlos en distinto orden en cada consulta y entonces una
+  fila sale dos veces y otra no sale nunca.
+
+"El sistema" es un filtro de primera clase: son las filas con `actor_user_id`
+NULL —el cron, el webhook de Pagopar, la compradora subiendo su comprobante— y
+es exactamente lo que se quiere mirar cuando algo cambió y nadie lo tocó. El
+desplegable de personas incluye a los usuarios **desactivados**, porque revisar
+qué hizo alguien antes de que le cortaran el acceso es justo la consulta que
+importa.
+
 ## 2. Data model (ERD)
 
 MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaraníes).

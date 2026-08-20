@@ -51,6 +51,12 @@ export const CAPABILITIES = [
    * puesta se cobra de menos en cada pedido hasta que alguien la mira.
    */
   "envios",
+  /**
+   * El feed de actividad (PR L): quién hizo qué, en una pantalla. Es de
+   * lectura y no toca nada, pero muestra el trabajo de cada persona con nombre
+   * y apellido — es supervisión, no mostrador.
+   */
+  "actividad",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -77,6 +83,10 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     "productos",
     "stock",
     "clientes",
+    // El encargado supervisa el turno: es el que necesita saber quién marcó
+    // ese pedido como entregado un domingo. Lo que no puede es repartir
+    // accesos ni sacar la base del edificio.
+    "actividad",
   ],
 
   // El mostrador y nada más: ve los pedidos y los despacha. Sin montos, sin
