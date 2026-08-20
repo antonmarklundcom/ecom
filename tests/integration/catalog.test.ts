@@ -90,7 +90,8 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
     }
 
     const brands = await getBrands("moda");
-    expect(brands).toContain("Basics PY");
+    const basics = brands.find((facet) => facet.brand === "Basics PY");
+    expect(basics).toBeDefined();
 
     const soloBasics = await getCategoryProducts({
       categorySlug: "moda",
@@ -99,6 +100,28 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
     });
     expect(soloBasics.products.every((product) => product.brand === "Basics PY")).toBe(true);
     expect(soloBasics.total).toBe(soloBasics.products.length);
+
+    // El conteo del filtro tiene que ser el mismo número que va a aparecer al
+    // usarlo. Si se separan, "Basics PY (12)" lleva a una grilla de 3 y el
+    // filtro deja de ser confiable para siempre.
+    expect(basics?.total).toBe(soloBasics.total);
+  });
+
+  it("las marcas salen ordenadas y sin las de otras categorías", async () => {
+    const moda = await getBrands("moda");
+    const nombres = moda.map((facet) => facet.brand);
+
+    // Con `localeCompare("es")` y no con el `.sort()` pelado: el orden lo hace
+    // MySQL con `utf8mb4_general_ci`, donde la Ñ vale lo mismo que la N, así
+    // que "Ñande Moda" va antes que "Totto". El `.sort()` de JS compara code
+    // points y la manda al final — no es que la consulta esté desordenada, es
+    // que son dos alfabetos distintos.
+    expect(nombres).toEqual([...nombres].sort((a, b) => a.localeCompare(b, "es")));
+    expect(new Set(nombres).size).toBe(nombres.length);
+    expect(moda.every((facet) => facet.total > 0)).toBe(true);
+
+    const electronica = (await getBrands("electronica")).map((facet) => facet.brand);
+    expect(electronica).not.toContain("Basics PY");
   });
 
   it("trae la ficha del producto con sus variantes", async () => {

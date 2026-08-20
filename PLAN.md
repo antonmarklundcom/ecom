@@ -159,11 +159,21 @@ Lo único difícil fue la paginación: son dos tablas y un solo orden. Traer N d
 
 Dos detalles que no estaban en el plan y se ganaron el lugar: **"el sistema"** es un filtro (las filas sin `actor_user_id`: el cron, Pagopar, la compradora), y el desplegable de personas incluye a los **desactivados**, porque revisar qué hizo alguien antes de que le cortaran el acceso es justo la consulta que importa.
 
-## PR M — Productos relacionados
-"También te puede interesar" en `/producto/[slug]`: misma categoría, en stock, excluyendo el actual; sin nada que mostrar, la sección no se renderiza. *Branch: `feat/relacionados`*
+## PR M — Productos relacionados — **hecho**
+"También te puede interesar" en `/producto/[slug]`: misma categoría, en stock, sin el que se está mirando. Sin nada que mostrar, la sección no se renderiza.
 
-## PR N — Filtros y búsqueda
-Chips de filtros activos con su ✕, contadores por marca ("Marca X (12)"), y sugerencias as-you-type en el buscador (debounced, contra el FULLTEXT existente, degradando al submit clásico sin JS). *Branch: `feat/filtros-busqueda`*
+El orden mezcla dos señales: **la misma marca primero** (quien mira una Marca X suele estar decidiendo entre Marca X) y después **el precio más parecido**, que es la señal de relevancia más honesta que hay en una góndola — a quien mira algo de ₲80.000 no le sirve que le ofrezcan uno de ₲2.000.000.
+
+El filtro de stock va en dos pasos: `on_hand > 0` en SQL (barato, descarta casi todo) y después, con las reservas ya calculadas por `hydrate`, se caen los que quedaron en cero por holds ajenos. Por eso se piden `limit * 3` candidatos. La comparación de marca usa `<=>` y no `=`: con `=`, dos productos sin marca comparan NULL contra NULL y el CASE se cae siempre.
+
+## PR N — Filtros y búsqueda — **hecho**
+Chips de filtros activos con su ✕ (uno por uno; "Limpiar todo" obliga a rehacer los que sí servían), contadores por marca ("Basics PY (12)") y sugerencias as-you-type en el buscador.
+
+Los contadores tienen un test que exige que el número del filtro sea **el mismo** que devuelve el filtro al usarse: si se separan, "Basics PY (12)" lleva a una grilla de 3 y el filtro deja de ser confiable para siempre.
+
+Las sugerencias son `suggestProducts`, que es `searchProducts` **sin `hydrate()`**: esto se dispara con cada tecla y `hydrate` trae variantes, fotos y calcula las reservas de stock de cada producto, nada de lo cual se dibuja en una lista de sugerencias. La server action es pública pero rate-limited por IP (30/min) — cada tecla que se escapa del debounce es un `MATCH … AGAINST` en el mismo slot de Node donde corre el checkout.
+
+El buscador pasó a ser un `<form method="get" action="/buscar">`: sin JavaScript, o mientras el bundle baja en una 3G paraguaya, escribir y apretar Enter lleva igual a los resultados. Las sugerencias son una mejora encima de algo que ya funciona.
 
 ## PR O — Hero de la home (piel, config-driven)
 Slot de hero/banner en `tienda.ts` (imagen Cloudinary + título + CTA, o lista para carrusel simple). Sin configurar ⇒ la home actual intacta. **Es piel**: cada tienda lo rediseña libre. *Branch: `feat/home-hero`*

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { categories, productImages, products, variants } from "@/db/schema";
@@ -347,6 +347,57 @@ export async function searchProducts(
   return hydrate(tx, fallback);
 }
 
+export type SearchSuggestion = { slug: string; name: string; brand: string | null };
+
+/**
+ * Sugerencias para el buscador mientras se escribe (FASE 2, PR N).
+ *
+ * Es `searchProducts` sin `hydrate()`: nombre, marca y slug, nada más. La
+ * diferencia importa porque esto se dispara con cada tecla (con debounce, pero
+ * igual): `hydrate` trae variantes, fotos y **calcula las reservas de stock**
+ * de cada producto, y nada de eso se dibuja en una lista de sugerencias.
+ *
+ * Mismo filtro `PUBLISHED()` y la misma degradación a LIKE que la búsqueda de
+ * verdad: una sugerencia que lleva a un resultado vacío es peor que ninguna.
+ */
+export async function suggestProducts(
+  term: string,
+  limit = 6,
+  executor?: Executor
+): Promise<SearchSuggestion[]> {
+  const tx = executor ?? getDb();
+  const cleaned = term.trim().replace(/[+\-><()~*"@]/g, " ").replace(/\s+/g, " ").trim();
+  if (cleaned.length < 2) return [];
+
+  const columns = { slug: products.slug, name: products.name, brand: products.brand };
+  const booleanTerm = cleaned
+    .split(" ")
+    .map((word) => `${word}*`)
+    .join(" ");
+
+  const matched = await tx
+    .select(columns)
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(
+      and(
+        PUBLISHED(),
+        sql`MATCH(${products.name}, ${products.description}) AGAINST (${booleanTerm} IN BOOLEAN MODE)`
+      )
+    )
+    .limit(limit);
+
+  if (matched.length > 0) return matched;
+
+  const like = `%${cleaned}%`;
+  return tx
+    .select(columns)
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(and(PUBLISHED(), sql`(${products.name} LIKE ${like} OR ${products.brand} LIKE ${like})`))
+    .limit(limit);
+}
+
 export async function getCategories(executor?: Executor) {
   const tx = executor ?? getDb();
   return tx
@@ -366,17 +417,98 @@ export async function getCategoryBySlug(slug: string, executor?: Executor) {
   return rows[0] ?? null;
 }
 
-/** Marcas presentes en una categoría, para el filtro. */
-export async function getBrands(categorySlug: string, executor?: Executor): Promise<string[]> {
+export type BrandFacet = { brand: string; total: number };
+
+/**
+ * Marcas presentes en una categoría, **con cuántos productos tiene cada una**.
+ *
+ * El número no es decoración: "Marca X (12)" y "Marca Y (1)" le dicen a la
+ * compradora cuál filtro vale la pena antes de gastar un toque en él. Sin el
+ * conteo, elegir una marca es una apuesta, y la respuesta más común de una
+ * apuesta así es una grilla con un solo producto y un viaje de vuelta.
+ *
+ * Cuenta productos y no variantes: lo que se va a listar son fichas.
+ */
+export async function getBrands(
+  categorySlug: string,
+  executor?: Executor
+): Promise<BrandFacet[]> {
   const tx = executor ?? getDb();
   const rows = await tx
-    .selectDistinct({ brand: products.brand })
+    .select({ brand: products.brand, total: count(products.id) })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(and(PUBLISHED(), eq(categories.slug, categorySlug), isNotNull(products.brand)))
+    .groupBy(products.brand)
     .orderBy(asc(products.brand));
 
-  return rows.map((row) => row.brand).filter((brand): brand is string => Boolean(brand));
+  return rows
+    .filter((row): row is { brand: string; total: number } => Boolean(row.brand))
+    .map((row) => ({ brand: row.brand, total: Number(row.total) }));
+}
+
+/**
+ * "También te puede interesar" para la ficha de producto (FASE 2, PR M).
+ *
+ * Misma categoría, publicados, con stock, sin el que se está mirando. El
+ * orden mezcla dos señales, en este orden:
+ *
+ * 1. **La misma marca primero.** Quien está mirando una Marca X suele estar
+ *    decidiendo entre Marca X, no entre categorías.
+ * 2. **El precio más parecido después.** Es la señal de relevancia más
+ *    honesta que hay en una góndola: a quien mira algo de ₲80.000 no le sirve
+ *    que le ofrezcan uno de ₲2.000.000, aunque sea de la misma categoría.
+ *
+ * El filtro de stock se hace en dos pasos y a propósito. En SQL se pide
+ * `on_hand > 0`, que es barato y descarta la mayoría; después, con las
+ * reservas ya calculadas por `hydrate`, se descartan los que quedaron en cero
+ * por holds ajenos. Meter las reservas adentro de esta consulta sería
+ * repetir `heldQtyMap` en SQL para ahorrarse unas filas.
+ *
+ * Por eso se piden `limit * 3` candidatos: los que se caen en el segundo paso
+ * no dejan huecos. Puede devolver menos de `limit`, y la ficha simplemente no
+ * dibuja la sección si vuelve vacío.
+ */
+export async function getRelatedProducts(
+  input: { productId: number; categorySlug: string; brand: string | null; pricePyg?: number },
+  limit = 4,
+  executor?: Executor
+): Promise<CatalogProduct[]> {
+  const tx = executor ?? getDb();
+
+  // `<=>` es el igual de MySQL que trata NULL como un valor: con `=`, un
+  // producto sin marca comparado contra NULL da NULL (o sea, ni verdadero ni
+  // falso) y el CASE se cae siempre al 1. Con `<=>`, "los dos sin marca"
+  // cuenta como misma marca, que es lo que uno quiere en un catálogo donde la
+  // marca es opcional.
+  const mismaMarca = sql`CASE WHEN ${products.brand} <=> ${input.brand} THEN 0 ELSE 1 END`;
+  const cercaniaDePrecio =
+    input.pricePyg === undefined
+      ? sql`0`
+      : sql`ABS(${minPriceSql} - ${input.pricePyg})`;
+
+  const rows = await tx
+    .select({ ...PRODUCT_COLUMNS, minPrice: minPriceSql })
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .innerJoin(variants, and(eq(variants.productId, products.id), eq(variants.isActive, true)))
+    .where(
+      and(
+        PUBLISHED(),
+        eq(categories.slug, input.categorySlug),
+        ne(products.id, input.productId),
+        gt(variants.onHand, 0)
+      )
+    )
+    .groupBy(products.id, categories.name, categories.slug)
+    .orderBy(mismaMarca, cercaniaDePrecio, asc(products.name))
+    .limit(limit * 3);
+
+  const hydrated = await hydrate(tx, rows);
+
+  return hydrated
+    .filter((product) => product.variants.some((variant) => variant.available > 0))
+    .slice(0, limit);
 }
 
 /**
