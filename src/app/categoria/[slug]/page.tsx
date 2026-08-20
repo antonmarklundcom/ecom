@@ -7,6 +7,8 @@ import { CatalogFilters } from "@/components/catalog-filters";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
 import { parsePriceRange } from "@/lib/price-ranges";
+import { breadcrumbJsonLd, itemListJsonLd } from "@/lib/seo";
+import { siteOrigin } from "@/lib/site-url";
 import {
   getBrands,
   getCategories,
@@ -88,8 +90,29 @@ export default async function CategoryPage({
     return qs ? `?${qs}` : "?";
   };
 
+  // JSON-LD. La miga de pan es la misma que se dibuja abajo, y el ItemList
+  // numera desde la página actual: en la página 2 el primer producto es el 13,
+  // no el 1. Sin `NEXT_PUBLIC_SITE_URL` las URLs salen relativas — Google las
+  // resuelve contra la página, así que sigue siendo válido.
+  const origin = siteOrigin();
+  const jsonLd = [
+    breadcrumbJsonLd(origin, [
+      { name: "Inicio", path: "/" },
+      { name: category.name, path: `/categoria/${slug}` },
+    ]),
+    itemListJsonLd(origin, result.products, {
+      name: category.name,
+      startPosition: (result.page - 1) * result.perPage + 1,
+    }),
+  ];
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <nav className="text-muted-foreground text-sm">
         <Link href="/" className="hover:text-foreground">
           Inicio
