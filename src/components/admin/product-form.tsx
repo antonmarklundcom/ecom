@@ -8,6 +8,7 @@ import { saveProduct } from "@/app/actions/admin-products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { slugify } from "@/lib/slug";
 
 export type ProductFormValues = {
   productId?: number;
@@ -20,16 +21,6 @@ export type ProductFormValues = {
   isActive: boolean;
   published: boolean;
 };
-
-/** `"Remera Azul"` → `"remera-azul"`, para no hacer tipear el slug a mano. */
-function slugify(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 export function ProductForm({
   defaults,

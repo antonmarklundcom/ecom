@@ -82,8 +82,11 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 | Registrar una devolución | ✅ | ❌ | ❌ |
 | Exports CSV | ✅ | ❌ | ❌ |
 | Gestión de usuarios del panel | ✅ | ❌ | ❌ |
+| Cupones (ABM) | ✅ | ❌ | ❌ |
+| Categorías (ABM) | ✅ | ❌ | ❌ |
+| Zonas de envío (ABM) | ✅ | ❌ | ❌ |
 
-Las tres cosas que el `owner` no delega tienen el mismo motivo: son irreversibles hacia afuera. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior.
+Lo que el `owner` no delega tiene siempre el mismo motivo: **el error no se ve y no se puede deshacer**. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs que se sumaron en la FASE 2 son de la misma familia: un cupón mal puesto se descubre cuando ya lo usaron cien personas, apagar una categoría le saca de la vidriera a todos sus productos de una vez, y una zona de envío con el precio viejo cobra de menos en cada pedido sin romper nada, sin dejar log y sin que nadie se entere hasta cerrar el mes.
 
 Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado.
 
@@ -280,6 +283,48 @@ en el mismo formulario:
 |---|---|
 | `marketing_opt_in` **nullable** | Tres estados, no dos: `NULL` = no se preguntó, `false` = dijo que no, `true` = aceptó. Un `NOT NULL DEFAULT false` mezcla el primero con el segundo, y el consentimiento es lo único que no se puede completar retroactivamente. `marketing_opt_in_at` guarda cuándo contestó. **El MVP no manda nada**: no hay proveedor de mensajería en el stack. |
 | `is_gift` **NOT NULL** | Acá `false` y "no contestó" sí son lo mismo: un pedido que nadie marcó no es un regalo. `gift_note` sólo se escribe si `is_gift`, para que destildar la casilla no deje un mensaje viejo colgado. |
+
+### Qué se ve en la vidriera (FASE 2, PR J)
+
+Un producto sale a la calle cuando se cumplen **tres** condiciones, no dos:
+`products.is_active`, `products.published_at IS NOT NULL` y
+`categories.is_active` de la categoría a la que pertenece. Eso es el filtro
+`PUBLISHED()` de `src/db/queries.ts`, y lo comparten la home, la página de
+categoría, la ficha de producto, el buscador, el filtro de marcas y el sitemap.
+Toda consulta que lo use tiene que hacer `innerJoin(categories)`.
+
+La tercera condición entró con el ABM de categorías. Antes el filtro miraba
+sólo el producto, y desactivar una categoría dejaba la tienda incoherente: la
+categoría desaparecía del menú y `/categoria/<slug>` devolvía 404, pero sus
+productos seguían apareciendo en la home, en el buscador y en el sitemap, con
+una miga de pan que llevaba derecho a ese 404. Mientras la tabla la escribía
+sólo el seed casi no pasaba; con un botón en el panel iba a pasar el primer
+día.
+
+Consecuencia para el dueño, y la pantalla se la dice con el número exacto antes
+de confirmar: **apagar una categoría apaga todos sus productos.** No borra
+nada — los productos quedan como estaban y vuelven solos al reactivarla.
+
+### Zonas de envío: quién las escribe (FASE 2, PR K)
+
+`shipping_zones` la edita el `owner` desde `/admin/envios`, y el dominio
+sostiene tres reglas que existen porque cada una es una forma de perder plata
+sin enterarse:
+
+- **Una ciudad va en una sola zona.** `quoteShipping` se queda con la primera
+  coincidencia por `position`, en silencio: con "Luque" en dos zonas, el flete
+  depende del orden de las filas y el dueño que corrigió el precio en la zona
+  equivocada no lo sabe nunca.
+- **Una zona sin ciudades es válida**: nunca matchea exacto, así que sólo puede
+  salir sorteada como "la más cara", que es justo el comodín que cubre el
+  interior.
+- **No se puede apagar la última zona activa.** Sin ninguna, `quoteShipping`
+  devuelve `sin_zonas` con envío ₲0 — la tienda pasa a regalar el flete de todo
+  el país sin que ningún cartel lo diga. Que una tienda recién clonada arranque
+  así está bien; que una que cobra ₲35.000 llegue ahí de un clic, no.
+
+Editar una zona **no toca los pedidos en vuelo**: el flete quedó copiado en
+`orders.shipping_pyg` cuando se creó cada pedido.
 
 ### La cotización de envío no cobra
 
