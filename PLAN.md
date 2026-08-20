@@ -152,8 +152,12 @@ ABM de `shipping_zones`: precio, ciudades, umbral de envío gratis, orden y acti
 
 Tres reglas nuevas en el dominio, cada una por una forma de perder plata en silencio: una ciudad no puede estar en dos zonas (`quoteShipping` se queda con la primera por `position`, sin avisar), una zona sin ciudades es válida y sirve de comodín del interior, y no se puede apagar la última zona activa (sin ninguna, la tienda cobra ₲0 de flete a todo el país sin que ningún cartel lo diga).
 
-## PR L — `/admin/actividad` (owner y staff)
-Feed global paginado de `order_events` + `stock_adjustments`, filtrable por usuario (el `actor_user_id` del PR D), tipo y fecha. "¿Qué hizo X hoy?" en una pantalla. *Branch: `feat/admin-actividad`*
+## PR L — `/admin/actividad` (owner y staff) — **hecho**
+Feed global paginado de `order_events` + `stock_adjustments`, filtrable por persona (el `actor_user_id` del PR D), tipo y fecha. "¿Qué hizo X hoy?" en una pantalla.
+
+Lo único difícil fue la paginación: son dos tablas y un solo orden. Traer N de cada una y ordenarlas en memoria funciona en la página 1 y miente en la 2 — con 300 eventos y 3 ajustes en el rango, los eventos tapan a los ajustes. El orden y el `LIMIT/OFFSET` los hace MySQL sobre un `UNION ALL` de `(tipo, id, fecha)`, y los detalles se buscan después sólo para las filas de esa página. El desempate va por `id` además de por fecha: dos eventos de la misma transacción comparten `created_at` al segundo, y sin eso una fila aparece dos veces y otra nunca.
+
+Dos detalles que no estaban en el plan y se ganaron el lugar: **"el sistema"** es un filtro (las filas sin `actor_user_id`: el cron, Pagopar, la compradora), y el desplegable de personas incluye a los **desactivados**, porque revisar qué hizo alguien antes de que le cortaran el acceso es justo la consulta que importa.
 
 ## PR M — Productos relacionados
 "También te puede interesar" en `/producto/[slug]`: misma categoría, en stock, excluyendo el actual; sin nada que mostrar, la sección no se renderiza. *Branch: `feat/relacionados`*
