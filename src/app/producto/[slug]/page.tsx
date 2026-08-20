@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { AddToCart } from "@/components/add-to-cart";
+import { ProductCard } from "@/components/product-card";
 import { ProductImage } from "@/components/product-image";
-import { getProductBySlug } from "@/db/queries";
+import { getProductBySlug, getRelatedProducts } from "@/db/queries";
 import { comercioWaLink } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { formatGs } from "@/lib/money";
@@ -81,6 +82,13 @@ export default async function ProductPage({ params }: { params: Params }) {
     undefined
   );
   const totalAvailable = product.variants.reduce((total, variant) => total + variant.available, 0);
+
+  // Misma categoría, con stock, sin el que se está mirando. Se pide después
+  // del producto y no en paralelo porque hace falta su id y su categoría.
+  const related = await getRelatedProducts({
+    categorySlug: product.categorySlug,
+    excludeProductId: product.id,
+  }).catch(() => []);
 
   const waHref = comercioWaLink(
     `¡Hola! Me interesa "${product.name}". ¿Está disponible?`
@@ -195,6 +203,17 @@ export default async function ProductPage({ params }: { params: Params }) {
           </dl>
         </div>
       </div>
+
+      {related.length > 0 ? (
+        <section className="mt-14">
+          <h2 className="text-lg font-semibold">También te puede interesar</h2>
+          <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {related.map((item) => (
+              <ProductCard key={item.id} product={item} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

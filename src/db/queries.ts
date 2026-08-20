@@ -364,17 +364,73 @@ export async function getCategoryBySlug(slug: string, executor?: Executor) {
   return rows[0] ?? null;
 }
 
-/** Marcas presentes en una categoría, para el filtro. */
-export async function getBrands(categorySlug: string, executor?: Executor): Promise<string[]> {
+export type BrandCount = { brand: string; count: number };
+
+/**
+ * Marcas presentes en una categoría, con cuántos productos tiene cada una.
+ *
+ * El conteo es sobre la categoría entera y **no** sobre los otros filtros
+ * activos: "Marca X (12)" contesta "¿cuánto hay de esta marca acá?", que es la
+ * pregunta que se hace antes de elegirla. Un conteo que se recalcula contra el
+ * rango de precio ya elegido diría 0 en casi todas y no ayudaría a decidir.
+ */
+export async function getBrands(categorySlug: string, executor?: Executor): Promise<BrandCount[]> {
   const tx = executor ?? getDb();
   const rows = await tx
-    .selectDistinct({ brand: products.brand })
+    .select({ brand: products.brand, count: sql<number>`COUNT(*)` })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(and(PUBLISHED(), eq(categories.slug, categorySlug), isNotNull(products.brand)))
+    .groupBy(products.brand)
     .orderBy(asc(products.brand));
 
-  return rows.map((row) => row.brand).filter((brand): brand is string => Boolean(brand));
+  return rows
+    .filter((row): row is { brand: string; count: number } => Boolean(row.brand))
+    .map((row) => ({ brand: row.brand, count: Number(row.count) }));
+}
+
+/**
+ * "También te puede interesar" (PLAN.md FASE 2, PR M).
+ *
+ * Misma categoría, con stock, sin el producto que se está mirando. Se piden
+ * más candidatos de los que se muestran porque la disponibilidad real se
+ * calcula recién en `hydrate()` —descontando reservas vigentes—, así que
+ * filtrar por `on_hand` en SQL es sólo un primer descarte barato.
+ *
+ * Sin nada que mostrar devuelve la lista vacía y la ficha no dibuja la
+ * sección: una fila de "relacionados" con un solo producto agotado es peor
+ * que no tenerla.
+ */
+export async function getRelatedProducts(
+  options: { categorySlug: string; excludeProductId: number; limit?: number },
+  executor?: Executor
+): Promise<CatalogProduct[]> {
+  const tx = executor ?? getDb();
+  const limit = options.limit ?? 4;
+
+  const rows = await tx
+    .select(PRODUCT_COLUMNS)
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(
+      and(
+        PUBLISHED(),
+        eq(categories.slug, options.categorySlug),
+        sql`${products.id} <> ${options.excludeProductId}`,
+        sql`EXISTS (
+          SELECT 1 FROM variants v
+          WHERE v.product_id = ${products.id} AND v.is_active = 1 AND v.on_hand > 0
+        )`
+      )
+    )
+    .orderBy(desc(products.publishedAt))
+    .limit(limit * 3);
+
+  const hydrated = await hydrate(tx, rows);
+
+  return hydrated
+    .filter((product) => product.variants.some((variant) => variant.available > 0))
+    .slice(0, limit);
 }
 
 /**

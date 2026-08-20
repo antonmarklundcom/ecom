@@ -209,3 +209,17 @@ export const CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
  */
 export const QUOTE_LIMIT = 60;
 export const QUOTE_WINDOW_MS = 60 * 1000;
+
+/**
+ * Límite de las sugerencias del buscador (PLAN.md FASE 2, PR N).
+ *
+ * Cada tecla que se escribe puede terminar en una consulta FULLTEXT. El
+ * debounce del navegador ya recorta casi todo, pero el debounce es del cliente
+ * y el cliente no es de fiar: sin esto, un `for` de mil `fetch` le hace correr
+ * mil FULLTEXT al MySQL compartido de Hostinger.
+ *
+ * Holgado a propósito: quien escribe rápido hace varias consultas legítimas en
+ * pocos segundos, y cortarle la búsqueda es cortarle la compra.
+ */
+export const SUGGEST_LIMIT = 60;
+export const SUGGEST_WINDOW_MS = 60 * 1000;

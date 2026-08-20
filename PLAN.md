@@ -161,11 +161,17 @@ La mezcla es un `UNION ALL` en SQL y no dos consultas juntadas en JS: con dos li
 
 De paso, `rowsOf()` —las cuatro líneas que sacan las filas de un `execute()` crudo— estaba copiado en `reconciliation.ts`, `manual-payments.ts` y `payment-recovery.ts`; ahora vive en `src/domain/rows.ts`.
 
-## PR M — Productos relacionados
-"También te puede interesar" en `/producto/[slug]`: misma categoría, en stock, excluyendo el actual; sin nada que mostrar, la sección no se renderiza. *Branch: `feat/relacionados`*
+## PR M — Productos relacionados — **hecho**
+"También te puede interesar" en `/producto/[slug]`: misma categoría, con stock, sin el actual; sin nada que mostrar la sección no se renderiza.
 
-## PR N — Filtros y búsqueda
-Chips de filtros activos con su ✕, contadores por marca ("Marca X (12)"), y sugerencias as-you-type en el buscador (debounced, contra el FULLTEXT existente, degradando al submit clásico sin JS). *Branch: `feat/filtros-busqueda`*
+"Con stock" es la parte que tiene trampa: el stock que se ve no es `on_hand`, es `on_hand` menos las reservas vigentes. El SQL descarta por `on_hand > 0` —barato— pero el filtro real pasa después de `hydrate()`, que es quien conoce la disponibilidad. Por eso se piden más candidatos de los que se muestran.
+
+## PR N — Filtros y búsqueda — **hecho**
+Chips de filtros activos con su ✕ (sacan ese filtro y dejan los otros), contadores por marca, y sugerencias mientras se escribe.
+
+El contador cuenta sobre la categoría entera y **no** sobre los otros filtros ya puestos: "Marca X (12)" contesta "¿cuánto hay de esta marca acá?", que es la pregunta que se hace antes de elegirla; recalcularlo contra el rango de precio ya elegido diría 0 en casi todas.
+
+Las sugerencias salen del mismo `searchProducts()` que `/buscar` —lo que se ve en la lista es lo que se encuentra al entrar—, con debounce de 250 ms y rate limit propio en el servidor (el debounce es del cliente, y el cliente no es de fiar). El buscador ahora es un `<form action="/buscar" method="get">` de verdad: **sin JavaScript sigue andando**, y las sugerencias son un agregado encima que puede no aparecer sin romper nada.
 
 ## PR O — Hero de la home (piel, config-driven)
 Slot de hero/banner en `tienda.ts` (imagen Cloudinary + título + CTA, o lista para carrusel simple). Sin configurar ⇒ la home actual intacta. **Es piel**: cada tienda lo rediseña libre. *Branch: `feat/home-hero`*
