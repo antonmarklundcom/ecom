@@ -214,6 +214,18 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   crearCupon: 'Owner',
   editarCupon: 'Owner',
   cambiarEstadoCupon: 'Owner',
+
+  // Apagar una categoría esconde de la vidriera todos sus productos de un
+  // clic: es la forma más barata que tiene el panel de dejar de vender.
+  crearCategoria: 'Owner',
+  editarCategoria: 'Owner',
+  cambiarEstadoCategoria: 'Owner',
+  moverCategoria: 'Owner',
+
+  // El flete es plata: quien pone una zona en ₲0 regala la logística.
+  crearZonaEnvio: 'Owner',
+  editarZonaEnvio: 'Owner',
+  cambiarEstadoZonaEnvio: 'Owner',
 };
 
 describe('cada acción llama al guard que le corresponde', () => {

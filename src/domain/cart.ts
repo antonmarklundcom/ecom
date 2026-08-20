@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { products, variants } from "@/db/schema";
+import { categories, products, variants } from "@/db/schema";
 import { assertGs, ivaBreakdown, lineTotal } from "@/lib/money";
 
 import type { CartIssue } from "@/lib/cart-issues";
@@ -76,9 +76,15 @@ export async function priceCart(
       name: products.name,
       ivaRate: products.ivaRate,
       productActive: products.isActive,
+      // Una categoría apagada esconde sus productos de la vidriera (ver
+      // `PUBLISHED()` en db/queries). Si el carrito no mirara esto, lo que el
+      // dueño acaba de sacar de la tienda se seguiría vendiendo desde un
+      // carrito guardado en localStorage la semana pasada.
+      categoryActive: categories.isActive,
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
+    .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(
       and(
         inArray(
@@ -100,7 +106,7 @@ export async function priceCart(
   for (const item of wanted) {
     const row = byVariant.get(item.variantId);
 
-    if (!row || !row.variantActive || !row.productActive) {
+    if (!row || !row.variantActive || !row.productActive || !row.categoryActive) {
       issues.push({
         type: "no_disponible",
         variantId: item.variantId,

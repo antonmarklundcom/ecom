@@ -64,6 +64,12 @@ acceso de cada pedido. El login por OTP es lo que la va a escribir.
 
 `users.last_login_at` la escribe `authenticate()` en el login exitoso y nadie más. NULL es "nunca entró", que es información distinta de "entró hace mucho".
 
+#### Categorías apagadas (FASE 2, PR J)
+
+`categories.is_active = false` significa **una sola cosa** en toda la vidriera: la categoría sale del menú, su página deja de existir, y sus productos salen del catálogo, del buscador, del sitemap y de su propia ficha. El carrito también los rechaza, así que un carrito guardado en `localStorage` la semana pasada no puede comprar lo que el comercio acaba de esconder.
+
+Se implementa en un solo lugar — el helper `PUBLISHED()` de `src/db/queries.ts`, que toda consulta de vidriera usa — y en `priceCart()`, que es el camino de la plata. Los productos **no se modifican**: conservan `is_active` y `published_at`, así que volver a prender la categoría los devuelve exactamente como estaban.
+
 #### Matriz de permisos
 
 Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
@@ -82,8 +88,11 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 | Registrar una devolución | ✅ | ❌ | ❌ |
 | Exports CSV | ✅ | ❌ | ❌ |
 | Gestión de usuarios del panel | ✅ | ❌ | ❌ |
+| Cupones (ABM) | ✅ | ❌ | ❌ |
+| Categorías (ABM) | ✅ | ❌ | ❌ |
+| Zonas de envío (ABM) | ✅ | ❌ | ❌ |
 
-Las tres cosas que el `owner` no delega tienen el mismo motivo: son irreversibles hacia afuera. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior.
+Lo que el `owner` no delega tiene todo el mismo motivo: son decisiones irreversibles hacia afuera, o que cambian la tienda entera de un clic. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs de configuración son la misma familia: un cupón es plata que la tienda resigna en cada venta, una zona de envío en ₲0 regala el flete, y **apagar una categoría esconde de la vidriera todos sus productos** — la forma más barata que tiene el panel de dejar de vender sin querer.
 
 Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado.
 

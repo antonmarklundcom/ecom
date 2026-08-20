@@ -40,6 +40,17 @@ export const CAPABILITIES = [
   "usuarios",
   /** ABM de cupones (PR G): plata que la tienda resigna en cada venta. */
   "cupones",
+  /**
+   * ABM de categorías (PR J). Owner-only: apagar una categoría esconde de la
+   * vidriera todos sus productos de un clic — es la forma más barata que tiene
+   * el panel de dejar de vender sin querer.
+   */
+  "categorias",
+  /**
+   * ABM de zonas de envío (PR K). Owner-only por lo mismo que los cupones: el
+   * flete es plata, y poner una zona en ₲0 regala la logística de la tienda.
+   */
+  "envios",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

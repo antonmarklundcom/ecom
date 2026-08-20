@@ -107,6 +107,10 @@ describe('la matriz de capacidades', () => {
     expect(can('staff', 'exports')).toBe(false);
     expect(can('staff', 'usuarios')).toBe(false);
     expect(can('staff', 'cupones')).toBe(false);
+    // La configuración de la tienda tampoco: apagar una categoría esconde sus
+    // productos y una zona de envío en ₲0 regala el flete (PR J y K).
+    expect(can('staff', 'categorias')).toBe(false);
+    expect(can('staff', 'envios')).toBe(false);
     // …pero sí la operación diaria completa.
     expect(can('staff', 'comprobantes')).toBe(true);
     expect(can('staff', 'stock')).toBe(true);

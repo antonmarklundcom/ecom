@@ -38,7 +38,21 @@ export type CatalogProductDetail = CatalogProduct & {
   images: CatalogImage[];
 };
 
-const PUBLISHED = () => and(eq(products.isActive, true), isNotNull(products.publishedAt));
+/**
+ * Lo que se ve en la vidriera: producto activo, publicado, **y en una
+ * categoría activa**.
+ *
+ * Lo tercero se agregó con el ABM de categorías (PLAN.md PR J). Sin eso,
+ * apagar una categoría sacaba el link del menú y 404-eaba su página, pero sus
+ * productos seguían apareciendo en la home y en el buscador, con una miga de
+ * pan que apuntaba a la categoría que ya no existía. "Apagada" tiene que
+ * querer decir una sola cosa.
+ *
+ * Todas las consultas que lo usan hacen `innerJoin(categories)`; la única que
+ * no lo hacía —el sitemap— lo agregó por esto.
+ */
+const PUBLISHED = () =>
+  and(eq(products.isActive, true), isNotNull(products.publishedAt), eq(categories.isActive, true));
 
 export type CatalogSort = "relevancia" | "precio-asc" | "precio-desc" | "nuevos";
 
@@ -386,6 +400,7 @@ export async function getSitemapEntries(executor?: Executor): Promise<{
     tx
       .select({ slug: products.slug, updatedAt: products.updatedAt })
       .from(products)
+      .innerJoin(categories, eq(products.categoryId, categories.id))
       .where(PUBLISHED())
       .orderBy(asc(products.slug)),
   ]);
