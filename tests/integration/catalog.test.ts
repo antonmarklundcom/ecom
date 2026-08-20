@@ -9,8 +9,13 @@ import {
   getCategoryBySlug,
   getCategoryProducts,
   getProductBySlug,
+  getSitemapEntries,
   searchProducts,
 } from "@/db/queries";
+import { getDb } from "@/db";
+import { products } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
 import { reserveStock } from "@/domain/stock";
 
 import { TEST_DATABASE_URL, closeTestDb, hasTestDb, resetTables } from "../helpers/db";
@@ -146,5 +151,36 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
 
   it("no rompe con caracteres especiales del modo booleano", async () => {
     await expect(searchProducts('remera +-><()~*"@')).resolves.toBeInstanceOf(Array);
+  });
+
+  /**
+   * El sitemap le enseña al buscador qué existe. Un producto despublicado que
+   * siga en el XML es una promesa de 404 —y peor, es publicar algo que el
+   * comercio decidió esconder—, así que el filtro tiene que ser el mismo de la
+   * vidriera y no una consulta paralela que se olvide de `published_at`.
+   */
+  it("el sitemap lista sólo lo que la vidriera muestra", async () => {
+    const antes = await getSitemapEntries();
+    expect(antes.categories.map((category) => category.slug)).toEqual([
+      "electronica",
+      "hogar-y-cocina",
+      "moda",
+      "deportes",
+    ]);
+    expect(antes.products.map((product) => product.slug)).toContain("jean-slim-hombre");
+
+    await getDb()
+      .update(products)
+      .set({ publishedAt: null })
+      .where(eq(products.slug, "jean-slim-hombre"));
+
+    const despues = await getSitemapEntries();
+    expect(despues.products.map((product) => product.slug)).not.toContain("jean-slim-hombre");
+    expect(despues.products).toHaveLength(antes.products.length - 1);
+
+    await getDb()
+      .update(products)
+      .set({ publishedAt: new Date() })
+      .where(eq(products.slug, "jean-slim-hombre"));
   });
 });

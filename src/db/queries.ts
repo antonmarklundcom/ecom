@@ -362,3 +362,33 @@ export async function getBrands(categorySlug: string, executor?: Executor): Prom
 
   return rows.map((row) => row.brand).filter((brand): brand is string => Boolean(brand));
 }
+
+/**
+ * Lo publicable en el sitemap: categorías activas y productos publicados.
+ *
+ * Una sola consulta por tabla y sólo las columnas que el XML usa — el sitemap
+ * no necesita variantes, ni fotos, ni disponibilidad, y traerlas sería pagar
+ * el `hydrate()` entero para tirarlo. El filtro es el mismo `PUBLISHED()` de
+ * la vidriera: lo que no se ve, no se indexa.
+ */
+export async function getSitemapEntries(executor?: Executor): Promise<{
+  categories: { slug: string }[];
+  products: { slug: string; updatedAt: Date | null }[];
+}> {
+  const tx = executor ?? getDb();
+
+  const [categoryRows, productRows] = await Promise.all([
+    tx
+      .select({ slug: categories.slug })
+      .from(categories)
+      .where(eq(categories.isActive, true))
+      .orderBy(asc(categories.position)),
+    tx
+      .select({ slug: products.slug, updatedAt: products.updatedAt })
+      .from(products)
+      .where(PUBLISHED())
+      .orderBy(asc(products.slug)),
+  ]);
+
+  return { categories: categoryRows, products: productRows };
+}

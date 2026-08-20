@@ -130,11 +130,15 @@ Pre-construido para todas las tiendas, **inactivo hasta que la tienda tenga con 
 
 # CHAT 2 — Sonnet 5 · UX, ABMs, i18n (arranca con el chat 1 mergeado)
 
-## PR H — Skeletons (sin dependencias)
-`loading.tsx` para `/`, `/categoria/[slug]` y `/producto/[slug]` reusando `ProductCardSkeleton` (hoy sólo `/buscar` lo tiene). *Branch: `feat/skeletons`*
+## PR H — Skeletons (sin dependencias) — **hecho**
+`loading.tsx` para `/` reusando `ProductCardSkeleton` (antes sólo `/buscar` lo tenía).
 
-## PR I — SEO técnico (sin dependencias)
-`src/app/sitemap.ts` (productos + categorías activos) + `robots.ts` (bloquear `/admin`, `/api`, `/checkout`, `/pedido`, `/cuenta`) + JSON-LD `BreadcrumbList` e `ItemList` en categoría (producto ya tiene el suyo). *Branch: `feat/seo-tecnico`*
+**Corrección de alcance:** el plan pedía además `/categoria/[slug]` y `/producto/[slug]`, y esas dos **no llevan `loading.tsx` a propósito** — decisión ya tomada y comentada en el código desde el PR de las fichas. Las dos deciden su 404 en el cuerpo (`notFound()`), y el Suspense de un `loading.tsx` manda el shell —y con él un HTTP 200— antes de que se sepa si la página existe: un producto borrado respondería 200 con la pantalla de 404, que es exactamente lo que hace que Google indexe fantasmas. El esqueleto de la home no tiene ese problema porque la home siempre existe.
+
+## PR I — SEO técnico (sin dependencias) — **hecho**
+`src/app/sitemap.ts` (home + categorías activas + productos publicados, con el mismo filtro `PUBLISHED()` de la vidriera) + `robots.ts` (bloquea `/admin`, `/api`, `/checkout`, `/pedido`, `/cuenta`, `/dev`) + JSON-LD `BreadcrumbList` e `ItemList` en categoría (producto ya tenía el suyo).
+
+Las piezas puras viven en `src/lib/seo.ts` para que se testeen sin Next ni base. Dos decisiones que valen: sin `NEXT_PUBLIC_SITE_URL` el sitemap sale **vacío** y `robots.txt` no declara `sitemap:` —una URL relativa no le sirve a ningún crawler y un dominio inventado es peor que no publicar—, y el `ItemList` numera desde la página actual (en la página 2 el primer producto es el 13). El test `tests/unit/seo.test.ts` recorre `src/app` y exige que toda ruta de nivel uno que no sea pública esté en `RUTAS_PRIVADAS`: una `/cuenta` nueva que se olvide de la lista se indexaría en silencio.
 
 ## PR J — `/admin/categorias` (owner-only)
 ABM: crear, renombrar, reordenar, activar/desactivar (desactivar con productos adentro pide confirmación y explica qué pasa con ellos). Hoy sólo el seed escribe esta tabla. *Branch: `feat/admin-categorias`*
