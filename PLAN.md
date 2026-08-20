@@ -183,18 +183,16 @@ Sin imagen —o sin `CLOUDINARY_CLOUD_NAME`— el hero se dibuja igual con el fo
 ## PR P–S — i18n por tienda (Nivel A: un idioma por tienda, elegido en `tienda.ts`)
 **En serie y al final** (así las features de arriba se extraen una sola vez). No hay switcher para el visitante ni rutas por locale — eso sería un Nivel B futuro sobre esta base. Las URLs quedan en español para siempre (decisión: son parte del template). Moneda y dinero **fuera de alcance**: `money.ts` queda PYG-entero con su `₲` literal.
 
-| PR | Task |
-|---|---|
-| P | Infra: catálogo de mensajes (next-intl sin routing o equivalente liviano), `TIENDA.lang` elige el catálogo, `es-PY` completo como default y fallback. *Branch: `feat/i18n-infra`* |
-| Q | Extraer strings de la vidriera (~90) usando el módulo unificado de labels del PR A.2. *Branch: `feat/i18n-vidriera`* (depende de: P) |
-| R | Extraer strings del panel (~150). *Branch: `feat/i18n-admin`* (depende de: P) |
-| S | Los difíciles: templates de WhatsApp (`order-messages.ts`) parametrizados, y errores de dominio convertidos a **códigos** + lookup de mensaje (los ~20 throw sites de `src/domain/*` que hoy llevan prosa). *Branch: `feat/i18n-dominio`* (depende de: P, Q) |
+| PR | Task | Estado |
+|---|---|---|
+| P | Infra: catálogo de mensajes, `TIENDA.lang` elige el catálogo, `es-PY` completo como default y fallback | **hecho** |
+| Q | Extraer los strings de la vidriera usando el módulo unificado de labels del PR A.2 | **hecho** |
+| R | Extraer los strings del panel (~150) | pendiente |
+| S | Los difíciles: templates de WhatsApp (`order-messages.ts`) parametrizados, y errores de dominio convertidos a **códigos** + lookup de mensaje | pendiente |
 
-**Exit del chat 2:** con `lang: "es-PY"` la tienda es byte-idéntica en textos a la actual; un segundo catálogo (`en`) de prueba renderiza la vidriera completa sin strings hardcodeados; CI verde en todo.
+**Lo que se decidió en el PR P:** módulo propio (`src/i18n/`) en vez de `next-intl`. Sin routing ni switcher, lo que queda de una librería de i18n es un diccionario; esto son cuarenta líneas, anda en Server y Client Components sin provider, y el catálogo es un objeto tipado — **una clave que no existe no compila**, que es más de lo que da el lookup por string de cualquier librería. Los mensajes con parámetros son funciones y no strings con `{n}`: el plural y el orden de las palabras cambian por idioma, y así se resuelven en el catálogo en vez de en la pantalla.
 
-**Cierre del chat 2:** mismo informe final: hecho, riesgos, ideas.
-
----
+El catálogo elegido se mezcla sobre `es-PY`: un idioma incompleto —o inexistente— cae en el default en vez de dejar huecos. `tests/unit/i18n.test.ts` verifica que ningún catálogo invente claves que el default no tenga, que el `en` de prueba las declare todas, y que **con el `lang` de fábrica los textos sean los de siempre**, que es lo que le importa a una tienda que ya está vendiendo.
 
 ## FASE 3 — deliberadamente afuera (no arrancar sin decisión explícita)
 

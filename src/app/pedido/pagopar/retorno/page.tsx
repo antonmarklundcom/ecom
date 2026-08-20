@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getOrderByPagoparHash, orderUrl } from "@/domain/order-access";
+import { TEXTOS } from "@/i18n";
 
 /**
  * Página de retorno de Pagopar (PLAN.md 5.5).
@@ -19,7 +20,7 @@ import { getOrderByPagoparHash, orderUrl } from "@/domain/order-access";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Volviendo de Pagopar",
+  title: TEXTOS.pedido.pagoparTitulo,
   robots: { index: false, follow: false },
 };
 
@@ -47,13 +48,10 @@ export default async function PagoparRetornoPage({
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col items-center gap-4 px-4 py-16 text-center">
-      <h1 className="text-xl font-semibold tracking-tight">No encontramos tu pedido</h1>
-      <p className="text-muted-foreground text-sm">
-        Volviste de Pagopar pero no pudimos identificar el pedido desde acá. Si ya pagaste, no
-        te preocupes: tu comprobante de pedido te llegó por WhatsApp con el link para seguirlo.
-      </p>
+      <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.pedido.pagoparNoEncontrado}</h1>
+      <p className="text-muted-foreground text-sm">{TEXTOS.pedido.pagoparAyuda}</p>
       <Link href="/pedido/buscar" className="text-primary text-sm font-medium underline">
-        Buscar mi pedido con el número y mi WhatsApp
+        {TEXTOS.pedido.pagoparBuscar}
       </Link>
     </main>
   );

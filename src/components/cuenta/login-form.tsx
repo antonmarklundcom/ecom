@@ -7,6 +7,7 @@ import { entrarCliente } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 
 /**
  * Login de cliente. Un solo campo para el identificador: en Paraguay se
@@ -51,7 +52,7 @@ export function CustomerLoginForm() {
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="identifier">WhatsApp o email</Label>
+        <Label htmlFor="identifier">{TEXTOS.cuenta.whatsappOEmail}</Label>
         <Input
           id="identifier"
           name="identifier"
@@ -62,7 +63,7 @@ export function CustomerLoginForm() {
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password">{TEXTOS.cuenta.contrasena}</Label>
         <Input
           id="password"
           name="password"
@@ -73,7 +74,7 @@ export function CustomerLoginForm() {
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Entrando…" : "Entrar"}
+        {isPending ? TEXTOS.cuenta.entrando : TEXTOS.cuenta.entrar}
       </Button>
     </form>
   );

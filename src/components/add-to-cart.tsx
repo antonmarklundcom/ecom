@@ -7,6 +7,7 @@ import { QuantityStepper } from "@/components/quantity-stepper";
 import { StockBadge } from "@/components/stock-badge";
 import { PriceTag } from "@/components/price-tag";
 import { Button } from "@/components/ui/button";
+import { TEXTOS } from "@/i18n";
 import { useCart } from "@/lib/cart-store";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,7 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
     <div className="space-y-4">
       {product.variants.length > 1 ? (
         <fieldset>
-          <legend className="mb-2 text-sm font-medium">Elegí una opción</legend>
+          <legend className="mb-2 text-sm font-medium">{TEXTOS.carrito.elegiVariante}</legend>
           <div className="flex flex-wrap gap-2">
             {product.variants.map((variant) => {
               const disabled = variant.available <= 0;
@@ -115,12 +116,12 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
               },
               qty
             );
-            toast.success("Agregado al carrito", {
+            toast.success(TEXTOS.carrito.agregadoTitulo, {
               description: `${product.name} — ${selected.label}`,
             });
           }}
         >
-          {canAdd ? "Agregar al carrito" : "Sin stock"}
+          {canAdd ? TEXTOS.carrito.agregarAlCarrito : TEXTOS.stock.sinStock}
         </Button>
       </div>
     </div>

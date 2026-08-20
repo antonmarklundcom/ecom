@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 
 import { sugerirProductos, type Suggestion } from "@/app/actions/buscar";
 import { Input } from "@/components/ui/input";
+import { TEXTOS } from "@/i18n";
 
 /** Lo que se espera desde la última tecla antes de preguntarle al servidor. */
 const DEBOUNCE_MS = 250;
@@ -89,8 +90,8 @@ export function SearchBox({ className }: { className?: string }) {
           onKeyDown={(event) => {
             if (event.key === "Escape") setOpen(false);
           }}
-          placeholder="Buscar productos…"
-          aria-label="Buscar productos"
+          placeholder={TEXTOS.header.buscarPlaceholder}
+          aria-label={TEXTOS.header.buscarLabel}
           aria-controls={listId}
           aria-expanded={open && suggestions.length > 0}
           autoComplete="off"

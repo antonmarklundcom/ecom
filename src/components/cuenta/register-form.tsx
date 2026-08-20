@@ -7,6 +7,7 @@ import { registrarCliente } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 
 export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: string }) {
@@ -51,12 +52,12 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="name">Nombre y apellido</Label>
+        <Label htmlFor="name">{TEXTOS.formulario.nombreApellido}</Label>
         <Input id="name" name="name" required minLength={3} autoComplete="name" />
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="phone">WhatsApp</Label>
+        <Label htmlFor="phone">{TEXTOS.formulario.whatsapp}</Label>
         <Input
           id="phone"
           name="phone"
@@ -64,22 +65,20 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
           defaultValue={defaultPhone}
           inputMode="tel"
           autoComplete="tel"
-          placeholder="0981 123 456"
+          placeholder={TEXTOS.cuenta.telefonoPlaceholder}
         />
-        <p className="text-muted-foreground text-xs">
-          Es con lo que entrás, y por donde te avisamos de tu pedido.
-        </p>
+        <p className="text-muted-foreground text-xs">{TEXTOS.cuenta.telefonoAyuda}</p>
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="email">
-          Email <span className="text-muted-foreground font-normal">(opcional)</span>
+          {TEXTOS.formulario.email} <span className="text-muted-foreground font-normal">{TEXTOS.formulario.opcional}</span>
         </Label>
         <Input id="email" name="email" type="email" autoComplete="email" />
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password">{TEXTOS.cuenta.contrasena}</Label>
         <Input
           id="password"
           name="password"
@@ -89,7 +88,7 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
           autoComplete="new-password"
         />
         <p className="text-muted-foreground text-xs">
-          Al menos {MIN_PASSWORD_LENGTH} caracteres, con letras y números.
+          {TEXTOS.cuenta.contrasenaAyuda(MIN_PASSWORD_LENGTH)}
         </p>
       </div>
 
@@ -100,11 +99,11 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
           checked={marketingOptIn}
           onChange={(event) => setMarketingOptIn(event.target.checked)}
         />
-        <span>Quiero recibir novedades y promociones por WhatsApp.</span>
+        <span>{TEXTOS.cuenta.novedadesWhatsApp}</span>
       </label>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Creando…" : "Crear cuenta"}
+        {isPending ? TEXTOS.cuenta.creando : TEXTOS.cuenta.crearCuenta}
       </Button>
     </form>
   );

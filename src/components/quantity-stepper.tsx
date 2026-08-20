@@ -3,6 +3,7 @@
 import { Minus, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { TEXTOS } from "@/i18n";
 
 /**
  * Selector de cantidad. Botones grandes a propósito: esto se usa con el
@@ -13,7 +14,7 @@ export function QuantityStepper({
   onChange,
   max,
   min = 1,
-  label = "Cantidad",
+  label = TEXTOS.carrito.cantidad,
 }: {
   value: number;
   onChange: (value: number) => void;
@@ -33,7 +34,7 @@ export function QuantityStepper({
         className="size-9"
         disabled={!canDecrease}
         onClick={() => onChange(value - 1)}
-        aria-label="Quitar uno"
+        aria-label={TEXTOS.carrito.quitarUno}
       >
         <Minus className="size-4" />
       </Button>
@@ -47,7 +48,7 @@ export function QuantityStepper({
         className="size-9"
         disabled={!canIncrease}
         onClick={() => onChange(value + 1)}
-        aria-label="Agregar uno"
+        aria-label={TEXTOS.carrito.agregarUno}
       >
         <Plus className="size-4" />
       </Button>

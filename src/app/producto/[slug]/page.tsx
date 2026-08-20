@@ -7,6 +7,7 @@ import { AddToCart } from "@/components/add-to-cart";
 import { ProductCard } from "@/components/product-card";
 import { ProductImage } from "@/components/product-image";
 import { getProductBySlug, getRelatedProducts } from "@/db/queries";
+import { TEXTOS } from "@/i18n";
 import { comercioWaLink } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { formatGs } from "@/lib/money";
@@ -28,7 +29,7 @@ const loadProduct = cache(async (slug: string) => getProductBySlug(slug));
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const product = await loadProduct(slug).catch(() => null);
-  if (!product) return { title: "Producto no encontrado" };
+  if (!product) return { title: TEXTOS.producto.noEncontrado };
 
   const cheapest = product.variants.reduce<number | undefined>(
     (min, variant) => (min === undefined || variant.pricePyg < min ? variant.pricePyg : min),
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const description =
     product.description?.slice(0, 160) ??
-    `${product.name} — ${cheapest ? formatGs(cheapest) : ""}, IVA incluido.`;
+    TEXTOS.producto.descripcionMeta(product.name, cheapest ? formatGs(cheapest) : "");
 
   // La foto principal, recortada a la caja que espera WhatsApp. Si el
   // producto todavía no tiene fotos (o falta el cloud de Cloudinary), se
@@ -90,9 +91,7 @@ export default async function ProductPage({ params }: { params: Params }) {
     excludeProductId: product.id,
   }).catch(() => []);
 
-  const waHref = comercioWaLink(
-    `¡Hola! Me interesa "${product.name}". ¿Está disponible?`
-  );
+  const waHref = comercioWaLink(TEXTOS.producto.consultaWhatsApp(product.name));
 
   // JSON-LD: PYG y priceValidUntil no se inventan — se dejan afuera si no
   // hay dato, que es mejor que un dato falso en el rich result.
@@ -125,7 +124,7 @@ export default async function ProductPage({ params }: { params: Params }) {
 
       <nav className="text-muted-foreground text-sm">
         <Link href="/" className="hover:text-foreground">
-          Inicio
+          {TEXTOS.comunes.inicio}
         </Link>
         <span aria-hidden> / </span>
         <Link href={`/categoria/${product.categorySlug}`} className="hover:text-foreground">
@@ -174,13 +173,13 @@ export default async function ProductPage({ params }: { params: Params }) {
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground mt-4 inline-block text-sm underline"
             >
-              ¿Tenés una duda? Consultanos por WhatsApp
+              {TEXTOS.producto.consultarWhatsApp}
             </a>
           ) : null}
 
           {product.description ? (
             <div className="border-border mt-8 border-t pt-6">
-              <h2 className="text-sm font-medium">Descripción</h2>
+              <h2 className="text-sm font-medium">{TEXTOS.producto.descripcion}</h2>
               <p className="text-muted-foreground mt-2 text-sm whitespace-pre-line">
                 {product.description}
               </p>
@@ -188,15 +187,19 @@ export default async function ProductPage({ params }: { params: Params }) {
           ) : null}
 
           <dl className="border-border text-muted-foreground mt-6 grid grid-cols-2 gap-2 border-t pt-6 text-sm">
-            <dt>IVA</dt>
-            <dd className="text-foreground">{product.ivaRate}% incluido en el precio</dd>
-            <dt>Disponibilidad</dt>
+            <dt>{TEXTOS.producto.iva}</dt>
             <dd className="text-foreground">
-              {totalAvailable > 0 ? `${totalAvailable} unidades` : "Sin stock"}
+              {TEXTOS.producto.ivaIncluidoEnPrecio(product.ivaRate)}
+            </dd>
+            <dt>{TEXTOS.producto.disponibilidad}</dt>
+            <dd className="text-foreground">
+              {totalAvailable > 0
+                ? TEXTOS.producto.unidadesDisponibles(totalAvailable)
+                : TEXTOS.producto.sinStock}
             </dd>
             {cheapest !== undefined ? (
               <>
-                <dt>Desde</dt>
+                <dt>{TEXTOS.producto.desde}</dt>
                 <dd className="text-foreground tabular-nums">{formatGs(cheapest)}</dd>
               </>
             ) : null}
@@ -206,7 +209,7 @@ export default async function ProductPage({ params }: { params: Params }) {
 
       {related.length > 0 ? (
         <section className="mt-14">
-          <h2 className="text-lg font-semibold">También te puede interesar</h2>
+          <h2 className="text-lg font-semibold">{TEXTOS.producto.relacionados}</h2>
           <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
             {related.map((item) => (
               <ProductCard key={item.id} product={item} />

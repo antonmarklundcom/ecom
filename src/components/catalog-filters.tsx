@@ -11,13 +11,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BrandCount } from "@/db/queries";
+import { TEXTOS } from "@/i18n";
 import { PRICE_RANGES } from "@/lib/price-ranges";
 
 const SORT_LABELS: Record<string, string> = {
-  relevancia: "Más relevantes",
-  "precio-asc": "Precio: menor a mayor",
-  "precio-desc": "Precio: mayor a menor",
-  nuevos: "Más nuevos",
+  relevancia: TEXTOS.filtros.orden.relevancia,
+  "precio-asc": TEXTOS.filtros.orden.precioAsc,
+  "precio-desc": TEXTOS.filtros.orden.precioDesc,
+  nuevos: TEXTOS.filtros.orden.nuevos,
 };
 
 const ALL = "__todas__";
@@ -45,14 +46,14 @@ export function CatalogFilters({ brands }: { brands: BrandCount[] }) {
     <div className="flex flex-wrap items-center gap-2">
       {brands.length > 0 ? (
         <Select value={params.get("marca") ?? ALL} onValueChange={(value) => update("marca", value)}>
-          <SelectTrigger className="w-[170px]" aria-label="Filtrar por marca">
-            <SelectValue placeholder="Marca" />
+          <SelectTrigger className="w-[170px]" aria-label={TEXTOS.filtros.filtrarPorMarca}>
+            <SelectValue placeholder={TEXTOS.filtros.marca} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>Todas las marcas</SelectItem>
+            <SelectItem value={ALL}>{TEXTOS.filtros.todasLasMarcas}</SelectItem>
             {brands.map(({ brand, count }) => (
               <SelectItem key={brand} value={brand}>
-                {brand} ({count})
+                {TEXTOS.filtros.marcaConCantidad(brand, count)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -60,11 +61,11 @@ export function CatalogFilters({ brands }: { brands: BrandCount[] }) {
       ) : null}
 
       <Select value={params.get("precio") ?? ALL} onValueChange={(value) => update("precio", value)}>
-        <SelectTrigger className="w-[200px]" aria-label="Filtrar por precio">
-          <SelectValue placeholder="Precio" />
+        <SelectTrigger className="w-[200px]" aria-label={TEXTOS.filtros.filtrarPorPrecio}>
+          <SelectValue placeholder={TEXTOS.filtros.precio} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>Cualquier precio</SelectItem>
+          <SelectItem value={ALL}>{TEXTOS.filtros.cualquierPrecio}</SelectItem>
           {PRICE_RANGES.map((range) => (
             <SelectItem key={range.id} value={range.id}>
               {range.label}
@@ -77,8 +78,8 @@ export function CatalogFilters({ brands }: { brands: BrandCount[] }) {
         value={params.get("orden") ?? "relevancia"}
         onValueChange={(value) => update("orden", value === "relevancia" ? null : value)}
       >
-        <SelectTrigger className="w-[200px]" aria-label="Ordenar">
-          <SelectValue placeholder="Ordenar" />
+        <SelectTrigger className="w-[200px]" aria-label={TEXTOS.filtros.ordenar}>
+          <SelectValue placeholder={TEXTOS.filtros.ordenar} />
         </SelectTrigger>
         <SelectContent>
           {Object.entries(SORT_LABELS).map(([value, label]) => (
@@ -91,7 +92,7 @@ export function CatalogFilters({ brands }: { brands: BrandCount[] }) {
 
       {hasFilters ? (
         <Button variant="ghost" size="sm" onClick={() => router.push("?", { scroll: false })}>
-          Limpiar filtros
+          {TEXTOS.filtros.limpiar}
         </Button>
       ) : null}
 
@@ -112,7 +113,7 @@ export function CatalogFilters({ brands }: { brands: BrandCount[] }) {
               >
                 {chip.label}
                 <span aria-hidden>✕</span>
-                <span className="sr-only">Quitar filtro</span>
+                <span className="sr-only">{TEXTOS.filtros.quitarFiltro}</span>
               </button>
             </li>
           ))}

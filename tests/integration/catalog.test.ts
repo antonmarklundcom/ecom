@@ -89,8 +89,10 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
       expect(Math.min(...product.variants.map((v) => v.pricePyg))).toBeLessThanOrEqual(100000);
     }
 
+    // Desde el PR N cada marca viene con su contador para el filtro.
     const brands = await getBrands("moda");
-    expect(brands).toContain("Basics PY");
+    expect(brands.map((brand) => brand.brand)).toContain("Basics PY");
+    expect(brands.every((brand) => brand.count > 0)).toBe(true);
 
     const soloBasics = await getCategoryProducts({
       categorySlug: "moda",

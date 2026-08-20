@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { TEXTOS } from "@/i18n";
 import { currentCustomer } from "@/lib/customer-session";
 
 /**
@@ -28,7 +29,7 @@ export async function CuentaHeaderEntry() {
       href={customer ? "/cuenta" : "/cuenta/entrar"}
       className="text-muted-foreground hover:text-foreground shrink-0 text-sm whitespace-nowrap transition-colors"
     >
-      {customer ? "Mi cuenta" : "Entrar"}
+      {customer ? TEXTOS.cuenta.miCuenta : TEXTOS.cuenta.entrar}
     </Link>
   );
 }

@@ -1,9 +1,10 @@
 import type { CouponRejection } from '@/domain/coupons';
+import { TEXTOS } from '@/i18n';
 
 import { formatGs } from './money';
 
 /**
- * Por qué no anduvo el código, en castellano y sin culpar a nadie.
+ * Por qué no anduvo el código, en el idioma de la tienda y sin culpar a nadie.
  *
  * "No existe" e "inactivo" dicen **lo mismo** hacia afuera: si se
  * distinguieran, el campo del checkout se convertiría en un buscador de qué
@@ -20,31 +21,31 @@ export function couponRejectionMessage(
   switch (reason) {
     case 'no_existe':
     case 'inactivo':
-      return 'Ese código no existe o ya no está disponible.';
+      return TEXTOS.cupones.noExiste;
 
     case 'no_empezo':
-      return 'Ese código todavía no está vigente.';
+      return TEXTOS.cupones.noEmpezo;
 
     case 'vencido':
-      return 'Ese código ya venció.';
+      return TEXTOS.cupones.vencido;
 
     case 'agotado':
-      return 'Ese código ya se usó todas las veces disponibles.';
+      return TEXTOS.cupones.agotado;
 
     case 'agotado_para_vos':
-      return 'Ya usaste ese código la cantidad de veces permitida.';
+      return TEXTOS.cupones.agotadoParaVos;
 
     case 'minimo_no_alcanzado': {
       const min = options.minOrderPyg;
-      if (!min) return 'Tu compra no llega al mínimo que pide ese código.';
+      if (!min) return TEXTOS.cupones.minimoSinMonto;
 
       const falta = options.subtotalPyg != null ? min - options.subtotalPyg : null;
       return falta && falta > 0
-        ? `Ese código pide una compra mínima de ${formatGs(min)}: te faltan ${formatGs(falta)}.`
-        : `Ese código pide una compra mínima de ${formatGs(min)}.`;
+        ? TEXTOS.cupones.minimoConFalta(formatGs(min), formatGs(falta))
+        : TEXTOS.cupones.minimo(formatGs(min));
     }
 
     case 'solo_clientes':
-      return 'Ese código es sólo para quienes tienen cuenta.';
+      return TEXTOS.cupones.soloClientes;
   }
 }

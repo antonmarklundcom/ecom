@@ -1,4 +1,5 @@
 import type { OrderStatus, PaymentMethod } from "@/db/schema";
+import { TEXTOS } from "@/i18n";
 
 /**
  * Los textos de la máquina de estados, en un solo archivo.
@@ -33,19 +34,15 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   reembolsado: "Reembolsado",
 };
 
-/** Cómo lo lee el comprador en `/pedido/[orderNumber]`: qué pasa con lo suyo. */
-export const ORDER_STATUS_LABEL_COMPRADOR: Record<OrderStatus, string> = {
-  pendiente_pago: "Esperando tu pago",
-  esperando_verificacion: "Comprobante en revisión",
-  pagado: "Pago confirmado",
-  preparando: "Preparando tu pedido",
-  enviado: "En camino",
-  entregado: "Entregado",
-  rechazado: "Comprobante rechazado",
-  vencido: "Vencido",
-  cancelado: "Cancelado",
-  reembolsado: "Reembolsado",
-};
+/**
+ * Cómo lo lee el comprador en `/pedido/[orderNumber]`: qué pasa con lo suyo.
+ *
+ * Éste sí sale del catálogo de i18n (PR Q): lo lee quien compra, que puede no
+ * hablar el idioma del dueño. El de arriba —el del panel— sigue en código
+ * hasta el PR R.
+ */
+export const ORDER_STATUS_LABEL_COMPRADOR: Record<OrderStatus, string> =
+  TEXTOS.estados.comprador;
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   transferencia: "Transferencia / QR",

@@ -6,6 +6,7 @@ import { CartButton } from "@/components/cart-button";
 import { CuentaHeaderEntry } from "@/components/cuenta/header-entry";
 import { SearchBox } from "@/components/search-box";
 import { getCategories } from "@/db/queries";
+import { TEXTOS } from "@/i18n";
 
 export async function SiteHeader() {
   let categories: Awaited<ReturnType<typeof getCategories>> = [];
@@ -36,7 +37,7 @@ export async function SiteHeader() {
         </div>
       </div>
 
-      <nav aria-label="Categorías" className="border-border/60 border-t">
+      <nav aria-label={TEXTOS.header.categoriasNav} className="border-border/60 border-t">
         <div className="mx-auto flex w-full max-w-6xl gap-4 overflow-x-auto px-4 py-2 text-sm">
           {categories.map((category) => (
             <Link

@@ -5,13 +5,14 @@ import { hasUsableCoupons } from "@/domain/coupons";
 import { findCustomerByPhone } from "@/domain/customers";
 import { isPagoparConfigured } from "@/domain/pagopar/config";
 import { listShippingZones } from "@/domain/shipping";
+import { TEXTOS } from "@/i18n";
 import { currentCustomer } from "@/lib/customer-session";
 import { formatPhonePY } from "@/lib/py";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Checkout",
+  title: TEXTOS.checkout.titulo,
   robots: { index: false },
 };
 
@@ -29,11 +30,9 @@ export default async function CheckoutPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Finalizá tu compra</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{TEXTOS.checkout.encabezado}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        {customer
-          ? "Ya tenemos tus datos: revisalos y confirmá."
-          : "Sin cuenta ni registro: te mandamos el link de tu pedido por WhatsApp."}
+        {customer ? TEXTOS.checkout.conCuenta : TEXTOS.checkout.sinCuenta}
       </p>
 
       <div className="mt-6">

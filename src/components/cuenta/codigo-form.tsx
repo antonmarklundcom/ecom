@@ -7,6 +7,7 @@ import { entrarConCodigo, pedirCodigoAcceso } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 
 /**
  * Entrar sin contraseña (PLAN.md FASE 2, PR F.3).
@@ -46,10 +47,7 @@ export function CodigoAccesoForm() {
           });
         }}
       >
-        <p className="text-muted-foreground text-sm">
-          Si hay una cuenta con ese WhatsApp, te mandamos un código de 6 dígitos.
-          Vence en 10 minutos.
-        </p>
+        <p className="text-muted-foreground text-sm">{TEXTOS.cuenta.codigoAyuda}</p>
 
         {error ? (
           <p
@@ -61,21 +59,21 @@ export function CodigoAccesoForm() {
         ) : null}
 
         <div className="grid gap-1.5">
-          <Label htmlFor="codigo">Código</Label>
+          <Label htmlFor="codigo">{TEXTOS.cuenta.codigo}</Label>
           <Input
             id="codigo"
             value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="123456"
+            placeholder={TEXTOS.cuenta.codigoPlaceholder}
             className="tabular-nums"
             required
           />
         </div>
 
         <Button type="submit" disabled={isPending || code.length !== 6}>
-          {isPending ? "Entrando…" : "Entrar"}
+          {isPending ? TEXTOS.cuenta.entrando : TEXTOS.cuenta.entrar}
         </Button>
 
         <button
@@ -108,20 +106,20 @@ export function CodigoAccesoForm() {
       }}
     >
       <div className="grid gap-1.5">
-        <Label htmlFor="otp-phone">WhatsApp</Label>
+        <Label htmlFor="otp-phone">{TEXTOS.formulario.whatsapp}</Label>
         <Input
           id="otp-phone"
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
           inputMode="tel"
           autoComplete="tel"
-          placeholder="0981 123 456"
+          placeholder={TEXTOS.cuenta.telefonoPlaceholder}
           required
         />
       </div>
 
       <Button type="submit" variant="outline" disabled={isPending}>
-        {isPending ? "Mandando…" : "Mandame un código"}
+        {isPending ? TEXTOS.cuenta.mandandoCodigo : TEXTOS.cuenta.mandameCodigo}
       </Button>
     </form>
   );
