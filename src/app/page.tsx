@@ -4,6 +4,7 @@ import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
 import { TIENDA, type Hero } from "@/config/tienda";
 import { getCatalog, getCategories, type CatalogProduct } from "@/db/queries";
+import { t } from "@/i18n";
 
 /**
  * Home. ISR: el catálogo cambia poco y las redes móviles paraguayas
@@ -38,18 +39,15 @@ export default async function HomePage() {
 
       {error ? (
         <div className="border-border border-l-primary mt-8 rounded-lg border border-l-2 p-4">
-          <p className="text-sm">No pude leer el catálogo:</p>
+          <p className="text-sm">{t("home.errorCatalogo")}</p>
           <p className="mt-1 font-mono text-xs break-all">{error}</p>
-          <p className="text-muted-foreground mt-2 text-sm">
-            Levantá la base con <code>docker compose up -d</code>, después{" "}
-            <code>pnpm db:push &amp;&amp; pnpm db:seed</code>.
-          </p>
+          <p className="text-muted-foreground mt-2 text-sm">{t("home.errorCatalogo.ayuda")}</p>
         </div>
       ) : (
         <>
           {categories.length > 0 ? (
             <section className="mt-10">
-              <h2 className="text-lg font-semibold">Categorías</h2>
+              <h2 className="text-lg font-semibold">{t("home.categorias")}</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {categories.map((category) => (
                   <Link
@@ -58,7 +56,7 @@ export default async function HomePage() {
                     className="border-border hover:border-foreground/30 rounded-xl border p-4 transition-colors"
                   >
                     <p className="font-medium">{category.name}</p>
-                    <p className="text-muted-foreground mt-1 text-sm">Ver todo →</p>
+                    <p className="text-muted-foreground mt-1 text-sm">{t("home.categorias.verTodo")}</p>
                   </Link>
                 ))}
               </div>
@@ -68,7 +66,7 @@ export default async function HomePage() {
           {featured.length > 0 ? (
             <section className="mt-12">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-lg font-semibold">Destacados</h2>
+                <h2 className="text-lg font-semibold">{t("home.destacados")}</h2>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
                 {featured.map((product, index) => (
@@ -77,9 +75,7 @@ export default async function HomePage() {
               </div>
             </section>
           ) : (
-            <p className="text-muted-foreground mt-10 text-sm">
-              Todavía no hay productos publicados. Sembrá el catálogo con <code>pnpm db:seed</code>.
-            </p>
+            <p className="text-muted-foreground mt-10 text-sm">{t("home.sinProductos")}</p>
           )}
         </>
       )}
@@ -99,11 +95,10 @@ export default async function HomePage() {
  */
 function heroPorDefecto(primeraCategoria: string | undefined): Hero {
   return {
-    titulo: "Comprá fácil, pagá como quieras",
-    texto:
-      "Transferencia, QR o contra entrega. Precios en guaraníes con IVA incluido y envíos a todo el país. ¿Dudas? Escribinos por WhatsApp.",
+    titulo: t("home.hero.titulo"),
+    texto: t("home.hero.texto"),
     cta: primeraCategoria
-      ? { label: "Ver productos", href: `/categoria/${primeraCategoria}` }
+      ? { label: t("home.hero.cta"), href: `/categoria/${primeraCategoria}` }
       : undefined,
   };
 }

@@ -187,8 +187,8 @@ Dos bordes que el test fija: sin `CLOUDINARY_CLOUD_NAME` en el entorno —el est
 
 | PR | Task |
 |---|---|
-| P | Infra: catálogo de mensajes (next-intl sin routing o equivalente liviano), `TIENDA.lang` elige el catálogo, `es-PY` completo como default y fallback. *Branch: `feat/i18n-infra`* |
-| Q | Extraer strings de la vidriera (~90) usando el módulo unificado de labels del PR A.2. *Branch: `feat/i18n-vidriera`* (depende de: P) |
+| P | **hecho** — Infra propia, sin librería: `t()` / `tPlural()` síncronas y sin contexto, `TIENDA.lang` elige el catálogo, `es-PY` completo como default **y fallback por clave**. Se descartó next-intl: resuelve rutas por locale y un idioma que cambia por request, y acá el idioma es una constante de build. La consecuencia práctica es que `t()` anda igual en un Server Component, en un `"use client"`, en `generateMetadata` y en un script de Node — un provider de React no serviría para lo último, y medio catálogo vive en `order-messages.ts`, que corre fuera de React. Incluye la extracción de **toda la vidriera de navegación** (header, pie, carrito, fichas, filtros, buscador, home, categoría, producto, 404 y error). Dos tests de CI cierran el círculo: toda clave usada existe, y **ninguna clave del catálogo quedó muerta**. *Branch: `feat/i18n-infra`* |
+| Q | Lo transaccional: checkout, `/pedido/*` y `/cuenta/*`. *Branch: `feat/i18n-vidriera`* (depende de: P) |
 | R | Extraer strings del panel (~150). *Branch: `feat/i18n-admin`* (depende de: P) |
 | S | Los difíciles: templates de WhatsApp (`order-messages.ts`) parametrizados, y errores de dominio convertidos a **códigos** + lookup de mensaje (los ~20 throw sites de `src/domain/*` que hoy llevan prosa). *Branch: `feat/i18n-dominio`* (depende de: P, Q) |
 

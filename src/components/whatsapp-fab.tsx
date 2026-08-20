@@ -1,5 +1,6 @@
 import { MessageCircle } from "lucide-react";
 
+import { t } from "@/i18n";
 import { comercioWaLink } from "@/lib/comercio";
 
 /**
@@ -7,7 +8,7 @@ import { comercioWaLink } from "@/lib/comercio";
  * comprador duda, escribe antes de abandonar el carrito.
  */
 export function WhatsAppFab({ message }: { message?: string }) {
-  const href = comercioWaLink(message ?? "¡Hola! Tengo una consulta sobre un producto.");
+  const href = comercioWaLink(message ?? t("whatsapp.consultaGenerica"));
   if (!href) return null;
 
   return (
@@ -16,12 +17,12 @@ export function WhatsAppFab({ message }: { message?: string }) {
     // "containing block" (transform/filter/perspective), y `<nav>` acá no
     // tiene nada de eso. El wrapper es lo que hace falta para que WCAG lo vea
     // contenido por un landmark en vez de flotando suelto en el body.
-    <nav aria-label="Contacto por WhatsApp">
+    <nav aria-label={t("whatsapp.flotante.nav")}>
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="Escribinos por WhatsApp"
+        aria-label={t("whatsapp.flotante.label")}
         className="fixed right-4 bottom-4 z-40 flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <MessageCircle className="size-7" />

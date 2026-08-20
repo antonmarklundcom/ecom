@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import { formatGs } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +47,9 @@ export function PriceTag({
           </>
         ) : null}
       </div>
-      {showIvaNote ? <span className="text-muted-foreground text-xs">IVA incluido</span> : null}
+      {showIvaNote ? (
+        <span className="text-muted-foreground text-xs">{t("precio.ivaIncluido")}</span>
+      ) : null}
     </div>
   );
 }

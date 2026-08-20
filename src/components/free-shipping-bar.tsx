@@ -1,6 +1,7 @@
 "use client";
 
 import type { FreeShippingProgress } from "@/domain/free-shipping";
+import { t } from "@/i18n";
 import { formatGs } from "@/lib/money";
 
 /**
@@ -27,7 +28,7 @@ export function FreeShippingBar({
   if (progress.kind === "alcanzado") {
     return (
       <Bar percent={100} tone="listo">
-        <span className="font-medium">¡Tenés envío gratis!</span>
+        <span className="font-medium">{t("envioGratis.alcanzado")}</span>
       </Bar>
     );
   }
@@ -37,8 +38,7 @@ export function FreeShippingBar({
   if (progress.kind === "falta") {
     return (
       <Bar percent={percent}>
-        Te faltan <span className="font-medium tabular-nums">{formatGs(progress.missingPyg)}</span>{" "}
-        para el envío gratis.
+        {t("envioGratis.falta", { monto: formatGs(progress.missingPyg) })}
       </Bar>
     );
   }
@@ -48,15 +48,9 @@ export function FreeShippingBar({
   // "te faltan ₲X" acá sería prometer un envío gratis que quizás no le toca.
   return (
     <Bar percent={percent} tone="tenue">
-      {progress.missingPyg > 0 ? (
-        <>
-          En algunas zonas el envío es gratis desde{" "}
-          <span className="font-medium tabular-nums">{formatGs(progress.thresholdPyg)}</span>. Poné
-          tu ciudad en el checkout y te decimos la tuya.
-        </>
-      ) : (
-        <>Puede que tengas envío gratis: depende de tu ciudad. Ponela en el checkout y te decimos.</>
-      )}
+      {progress.missingPyg > 0
+        ? t("envioGratis.indefinidoConMonto", { monto: formatGs(progress.thresholdPyg) })
+        : t("envioGratis.indefinido")}
     </Bar>
   );
 }
