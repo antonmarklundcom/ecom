@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { COUPON_TYPES, type CouponType } from "@/db/schema";
+import { TEXTOS } from "@/i18n";
 import { formatGs } from "@/lib/money";
 
 export type AdminCouponCard = {
@@ -33,8 +34,8 @@ export type AdminCouponCard = {
 };
 
 const TYPE_LABEL: Record<CouponType, string> = {
-  porcentaje: "Porcentaje",
-  monto_fijo: "Monto fijo",
+  porcentaje: TEXTOS.panel.cupones.tipoPorcentaje,
+  monto_fijo: TEXTOS.panel.cupones.tipoMontoFijo,
 };
 
 /** `10%` o `₲ 50.000`, según el tipo. */
@@ -52,15 +53,14 @@ export function CouponsManager({ coupons }: { coupons: AdminCouponCard[] }) {
       ) : (
         <div>
           <Button type="button" onClick={() => setEditing("nuevo")}>
-            Crear cupón
+            {TEXTOS.panel.cupones.crear}
           </Button>
         </div>
       )}
 
       {coupons.length === 0 ? (
         <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
-          Todavía no hay cupones. Mientras no haya ninguno, el checkout no
-          muestra el campo de descuento.
+          {TEXTOS.panel.cupones.sinCupones}
         </p>
       ) : (
         <ul className="grid gap-3">
@@ -95,18 +95,20 @@ function CouponRow({ coupon, onEdit }: { coupon: AdminCouponCard; onEdit: () => 
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="font-medium tabular-nums">{coupon.code}</span>
         <span className="text-sm">
-          {describeValue(coupon)} de descuento
-          {coupon.isActive ? null : <span className="text-muted-foreground"> · desactivado</span>}
-          {agotado ? <span className="text-muted-foreground"> · agotado</span> : null}
+          {describeValue(coupon)} {TEXTOS.panel.cupones.deDescuento}
+          {coupon.isActive ? null : (
+            <span className="text-muted-foreground">{TEXTOS.panel.cupones.desactivadoSufijo}</span>
+          )}
+          {agotado ? <span className="text-muted-foreground">{TEXTOS.panel.cupones.agotadoSufijo}</span> : null}
         </span>
       </div>
 
       <p className="text-muted-foreground mt-1 text-xs">
         {TYPE_LABEL[coupon.type]}
-        {coupon.minOrderPyg ? ` · mínimo ${formatGs(coupon.minOrderPyg)}` : ""}
-        {coupon.desde ? ` · desde ${coupon.desde}` : ""}
-        {coupon.hasta ? ` · hasta ${coupon.hasta}` : ""}
-        {coupon.soloClientes ? " · sólo con cuenta" : ""}
+        {coupon.minOrderPyg ? TEXTOS.panel.cupones.minimo(formatGs(coupon.minOrderPyg)) : ""}
+        {coupon.desde ? TEXTOS.panel.cupones.desde(coupon.desde) : ""}
+        {coupon.hasta ? TEXTOS.panel.cupones.hasta(coupon.hasta) : ""}
+        {coupon.soloClientes ? TEXTOS.panel.cupones.soloConCuenta : ""}
       </p>
 
       {/*
@@ -116,14 +118,11 @@ function CouponRow({ coupon, onEdit }: { coupon: AdminCouponCard; onEdit: () => 
         reporta — verlo acá es notarlo antes.
       */}
       <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-        {coupon.timesUsed} uso{coupon.timesUsed === 1 ? "" : "s"}
-        {coupon.maxUses !== null ? ` de ${coupon.maxUses}` : ""}
-        {coupon.orderCount !== coupon.timesUsed
-          ? ` · ⚠ ${coupon.orderCount} pedidos lo usan`
-          : ""}
-        {coupon.discountedPyg > 0 ? ` · ${formatGs(coupon.discountedPyg)} descontados` : ""}
+        {TEXTOS.panel.cupones.usos(coupon.timesUsed, coupon.maxUses)}
+        {coupon.orderCount !== coupon.timesUsed ? TEXTOS.panel.cupones.pedidosLoUsan(coupon.orderCount) : ""}
+        {coupon.discountedPyg > 0 ? TEXTOS.panel.cupones.descontados(formatGs(coupon.discountedPyg)) : ""}
         {coupon.maxUsesPerCustomer !== null
-          ? ` · máx. ${coupon.maxUsesPerCustomer} por cliente`
+          ? TEXTOS.panel.cupones.maxPorCliente(coupon.maxUsesPerCustomer)
           : ""}
       </p>
 
@@ -138,7 +137,7 @@ function CouponRow({ coupon, onEdit }: { coupon: AdminCouponCard; onEdit: () => 
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={onEdit} disabled={isPending}>
-          Editar
+          {TEXTOS.panel.comunes.editar}
         </Button>
         <Button
           type="button"
@@ -156,12 +155,12 @@ function CouponRow({ coupon, onEdit }: { coupon: AdminCouponCard; onEdit: () => 
                 setError(result.error);
                 return;
               }
-              toast.success(coupon.isActive ? "Cupón desactivado." : "Cupón activado.");
+              toast.success(coupon.isActive ? TEXTOS.panel.cupones.desactivadoToast : TEXTOS.panel.cupones.activadoToast);
               router.refresh();
             });
           }}
         >
-          {coupon.isActive ? "Desactivar" : "Activar"}
+          {coupon.isActive ? TEXTOS.panel.comunes.desactivar : TEXTOS.panel.comunes.activar}
         </Button>
       </div>
     </li>
@@ -213,13 +212,13 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
             setError(result.error);
             return;
           }
-          toast.success(coupon ? "Cupón actualizado." : "Cupón creado.");
+          toast.success(coupon ? TEXTOS.panel.cupones.actualizado : TEXTOS.panel.cupones.creado);
           onDone();
           router.refresh();
         });
       }}
     >
-      <h2 className="font-medium">{coupon ? `Editar ${coupon.code}` : "Nuevo cupón"}</h2>
+      <h2 className="font-medium">{coupon ? TEXTOS.panel.cupones.editar(coupon.code) : TEXTOS.panel.cupones.nuevo}</h2>
 
       {error ? (
         <p
@@ -232,7 +231,7 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="code">Código</Label>
+          <Label htmlFor="code">{TEXTOS.panel.cupones.codigo}</Label>
           <Input
             id="code"
             name="code"
@@ -244,13 +243,13 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
             autoComplete="off"
           />
           <p className="text-muted-foreground text-xs">
-            Se guarda en mayúsculas. Es lo que va a tipear la compradora.
+            {TEXTOS.panel.cupones.codigoAyuda}
           </p>
         </div>
 
         <div className="grid gap-1.5">
           <Label htmlFor="value">
-            {type === "porcentaje" ? "Porcentaje (1 a 100)" : "Monto en guaraníes"}
+            {type === "porcentaje" ? TEXTOS.panel.cupones.porcentajeCampo : TEXTOS.panel.cupones.montoCampo}
           </Label>
           <Input
             id="value"
@@ -264,13 +263,13 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
             inputMode="numeric"
           />
           <p className="text-muted-foreground text-xs">
-            Enteros. El guaraní no tiene céntimos.
+            {TEXTOS.panel.cupones.enterosAyuda}
           </p>
         </div>
       </div>
 
       <fieldset className="grid gap-2">
-        <legend className="text-sm font-medium">Tipo</legend>
+        <legend className="text-sm font-medium">{TEXTOS.panel.cupones.tipo}</legend>
         {COUPON_TYPES.map((option) => (
           <label key={option} className="flex items-center gap-2 text-sm">
             <input
@@ -287,8 +286,8 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="minOrderPyg">
-            Mínimo de compra{" "}
-            <span className="text-muted-foreground font-normal">(opcional)</span>
+            {TEXTOS.panel.cupones.minimoCompra}{" "}
+            <span className="text-muted-foreground font-normal">{TEXTOS.panel.comunes.opcional}</span>
           </Label>
           <Input
             id="minOrderPyg"
@@ -299,12 +298,13 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
             defaultValue={coupon?.minOrderPyg ?? ""}
             inputMode="numeric"
           />
-          <p className="text-muted-foreground text-xs">Sobre el subtotal, sin el envío.</p>
+          <p className="text-muted-foreground text-xs">{TEXTOS.panel.cupones.minimoCompraAyuda}</p>
         </div>
 
         <div className="grid gap-1.5">
           <Label htmlFor="maxUses">
-            Tope de usos <span className="text-muted-foreground font-normal">(opcional)</span>
+            {TEXTOS.panel.cupones.topeUsos}{" "}
+            <span className="text-muted-foreground font-normal">{TEXTOS.panel.comunes.opcional}</span>
           </Label>
           <Input
             id="maxUses"
@@ -315,30 +315,32 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
             defaultValue={coupon?.maxUses ?? ""}
             inputMode="numeric"
           />
-          <p className="text-muted-foreground text-xs">Vacío = sin tope.</p>
+          <p className="text-muted-foreground text-xs">{TEXTOS.panel.cupones.topeUsosAyuda}</p>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="desde">
-            Desde <span className="text-muted-foreground font-normal">(dd/mm/aaaa)</span>
+            {TEXTOS.panel.cupones.desdeCampo}{" "}
+            <span className="text-muted-foreground font-normal">{TEXTOS.panel.cupones.formatoFecha}</span>
           </Label>
-          <Input id="desde" name="desde" defaultValue={coupon?.desde ?? ""} placeholder="01/09/2026" />
+          <Input id="desde" name="desde" defaultValue={coupon?.desde ?? ""} placeholder={TEXTOS.panel.cupones.desdePlaceholder} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="hasta">
-            Hasta <span className="text-muted-foreground font-normal">(dd/mm/aaaa)</span>
+            {TEXTOS.panel.cupones.hastaCampo}{" "}
+            <span className="text-muted-foreground font-normal">{TEXTOS.panel.cupones.formatoFecha}</span>
           </Label>
-          <Input id="hasta" name="hasta" defaultValue={coupon?.hasta ?? ""} placeholder="30/09/2026" />
-          <p className="text-muted-foreground text-xs">Incluye todo ese día.</p>
+          <Input id="hasta" name="hasta" defaultValue={coupon?.hasta ?? ""} placeholder={TEXTOS.panel.cupones.hastaPlaceholder} />
+          <p className="text-muted-foreground text-xs">{TEXTOS.panel.cupones.incluyeEseDia}</p>
         </div>
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="maxUsesPerCustomer">
-          Máximo por cliente{" "}
-          <span className="text-muted-foreground font-normal">(opcional)</span>
+          {TEXTOS.panel.cupones.maximoPorCliente}{" "}
+          <span className="text-muted-foreground font-normal">{TEXTOS.panel.comunes.opcional}</span>
         </Label>
         <Input
           id="maxUsesPerCustomer"
@@ -350,7 +352,7 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
           inputMode="numeric"
         />
         <p className="text-muted-foreground text-xs">
-          Se cuenta por cuenta de cliente, o por WhatsApp si compró de invitada.
+          {TEXTOS.panel.cupones.maximoPorClienteAyuda}
         </p>
       </div>
 
@@ -362,20 +364,17 @@ function CouponForm({ coupon, onDone }: { coupon?: AdminCouponCard; onDone: () =
           onChange={(event) => setSoloClientes(event.target.checked)}
         />
         <span>
-          Sólo para quienes tengan cuenta
-          <span className="text-muted-foreground block text-xs">
-            Si esta tienda no tiene las cuentas de cliente prendidas, un cupón
-            así no lo va a poder usar nadie.
-          </span>
+          {TEXTOS.panel.cupones.soloConCuentaCampo}
+          <span className="text-muted-foreground block text-xs">{TEXTOS.panel.cupones.soloConCuentaAyuda}</span>
         </span>
       </label>
 
       <div className="flex gap-2">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Guardando…" : coupon ? "Guardar cambios" : "Crear cupón"}
+          {isPending ? TEXTOS.panel.comunes.guardando : coupon ? TEXTOS.panel.comunes.guardarCambios : TEXTOS.panel.cupones.crear}
         </Button>
         <Button type="button" variant="outline" disabled={isPending} onClick={onDone}>
-          Cancelar
+          {TEXTOS.panel.comunes.cancelar}
         </Button>
       </div>
     </form>

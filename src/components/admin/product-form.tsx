@@ -8,6 +8,7 @@ import { saveProduct } from "@/app/actions/admin-products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 import { slugify } from "@/lib/slug";
 
 export type ProductFormValues = {
@@ -63,7 +64,7 @@ export function ProductForm({
             return;
           }
 
-          toast.success("Producto guardado.");
+          toast.success(TEXTOS.panel.productos.guardado);
           if (defaults.productId === undefined) {
             router.push(`/admin/productos/${result.productId}`);
             return;
@@ -82,7 +83,7 @@ export function ProductForm({
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="name">Nombre</Label>
+        <Label htmlFor="name">{TEXTOS.panel.comunes.nombre}</Label>
         <Input
           id="name"
           name="name"
@@ -95,7 +96,7 @@ export function ProductForm({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="slug">Slug (la URL del producto)</Label>
+        <Label htmlFor="slug">{TEXTOS.panel.productos.slug}</Label>
         <Input
           id="slug"
           name="slug"
@@ -109,7 +110,7 @@ export function ProductForm({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="description">Descripción</Label>
+        <Label htmlFor="description">{TEXTOS.panel.productos.descripcion}</Label>
         <textarea
           id="description"
           name="description"
@@ -121,7 +122,7 @@ export function ProductForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="categoryId">Categoría</Label>
+          <Label htmlFor="categoryId">{TEXTOS.panel.productos.categoria}</Label>
           <select
             id="categoryId"
             name="categoryId"
@@ -130,7 +131,7 @@ export function ProductForm({
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
           >
             <option value="" disabled>
-              Elegí una
+              {TEXTOS.panel.productos.elegiUna}
             </option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
@@ -141,21 +142,21 @@ export function ProductForm({
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="brand">Marca</Label>
+          <Label htmlFor="brand">{TEXTOS.panel.productos.marca}</Label>
           <Input id="brand" name="brand" defaultValue={defaults.brand} />
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="ivaRate">IVA</Label>
+          <Label htmlFor="ivaRate">{TEXTOS.panel.productos.iva}</Label>
           <select
             id="ivaRate"
             name="ivaRate"
             defaultValue={String(defaults.ivaRate)}
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
           >
-            <option value="10">10% (lo habitual)</option>
-            <option value="5">5% (canasta básica)</option>
-            <option value="0">Exento</option>
+            <option value="10">{TEXTOS.panel.productos.iva10}</option>
+            <option value="5">{TEXTOS.panel.productos.iva5}</option>
+            <option value="0">{TEXTOS.panel.productos.ivaExento}</option>
           </select>
         </div>
       </div>
@@ -163,19 +164,19 @@ export function ProductForm({
       <div className="grid gap-2">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="isActive" defaultChecked={defaults.isActive} />
-          Activo
+          {TEXTOS.panel.productos.activo}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="published" defaultChecked={defaults.published} />
-          Publicado en la tienda
+          {TEXTOS.panel.productos.publicado}
         </label>
         <p className="text-muted-foreground text-xs">
-          Un producto sin publicar no aparece en el catálogo ni en la búsqueda.
+          {TEXTOS.panel.productos.publicadoAyuda}
         </p>
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Guardando…" : "Guardar producto"}
+        {isPending ? TEXTOS.panel.comunes.guardando : TEXTOS.panel.productos.guardarProducto}
       </Button>
     </form>
   );

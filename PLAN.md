@@ -187,12 +187,14 @@ Sin imagen —o sin `CLOUDINARY_CLOUD_NAME`— el hero se dibuja igual con el fo
 |---|---|---|
 | P | Infra: catálogo de mensajes, `TIENDA.lang` elige el catálogo, `es-PY` completo como default y fallback | **hecho** |
 | Q | Extraer los strings de la vidriera usando el módulo unificado de labels del PR A.2 | **hecho** |
-| R | Extraer los strings del panel (~150) | pendiente |
+| R | Extraer los strings del panel (~150) | **hecho** |
 | S | Los difíciles: templates de WhatsApp (`order-messages.ts`) parametrizados, y errores de dominio convertidos a **códigos** + lookup de mensaje | **hecho** |
 
 **Lo que se decidió en el PR P:** módulo propio (`src/i18n/`) en vez de `next-intl`. Sin routing ni switcher, lo que queda de una librería de i18n es un diccionario; esto son cuarenta líneas, anda en Server y Client Components sin provider, y el catálogo es un objeto tipado — **una clave que no existe no compila**, que es más de lo que da el lookup por string de cualquier librería. Los mensajes con parámetros son funciones y no strings con `{n}`: el plural y el orden de las palabras cambian por idioma, y así se resuelven en el catálogo en vez de en la pantalla.
 
 El catálogo elegido se mezcla sobre `es-PY`: un idioma incompleto —o inexistente— cae en el default en vez de dejar huecos. `tests/unit/i18n.test.ts` verifica que ningún catálogo invente claves que el default no tenga, que el `en` de prueba las declare todas, y que **con el `lang` de fábrica los textos sean los de siempre**, que es lo que le importa a una tienda que ya está vendiendo.
+
+**Lo que se decidió en el PR R:** el panel entero sale de `TEXTOS.panel.*` —las diez pantallas, los quince componentes, los labels de estado y de método de pago, y los verbos de las transiciones—, pero **no se tradujo al `en` de prueba**. Ese catálogo existe para demostrar que la *vidriera* se renderiza entera en otro idioma, que es el criterio de salida del plan; el panel lo lee el dueño, en el idioma de su tienda, y traducir 250 strings para un catálogo de demo es trabajo sin lector. Lo que falte cae en es-PY, que es exactamente lo que tiene que pasar, y el test que exige claves completas para el `en` está acotado a lo que no empieza con `panel.`.
 
 **Lo que se decidió en el PR S:** el dominio pide su texto a `MENSAJES` (`src/domain/mensajes.ts`, que es `TEXTOS.dominio`) en vez de llevar la frase escrita al lado del `throw`. No hay un enum de códigos aparte: la clave del catálogo **es** el código, y con el catálogo tipado una clave que no existe no compila — un enum paralelo sería una segunda lista que se desincroniza. Lo que sostiene la regla no es la disciplina de quien escriba el próximo `throw`: `tests/unit/i18n-dominio.test.ts` falla si un error de las familias que alguien lee vuelve a llevar una frase a mano, y si `order-messages.ts` vuelve a armar un WhatsApp con texto propio.
 

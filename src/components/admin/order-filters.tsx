@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import { TEXTOS } from "@/i18n";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 
 type Defaults = { estado: string; metodo: string; desde: string; hasta: string; q: string };
@@ -49,11 +50,11 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
         <Input
           name="q"
           defaultValue={defaults.q}
-          placeholder="Nº de pedido, WhatsApp o RUC"
-          aria-label="Buscar pedido"
+          placeholder={TEXTOS.panel.pedidos.buscarPlaceholder}
+          aria-label={TEXTOS.panel.pedidos.buscarLabel}
           inputMode="search"
         />
-        <Button type="submit">Buscar</Button>
+        <Button type="submit">{TEXTOS.panel.pedidos.buscar}</Button>
       </div>
 
       <button
@@ -62,7 +63,7 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >
-        {open ? "Ocultar filtros" : "Más filtros"}
+        {open ? TEXTOS.panel.pedidos.ocultarFiltros : TEXTOS.panel.pedidos.masFiltros}
         {!open && activeCount > 0 ? ` (${activeCount})` : ""}
       </button>
 
@@ -71,14 +72,14 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
       {open ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label htmlFor="estado">Estado</Label>
+            <Label htmlFor="estado">{TEXTOS.panel.pedidos.estado}</Label>
             <select
               id="estado"
               name="estado"
               defaultValue={defaults.estado}
               className="border-input bg-background h-9 rounded-md border px-3 text-sm"
             >
-              <option value="">Todos</option>
+              <option value="">{TEXTOS.panel.pedidos.todos}</option>
               {ORDER_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {ORDER_STATUS_LABEL[status]}
@@ -88,14 +89,14 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="metodo">Método de pago</Label>
+            <Label htmlFor="metodo">{TEXTOS.panel.pedidos.metodoDePago}</Label>
             <select
               id="metodo"
               name="metodo"
               defaultValue={defaults.metodo}
               className="border-input bg-background h-9 rounded-md border px-3 text-sm"
             >
-              <option value="">Todos</option>
+              <option value="">{TEXTOS.panel.pedidos.todos}</option>
               {PAYMENT_METHODS.map((method) => (
                 <option key={method} value={method}>
                   {PAYMENT_METHOD_LABEL[method]}
@@ -105,25 +106,25 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="desde">Desde</Label>
+            <Label htmlFor="desde">{TEXTOS.panel.pedidos.desde}</Label>
             <Input id="desde" name="desde" type="date" defaultValue={defaults.desde} />
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="hasta">Hasta</Label>
+            <Label htmlFor="hasta">{TEXTOS.panel.pedidos.hasta}</Label>
             <Input id="hasta" name="hasta" type="date" defaultValue={defaults.hasta} />
           </div>
 
           <div className="flex gap-2 sm:col-span-2">
             <Button type="submit" className="flex-1">
-              Aplicar
+              {TEXTOS.panel.pedidos.aplicar}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/admin/pedidos")}
             >
-              Limpiar
+              {TEXTOS.panel.pedidos.limpiar}
             </Button>
           </div>
         </div>

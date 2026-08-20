@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 import { formatGs } from "@/lib/money";
 
 export type AdminShippingZoneCard = {
@@ -35,8 +36,8 @@ export function ShippingZonesManager({ zones }: { zones: AdminShippingZoneCard[]
           role="status"
           className="border-border border-l-primary rounded-lg border border-l-2 p-4 text-sm"
         >
-          No hay ninguna zona activa: hoy la tienda <strong>no cobra envío</strong>. Es el estado
-          en el que sale una tienda recién clonada; si no es a propósito, activá o creá una zona.
+          {TEXTOS.panel.envios.sinZonasActivas1} <strong>{TEXTOS.panel.envios.sinZonasActivas2}</strong>
+          {TEXTOS.panel.envios.sinZonasActivas3}
         </p>
       ) : null}
 
@@ -45,14 +46,14 @@ export function ShippingZonesManager({ zones }: { zones: AdminShippingZoneCard[]
       ) : (
         <div>
           <Button type="button" onClick={() => setEditing("nueva")}>
-            Crear zona
+            {TEXTOS.panel.envios.crear}
           </Button>
         </div>
       )}
 
       {zones.length === 0 ? (
         <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
-          Todavía no hay zonas de envío.
+          {TEXTOS.panel.envios.sinZonas}
         </p>
       ) : (
         <ul className="grid gap-3">
@@ -112,23 +113,23 @@ function ZoneRow({
         <span className="font-medium">
           {zone.name}
           {zone.isActive ? null : (
-            <span className="text-muted-foreground font-normal"> · desactivada</span>
+            <span className="text-muted-foreground font-normal">{TEXTOS.panel.envios.desactivadaSufijo}</span>
           )}
         </span>
         <span className="text-sm tabular-nums">
-          {zone.pricePyg === 0 ? "Gratis" : formatGs(zone.pricePyg)}
+          {zone.pricePyg === 0 ? TEXTOS.panel.envios.gratis : formatGs(zone.pricePyg)}
         </span>
       </div>
 
       <p className="text-muted-foreground mt-1 text-xs">
-        {zone.cities.length > 0 ? zone.cities.join(" · ") : "Sin ciudades cargadas"}
+        {zone.cities.length > 0 ? zone.cities.join(" · ") : TEXTOS.panel.envios.sinCiudades}
       </p>
 
       <p className="text-muted-foreground mt-1 text-xs">
         {zone.freeThresholdPyg !== null
-          ? `Gratis desde ${formatGs(zone.freeThresholdPyg)}`
-          : "Sin envío gratis"}
-        {masCara ? " · es la tarifa que paga una ciudad que no esté en ninguna zona" : ""}
+          ? TEXTOS.panel.envios.gratisDesde(formatGs(zone.freeThresholdPyg))
+          : TEXTOS.panel.envios.sinEnvioGratis}
+        {masCara ? TEXTOS.panel.envios.esLaMasCara : ""}
       </p>
 
       {error ? (
@@ -142,7 +143,7 @@ function ZoneRow({
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={onEdit} disabled={isPending}>
-          Editar
+          {TEXTOS.panel.comunes.editar}
         </Button>
         <Button
           type="button"
@@ -153,10 +154,7 @@ function ZoneRow({
             if (
               zone.isActive &&
               ultimaActiva &&
-              !confirm(
-                `"${zone.name}" es la última zona activa.\n\n` +
-                  "Sin zonas activas la tienda deja de cobrar envío: todo pedido va a cotizar ₲0."
-              )
+              !confirm(TEXTOS.panel.envios.confirmarUltima(zone.name))
             ) {
               return;
             }
@@ -171,12 +169,12 @@ function ZoneRow({
                 setError(result.error);
                 return;
               }
-              toast.success(zone.isActive ? "Zona desactivada." : "Zona activada.");
+              toast.success(zone.isActive ? TEXTOS.panel.envios.desactivadaToast : TEXTOS.panel.envios.activadaToast);
               router.refresh();
             });
           }}
         >
-          {zone.isActive ? "Desactivar" : "Activar"}
+          {zone.isActive ? TEXTOS.panel.comunes.desactivar : TEXTOS.panel.comunes.activar}
         </Button>
       </div>
     </li>
@@ -221,13 +219,13 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             setError(result.error);
             return;
           }
-          toast.success(zone ? "Zona actualizada." : "Zona creada.");
+          toast.success(zone ? TEXTOS.panel.envios.actualizada : TEXTOS.panel.envios.creada);
           onDone();
           router.refresh();
         });
       }}
     >
-      <h2 className="font-medium">{zone ? `Editar ${zone.name}` : "Nueva zona"}</h2>
+      <h2 className="font-medium">{zone ? TEXTOS.panel.envios.editar(zone.name) : TEXTOS.panel.envios.nueva}</h2>
 
       {error ? (
         <p
@@ -240,7 +238,7 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="name">Nombre</Label>
+          <Label htmlFor="name">{TEXTOS.panel.comunes.nombre}</Label>
           <Input
             id="name"
             name="name"
@@ -251,12 +249,12 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             autoComplete="off"
           />
           <p className="text-muted-foreground text-xs">
-            Lo lee quien compra: &ldquo;Gran Asunción&rdquo;, &ldquo;Interior&rdquo;.
+            {TEXTOS.panel.envios.nombreAyuda}
           </p>
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="pricePyg">Precio del envío (₲)</Label>
+          <Label htmlFor="pricePyg">{TEXTOS.panel.envios.precio}</Label>
           <Input
             id="pricePyg"
             name="pricePyg"
@@ -267,13 +265,13 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             defaultValue={zone?.pricePyg ?? 0}
           />
           <p className="text-muted-foreground text-xs">
-            Entero en guaraníes, IVA 10% incluido. 0 = envío gratis siempre.
+            {TEXTOS.panel.envios.precioAyuda}
           </p>
         </div>
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="cities">Ciudades</Label>
+        <Label htmlFor="cities">{TEXTOS.panel.envios.ciudades}</Label>
         <textarea
           id="cities"
           name="cities"
@@ -282,8 +280,7 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
           className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
         <p className="text-muted-foreground text-xs">
-          Una por línea. Los acentos y las mayúsculas no importan al cotizar. Una ciudad que no
-          esté en ninguna zona paga la tarifa más cara.
+          {TEXTOS.panel.envios.ciudadesAyuda}
         </p>
       </div>
 
@@ -295,12 +292,12 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             onChange={(event) => setGratis(event.target.checked)}
             className="size-4"
           />
-          Envío gratis a partir de un monto
+          {TEXTOS.panel.envios.envioGratisDesde}
         </label>
         {gratis ? (
           <>
             <Label htmlFor="freeThresholdPyg" className="sr-only">
-              Umbral de envío gratis
+              {TEXTOS.panel.envios.umbral}
             </Label>
             <Input
               id="freeThresholdPyg"
@@ -312,7 +309,7 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
               placeholder="500000"
             />
             <p className="text-muted-foreground text-xs">
-              Subtotal desde el que el envío de esta zona sale ₲0.
+              {TEXTOS.panel.envios.umbralAyuda}
             </p>
           </>
         ) : null}
@@ -322,10 +319,10 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
 
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Guardando…" : "Guardar"}
+          {isPending ? TEXTOS.panel.comunes.guardando : TEXTOS.panel.comunes.guardar}
         </Button>
         <Button type="button" variant="outline" onClick={onDone} disabled={isPending}>
-          Cancelar
+          {TEXTOS.panel.comunes.cancelar}
         </Button>
       </div>
     </form>

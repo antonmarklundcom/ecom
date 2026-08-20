@@ -6,10 +6,11 @@ import { ProductForm } from "@/components/admin/product-form";
 import { ProductImages } from "@/components/admin/product-images";
 import { VariantEditor } from "@/components/admin/variant-editor";
 import { getAdminProduct, listCategories, listStockAdjustments } from "@/domain/admin-products";
+import { TEXTOS } from "@/i18n";
 import { formatDateTimePY } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 
-export const metadata: Metadata = { title: "Producto" };
+export const metadata: Metadata = { title: TEXTOS.panel.productos.tituloSingular };
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
   return (
     <div>
       <Link href="/admin/productos" className="text-muted-foreground text-sm">
-        ← Productos
+        {TEXTOS.panel.productos.volver}
       </Link>
       <h1 className="mt-2 text-xl font-semibold tracking-tight">{product.name}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
@@ -54,7 +55,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
       </p>
 
       <section className="mt-6">
-        <h2 className="font-medium">Datos</h2>
+        <h2 className="font-medium">{TEXTOS.panel.productos.datos}</h2>
         <div className="mt-2">
           <ProductForm
             categories={categories.map((category) => ({ id: category.id, name: category.name }))}
@@ -74,7 +75,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-medium">Variantes y stock</h2>
+        <h2 className="font-medium">{TEXTOS.panel.productos.variantesYStock}</h2>
         <div className="mt-2">
           <VariantEditor
             productId={product.id}
@@ -95,7 +96,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
 
       {adjustments.length > 0 ? (
         <section className="mt-8">
-          <h2 className="font-medium">Últimos ajustes de stock</h2>
+          <h2 className="font-medium">{TEXTOS.panel.productos.ultimosAjustes}</h2>
           <ul className="divide-border mt-2 divide-y text-sm">
             {adjustments.map((adjustment) => (
               <li key={adjustment.id} className="py-2">
@@ -120,7 +121,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
       ) : null}
 
       <section className="mt-8">
-        <h2 className="font-medium">Fotos</h2>
+        <h2 className="font-medium">{TEXTOS.panel.productos.fotos}</h2>
         <div className="mt-2">
           <ProductImages
             productId={product.id}

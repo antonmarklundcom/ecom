@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type React from "react";
 
 import { TIENDA } from "@/config/tienda";
+import { TEXTOS } from "@/i18n";
 
 /**
  * Layout raíz de `/admin`. A propósito no tiene guard: el login vive abajo de
@@ -9,7 +10,10 @@ import { TIENDA } from "@/config/tienda";
  * mismo para siempre. La puerta del panel está en `(panel)/layout.tsx`.
  */
 export const metadata: Metadata = {
-  title: { default: "Panel", template: `%s · Panel · ${TIENDA.nombre}` },
+  title: {
+    default: TEXTOS.panel.titulo,
+    template: `%s · ${TEXTOS.panel.titulo} · ${TIENDA.nombre}`,
+  },
   robots: { index: false, follow: false, nocache: true },
 };
 

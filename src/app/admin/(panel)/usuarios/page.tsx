@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 
 import { UsersManager } from "@/components/admin/users-manager";
 import { listAdminUsers } from "@/domain/admin-users";
+import { TEXTOS } from "@/i18n";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { formatDateTimePY } from "@/lib/py";
 
-export const metadata: Metadata = { title: "Usuarios" };
+export const metadata: Metadata = { title: TEXTOS.panel.usuarios.titulo };
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +23,8 @@ export default async function AdminUsersPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Usuarios del panel</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Quién puede entrar y qué puede hacer. Nadie se borra: se desactiva, y así
-        el historial de lo que hizo sigue siendo consultable.
-      </p>
+      <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.usuarios.encabezado}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">{TEXTOS.panel.usuarios.ayuda}</p>
 
       <div className="mt-6">
         <UsersManager

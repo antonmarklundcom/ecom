@@ -1,3 +1,5 @@
+import { TEXTOS } from "@/i18n";
+
 /**
  * Órdenes del listado de productos del panel.
  *
@@ -15,10 +17,10 @@ export const ADMIN_PRODUCT_SORTS = ["recientes", "stock", "precio-asc", "precio-
 export type AdminProductSort = (typeof ADMIN_PRODUCT_SORTS)[number];
 
 export const ADMIN_PRODUCT_SORT_LABEL: Record<AdminProductSort, string> = {
-  recientes: "Editados hace poco",
-  stock: "Stock: menor primero",
-  "precio-asc": "Precio: menor a mayor",
-  "precio-desc": "Precio: mayor a menor",
+  recientes: TEXTOS.panel.productos.orden.recientes,
+  stock: TEXTOS.panel.productos.orden.stock,
+  "precio-asc": TEXTOS.panel.productos.orden.precioAsc,
+  "precio-desc": TEXTOS.panel.productos.orden.precioDesc,
 };
 
 export function isAdminProductSort(value: string | undefined): value is AdminProductSort {

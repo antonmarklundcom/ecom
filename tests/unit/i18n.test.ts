@@ -99,9 +99,14 @@ describe('catálogos de mensajes', () => {
    * traducir se ve en pantalla, en castellano, en medio de una tienda inglesa.
    */
   it('el catálogo en inglés declara todas las claves de la vidriera', () => {
-    const faltantes = claves(esPY as Nodo).filter(
-      (clave) => !claves(CATALOGS.en as Nodo).includes(clave),
-    );
+    // `panel.*` queda afuera a propósito: el `en` existe para demostrar que la
+    // **vidriera** se renderiza entera en otro idioma, que es el criterio de
+    // salida del plan. El panel lo lee el dueño, en el idioma de su tienda; lo
+    // que no esté traducido cae en es-PY, que es lo que corresponde.
+    const declaradas = new Set(claves(CATALOGS.en as Nodo));
+    const faltantes = claves(esPY as Nodo)
+      .filter((clave) => !clave.startsWith('panel.'))
+      .filter((clave) => !declaradas.has(clave));
     expect(faltantes).toEqual([]);
   });
 });

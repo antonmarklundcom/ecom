@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { markPaymentRefunded, retryPaymentRevival } from "@/app/actions/admin-payments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TEXTOS } from "@/i18n";
 import { formatGs } from "@/lib/money";
 
 /**
@@ -83,8 +84,8 @@ function UnmatchedPaymentRow({
       }
       toast.success(
         result.changed
-          ? `${result.orderNumber} volvió a estar cobrado.`
-          : `${result.orderNumber} ya estaba cobrado.`
+          ? TEXTOS.panel.pagosHuerfanos.volvioACobrado(result.orderNumber)
+          : TEXTOS.panel.pagosHuerfanos.yaEstabaCobrado(result.orderNumber)
       );
       router.refresh();
     });
@@ -103,7 +104,7 @@ function UnmatchedPaymentRow({
       }
       setRefunding(false);
       setReason("");
-      toast.success(`Devolución anotada en ${result.orderNumber}.`);
+      toast.success(TEXTOS.panel.pagosHuerfanos.devolucionAnotada(result.orderNumber));
       router.refresh();
     });
   };
@@ -117,7 +118,7 @@ function UnmatchedPaymentRow({
         <span className="font-semibold tabular-nums">{formatGs(payment.amountPyg)}</span>
       </div>
       <p className="text-muted-foreground mt-1 text-xs">
-        {payment.provider} · pedido en &quot;{payment.orderStatus}&quot; · {payment.paidAt}
+        {payment.provider} · {TEXTOS.panel.pagosHuerfanos.pedidoEn(payment.orderStatus)} · {payment.paidAt}
       </p>
 
       {error ? (
@@ -132,22 +133,21 @@ function UnmatchedPaymentRow({
       {refunding && puedeDevolver ? (
         <div className="border-border mt-2 grid gap-2 rounded-lg border p-3">
           <label className="text-muted-foreground text-xs" htmlFor={`motivo-${payment.paymentId}`}>
-            Motivo de la devolución (queda en el historial del pedido)
+            {TEXTOS.panel.pagosHuerfanos.motivoDevolucion}
           </label>
           <Input
             id={`motivo-${payment.paymentId}`}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            placeholder="Ej: transferí de vuelta por SPI el 12/8"
+            placeholder={TEXTOS.panel.pagosHuerfanos.motivoDevolucionPlaceholder}
             maxLength={500}
           />
           <p className="text-muted-foreground text-xs">
-            Esto no le transfiere la plata a nadie: anota que vos ya la devolviste, y cancela el
-            pedido.
+            {TEXTOS.panel.pagosHuerfanos.devolucionAyuda}
           </p>
           <div className="flex gap-2">
             <Button type="button" variant="destructive" disabled={isPending} onClick={refund}>
-              {isPending ? "Guardando…" : "Confirmar devolución"}
+              {isPending ? TEXTOS.panel.comunes.guardando : TEXTOS.panel.pagosHuerfanos.confirmarDevolucion}
             </Button>
             <Button
               type="button"
@@ -158,14 +158,14 @@ function UnmatchedPaymentRow({
                 setReason("");
               }}
             >
-              Volver
+              {TEXTOS.panel.pagosHuerfanos.volver}
             </Button>
           </div>
         </div>
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
           <Button type="button" size="sm" disabled={isPending} onClick={retry}>
-            Reintentar el pedido
+            {TEXTOS.panel.pagosHuerfanos.reintentarPedido}
           </Button>
           {puedeDevolver ? (
             <Button
@@ -175,7 +175,7 @@ function UnmatchedPaymentRow({
               disabled={isPending}
               onClick={() => setRefunding(true)}
             >
-              Marcar como devuelto
+              {TEXTOS.panel.pagosHuerfanos.marcarDevuelto}
             </Button>
           ) : null}
         </div>

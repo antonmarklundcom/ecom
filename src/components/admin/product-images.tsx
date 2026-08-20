@@ -9,6 +9,7 @@ import { removeProductImage, uploadProductImage } from "@/app/actions/admin-prod
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 import { productImageUrl } from "@/lib/images";
 
 type ImageCard = { id: number; cloudinaryId: string; alt: string | null };
@@ -46,7 +47,7 @@ export function ProductImages({
                   {url ? (
                     <Image
                       src={url}
-                      alt={image.alt ?? "Foto del producto"}
+                      alt={image.alt ?? TEXTOS.panel.productos.fotoAlt}
                       fill
                       unoptimized
                       sizes="200px"
@@ -68,12 +69,12 @@ export function ProductImages({
                         setError(result.error);
                         return;
                       }
-                      toast.success("Foto quitada.");
+                      toast.success(TEXTOS.panel.productos.fotoQuitada);
                       router.refresh();
                     });
                   }}
                 >
-                  Quitar
+                  {TEXTOS.panel.productos.quitar}
                 </Button>
               </li>
             );
@@ -81,7 +82,7 @@ export function ProductImages({
         </ul>
       ) : (
         <p className="text-muted-foreground text-sm">
-          Todavía no hay fotos: en la tienda se ve un placeholder de color.
+          {TEXTOS.panel.productos.sinFotos}
         </p>
       )}
 
@@ -101,21 +102,21 @@ export function ProductImages({
               return;
             }
             formRef.current?.reset();
-            toast.success("Foto subida.");
+            toast.success(TEXTOS.panel.productos.fotoSubida);
             router.refresh();
           });
         }}
       >
         <div className="grid gap-1.5">
-          <Label htmlFor="file">Agregar foto (JPG, PNG o WebP, hasta 5 MB)</Label>
+          <Label htmlFor="file">{TEXTOS.panel.productos.agregarFoto}</Label>
           <Input id="file" name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor="alt">Descripción de la foto (accesibilidad y SEO)</Label>
-          <Input id="alt" name="alt" maxLength={255} placeholder="Remera azul de frente" />
+          <Label htmlFor="alt">{TEXTOS.panel.productos.descripcionFoto}</Label>
+          <Input id="alt" name="alt" maxLength={255} placeholder={TEXTOS.panel.productos.descripcionFotoPlaceholder} />
         </div>
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Subiendo…" : "Subir foto"}
+          {isPending ? TEXTOS.panel.productos.subiendo : TEXTOS.panel.productos.subirFoto}
         </Button>
       </form>
     </div>

@@ -8,9 +8,10 @@ import { listAdminProducts, listCategories } from "@/domain/admin-products";
 import { isAdminProductSort } from "@/lib/admin-product-sort";
 import { formatGs } from "@/lib/money";
 import { requireCapabilityPage } from "@/lib/admin-guard";
+import { TEXTOS } from "@/i18n";
 import { can } from "@/lib/permissions";
 
-export const metadata: Metadata = { title: "Productos" };
+export const metadata: Metadata = { title: TEXTOS.panel.productos.titulo };
 
 export const dynamic = "force-dynamic";
 
@@ -55,12 +56,12 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">Productos</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.productos.titulo}</h1>
         <Link
           href="/admin/productos/nuevo"
           className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-medium"
         >
-          Nuevo producto
+          {TEXTOS.panel.productos.nuevo}
         </Link>
       </div>
 
@@ -69,8 +70,8 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
           type="search"
           name="q"
           defaultValue={search ?? ""}
-          placeholder="Buscar por nombre o slug"
-          aria-label="Buscar producto"
+          placeholder={TEXTOS.panel.productos.buscarPlaceholder}
+          aria-label={TEXTOS.panel.productos.buscarLabel}
           className="border-input bg-background h-9 flex-1 rounded-md border px-3 text-sm"
         />
         {/* La búsqueda es un form nativo: sin estos hidden, buscar dentro de
@@ -78,7 +79,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
         {categoryId ? <input type="hidden" name="categoria" value={String(categoryId)} /> : null}
         {sort !== "recientes" ? <input type="hidden" name="orden" value={sort} /> : null}
         <button type="submit" className="border-border rounded-lg border px-4 text-sm">
-          Buscar
+          {TEXTOS.panel.productos.buscar}
         </button>
       </form>
 
@@ -94,7 +95,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
 
       {result.rows.length === 0 ? (
         <p className="text-muted-foreground border-border mt-6 rounded-xl border border-dashed p-8 text-center text-sm">
-          No hay productos que coincidan.
+          {TEXTOS.panel.productos.sinResultados}
         </p>
       ) : (
         <ul className="mt-4 grid gap-3">
@@ -128,17 +129,18 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                     <span className="font-medium">{product.name}</span>
                     <span className="text-sm tabular-nums">
-                      {product.minPricePyg === null ? "Sin precio" : formatGs(product.minPricePyg)}
+                      {product.minPricePyg === null
+                        ? TEXTOS.panel.productos.sinPrecio
+                        : formatGs(product.minPricePyg)}
                     </span>
                   </div>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    {product.categoryName} · {product.variantCount}{" "}
-                    {product.variantCount === 1 ? "variante" : "variantes"} ·{" "}
+                    {product.categoryName} · {TEXTOS.panel.productos.variantes(product.variantCount)} ·{" "}
                     <span className={product.onHand === 0 ? "text-destructive font-medium" : ""}>
-                      {product.onHand} en stock
+                      {TEXTOS.panel.productos.enStock(product.onHand)}
                     </span>
                     {!product.isActive || product.publishedAt === null ? (
-                      <span className="text-foreground font-medium"> · sin publicar</span>
+                      <span className="text-foreground font-medium">{TEXTOS.panel.productos.sinPublicar}</span>
                     ) : null}
                   </p>
                 </div>
@@ -149,26 +151,26 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
       )}
 
       {result.totalPages > 1 ? (
-        <nav className="mt-6 flex items-center justify-between text-sm" aria-label="Paginación">
+        <nav className="mt-6 flex items-center justify-between text-sm" aria-label={TEXTOS.panel.comunes.paginacion}>
           {result.page > 1 ? (
             <Link
               href={href(result.page - 1)}
               className="border-border rounded-lg border px-3 py-2"
             >
-              ← Anteriores
+              {TEXTOS.panel.pedidos.anteriores}
             </Link>
           ) : (
             <span />
           )}
           <span className="text-muted-foreground tabular-nums">
-            Página {result.page} de {result.totalPages}
+            {TEXTOS.panel.comunes.paginaDeTotal(result.page, result.totalPages)}
           </span>
           {result.page < result.totalPages ? (
             <Link
               href={href(result.page + 1)}
               className="border-border rounded-lg border px-3 py-2"
             >
-              Siguientes →
+              {TEXTOS.panel.pedidos.siguientes}
             </Link>
           ) : (
             <span />
@@ -189,7 +191,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             }}
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Una fila por variante, con los filtros puestos.
+            {TEXTOS.panel.productos.csvAyuda}
           </p>
         </div>
       ) : null}

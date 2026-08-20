@@ -17,9 +17,10 @@ import { adminActor } from "@/lib/admin-guard";
 import { comercioWaLink } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { can } from "@/lib/permissions";
+import { TEXTOS } from "@/i18n";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
 
-export const metadata: Metadata = { title: "Pedidos" };
+export const metadata: Metadata = { title: TEXTOS.panel.pedidos.titulo };
 
 // El listado muestra estados que cambian a cada rato: nunca se cachea.
 export const dynamic = "force-dynamic";
@@ -60,17 +61,17 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Pedidos</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.pedidos.titulo}</h1>
         <div className="flex items-center gap-3">
           {/* El trabajo de cobrar es una tarea aparte de mirar el listado:
               tiene su pantalla y se llega de un toque. */}
           {can(actor.role, "pedidos.cobrar") ? (
             <Link href="/admin/pedidos/por-cobrar" className="text-sm underline">
-              Por cobrar
+              {TEXTOS.panel.pedidos.porCobrar}
             </Link>
           ) : null}
           <p className="text-muted-foreground text-sm tabular-nums">
-            {result.total} {result.total === 1 ? "pedido" : "pedidos"}
+            {TEXTOS.panel.pedidos.cuenta(result.total)}
           </p>
         </div>
       </div>
@@ -98,7 +99,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
 
       {result.rows.length === 0 ? (
         <p className="text-muted-foreground border-border mt-6 rounded-xl border border-dashed p-8 text-center text-sm">
-          No hay pedidos con esos filtros.
+          {TEXTOS.panel.pedidos.sinPedidos}
         </p>
       ) : (
         // Tarjetas en vez de tabla: el dueño abre esto en el celular, y una
@@ -125,9 +126,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
                   {formatDateTimePY(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
                   {order.pendingReceipts > 0 ? (
                     <span className="text-foreground font-medium">
-                      {" "}
-                      · {order.pendingReceipts} comprobante
-                      {order.pendingReceipts === 1 ? "" : "s"} sin revisar
+                      {" "}· {TEXTOS.panel.pedidos.comprobantesSinRevisar(order.pendingReceipts)}
                     </span>
                   ) : null}
                 </p>
@@ -154,7 +153,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
             params={{ estado: status, metodo: method, desde, hasta, q: search }}
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Baja los pedidos con los filtros puestos, no sólo esta página.
+            {TEXTOS.panel.pedidos.csvAyuda}
           </p>
         </div>
       ) : null}
@@ -184,20 +183,20 @@ function Pagination({
   };
 
   return (
-    <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label="Paginación">
+    <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label={TEXTOS.panel.comunes.paginacion}>
       {page > 1 ? (
         <Link href={href(page - 1)} className="border-border rounded-lg border px-3 py-2">
-          ← Anteriores
+          {TEXTOS.panel.pedidos.anteriores}
         </Link>
       ) : (
         <span />
       )}
       <span className="text-muted-foreground tabular-nums">
-        Página {page} de {totalPages}
+        {TEXTOS.panel.comunes.paginaDeTotal(page, totalPages)}
       </span>
       {page < totalPages ? (
         <Link href={href(page + 1)} className="border-border rounded-lg border px-3 py-2">
-          Siguientes →
+          {TEXTOS.panel.pedidos.siguientes}
         </Link>
       ) : (
         <span />

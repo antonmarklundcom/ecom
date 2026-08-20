@@ -464,6 +464,544 @@ export const esPY = {
     },
   },
 
+  /**
+   * El panel (PLAN.md FASE 2, PR R).
+   *
+   * Los textos del panel viven en el catálogo por lo mismo que los de la
+   * vidriera: son de la tienda, no del código. Lo que **no** se hizo es
+   * traducirlos al `en` de prueba — ese catálogo existe para demostrar que la
+   * vidriera entera se puede renderizar en otro idioma, que es el criterio de
+   * salida del plan; el panel lo lee el dueño, en el idioma de su tienda, y
+   * traducir 250 strings para un catálogo de demo sería trabajo sin lector.
+   * Lo que falte cae en es-PY, que es exactamente lo que tiene que pasar.
+   */
+  panel: {
+    titulo: "Panel",
+    entrar: "Entrar",
+    entrando: "Entrando…",
+    email: "Email",
+    contrasena: "Contraseña",
+    loginTitulo: "Panel del comercio",
+    loginAyuda: "Entrá con tu cuenta para ver los pedidos.",
+    salir: "Salir",
+    saliendo: "Saliendo…",
+
+    nav: {
+      resumen: "Resumen",
+      pedidos: "Pedidos",
+      productos: "Productos",
+      clientes: "Clientes",
+      cupones: "Cupones",
+      categorias: "Categorías",
+      envios: "Envíos",
+      actividad: "Actividad",
+      usuarios: "Usuarios",
+    },
+
+
+    resumen: {
+      titulo: "Resumen",
+      pagosSinPedido: "Pagos sin pedido vivo",
+      pagosSinPedidoAyuda1:
+        "Entró la plata pero el pedido no está cobrado — normalmente el pago llegó justo después de que el pedido venciera y la mercadería ya se había vendido.",
+      reintentar: "Reintentar",
+      pagosSinPedidoAyuda2: "vuelve a probar si hoy hay stock; si no lo hay, no pasa nada y podés volver a intentarlo.",
+      marcarDevuelto: "Marcar como devuelto",
+      pagosSinPedidoAyuda3: "es para cuando ya le transferiste la plata de vuelta al comprador.",
+      ventasHoy: "Ventas de hoy",
+      ventasMes: "Ventas del mes",
+      pedidosCobrados: (n: number) => `${n} ${n === 1 ? "pedido cobrado" : "pedidos cobrados"}`,
+      soloCobrados:
+        "Sólo se cuentan los pedidos ya cobrados (pagado en adelante). Un pedido esperando pago todavía puede vencer.",
+      ultimos7: "Últimos 7 días",
+      ultimos7Ayuda:
+        "Cada día se corta a medianoche de Asunción y cuenta lo mismo que el cuadro de arriba.",
+      masVendido: "Lo más vendido del mes",
+      sinVentasDelMes: "Todavía no hay ventas cobradas este mes.",
+      unidades: (n: number) => `${n} u.`,
+      esperandoVerificacion: "Esperando verificación",
+      verTodos: (n: number) => `Ver todos (${n})`,
+      sinComprobantes: "No hay comprobantes esperando revisión. Todo al día.",
+      stockBajo: "Stock bajo",
+      stockBajoAyuda:
+        "Disponible = lo que hay físicamente menos lo que ya está reservado por un pedido.",
+      sinStockBajo: "Ninguna variante con stock bajo.",
+      pendientesDePago: "Pendientes de pago",
+      pendientesDePagoAyuda: (n: number) =>
+        `${n} ${n === 1 ? "pedido espera" : "pedidos esperan"} el pago. ` +
+        "Los que pasen su fecha de reserva los vence el cron automáticamente.",
+      verPendientes: "Ver pendientes",
+    },
+
+
+    pedidos: {
+      titulo: "Pedidos",
+      porCobrar: "Por cobrar",
+      cuenta: (n: number) => `${n} ${n === 1 ? "pedido" : "pedidos"}`,
+      sinPedidos: "No hay pedidos con esos filtros.",
+      comprobantesSinRevisar: (n: number) =>
+        `${n} comprobante${n === 1 ? "" : "s"} sin revisar`,
+      csvAyuda: "Baja los pedidos con los filtros puestos, no sólo esta página.",
+      anteriores: "← Anteriores",
+      siguientes: "Siguientes →",
+      buscarPlaceholder: "Nº de pedido, WhatsApp o RUC",
+      buscarLabel: "Buscar pedido",
+      buscar: "Buscar",
+      filtrarPorEstado: "Filtrar por estado",
+      todos: "Todos",
+      ocultarFiltros: "Ocultar filtros",
+      masFiltros: "Más filtros",
+      estado: "Estado",
+      metodoDePago: "Método de pago",
+      desde: "Desde",
+      hasta: "Hasta",
+      aplicar: "Aplicar",
+      limpiar: "Limpiar",
+    },
+
+
+    estados: {
+      /** Cómo lo lee el dueño: qué hay que hacer con este pedido. */
+      panel: {
+        pendiente_pago: "Esperando pago",
+        esperando_verificacion: "Verificar comprobante",
+        pagado: "Pagado",
+        preparando: "Preparando",
+        enviado: "Enviado",
+        entregado: "Entregado",
+        rechazado: "Comprobante rechazado",
+        vencido: "Vencido",
+        cancelado: "Cancelado",
+        reembolsado: "Reembolsado",
+      },
+      metodo: {
+        transferencia: "Transferencia / QR",
+        contra_entrega: "Contra entrega",
+        tarjeta: "Tarjeta",
+      },
+      /** Verbo del botón que lleva a cada estado, en voseo. */
+      transicion: {
+        pagado: "Marcar como pagado",
+        preparando: "Empezar a preparar",
+        enviado: "Marcar como enviado",
+        entregado: "Marcar como entregado",
+        cancelado: "Cancelar pedido",
+        vencido: "Marcar como vencido",
+        rechazado: "Rechazar comprobante",
+        reembolsado: "Marcar como reembolsado",
+        pendiente_pago: "Volver a esperando pago",
+        esperando_verificacion: "Volver a verificación",
+      },
+    },
+
+
+    pedido: {
+      titulo: "Pedido",
+      volver: "← Pedidos",
+      escribirWhatsApp: "Escribir por WhatsApp",
+      mandarDatosPagar: "Mandar datos para pagar",
+      esRegalo: "Es un regalo",
+      sinMensajeTarjeta: "Sin mensaje para la tarjeta.",
+      comprobantes: "Comprobantes",
+      items: "Ítems",
+      porUnidadConIva: (precio: string, tasa: number) => `${precio} c/u · IVA ${tasa}%`,
+      subtotal: "Subtotal",
+      descuento: "Descuento",
+      envio: "Envío",
+      total: "Total",
+      ivaIncluidoEnTotal: "IVA incluido en el total",
+      iva: (tasa: number) => `IVA ${tasa}%`,
+      gravado: "Gravado",
+      verIvaPorLinea: "Ver IVA por línea",
+      itemConIva: (nombre: string, tasa: number) => `${nombre} · IVA ${tasa}%`,
+      cliente: "Cliente",
+      nombre: "Nombre",
+      whatsapp: "WhatsApp",
+      email: "Email",
+      documento: "Documento",
+      consumidorFinal: "Consumidor final",
+      novedades: "Novedades",
+      acepta: "Acepta",
+      noAcepta: "No acepta",
+      referencia: (texto: string) => `Ref: ${texto}`,
+      cambiarEstado: "Cambiar estado",
+      estadoFinal: "Este pedido está en un estado final: ya no se puede mover.",
+      sinPermisoParaMover: "Tu usuario no puede mover este pedido desde este estado.",
+      historial: "Historial",
+    },
+
+
+    porCobrar: {
+      titulo: "Por cobrar",
+      cuenta: (pedidos: number, vencidos: number) =>
+        `${pedidos} ${pedidos === 1 ? "pedido" : "pedidos"}` +
+        (vencidos > 0 ? ` · ${vencidos} vencido${vencidos === 1 ? "" : "s"}` : ""),
+      ayuda:
+        "Pendientes de pago, vencidos y con el comprobante rechazado, del más viejo al más nuevo. El mensaje ya lleva los datos para transferir, el total y el link del pedido.",
+      recorte: (mostrados: number, total: number) =>
+        `Mostramos los ${mostrados} más viejos de ${total}. Cobrá estos y volvé a entrar.`,
+      sinBanco: (variables: string) =>
+        `Faltan los datos bancarios (${variables} en el entorno): el mensaje sale sin la parte de ` +
+        "la transferencia. Cargalos y el botón queda completo.",
+      sinPedidos: "No hay pedidos esperando pago.",
+      hoy: "hoy",
+      antiguedad: (dias: number) => `hace ${dias} ${dias === 1 ? "día" : "días"}`,
+      escribirle: "Escribirle por WhatsApp →",
+    },
+
+    productos: {
+      titulo: "Productos",
+      /** El título de la ficha de un producto, en singular. */
+      tituloSingular: "Producto",
+      nuevo: "Nuevo producto",
+      nuevoAyuda: "Se guarda sin publicar hasta que lo publiques.",
+      buscarPlaceholder: "Buscar por nombre o slug",
+      buscarLabel: "Buscar producto",
+      buscar: "Buscar",
+      sinResultados: "No hay productos que coincidan.",
+      sinPrecio: "Sin precio",
+      variantes: (n: number) => `${n} ${n === 1 ? "variante" : "variantes"}`,
+      enStock: (n: number) => `${n} en stock`,
+      sinPublicar: " · sin publicar",
+      csvAyuda: "Una fila por variante, con los filtros puestos.",
+      todasLasCategorias: "Todas las categorías",
+      categoria: "Categoría",
+      ordenar: "Ordenar",
+      orden: {
+        recientes: "Editados hace poco",
+        stock: "Stock: menor primero",
+        precioAsc: "Precio: menor a mayor",
+        precioDesc: "Precio: mayor a menor",
+      },
+      datos: "Datos",
+      variantesYStock: "Variantes y stock",
+      ultimosAjustes: "Últimos ajustes de stock",
+      fotos: "Fotos",
+      fotoAlt: "Foto del producto",
+      fotoQuitada: "Foto quitada.",
+      fotoSubida: "Foto subida.",
+      quitar: "Quitar",
+      sinFotos: "Todavía no hay fotos: en la tienda se ve un placeholder de color.",
+      agregarFoto: "Agregar foto (JPG, PNG o WebP, hasta 5 MB)",
+      descripcionFoto: "Descripción de la foto (accesibilidad y SEO)",
+      descripcionFotoPlaceholder: "Remera azul de frente",
+      subiendo: "Subiendo…",
+      subirFoto: "Subir foto",
+      volver: "← Productos",
+      guardado: "Producto guardado.",
+      slug: "Slug (la URL del producto)",
+      descripcion: "Descripción",
+      elegiUna: "Elegí una",
+      marca: "Marca",
+      iva: "IVA",
+      iva10: "10% (lo habitual)",
+      iva5: "5% (canasta básica)",
+      ivaExento: "Exento",
+      activo: "Activo",
+      publicado: "Publicado en la tienda",
+      publicadoAyuda: "Un producto sin publicar no aparece en el catálogo ni en la búsqueda.",
+      guardarProducto: "Guardar producto",
+      nuevoIntro:
+        "Primero se crea el producto; las variantes, los precios y las fotos se cargan después.",
+    },
+
+    clientes: {
+      titulo: "Clientes",
+      cuenta: (n: number) => `${n} ${n === 1 ? "cliente" : "clientes"}`,
+      ayuda:
+        "Sale de los pedidos, agrupados por WhatsApp. Lo gastado cuenta sólo los pedidos ya cobrados (pagado en adelante).",
+      descargarNovedades: "Descargar lista de novedades",
+      descargarNovedadesAyuda: "Sólo las cuentas activas que aceptaron recibir novedades.",
+      buscarPlaceholder: "Nombre, WhatsApp o RUC",
+      buscarLabel: "Buscar cliente",
+      buscar: "Buscar",
+      sinCoincidencias: "Ningún cliente coincide con esa búsqueda.",
+      sinPedidos: "Todavía no hay pedidos.",
+      conCuenta: "Con cuenta",
+      aceptaNovedades: " · acepta novedades",
+      pedidos: (pedidos: number, cobrados: number) =>
+        `${pedidos} ${pedidos === 1 ? "pedido" : "pedidos"}` +
+        (cobrados < pedidos ? ` (${cobrados} cobrado${cobrados === 1 ? "" : "s"})` : ""),
+      ultimoEl: (fecha: string) => `último el ${fecha}`,
+    },
+
+    variantes: {
+      agregarVariante: "Agregar variante",
+      sinVariantes:
+        "Un producto sin variantes no se puede comprar: cargá al menos una con su precio.",
+      stockLinea: (enStock: number, reservados: number) =>
+        `${enStock} en stock · ${reservados} reservados · `,
+      disponibles: (n: number) => `${n} disponibles`,
+      inactiva: " · inactiva",
+      ajustarStock: "Ajustar stock",
+      guardada: "Variante guardada.",
+      etiqueta: "Etiqueta",
+      etiquetaPlaceholder: "Talle M",
+      skuPlaceholder: "CAM-M-AZ",
+      precio: "Precio en ₲ (IVA incluido)",
+      precioTachado: "Precio tachado (opcional)",
+      activa: "Activa",
+      arrancaEnCero:
+        "Arranca con 0 en stock: se carga con “Ajustar stock”, que pide el motivo.",
+      guardarVariante: "Guardar variante",
+      agregar: "Agregar",
+      quitar: "Quitar",
+      cantidad: "Cantidad",
+      motivo: "Motivo (obligatorio)",
+      motivoPlaceholder: "Conteo de depósito / rotura / reposición",
+      stockAjustado: (quedan: number) => `Stock ajustado: quedan ${quedan}.`,
+    },
+
+    comprobantes: {
+      sinRevisar: "Sin revisar",
+      aprobado: "Aprobado",
+      rechazado: "Rechazado",
+      aprobadoToast: "Comprobante aprobado. El pedido pasó a pagado.",
+      rechazadoToast: "Comprobante rechazado. El cliente puede subir otro.",
+      motivo: (texto: string) => `Motivo: ${texto}`,
+      actualizarVista: "Actualizar vista",
+      verComprobante: "Ver comprobante",
+      aprobar: "Aprobar",
+      rechazar: "Rechazar",
+      motivoRechazo: "Motivo del rechazo — el cliente lo lee",
+      motivoRechazoPlaceholder: "Ej: el monto transferido no coincide",
+      confirmarRechazo: "Confirmar rechazo",
+      abrirPdf: "Abrir el PDF del comprobante",
+      alt: "Comprobante de transferencia",
+      linkVence: "El link vence en un par de minutos. Si no carga, tocá “Actualizar vista”.",
+      tamano: (kb: string) => ` · ${kb} KB`,
+    },
+
+    pagosHuerfanos: {
+      titulo: "Pagos sin pedido vivo",
+      volvioACobrado: (numero: string) => `${numero} volvió a estar cobrado.`,
+      yaEstabaCobrado: (numero: string) => `${numero} ya estaba cobrado.`,
+      devolucionAnotada: (numero: string) => `Devolución anotada en ${numero}.`,
+      pedidoEn: (estado: string) => `pedido en “${estado}”`,
+      motivoDevolucion: "Motivo de la devolución (queda en el historial del pedido)",
+      motivoDevolucionPlaceholder: "Ej: transferí de vuelta por SPI el 12/8",
+      devolucionAyuda:
+        "Esto no le transfiere la plata a nadie: anota que vos ya la devolviste, y cancela el pedido.",
+      confirmarDevolucion: "Confirmar devolución",
+      volver: "Volver",
+      reintentarPedido: "Reintentar el pedido",
+      marcarDevuelto: "Marcar como devuelto",
+    },
+
+    usuarios: {
+      titulo: "Usuarios",
+      roles: {
+        owner: "Dueño",
+        staff: "Encargado",
+        vendedor: "Vendedor",
+      },
+      rolesAyuda: {
+        owner: "Todo, incluidos usuarios, devoluciones y descargas de CSV.",
+        staff: "Pedidos, comprobantes, productos y stock. Sin devoluciones ni CSV.",
+        vendedor: "Ve pedidos y los despacha. Sin montos, comprobantes ni stock.",
+      },
+      agregar: "Agregar usuario",
+      nuevo: "Nuevo usuario",
+      email: "Email",
+      contrasenaTemporal: "Contraseña temporal",
+      contrasenaAyuda: (minimo: number) =>
+        `Al menos ${minimo} caracteres, con letras y números. Se la pasás vos por WhatsApp o en ` +
+        "persona — la tienda no manda emails. Que la cambie al entrar.",
+      creando: "Creando…",
+      crear: "Crear usuario",
+      creado: "Usuario creado. Pasale la contraseña por un canal seguro.",
+      vos: " (vos)",
+      desactivado: " · desactivado",
+      ultimoIngreso: (cuando: string) => `Último ingreso: ${cuando}`,
+      nuncaEntro: "Nunca entró",
+      contrasenaNuevaPara: (email: string) => `Contraseña nueva para ${email}`,
+      cambiarContrasena: "Cambiar contraseña",
+      contrasenaCambiada: "Contraseña cambiada. Pasásela por un canal seguro.",
+      resetearContrasena: "Resetear contraseña",
+      volver: "Volver",
+      rolDe: (email: string) => `Rol de ${email}`,
+      rolActualizado: "Rol actualizado.",
+      desactivar: "Desactivar",
+      reactivar: "Reactivar",
+      desactivadoToast: "Usuario desactivado.",
+      reactivadoToast: "Usuario reactivado.",
+      tuCuenta:
+        "Tu propia cuenta no se puede desactivar ni degradar desde acá: quedarías afuera del panel sin forma de volver.",
+      encabezado: "Usuarios del panel",
+      ayuda:
+        "Quién puede entrar y qué puede hacer. Nadie se borra: se desactiva, y así el historial de lo que hizo sigue siendo consultable.",
+    },
+
+    categorias: {
+      titulo: "Categorías",
+      crear: "Crear categoría",
+      sinCategorias: "Todavía no hay categorías. Sin ninguna activa, la vidriera queda vacía.",
+      desactivadaSufijo: " · desactivada",
+      productos: (n: number) => `${n} producto${n === 1 ? "" : "s"}`,
+      enVidriera: (n: number) => ` · ${n} en la vidriera`,
+      subir: "Subir",
+      bajar: "Bajar",
+      ordenActualizado: "Orden actualizado.",
+      desactivadaToast: "Categoría desactivada.",
+      activadaToast: "Categoría activada.",
+      actualizada: "Categoría actualizada.",
+      creada: "Categoría creada.",
+      editar: (nombre: string) => `Editar ${nombre}`,
+      nueva: "Nueva categoría",
+      nombreAyuda: "Es lo que se lee en el menú de la tienda.",
+      enlace: "Enlace",
+      enlaceAyuda: (slug: string) => `/categoria/${slug} — cambiarlo rompe los links ya compartidos.`,
+      confirmarDesactivar: (nombre: string) => `Vas a desactivar "${nombre}".`,
+      confirmarProductos: (n: number) =>
+        `Sus ${n} producto${n === 1 ? "" : "s"} en vidriera dejan de verse y de poder comprarse. ` +
+        "No se modifican: al reactivarla vuelven como estaban.",
+      confirmarSinProductos:
+        "No tiene productos en la vidriera, así que no desaparece nada de la tienda.",
+      confirmarUltima: "Es la última categoría activa: la tienda queda sin nada para mostrar.",
+      confirmarUrl: (nombre: string, antes: string, ahora: string) =>
+        `Vas a cambiar la URL de "${nombre}" de /categoria/${antes} a /categoria/${ahora}.\n\n` +
+        "Los links que ya se compartieron y lo que Google indexó van a dar 404.",
+      ayuda:
+        "El orden de esta lista es el del menú de la tienda. Una categoría desactivada esconde también sus productos de la vidriera, sin modificarlos: al reactivarla vuelven como estaban. No se borran, por los productos que cuelgan de ellas.",
+    },
+
+    envios: {
+      titulo: "Envíos",
+      sinZonasActivas1: "No hay ninguna zona activa: hoy la tienda",
+      sinZonasActivas2: "no cobra envío",
+      sinZonasActivas3:
+        ". Es el estado en el que sale una tienda recién clonada; si no es a propósito, activá o crear una zona.",
+      crear: "Crear zona",
+      sinZonas: "Todavía no hay zonas de envío.",
+      desactivadaSufijo: " · desactivada",
+      gratis: "Gratis",
+      sinCiudades: "Sin ciudades cargadas",
+      gratisDesde: (monto: string) => `Gratis desde ${monto}`,
+      sinEnvioGratis: "Sin envío gratis",
+      esLaMasCara: " · es la tarifa que paga una ciudad que no esté en ninguna zona",
+      confirmarUltima: (nombre: string) =>
+        `"${nombre}" es la última zona activa.\n\n` +
+        "Sin zonas activas la tienda deja de cobrar envío: todo pedido va a cotizar ₲0.",
+      desactivadaToast: "Zona desactivada.",
+      activadaToast: "Zona activada.",
+      actualizada: "Zona actualizada.",
+      creada: "Zona creada.",
+      editar: (nombre: string) => `Editar ${nombre}`,
+      nueva: "Nueva zona",
+      nombreAyuda: "Lo lee quien compra: “Gran Asunción”, “Interior”.",
+      precio: "Precio del envío (₲)",
+      precioAyuda: "Entero en guaraníes, IVA 10% incluido. 0 = envío gratis siempre.",
+      ciudades: "Ciudades",
+      ciudadesAyuda:
+        "Una por línea. Los acentos y las mayúsculas no importan al cotizar. Una ciudad que no esté en ninguna zona paga la tarifa más cara.",
+      envioGratisDesde: "Envío gratis a partir de un monto",
+      umbral: "Umbral de envío gratis",
+      umbralAyuda: "Subtotal desde el que el envío de esta zona sale ₲0.",
+      ayuda:
+        "Lo que se cobra de flete sale de acá. Un cambio vale para los pedidos nuevos: los que ya existen guardan su propio envío y no se recalculan. Las zonas no se borran —los pedidos viejos las nombran— se desactivan.",
+    },
+
+    cupones: {
+      titulo: "Cupones",
+      crear: "Crear cupón",
+      sinCupones:
+        "Todavía no hay cupones. Mientras no haya ninguno, el checkout no muestra el campo de descuento.",
+      tipoPorcentaje: "Porcentaje",
+      tipoMontoFijo: "Monto fijo",
+      deDescuento: "de descuento",
+      desactivadoSufijo: " · desactivado",
+      agotadoSufijo: " · agotado",
+      minimo: (monto: string) => ` · mínimo ${monto}`,
+      desde: (fecha: string) => ` · desde ${fecha}`,
+      hasta: (fecha: string) => ` · hasta ${fecha}`,
+      soloConCuenta: " · sólo con cuenta",
+      usos: (usados: number, tope: number | null) =>
+        `${usados} uso${usados === 1 ? "" : "s"}` + (tope !== null ? ` de ${tope}` : ""),
+      pedidosLoUsan: (n: number) => ` · ⚠ ${n} pedidos lo usan`,
+      descontados: (monto: string) => ` · ${monto} descontados`,
+      maxPorCliente: (n: number) => ` · máx. ${n} por cliente`,
+      desactivadoToast: "Cupón desactivado.",
+      activadoToast: "Cupón activado.",
+      actualizado: "Cupón actualizado.",
+      creado: "Cupón creado.",
+      editar: (codigo: string) => `Editar ${codigo}`,
+      nuevo: "Nuevo cupón",
+      codigo: "Código",
+      codigoAyuda: "Se guarda en mayúsculas. Es lo que va a tipear la compradora.",
+      porcentajeCampo: "Porcentaje (1 a 100)",
+      montoCampo: "Monto en guaraníes",
+      enterosAyuda: "Enteros. El guaraní no tiene céntimos.",
+      tipo: "Tipo",
+      minimoCompra: "Mínimo de compra",
+      minimoCompraAyuda: "Sobre el subtotal, sin el envío.",
+      topeUsos: "Tope de usos",
+      topeUsosAyuda: "Vacío = sin tope.",
+      desdeCampo: "Desde",
+      hastaCampo: "Hasta",
+      formatoFecha: "(dd/mm/aaaa)",
+      desdePlaceholder: "01/09/2026",
+      hastaPlaceholder: "30/09/2026",
+      incluyeEseDia: "Incluye todo ese día.",
+      maximoPorCliente: "Máximo por cliente",
+      maximoPorClienteAyuda:
+        "Se cuenta por cuenta de cliente, o por WhatsApp si compró de invitada.",
+      soloConCuentaCampo: "Sólo para quienes tengan cuenta",
+      soloConCuentaAyuda:
+        "Si esta tienda no tiene las cuentas de cliente prendidas, un cupón así no lo va a poder usar nadie.",
+      ayuda:
+        "Mientras no haya ninguno activo, el checkout no muestra el campo de descuento. Un cupón usado no se puede editar ni borrar: se desactiva.",
+    },
+
+    actividad: {
+      titulo: "Actividad",
+      ayuda:
+        "Cada cambio de estado de un pedido y cada ajuste de stock, del más reciente al más viejo. Lo que movió el cron o un webhook aparece sin usuario: no lo hizo nadie del panel.",
+      movimientos: (n: number) => `${n} movimiento${n === 1 ? "" : "s"}`,
+      sinMovimientos: "No hay movimientos con esos filtros",
+      sinMovimientosAyuda: "Probá ampliando las fechas o sacando el usuario.",
+      usuario: "Usuario",
+      todos: "Todos",
+      tipo: "Tipo",
+      todo: "Todo",
+      pedidos: "Pedidos",
+      stock: "Stock",
+      desde: "Desde",
+      hasta: "Hasta",
+      filtrar: "Filtrar",
+      limpiar: "Limpiar",
+    },
+
+    acciones: {
+      marcado: (estado: string) => `Pedido marcado como “${estado}”.`,
+      motivo: "Motivo (queda en el historial del pedido)",
+      motivoPlaceholder: "Ej: el cliente pidió cancelar",
+      confirmar: "Confirmar",
+      volver: "Volver",
+    },
+
+    comunes: {
+      guardar: "Guardar",
+      guardando: "Guardando…",
+      guardarCambios: "Guardar cambios",
+      cancelar: "Cancelar",
+      editar: "Editar",
+      activar: "Activar",
+      desactivar: "Desactivar",
+      nombre: "Nombre",
+      opcional: "(opcional)",
+      paginacion: "Paginación",
+      anterior: "Anterior",
+      siguiente: "Siguiente",
+      paginaDeTotal: (page: number, total: number) => `Página ${page} de ${total}`,
+      noPudimos: "No pudimos hacer eso.",
+      descargarCsv: "Descargar CSV",
+      preparando: "Preparando…",
+      filas: (n: number) => `${n} ${n === 1 ? "fila" : "filas"}.`,
+      csvTruncado: (n: number) =>
+        `Bajé las primeras ${n} filas. Filtrá por fecha para llevarte el resto.`,
+    },
+  },
+
   errores: {
     error404: "Error 404",
     noEncontramosPagina: "No encontramos esta página",

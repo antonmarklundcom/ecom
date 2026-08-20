@@ -21,18 +21,7 @@ import { TEXTOS } from "@/i18n";
  */
 
 /** Cómo lo lee el dueño en el panel: qué hay que hacer con este pedido. */
-export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  pendiente_pago: "Esperando pago",
-  esperando_verificacion: "Verificar comprobante",
-  pagado: "Pagado",
-  preparando: "Preparando",
-  enviado: "Enviado",
-  entregado: "Entregado",
-  rechazado: "Comprobante rechazado",
-  vencido: "Vencido",
-  cancelado: "Cancelado",
-  reembolsado: "Reembolsado",
-};
+export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = TEXTOS.panel.estados.panel;
 
 /**
  * Cómo lo lee el comprador en `/pedido/[orderNumber]`: qué pasa con lo suyo.
@@ -44,25 +33,11 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
 export const ORDER_STATUS_LABEL_COMPRADOR: Record<OrderStatus, string> =
   TEXTOS.estados.comprador;
 
-export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  transferencia: "Transferencia / QR",
-  contra_entrega: "Contra entrega",
-  tarjeta: "Tarjeta",
-};
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = TEXTOS.panel.estados.metodo;
 
 /** Verbo del botón que lleva a cada estado, en voseo. */
-export const TRANSITION_LABEL: Partial<Record<OrderStatus, string>> = {
-  pagado: "Marcar como pagado",
-  preparando: "Empezar a preparar",
-  enviado: "Marcar como enviado",
-  entregado: "Marcar como entregado",
-  cancelado: "Cancelar pedido",
-  vencido: "Marcar como vencido",
-  rechazado: "Rechazar comprobante",
-  reembolsado: "Marcar como reembolsado",
-  pendiente_pago: "Volver a esperando pago",
-  esperando_verificacion: "Volver a verificación",
-};
+export const TRANSITION_LABEL: Partial<Record<OrderStatus, string>> =
+  TEXTOS.panel.estados.transicion;
 
 /**
  * Transiciones que borran plata o stock y merecen una confirmación extra.

@@ -9,11 +9,12 @@ import {
   listActivity,
   type ActivityRow,
 } from "@/domain/admin-activity";
+import { TEXTOS } from "@/i18n";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { ORDER_STATUS_LABEL } from "@/lib/order-labels";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
 
-export const metadata: Metadata = { title: "Actividad" };
+export const metadata: Metadata = { title: TEXTOS.panel.actividad.titulo };
 
 export const dynamic = "force-dynamic";
 
@@ -70,12 +71,8 @@ export default async function AdminActivityPage({
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Actividad</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Cada cambio de estado de un pedido y cada ajuste de stock, del más
-        reciente al más viejo. Lo que movió el cron o un webhook aparece sin
-        usuario: no lo hizo nadie del panel.
-      </p>
+      <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.actividad.titulo}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">{TEXTOS.panel.actividad.ayuda}</p>
 
       <div className="mt-5">
         <ActivityFilters
@@ -90,15 +87,13 @@ export default async function AdminActivityPage({
       </div>
 
       <p className="text-muted-foreground mt-4 text-sm tabular-nums">
-        {result.total} movimiento{result.total === 1 ? "" : "s"}
+        {TEXTOS.panel.actividad.movimientos(result.total)}
       </p>
 
       {result.rows.length === 0 ? (
         <div className="border-border mt-4 rounded-xl border border-dashed p-10 text-center">
-          <p className="font-medium">No hay movimientos con esos filtros</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Probá ampliando las fechas o sacando el usuario.
-          </p>
+          <p className="font-medium">{TEXTOS.panel.actividad.sinMovimientos}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{TEXTOS.panel.actividad.sinMovimientosAyuda}</p>
         </div>
       ) : (
         <ul className="mt-4 grid gap-2">
@@ -109,21 +104,21 @@ export default async function AdminActivityPage({
       )}
 
       {result.totalPages > 1 ? (
-        <nav className="mt-6 flex items-center justify-center gap-3" aria-label="Paginación">
+        <nav className="mt-6 flex items-center justify-center gap-3" aria-label={TEXTOS.panel.comunes.paginacion}>
           <Button asChild variant="outline" size="sm" disabled={result.page <= 1}>
             <Link href={buildPageHref(result.page - 1)} aria-disabled={result.page <= 1}>
-              Anterior
+              {TEXTOS.panel.comunes.anterior}
             </Link>
           </Button>
           <span className="text-muted-foreground text-sm">
-            Página {result.page} de {result.totalPages}
+            {TEXTOS.panel.comunes.paginaDeTotal(result.page, result.totalPages)}
           </span>
           <Button asChild variant="outline" size="sm" disabled={result.page >= result.totalPages}>
             <Link
               href={buildPageHref(result.page + 1)}
               aria-disabled={result.page >= result.totalPages}
             >
-              Siguiente
+              {TEXTOS.panel.comunes.siguiente}
             </Link>
           </Button>
         </nav>

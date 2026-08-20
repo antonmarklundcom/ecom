@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 import { slugify } from "@/lib/slug";
 
 export type AdminCategoryCard = {
@@ -35,14 +36,14 @@ export function CategoriesManager({ categories }: { categories: AdminCategoryCar
       ) : (
         <div>
           <Button type="button" onClick={() => setEditing("nueva")}>
-            Crear categoría
+            {TEXTOS.panel.categorias.crear}
           </Button>
         </div>
       )}
 
       {categories.length === 0 ? (
         <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
-          Todavía no hay categorías. Sin ninguna activa, la vidriera queda vacía.
+          {TEXTOS.panel.categorias.sinCategorias}
         </p>
       ) : (
         <ul className="grid gap-3">
@@ -104,16 +105,16 @@ function CategoryRow({
         <span className="font-medium">
           {category.name}
           {category.isActive ? null : (
-            <span className="text-muted-foreground font-normal"> · desactivada</span>
+            <span className="text-muted-foreground font-normal">{TEXTOS.panel.categorias.desactivadaSufijo}</span>
           )}
         </span>
         <span className="text-muted-foreground font-mono text-xs">/categoria/{category.slug}</span>
       </div>
 
       <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-        {category.productCount} producto{category.productCount === 1 ? "" : "s"}
+        {TEXTOS.panel.categorias.productos(category.productCount)}
         {category.visibleCount !== category.productCount
-          ? ` · ${category.visibleCount} en la vidriera`
+          ? TEXTOS.panel.categorias.enVidriera(category.visibleCount)
           : ""}
       </p>
 
@@ -132,21 +133,31 @@ function CategoryRow({
           size="sm"
           variant="outline"
           disabled={isPending || esPrimera}
-          onClick={() => run(() => moverCategoria({ id: category.id, direction: "arriba" }), "Orden actualizado.")}
+          onClick={() =>
+            run(
+              () => moverCategoria({ id: category.id, direction: "arriba" }),
+              TEXTOS.panel.categorias.ordenActualizado
+            )
+          }
         >
-          Subir
+          {TEXTOS.panel.categorias.subir}
         </Button>
         <Button
           type="button"
           size="sm"
           variant="outline"
           disabled={isPending || esUltima}
-          onClick={() => run(() => moverCategoria({ id: category.id, direction: "abajo" }), "Orden actualizado.")}
+          onClick={() =>
+            run(
+              () => moverCategoria({ id: category.id, direction: "abajo" }),
+              TEXTOS.panel.categorias.ordenActualizado
+            )
+          }
         >
-          Bajar
+          {TEXTOS.panel.categorias.bajar}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={onEdit} disabled={isPending}>
-          Editar
+          {TEXTOS.panel.comunes.editar}
         </Button>
         <Button
           type="button"
@@ -160,11 +171,11 @@ function CategoryRow({
             if (category.isActive && !confirm(mensajeDesactivar(category, ultimaActiva))) return;
             run(
               () => cambiarEstadoCategoria({ id: category.id, isActive: !category.isActive }),
-              category.isActive ? "Categoría desactivada." : "Categoría activada."
+              category.isActive ? TEXTOS.panel.categorias.desactivadaToast : TEXTOS.panel.categorias.activadaToast
             );
           }}
         >
-          {category.isActive ? "Desactivar" : "Activar"}
+          {category.isActive ? TEXTOS.panel.comunes.desactivar : TEXTOS.panel.comunes.activar}
         </Button>
       </div>
     </li>
@@ -179,20 +190,15 @@ function CategoryRow({
  * vidriera —home, buscador, su propia ficha— y dejan de poder comprarse.
  */
 function mensajeDesactivar(category: AdminCategoryCard, ultimaActiva: boolean): string {
-  const partes = [`Vas a desactivar "${category.name}".`];
+  const partes = [TEXTOS.panel.categorias.confirmarDesactivar(category.name)];
 
-  if (category.visibleCount > 0) {
-    partes.push(
-      `Sus ${category.visibleCount} producto${category.visibleCount === 1 ? "" : "s"} en vidriera ` +
-        `dejan de verse y de poder comprarse. No se modifican: al reactivarla vuelven como estaban.`
-    );
-  } else {
-    partes.push("No tiene productos en la vidriera, así que no desaparece nada de la tienda.");
-  }
+  partes.push(
+    category.visibleCount > 0
+      ? TEXTOS.panel.categorias.confirmarProductos(category.visibleCount)
+      : TEXTOS.panel.categorias.confirmarSinProductos
+  );
 
-  if (ultimaActiva) {
-    partes.push("Es la última categoría activa: la tienda queda sin nada para mostrar.");
-  }
+  if (ultimaActiva) partes.push(TEXTOS.panel.categorias.confirmarUltima);
 
   return partes.join("\n\n");
 }
@@ -220,11 +226,7 @@ function CategoryForm({
         setError(null);
 
         if (category && slug !== category.slug) {
-          const seguir = confirm(
-            `Vas a cambiar la URL de "${category.name}" de /categoria/${category.slug} a ` +
-              `/categoria/${slug}.\n\nLos links que ya se compartieron y lo que Google indexó ` +
-              `van a dar 404.`
-          );
+          const seguir = confirm(TEXTOS.panel.categorias.confirmarUrl(category.name, category.slug, slug));
           if (!seguir) return;
         }
 
@@ -239,13 +241,13 @@ function CategoryForm({
             setError(result.error);
             return;
           }
-          toast.success(category ? "Categoría actualizada." : "Categoría creada.");
+          toast.success(category ? TEXTOS.panel.categorias.actualizada : TEXTOS.panel.categorias.creada);
           onDone();
           router.refresh();
         });
       }}
     >
-      <h2 className="font-medium">{category ? `Editar ${category.name}` : "Nueva categoría"}</h2>
+      <h2 className="font-medium">{category ? TEXTOS.panel.categorias.editar(category.name) : TEXTOS.panel.categorias.nueva}</h2>
 
       {error ? (
         <p
@@ -258,7 +260,7 @@ function CategoryForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="nombre">Nombre</Label>
+          <Label htmlFor="nombre">{TEXTOS.panel.comunes.nombre}</Label>
           <Input
             id="nombre"
             required
@@ -271,11 +273,11 @@ function CategoryForm({
               if (!slugTouched) setSlug(slugify(event.target.value));
             }}
           />
-          <p className="text-muted-foreground text-xs">Es lo que se lee en el menú de la tienda.</p>
+          <p className="text-muted-foreground text-xs">{TEXTOS.panel.categorias.nombreAyuda}</p>
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="slug">Enlace</Label>
+          <Label htmlFor="slug">{TEXTOS.panel.categorias.enlace}</Label>
           <Input
             id="slug"
             required
@@ -289,17 +291,17 @@ function CategoryForm({
             }}
           />
           <p className="text-muted-foreground text-xs">
-            /categoria/{slug || "…"} — cambiarlo rompe los links ya compartidos.
+            {TEXTOS.panel.categorias.enlaceAyuda(slug || "…")}
           </p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Guardando…" : "Guardar"}
+          {isPending ? TEXTOS.panel.comunes.guardando : TEXTOS.panel.comunes.guardar}
         </Button>
         <Button type="button" variant="outline" onClick={onDone} disabled={isPending}>
-          Cancelar
+          {TEXTOS.panel.comunes.cancelar}
         </Button>
       </div>
     </form>

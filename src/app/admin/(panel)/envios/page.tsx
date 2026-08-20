@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 
 import { ShippingZonesManager } from "@/components/admin/shipping-zones-manager";
 import { listAdminShippingZones } from "@/domain/admin-shipping";
+import { TEXTOS } from "@/i18n";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 
-export const metadata: Metadata = { title: "Envíos" };
+export const metadata: Metadata = { title: TEXTOS.panel.envios.titulo };
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +21,8 @@ export default async function AdminShippingPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Envíos</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Lo que se cobra de flete sale de acá. Un cambio vale para los pedidos
-        nuevos: los que ya existen guardan su propio envío y no se recalculan.
-        Las zonas no se borran —los pedidos viejos las nombran— se desactivan.
-      </p>
+      <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.envios.titulo}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">{TEXTOS.panel.envios.ayuda}</p>
 
       <div className="mt-6">
         <ShippingZonesManager

@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/components/admin/login-form";
+import { TEXTOS } from "@/i18n";
 import { safeNextPath } from "@/lib/safe-redirect";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Entrar",
+  title: TEXTOS.panel.entrar,
   robots: { index: false, follow: false },
 };
 
@@ -29,10 +30,8 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: S
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-col justify-center px-4 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Panel del comercio</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Entrá con tu cuenta para ver los pedidos.
-      </p>
+      <h1 className="text-2xl font-semibold tracking-tight">{TEXTOS.panel.loginTitulo}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">{TEXTOS.panel.loginAyuda}</p>
       <div className="mt-6">
         <LoginForm next={next} />
       </div>

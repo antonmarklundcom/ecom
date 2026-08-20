@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
+import { TEXTOS } from "@/i18n";
 import {
   ADMIN_PRODUCT_SORTS,
   ADMIN_PRODUCT_SORT_LABEL,
@@ -53,7 +54,7 @@ export function ProductFilters({
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       <label className="sr-only" htmlFor="categoria">
-        Categoría
+        {TEXTOS.panel.productos.categoria}
       </label>
       <select
         id="categoria"
@@ -62,7 +63,7 @@ export function ProductFilters({
         onChange={(event) => go({ categoria: event.target.value })}
         className="border-input bg-background h-9 rounded-md border px-3 text-sm"
       >
-        <option value={TODAS}>Todas las categorías</option>
+        <option value={TODAS}>{TEXTOS.panel.productos.todasLasCategorias}</option>
         {categories.map((category) => (
           <option key={category.id} value={String(category.id)}>
             {category.name}
@@ -71,7 +72,7 @@ export function ProductFilters({
       </select>
 
       <label className="sr-only" htmlFor="orden">
-        Ordenar
+        {TEXTOS.panel.productos.ordenar}
       </label>
       <select
         id="orden"

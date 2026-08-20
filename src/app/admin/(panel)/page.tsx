@@ -8,10 +8,11 @@ import { lowStockVariants } from "@/domain/admin-products";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
 import { formatGs } from "@/lib/money";
 import { formatDatePY, formatDateTimePY } from "@/lib/py";
+import { TEXTOS } from "@/i18n";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { can } from "@/lib/permissions";
 
-export const metadata: Metadata = { title: "Resumen" };
+export const metadata: Metadata = { title: TEXTOS.panel.resumen.titulo };
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Resumen</h1>
+      <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.resumen.titulo}</h1>
 
       {/*
         Va arriba de todo y sólo aparece si hay algo: es plata de un comprador
@@ -38,13 +39,11 @@ export default async function AdminDashboardPage() {
       */}
       {unmatched.length > 0 && (
         <section className="border-destructive/40 bg-destructive/5 mt-4 rounded-xl border p-4">
-          <h2 className="text-destructive font-medium">Pagos sin pedido vivo</h2>
+          <h2 className="text-destructive font-medium">{TEXTOS.panel.resumen.pagosSinPedido}</h2>
           <p className="text-muted-foreground mt-1 text-xs">
-            Entró la plata pero el pedido no está cobrado — normalmente el pago llegó justo después
-            de que el pedido venciera y la mercadería ya se había vendido.
-            <strong> Reintentar</strong> vuelve a probar si hoy hay stock; si no lo hay, no pasa
-            nada y podés volver a intentarlo. <strong>Marcar como devuelto</strong> es para cuando
-            ya le transferiste la plata de vuelta al comprador.
+            {TEXTOS.panel.resumen.pagosSinPedidoAyuda1} <strong>{TEXTOS.panel.resumen.reintentar}</strong>{" "}
+            {TEXTOS.panel.resumen.pagosSinPedidoAyuda2} <strong>{TEXTOS.panel.resumen.marcarDevuelto}</strong>{" "}
+            {TEXTOS.panel.resumen.pagosSinPedidoAyuda3}
           </p>
           <UnmatchedPayments
             payments={unmatched.map((payment) => ({
@@ -63,34 +62,29 @@ export default async function AdminDashboardPage() {
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Stat
-          label="Ventas de hoy"
+          label={TEXTOS.panel.resumen.ventasHoy}
           value={formatGs(summary.today.totalPyg)}
-          hint={`${summary.today.orders} ${summary.today.orders === 1 ? "pedido cobrado" : "pedidos cobrados"}`}
+          hint={TEXTOS.panel.resumen.pedidosCobrados(summary.today.orders)}
         />
         <Stat
-          label="Ventas del mes"
+          label={TEXTOS.panel.resumen.ventasMes}
           value={formatGs(summary.month.totalPyg)}
-          hint={`${summary.month.orders} ${summary.month.orders === 1 ? "pedido cobrado" : "pedidos cobrados"}`}
+          hint={TEXTOS.panel.resumen.pedidosCobrados(summary.month.orders)}
         />
       </div>
-      <p className="text-muted-foreground mt-2 text-xs">
-        Sólo se cuentan los pedidos ya cobrados (pagado en adelante). Un pedido esperando pago
-        todavía puede vencer.
-      </p>
+      <p className="text-muted-foreground mt-2 text-xs">{TEXTOS.panel.resumen.soloCobrados}</p>
 
       <section className="mt-8">
-        <h2 className="font-medium">Últimos 7 días</h2>
-        <p className="text-muted-foreground mt-1 text-xs">
-          Cada día se corta a medianoche de Asunción y cuenta lo mismo que el cuadro de arriba.
-        </p>
+        <h2 className="font-medium">{TEXTOS.panel.resumen.ultimos7}</h2>
+        <p className="text-muted-foreground mt-1 text-xs">{TEXTOS.panel.resumen.ultimos7Ayuda}</p>
         <SalesTrend days={trend} />
       </section>
 
       <section className="mt-8">
-        <h2 className="font-medium">Lo más vendido del mes</h2>
+        <h2 className="font-medium">{TEXTOS.panel.resumen.masVendido}</h2>
         {top.length === 0 ? (
           <p className="text-muted-foreground border-border mt-2 rounded-xl border border-dashed p-6 text-center text-sm">
-            Todavía no hay ventas cobradas este mes.
+            {TEXTOS.panel.resumen.sinVentasDelMes}
           </p>
         ) : (
           <ol className="divide-border mt-2 divide-y text-sm">
@@ -104,7 +98,7 @@ export default async function AdminDashboardPage() {
                   {product.name}
                 </Link>
                 <span className="text-muted-foreground shrink-0 tabular-nums">
-                  {product.qty} u.
+                  {TEXTOS.panel.resumen.unidades(product.qty)}
                 </span>
                 <span className="shrink-0 font-medium tabular-nums">
                   {formatGs(product.totalPyg)}
@@ -117,15 +111,15 @@ export default async function AdminDashboardPage() {
 
       <section className="mt-8">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="font-medium">Esperando verificación</h2>
+          <h2 className="font-medium">{TEXTOS.panel.resumen.esperandoVerificacion}</h2>
           <Link href="/admin/pedidos?estado=esperando_verificacion" className="text-sm underline">
-            Ver todos ({summary.awaitingVerification})
+            {TEXTOS.panel.resumen.verTodos(summary.awaitingVerification)}
           </Link>
         </div>
 
         {awaiting.rows.length === 0 ? (
           <p className="text-muted-foreground border-border mt-2 rounded-xl border border-dashed p-6 text-center text-sm">
-            No hay comprobantes esperando revisión. Todo al día.
+            {TEXTOS.panel.resumen.sinComprobantes}
           </p>
         ) : (
           <ul className="mt-2 grid gap-2">
@@ -150,13 +144,13 @@ export default async function AdminDashboardPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-medium">Stock bajo</h2>
+        <h2 className="font-medium">{TEXTOS.panel.resumen.stockBajo}</h2>
         <p className="text-muted-foreground mt-1 text-xs">
-          Disponible = lo que hay físicamente menos lo que ya está reservado por un pedido.
+          {TEXTOS.panel.resumen.stockBajoAyuda}
         </p>
         {lowStock.length === 0 ? (
           <p className="text-muted-foreground border-border mt-2 rounded-xl border border-dashed p-6 text-center text-sm">
-            Ninguna variante con stock bajo.
+            {TEXTOS.panel.resumen.sinStockBajo}
           </p>
         ) : (
           <ul className="divide-border mt-2 divide-y text-sm">
@@ -179,17 +173,15 @@ export default async function AdminDashboardPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-medium">Pendientes de pago</h2>
+        <h2 className="font-medium">{TEXTOS.panel.resumen.pendientesDePago}</h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          {summary.pendingPayment}{" "}
-          {summary.pendingPayment === 1 ? "pedido espera" : "pedidos esperan"} el pago. Los que
-          pasen su fecha de reserva los vence el cron automáticamente.
+          {TEXTOS.panel.resumen.pendientesDePagoAyuda(summary.pendingPayment)}
         </p>
         <Link
           href="/admin/pedidos?estado=pendiente_pago"
           className="mt-2 inline-block text-sm underline"
         >
-          Ver pendientes
+          {TEXTOS.panel.resumen.verPendientes}
         </Link>
       </section>
     </div>

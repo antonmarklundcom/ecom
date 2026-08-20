@@ -8,6 +8,7 @@ import { decideReceipt, previewReceipt } from "@/app/actions/admin-orders";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TEXTOS } from "@/i18n";
 import type { ReceiptReview as ReceiptReviewState } from "@/db/schema";
 
 type ReceiptCard = {
@@ -20,9 +21,9 @@ type ReceiptCard = {
 };
 
 const REVIEW_LABEL: Record<ReceiptReviewState, string> = {
-  pending: "Sin revisar",
-  approved: "Aprobado",
-  rejected: "Rechazado",
+  pending: TEXTOS.panel.comprobantes.sinRevisar,
+  approved: TEXTOS.panel.comprobantes.aprobado,
+  rejected: TEXTOS.panel.comprobantes.rechazado,
 };
 
 /**
@@ -79,8 +80,8 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
       setNote("");
       toast.success(
         decision === "approved"
-          ? "Comprobante aprobado. El pedido pasó a pagado."
-          : "Comprobante rechazado. El cliente puede subir otro.",
+          ? TEXTOS.panel.comprobantes.aprobadoToast
+          : TEXTOS.panel.comprobantes.rechazadoToast,
       );
       router.refresh();
     });
@@ -93,7 +94,7 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
           {receipt.uploadedAt}
           <span className="text-muted-foreground">
             {" "}
-            · {(receipt.bytes / 1024).toFixed(0)} KB
+            {TEXTOS.panel.comprobantes.tamano((receipt.bytes / 1024).toFixed(0))}
           </span>
         </span>
         <Badge variant={receipt.review === "pending" ? "default" : "outline"}>
@@ -102,7 +103,7 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
       </div>
 
       {receipt.note ? (
-        <p className="text-muted-foreground mt-1 text-xs">Motivo: {receipt.note}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{TEXTOS.panel.comprobantes.motivo(receipt.note)}</p>
       ) : null}
 
       {error ? (
@@ -116,7 +117,7 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={openPreview}>
-          {preview ? "Actualizar vista" : "Ver comprobante"}
+          {preview ? TEXTOS.panel.comprobantes.actualizarVista : TEXTOS.panel.comprobantes.verComprobante}
         </Button>
 
         {receipt.review === "pending" ? (
@@ -127,7 +128,7 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
               disabled={isPending}
               onClick={() => decide("approved")}
             >
-              Aprobar
+              {TEXTOS.panel.comprobantes.aprobar}
             </Button>
             <Button
               type="button"
@@ -136,7 +137,7 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
               disabled={isPending}
               onClick={() => setRejecting((value) => !value)}
             >
-              Rechazar
+              {TEXTOS.panel.comprobantes.rechazar}
             </Button>
           </>
         ) : null}
@@ -145,13 +146,13 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
       {rejecting ? (
         <div className="mt-3 grid gap-2">
           <label className="text-muted-foreground text-xs" htmlFor={`note-${receipt.id}`}>
-            Motivo del rechazo — el cliente lo lee
+            {TEXTOS.panel.comprobantes.motivoRechazo}
           </label>
           <Input
             id={`note-${receipt.id}`}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Ej: el monto transferido no coincide"
+            placeholder={TEXTOS.panel.comprobantes.motivoRechazoPlaceholder}
             maxLength={500}
           />
           <Button
@@ -161,7 +162,7 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
             disabled={isPending}
             onClick={() => decide("rejected")}
           >
-            {isPending ? "Guardando…" : "Confirmar rechazo"}
+            {isPending ? TEXTOS.panel.comunes.guardando : TEXTOS.panel.comprobantes.confirmarRechazo}
           </Button>
         </div>
       ) : null}
@@ -175,7 +176,7 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
               rel="noopener noreferrer"
               className="text-sm underline"
             >
-              Abrir el PDF del comprobante
+              {TEXTOS.panel.comprobantes.abrirPdf}
             </a>
           ) : (
             // `<img>` y no `next/image`: la URL viene firmada y vence en dos
@@ -185,12 +186,12 @@ function ReceiptItem({ receipt }: { receipt: ReceiptCard }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={preview.url}
-              alt="Comprobante de transferencia"
+              alt={TEXTOS.panel.comprobantes.alt}
               className="border-border max-h-96 w-full rounded-lg border object-contain"
             />
           )}
           <p className="text-muted-foreground mt-1 text-xs">
-            El link vence en un par de minutos. Si no carga, tocá &ldquo;Actualizar vista&rdquo;.
+            {TEXTOS.panel.comprobantes.linkVence}
           </p>
         </div>
       ) : null}

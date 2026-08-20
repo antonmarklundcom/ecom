@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ORDER_STATUSES, type OrderStatus } from "@/db/schema";
 import type { OrderStatusCounts } from "@/domain/admin-orders";
 
+import { TEXTOS } from "@/i18n";
+
 import { ORDER_STATUS_LABEL } from "@/lib/order-labels";
 
 /**
@@ -74,11 +76,11 @@ export function OrderStatusTabs({
   );
 
   return (
-    <nav aria-label="Filtrar por estado" className="-mx-4 mt-4 overflow-x-auto px-4">
+    <nav aria-label={TEXTOS.panel.pedidos.filtrarPorEstado} className="-mx-4 mt-4 overflow-x-auto px-4">
       <ul className="flex w-max gap-2">
         <li>
           <Chip href={href(undefined)} active={active === undefined} count={counts.total}>
-            Todos
+            {TEXTOS.panel.pedidos.todos}
           </Chip>
         </li>
         {visible.map((status) => (

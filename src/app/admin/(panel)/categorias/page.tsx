@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 
 import { CategoriesManager } from "@/components/admin/categories-manager";
 import { listAdminCategories } from "@/domain/admin-categories";
+import { TEXTOS } from "@/i18n";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 
-export const metadata: Metadata = { title: "Categorías" };
+export const metadata: Metadata = { title: TEXTOS.panel.categorias.titulo };
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +21,8 @@ export default async function AdminCategoriesPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Categorías</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        El orden de esta lista es el del menú de la tienda. Una categoría
-        desactivada esconde también sus productos de la vidriera, sin
-        modificarlos: al reactivarla vuelven como estaban. No se borran, por los
-        productos que cuelgan de ellas.
-      </p>
+      <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.categorias.titulo}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">{TEXTOS.panel.categorias.ayuda}</p>
 
       <div className="mt-6">
         <CategoriesManager

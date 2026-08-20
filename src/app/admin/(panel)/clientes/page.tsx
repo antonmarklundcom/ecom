@@ -5,12 +5,13 @@ import { CsvDownloadButton } from "@/components/admin/csv-download";
 import { cuentasClientesHabilitadas } from "@/config/tienda";
 import { listCustomers } from "@/domain/admin-customers";
 import { customersByPhone } from "@/domain/customers";
+import { TEXTOS } from "@/i18n";
 import { can } from "@/lib/permissions";
 import { formatGs } from "@/lib/money";
 import { formatDatePY, formatPhonePY } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 
-export const metadata: Metadata = { title: "Clientes" };
+export const metadata: Metadata = { title: TEXTOS.panel.clientes.titulo };
 
 export const dynamic = "force-dynamic";
 
@@ -63,15 +64,14 @@ export default async function AdminCustomersPage({
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Clientes</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{TEXTOS.panel.clientes.titulo}</h1>
         <p className="text-muted-foreground text-sm tabular-nums">
-          {result.total} {result.total === 1 ? "cliente" : "clientes"}
+          {TEXTOS.panel.clientes.cuenta(result.total)}
         </p>
       </div>
 
       <p className="text-muted-foreground mt-1 text-xs">
-        Sale de los pedidos, agrupados por WhatsApp. Lo gastado cuenta sólo los pedidos ya
-        cobrados (pagado en adelante).
+        {TEXTOS.panel.clientes.ayuda}
       </p>
 
       {/* La lista de marketing que hasta ahora no existía: sólo las cuentas
@@ -82,10 +82,10 @@ export default async function AdminCustomersPage({
           <CsvDownloadButton
             kind="clientes-opt-in"
             params={{}}
-            label="Descargar lista de novedades"
+            label={TEXTOS.panel.clientes.descargarNovedades}
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Sólo las cuentas activas que aceptaron recibir novedades.
+            {TEXTOS.panel.clientes.descargarNovedadesAyuda}
           </p>
         </div>
       ) : null}
@@ -95,18 +95,18 @@ export default async function AdminCustomersPage({
           type="search"
           name="q"
           defaultValue={search ?? ""}
-          placeholder="Nombre, WhatsApp o RUC"
-          aria-label="Buscar cliente"
+          placeholder={TEXTOS.panel.clientes.buscarPlaceholder}
+          aria-label={TEXTOS.panel.clientes.buscarLabel}
           className="border-input bg-background h-9 flex-1 rounded-md border px-3 text-sm"
         />
         <button type="submit" className="border-border rounded-lg border px-4 text-sm">
-          Buscar
+          {TEXTOS.panel.clientes.buscar}
         </button>
       </form>
 
       {result.rows.length === 0 ? (
         <p className="text-muted-foreground border-border mt-6 rounded-xl border border-dashed p-8 text-center text-sm">
-          {search ? "Ningún cliente coincide con esa búsqueda." : "Todavía no hay pedidos."}
+          {search ? TEXTOS.panel.clientes.sinCoincidencias : TEXTOS.panel.clientes.sinPedidos}
         </p>
       ) : (
         // Tarjetas y no tabla, igual que el listado de pedidos: el dueño abre
@@ -134,19 +134,16 @@ export default async function AdminCustomersPage({
                     prendidas, este bloque no existe. */}
                 {conCuenta.has(customer.phone) ? (
                   <p className="mt-1 text-xs">
-                    <span className="border-border rounded border px-1.5 py-0.5">Con cuenta</span>
+                    <span className="border-border rounded border px-1.5 py-0.5">{TEXTOS.panel.clientes.conCuenta}</span>
                     {conCuenta.get(customer.phone)?.marketingOptIn === true ? (
-                      <span className="text-muted-foreground"> · acepta novedades</span>
+                      <span className="text-muted-foreground">{TEXTOS.panel.clientes.aceptaNovedades}</span>
                     ) : null}
                   </p>
                 ) : null}
 
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {customer.orders} {customer.orders === 1 ? "pedido" : "pedidos"}
-                  {customer.paidOrders < customer.orders
-                    ? ` (${customer.paidOrders} cobrado${customer.paidOrders === 1 ? "" : "s"})`
-                    : ""}{" "}
-                  · último el {formatDatePY(customer.lastOrderAt)}
+                  {TEXTOS.panel.clientes.pedidos(customer.orders, customer.paidOrders)} ·{" "}
+                  {TEXTOS.panel.clientes.ultimoEl(formatDatePY(customer.lastOrderAt))}
                 </p>
               </Link>
             </li>
@@ -155,20 +152,20 @@ export default async function AdminCustomersPage({
       )}
 
       {result.totalPages > 1 ? (
-        <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label="Paginación">
+        <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label={TEXTOS.panel.comunes.paginacion}>
           {result.page > 1 ? (
             <Link href={href(result.page - 1)} className="border-border rounded-lg border px-3 py-2">
-              ← Anteriores
+              {TEXTOS.panel.pedidos.anteriores}
             </Link>
           ) : (
             <span />
           )}
           <span className="text-muted-foreground tabular-nums">
-            Página {result.page} de {result.totalPages}
+            {TEXTOS.panel.comunes.paginaDeTotal(result.page, result.totalPages)}
           </span>
           {result.page < result.totalPages ? (
             <Link href={href(result.page + 1)} className="border-border rounded-lg border px-3 py-2">
-              Siguientes →
+              {TEXTOS.panel.pedidos.siguientes}
             </Link>
           ) : (
             <span />

@@ -8,6 +8,7 @@ import { adjustVariantStock, saveProductVariant } from "@/app/actions/admin-prod
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TEXTOS } from "@/i18n";
 import { formatGs } from "@/lib/money";
 
 export type VariantCard = {
@@ -41,13 +42,13 @@ export function VariantEditor({
         <VariantFields productId={productId} onDone={() => setAdding(false)} />
       ) : (
         <Button type="button" variant="outline" onClick={() => setAdding(true)}>
-          Agregar variante
+          {TEXTOS.panel.variantes.agregarVariante}
         </Button>
       )}
 
       {variants.length === 0 && !adding ? (
         <p className="text-muted-foreground text-sm">
-          Un producto sin variantes no se puede comprar: cargá al menos una con su precio.
+          {TEXTOS.panel.variantes.sinVariantes}
         </p>
       ) : null}
     </div>
@@ -69,17 +70,17 @@ function VariantRow({ productId, variant }: { productId: number; variant: Varian
       </div>
 
       <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-        {variant.onHand} en stock · {variant.heldQty} reservados ·{" "}
-        <strong className="text-foreground">{variant.available} disponibles</strong>
-        {variant.isActive ? "" : " · inactiva"}
+        {TEXTOS.panel.variantes.stockLinea(variant.onHand, variant.heldQty)}
+        <strong className="text-foreground">{TEXTOS.panel.variantes.disponibles(variant.available)}</strong>
+        {variant.isActive ? "" : TEXTOS.panel.variantes.inactiva}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => setEditing((v) => !v)}>
-          {editing ? "Cancelar" : "Editar"}
+          {editing ? TEXTOS.panel.comunes.cancelar : TEXTOS.panel.comunes.editar}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => setAdjusting((v) => !v)}>
-          {adjusting ? "Cancelar" : "Ajustar stock"}
+          {adjusting ? TEXTOS.panel.comunes.cancelar : TEXTOS.panel.variantes.ajustarStock}
         </Button>
       </div>
 
@@ -143,7 +144,7 @@ function VariantFields({
             setError(result.error);
             return;
           }
-          toast.success("Variante guardada.");
+          toast.success(TEXTOS.panel.variantes.guardada);
           onDone();
           router.refresh();
         });
@@ -160,13 +161,13 @@ function VariantFields({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor={`label-${variant?.id ?? "new"}`}>Etiqueta</Label>
+          <Label htmlFor={`label-${variant?.id ?? "new"}`}>{TEXTOS.panel.variantes.etiqueta}</Label>
           <Input
             id={`label-${variant?.id ?? "new"}`}
             name="label"
             required
             defaultValue={variant?.label ?? ""}
-            placeholder="Talle M"
+            placeholder={TEXTOS.panel.variantes.etiquetaPlaceholder}
           />
         </div>
         <div className="grid gap-1.5">
@@ -176,11 +177,11 @@ function VariantFields({
             name="sku"
             required
             defaultValue={variant?.sku ?? ""}
-            placeholder="CAM-M-AZ"
+            placeholder={TEXTOS.panel.variantes.skuPlaceholder}
           />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor={`price-${variant?.id ?? "new"}`}>Precio en ₲ (IVA incluido)</Label>
+          <Label htmlFor={`price-${variant?.id ?? "new"}`}>{TEXTOS.panel.variantes.precio}</Label>
           <Input
             id={`price-${variant?.id ?? "new"}`}
             name="pricePyg"
@@ -195,7 +196,7 @@ function VariantFields({
           />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor={`compare-${variant?.id ?? "new"}`}>Precio tachado (opcional)</Label>
+          <Label htmlFor={`compare-${variant?.id ?? "new"}`}>{TEXTOS.panel.variantes.precioTachado}</Label>
           <Input
             id={`compare-${variant?.id ?? "new"}`}
             name="compareAtPyg"
@@ -210,21 +211,21 @@ function VariantFields({
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="isActive" defaultChecked={variant?.isActive ?? true} />
-        Activa
+        {TEXTOS.panel.variantes.activa}
       </label>
 
       {variant === undefined ? (
         <p className="text-muted-foreground text-xs">
-          Arranca con 0 en stock: se carga con &ldquo;Ajustar stock&rdquo;, que pide el motivo.
+          {TEXTOS.panel.variantes.arrancaEnCero}
         </p>
       ) : null}
 
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={isPending}>
-          {isPending ? "Guardando…" : "Guardar variante"}
+          {isPending ? TEXTOS.panel.comunes.guardando : TEXTOS.panel.variantes.guardarVariante}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={onDone} disabled={isPending}>
-          Cancelar
+          {TEXTOS.panel.comunes.cancelar}
         </Button>
       </div>
     </form>
@@ -271,7 +272,7 @@ function StockAdjustForm({
             setError(result.error);
             return;
           }
-          toast.success(`Stock ajustado: quedan ${result.newOnHand}.`);
+          toast.success(TEXTOS.panel.variantes.stockAjustado(result.newOnHand));
           onDone();
           router.refresh();
         });
@@ -293,7 +294,7 @@ function StockAdjustForm({
           variant={sign === 1 ? "default" : "outline"}
           onClick={() => setSign(1)}
         >
-          Agregar
+          {TEXTOS.panel.variantes.agregar}
         </Button>
         <Button
           type="button"
@@ -301,12 +302,12 @@ function StockAdjustForm({
           variant={sign === -1 ? "default" : "outline"}
           onClick={() => setSign(-1)}
         >
-          Quitar
+          {TEXTOS.panel.variantes.quitar}
         </Button>
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor={`qty-${variantId}`}>Cantidad</Label>
+        <Label htmlFor={`qty-${variantId}`}>{TEXTOS.panel.variantes.cantidad}</Label>
         <Input
           id={`qty-${variantId}`}
           name="qty"
@@ -320,23 +321,23 @@ function StockAdjustForm({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor={`reason-${variantId}`}>Motivo (obligatorio)</Label>
+        <Label htmlFor={`reason-${variantId}`}>{TEXTOS.panel.variantes.motivo}</Label>
         <Input
           id={`reason-${variantId}`}
           name="reason"
           required
           minLength={4}
           maxLength={300}
-          placeholder="Conteo de depósito / rotura / reposición"
+          placeholder={TEXTOS.panel.variantes.motivoPlaceholder}
         />
       </div>
 
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={isPending}>
-          {isPending ? "Guardando…" : "Ajustar stock"}
+          {isPending ? TEXTOS.panel.comunes.guardando : TEXTOS.panel.variantes.ajustarStock}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={onDone} disabled={isPending}>
-          Cancelar
+          {TEXTOS.panel.comunes.cancelar}
         </Button>
       </div>
     </form>
