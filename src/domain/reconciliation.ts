@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 
 import type { Executor } from "./executor";
 import { ORDER_TRANSITIONS } from "./orders";
+import { rowsOf } from "./rows";
 
 /**
  * Reconciliación (PLAN.md 4.10).
@@ -571,8 +572,3 @@ function identity(row: Record<string, unknown>) {
   };
 }
 
-/** mysql2 devuelve `[rows, fields]`; drizzle a veces pasa las filas peladas. */
-function rowsOf(result: unknown): Array<Record<string, unknown>> {
-  const candidate = Array.isArray(result) ? result[0] : result;
-  return Array.isArray(candidate) ? (candidate as Array<Record<string, unknown>>) : [];
-}

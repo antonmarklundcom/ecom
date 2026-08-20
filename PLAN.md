@@ -154,8 +154,12 @@ Los montos pasan por `assertGs` —enteros en guaraníes— y las ciudades se de
 
 Los pedidos en vuelo no se rompen: la cotización se recalcula server-side en cada paso y los pedidos ya creados guardan su propio `shipping_pyg`.
 
-## PR L — `/admin/actividad` (owner y staff)
-Feed global paginado de `order_events` + `stock_adjustments`, filtrable por usuario (el `actor_user_id` del PR D), tipo y fecha. "¿Qué hizo X hoy?" en una pantalla. *Branch: `feat/admin-actividad`*
+## PR L — `/admin/actividad` (owner y staff) — **hecho**
+Feed global paginado de `order_events` + `stock_adjustments`, filtrable por usuario (el `actor_user_id` del PR D), tipo y fecha, con la fecha en la URL para poder mandar el link.
+
+La mezcla es un `UNION ALL` en SQL y no dos consultas juntadas en JS: con dos listas separadas la paginación miente —traer 30 de cada tabla y ordenar después no da las 30 más recientes del conjunto, y la página 2 repite lo que la 1 ya mostró—. El orden desempata por id dentro del mismo segundo, por lo mismo. Lo que movió el cron o un webhook aparece sin usuario, que es la verdad: no lo hizo nadie del panel.
+
+De paso, `rowsOf()` —las cuatro líneas que sacan las filas de un `execute()` crudo— estaba copiado en `reconciliation.ts`, `manual-payments.ts` y `payment-recovery.ts`; ahora vive en `src/domain/rows.ts`.
 
 ## PR M — Productos relacionados
 "También te puede interesar" en `/producto/[slug]`: misma categoría, en stock, excluyendo el actual; sin nada que mostrar, la sección no se renderiza. *Branch: `feat/relacionados`*

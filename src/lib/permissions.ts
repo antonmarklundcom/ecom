@@ -51,6 +51,13 @@ export const CAPABILITIES = [
    * flete es plata, y poner una zona en ₲0 regala la logística de la tienda.
    */
   "envios",
+  /**
+   * El feed de actividad (PR L): quién hizo qué y cuándo. Owner **y staff**:
+   * la encargada de turno también necesita ver qué pasó en el turno anterior,
+   * y no muestra ningún monto — sólo transiciones y ajustes de stock, que son
+   * cosas que el staff ya puede hacer.
+   */
+  "actividad",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -77,6 +84,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     "productos",
     "stock",
     "clientes",
+    "actividad",
   ],
 
   // El mostrador y nada más: ve los pedidos y los despacha. Sin montos, sin

@@ -5,6 +5,7 @@ import { orders, payments, type OrderStatus } from "@/db/schema";
 
 import type { Executor } from "./executor";
 import { transitionOrder } from "./orders";
+import { rowsOf } from "./rows";
 
 /**
  * Plata que entró y no tiene un pedido vivo detrás (ARCH.md §4.1).
@@ -335,8 +336,3 @@ async function lockPaymentAndOrder(tx: Executor, paymentId: number) {
   return { payment, order };
 }
 
-/** mysql2 devuelve `[rows, fields]`; drizzle a veces pasa las filas peladas. */
-function rowsOf(result: unknown): Array<Record<string, unknown>> {
-  const candidate = Array.isArray(result) ? result[0] : result;
-  return Array.isArray(candidate) ? (candidate as Array<Record<string, unknown>>) : [];
-}

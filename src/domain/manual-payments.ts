@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { payments, type PaymentMethod, type PaymentProvider } from "@/db/schema";
 
 import type { Executor } from "./executor";
+import { rowsOf } from "./rows";
 
 /**
  * El pago que no pasa por ninguna pasarela (TASKS.md §27, ARCH.md §5).
@@ -219,8 +220,3 @@ function affectedRows(result: unknown): number {
   return Number((header as { affectedRows?: number })?.affectedRows ?? 0);
 }
 
-/** mysql2 devuelve `[rows, fields]`; drizzle a veces pasa las filas peladas. */
-function rowsOf(result: unknown): Array<Record<string, unknown>> {
-  const candidate = Array.isArray(result) ? result[0] : result;
-  return Array.isArray(candidate) ? (candidate as Array<Record<string, unknown>>) : [];
-}
