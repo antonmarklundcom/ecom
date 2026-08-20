@@ -12,7 +12,7 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 /** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
 const DEFAULT_TRANSFORMS = "f_auto,q_auto";
 
-export type ImageSize = "thumb" | "card" | "detail" | "og";
+export type ImageSize = "thumb" | "card" | "detail" | "og" | "hero";
 
 /**
  * 1200×630 es la caja que esperan WhatsApp, Instagram y Facebook. `c_fill` y
@@ -27,6 +27,16 @@ const SIZE_TRANSFORMS: Record<ImageSize, string> = {
   card: "c_fill,w_600,h_600",
   detail: "c_fit,w_1200,h_1200",
   og: `c_fill,w_${OG_IMAGE_SIZE.width},h_${OG_IMAGE_SIZE.height}`,
+  /**
+   * La portada de la home (PR O). Ancha y baja, y con `c_fill` para que una
+   * foto vertical no salga con franjas: es la primera pantalla y ahí una
+   * imagen deformada o con bordes vacíos se lee como tienda descuidada.
+   *
+   * 1600 de ancho y no 2400: el techo real de este template es una pantalla de
+   * escritorio común, y en el celular paraguayo cada 100 kB de portada son
+   * segundos antes de ver un producto (ARCH.md §6).
+   */
+  hero: "c_fill,w_1600,h_600",
 };
 
 /**

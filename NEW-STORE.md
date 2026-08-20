@@ -144,6 +144,12 @@ como invitada con ese número (ver la limitación del §4b).
 
 ### 5. Diseño
 
+**La portada de la home** se cambia sin tocar código: `hero` en
+[`src/config/tienda.ts`](./src/config/tienda.ts) acepta una foto de Cloudinary,
+un título, una bajada y un botón. Con `hero: null` (el default) sale la portada
+del template. Es lo que le permite al comercio cambiar su banner de temporada
+solo; todo lo demás de la home se rediseña editando `src/app/page.tsx`.
+
 Todo el color y el radio viven en `src/app/globals.css` (`:root` y `.dark`,
 tokens de shadcn en oklch) y se consumen vía Tailwind. Cambiar la paleta =
 editar esas variables, nada más. La tipografía se cambia en
