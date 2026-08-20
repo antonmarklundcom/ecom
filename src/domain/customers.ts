@@ -1,4 +1,7 @@
 import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import type { MessageKey, Params } from '@/i18n';
+
+import { DomainError } from './errors';
 
 import { getDb } from '@/db';
 import { customers, orders, type OrderStatus } from '@/db/schema';
@@ -20,9 +23,9 @@ import type { Executor } from './executor';
  *    poder compararse contra `orders.customer_phone`, que ya se guarda así.
  */
 
-export class CustomerError extends Error {
-  constructor(message: string) {
-    super(message);
+export class CustomerError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = 'CustomerError';
   }
 }
@@ -61,10 +64,10 @@ export async function registerCustomer(
   const tx = executor ?? getDb();
 
   const phone = normalizePhonePY(input.phone);
-  if (!phone) throw new CustomerError('Ese número de WhatsApp no parece paraguayo.');
+  if (!phone) throw new CustomerError('error.cuenta.telefono');
 
   const name = input.name.trim();
-  if (name.length < 3) throw new CustomerError('Poné tu nombre completo.');
+  if (name.length < 3) throw new CustomerError('error.cuenta.nombre');
 
   const email = input.email ? normalizeCustomerEmail(input.email) : null;
   const passwordHash = await hashPassword(input.password);
@@ -76,7 +79,7 @@ export async function registerCustomer(
     .limit(1);
 
   if (existing[0]) {
-    throw new CustomerError('Ya hay una cuenta con ese WhatsApp o ese email. Probá entrar.');
+    throw new CustomerError('error.cuenta.yaExiste');
   }
 
   await tx.insert(customers).values({
@@ -90,7 +93,7 @@ export async function registerCustomer(
   });
 
   const created = await findCustomerByPhone(phone, tx);
-  if (!created) throw new CustomerError('No pudimos crear la cuenta. Probá de nuevo.');
+  if (!created) throw new CustomerError('error.cuenta.noPude');
   return created;
 }
 
@@ -193,7 +196,7 @@ export async function updateCustomerProfile(
   const tx = executor ?? getDb();
 
   const name = input.name.trim();
-  if (name.length < 3) throw new CustomerError('Poné tu nombre completo.');
+  if (name.length < 3) throw new CustomerError('error.cuenta.nombre');
 
   const email = input.email ? normalizeCustomerEmail(input.email) : null;
 
@@ -204,7 +207,7 @@ export async function updateCustomerProfile(
       .where(eq(customers.email, email))
       .limit(1);
     if (taken[0] && taken[0].id !== customerId) {
-      throw new CustomerError('Ese email ya está usado por otra cuenta.');
+      throw new CustomerError('error.cuenta.emailUsado');
     }
   }
 

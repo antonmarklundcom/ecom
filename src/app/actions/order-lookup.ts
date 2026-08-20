@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { findOrderByNumberAndPhone, orderUrl } from "@/domain/order-access";
+import { t, tPlural } from "@/i18n";
 import { LOOKUP_LIMIT, LOOKUP_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-limit";
 
 /**
@@ -16,8 +17,12 @@ import { LOOKUP_LIMIT, LOOKUP_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-
  *    formulario en un oráculo de números de pedido válidos.
  */
 
-const GENERIC_ERROR =
-  "No encontramos un pedido con esos datos. Revisá el número y el teléfono que usaste al comprar.";
+/**
+ * Una función y no una constante: `t()` se resuelve al importar el módulo, y
+ * una constante de módulo la congelaría antes de que nadie la pida. Cuesta
+ * nada y evita el bug tonto del día que el catálogo se elija en runtime.
+ */
+const genericError = (): string => t("error.buscarPedido.noEncontrado");
 
 const LookupSchema = z.object({
   orderNumber: z.string().trim().min(3).max(16),
@@ -32,20 +37,17 @@ export async function lookupOrder(input: unknown): Promise<LookupResult> {
 
   if (!limit.ok) {
     const minutes = Math.ceil(limit.retryAfterSeconds / 60);
-    return {
-      ok: false,
-      error: `Demasiados intentos. Probá de nuevo en ${minutes} ${minutes === 1 ? "minuto" : "minutos"}, o escribinos por WhatsApp.`,
-    };
+    return { ok: false, error: tPlural("error.buscarPedido.demasiados", minutes) };
   }
 
   const parsed = LookupSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: GENERIC_ERROR };
+    return { ok: false, error: genericError() };
   }
 
   const found = await findOrderByNumberAndPhone(parsed.data.orderNumber, parsed.data.phone);
   if (!found) {
-    return { ok: false, error: GENERIC_ERROR };
+    return { ok: false, error: genericError() };
   }
 
   return { ok: true, redirectTo: orderUrl(found.orderNumber, found.accessToken) };

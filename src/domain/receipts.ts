@@ -1,4 +1,7 @@
 import { and, eq } from "drizzle-orm";
+import type { MessageKey, Params } from "@/i18n";
+
+import { DomainError } from "./errors";
 
 import { getDb } from "@/db";
 import { receipts } from "@/db/schema";
@@ -23,9 +26,9 @@ const MAGIC_NUMBERS: Array<{ mime: string; bytes: number[] }> = [
   { mime: "application/pdf", bytes: [0x25, 0x50, 0x44, 0x46] },
 ];
 
-export class ReceiptError extends Error {
-  constructor(message: string) {
-    super(message);
+export class ReceiptError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = "ReceiptError";
   }
 }
@@ -45,19 +48,19 @@ export function validateReceipt(input: {
   content: Buffer | Uint8Array;
 }): { mime: string } {
   if (input.bytes <= 0) {
-    throw new ReceiptError("El archivo está vacío.");
+    throw new ReceiptError("error.comprobante.vacio");
   }
   if (input.bytes > RECEIPT_MAX_BYTES) {
-    throw new ReceiptError("El comprobante no puede pesar más de 5 MB.");
+    throw new ReceiptError("error.comprobante.pesado");
   }
 
   const sniffed = sniffMime(input.content);
   if (!sniffed) {
-    throw new ReceiptError("Subí una foto (JPG o PNG) o un PDF del comprobante.");
+    throw new ReceiptError("error.comprobante.formato");
   }
   // Si el navegador declaró otra cosa, mandan los bytes.
   if (!(RECEIPT_ALLOWED_MIME as readonly string[]).includes(sniffed)) {
-    throw new ReceiptError("Subí una foto (JPG o PNG) o un PDF del comprobante.");
+    throw new ReceiptError("error.comprobante.formato");
   }
 
   return { mime: sniffed };
@@ -75,9 +78,9 @@ export async function countReceipts(orderId: number, executor?: Executor): Promi
 export async function assertCanUpload(orderId: number, executor?: Executor): Promise<void> {
   const already = await countReceipts(orderId, executor);
   if (already >= RECEIPT_MAX_PER_ORDER) {
-    throw new ReceiptError(
-      `Ya subiste ${RECEIPT_MAX_PER_ORDER} comprobantes para este pedido. Escribinos por WhatsApp.`
-    );
+    throw new ReceiptError("error.comprobante.demasiados", {
+      maximo: RECEIPT_MAX_PER_ORDER,
+    });
   }
 }
 

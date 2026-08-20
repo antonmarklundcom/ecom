@@ -423,4 +423,80 @@ export const esPY = {
   "cuenta.guardarDatos.texto":
     "Con una cuenta no volvés a tipear tu dirección, y tenés todos tus pedidos en un solo lugar. Tu pedido {numero} ya está hecho: esto es sólo para la próxima vez.",
   "cuenta.guardarDatos.boton": "Crear mi cuenta",
+
+  // -------------------------------------------------------------------------
+  // Errores del dominio (PR S) — los que una persona lee
+  //
+  // Viven acá y no adentro de cada `throw` por lo mismo que el resto: si no,
+  // los textos que la compradora ve quedan repartidos entre transacciones y
+  // bloqueos de fila, y quien traduce tiene que ir a buscarlos ahí.
+  // -------------------------------------------------------------------------
+  "error.checkout.telefono": "El número de WhatsApp no parece paraguayo.",
+  "error.checkout.ruc": "RUC inválido: {motivo}",
+  "error.checkout.ci": "CI inválida: {motivo}",
+  "error.checkout.carritoVacio": "El carrito está vacío.",
+  "error.checkout.noDisponible": "Algunos productos ya no están disponibles. Revisá tu carrito.",
+  "error.checkout.noPude": "No pude crear el pedido. Probá de nuevo.",
+  "error.checkout.totalCambio":
+    "El total cambió de {antes} a {despues} mientras completabas los datos. Revisalo y confirmá de nuevo.",
+  "error.checkout.cuponCaido":
+    "El código de descuento ya no se puede usar. Revisá el total y confirmá de nuevo.",
+  "error.checkout.demasiadosIntentos":
+    "Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.",
+  "error.checkout.revisaDatos": "Revisá los datos del formulario.",
+  "error.checkout.sinTarjeta": "El pago con tarjeta no está disponible en este momento.",
+  "error.checkout.generico": "No pudimos crear el pedido. Probá de nuevo en un momento.",
+
+  "error.comprobante.vacio": "El archivo está vacío.",
+  "error.comprobante.pesado": "El comprobante no puede pesar más de 5 MB.",
+  "error.comprobante.formato": "Subí una foto (JPG o PNG) o un PDF del comprobante.",
+  "error.comprobante.noEsTransferencia": "Este pedido no se paga por transferencia.",
+  "error.comprobante.noEsperaComprobante": "Este pedido ya no está esperando el comprobante.",
+  "error.comprobante.pedidoNoEncontrado": "No encontramos ese pedido.",
+  "error.comprobante.elegiArchivo": "Elegí el archivo del comprobante.",
+  "error.comprobante.generico": "No pudimos subir el comprobante. Probá de nuevo.",
+  "error.comprobante.demasiados":
+    "Ya subiste {maximo} comprobantes para este pedido. Escribinos por WhatsApp.",
+  "error.comprobante.sinMotivo":
+    "Escribí el motivo del rechazo: el comprador lo ve y necesita saber qué corregir.",
+  "error.comprobante.noExiste": "No encontramos ese comprobante.",
+  "error.comprobante.yaAprobado": "Ese comprobante ya estaba aprobado.",
+  "error.comprobante.yaRechazado": "Ese comprobante ya estaba rechazado.",
+
+  "error.buscarPedido.noEncontrado":
+    "No encontramos un pedido con esos datos. Revisá el número y el teléfono que usaste al comprar.",
+  "error.buscarPedido.demasiados.uno":
+    "Demasiados intentos. Probá de nuevo en {n} minuto, o escribinos por WhatsApp.",
+  "error.buscarPedido.demasiados.varios":
+    "Demasiados intentos. Probá de nuevo en {n} minutos, o escribinos por WhatsApp.",
+
+  "error.cuenta.telefono": "Ese número de WhatsApp no parece paraguayo.",
+  "error.cuenta.nombre": "Poné tu nombre completo.",
+  "error.cuenta.yaExiste": "Ya hay una cuenta con ese WhatsApp o ese email. Probá entrar.",
+  "error.cuenta.emailUsado": "Ese email ya está usado por otra cuenta.",
+  "error.cuenta.noPude": "No pudimos crear la cuenta. Probá de nuevo.",
+  "error.cuenta.codigoNoPude": "No pude generar un código. Probá de nuevo.",
+
+  // -------------------------------------------------------------------------
+  // Mensajes de WhatsApp que el comercio le manda al comprador (PR S)
+  //
+  // Nunca llevan el detalle de lo comprado: un WhatsApp llega a la pantalla de
+  // bloqueo del teléfono, que puede estar sobre una mesa con más gente
+  // alrededor. Al traducirlos, no agregar ítems acá.
+  // -------------------------------------------------------------------------
+  "wa.seguimiento":
+    "Hola {nombre}! Te escribo por tu pedido {numero} ({total}). Podés seguirlo acá: {url}",
+  "wa.recuperar.vencido":
+    "Hola {nombre}! Tu pedido {numero} quedó sin pagar y se venció la reserva. Si todavía lo querés, avisanos y lo revisamos según disponibilidad.",
+  "wa.recuperar.rechazado":
+    "Hola {nombre}! No pudimos validar el comprobante de tu pedido {numero}. Entrá al link de abajo, mirá el motivo y subí uno nuevo.",
+  "wa.recuperar.pendiente":
+    "Hola {nombre}! Te recuerdo tu pedido {numero}, que quedó pendiente de pago.",
+  "wa.recuperar.total": "Total: {total}",
+  "wa.recuperar.paraTransferir": "Para transferir:",
+  "wa.recuperar.banco": "{banco} — {tipoCuenta}",
+  "wa.recuperar.titular": "Titular: {titular}",
+  "wa.recuperar.ruc": "RUC: {ruc}",
+  "wa.recuperar.cuenta": "Cuenta: {cuenta}",
+  "wa.recuperar.subiComprobante": "Cuando pagues, subí el comprobante acá: {url}",
 } as const satisfies Record<string, string>;

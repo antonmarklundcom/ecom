@@ -9,6 +9,7 @@ import {
   validateReceipt,
 } from "@/domain/receipts";
 import { CLOUDINARY_RECEIPTS_FOLDER, cloudinary } from "@/lib/cloudinary";
+import { t } from "@/i18n";
 
 /**
  * Subida del comprobante de transferencia (PLAN.md 3.5).
@@ -28,19 +29,19 @@ export async function uploadReceipt(formData: FormData): Promise<UploadReceiptRe
   // Guard primero: sin token válido no se sube nada a nombre de otro pedido.
   const order = await requireOrderAccess(orderNumber, token);
   if (!order) {
-    return { ok: false, error: "No encontramos ese pedido." };
+    return { ok: false, error: t("error.comprobante.pedidoNoEncontrado") };
   }
 
   if (!(file instanceof File)) {
-    return { ok: false, error: "Elegí el archivo del comprobante." };
+    return { ok: false, error: t("error.comprobante.elegiArchivo") };
   }
 
   try {
     if (order.paymentMethod !== "transferencia") {
-      throw new ReceiptError("Este pedido no se paga por transferencia.");
+      throw new ReceiptError("error.comprobante.noEsTransferencia");
     }
     if (!["pendiente_pago", "rechazado", "esperando_verificacion"].includes(order.status)) {
-      throw new ReceiptError("Este pedido ya no está esperando el comprobante.");
+      throw new ReceiptError("error.comprobante.noEsperaComprobante");
     }
 
     await assertCanUpload(order.id);
@@ -81,6 +82,6 @@ export async function uploadReceipt(formData: FormData): Promise<UploadReceiptRe
       return { ok: false, error: error.message };
     }
     console.error("uploadReceipt falló", error);
-    return { ok: false, error: "No pudimos subir el comprobante. Probá de nuevo." };
+    return { ok: false, error: t("error.comprobante.generico") };
   }
 }

@@ -9,6 +9,7 @@ import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config
 import { startPagoparCheckout } from "@/domain/pagopar/checkout";
 import { DOC_TYPES, PAYMENT_METHODS } from "@/db/schema";
 import type { CartIssue } from "@/lib/cart-issues";
+import { t } from "@/i18n";
 import { currentCustomer } from "@/lib/customer-session";
 import {
   CHECKOUT_LIMIT,
@@ -81,22 +82,19 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
   // transacción que reserva stock al final.
   const ip = clientIp(await headers());
   if (!rateLimit(`checkout:${ip}`, { limit: CHECKOUT_LIMIT, windowMs: CHECKOUT_WINDOW_MS }).ok) {
-    return {
-      ok: false,
-      error: "Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.",
-    };
+    return { ok: false, error: t("error.checkout.demasiadosIntentos") };
   }
 
   const parsed = CheckoutActionSchema.safeParse(input);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
-    return { ok: false, error: first?.message ?? "Revisá los datos del formulario." };
+    return { ok: false, error: first?.message ?? t("error.checkout.revisaDatos") };
   }
 
   // El form ya lo oculta si no está configurado; esto es el guard del lado
   // servidor para quien lo intente igual con un POST directo.
   if (parsed.data.paymentMethod === "tarjeta" && !isPagoparConfigured()) {
-    return { ok: false, error: "El pago con tarjeta no está disponible en este momento." };
+    return { ok: false, error: t("error.checkout.sinTarjeta") };
   }
 
   try {
@@ -161,6 +159,6 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
     }
     // El detalle queda en el log del servidor; al comprador no le sirve.
     console.error("createOrder falló", error);
-    return { ok: false, error: "No pudimos crear el pedido. Probá de nuevo en un momento." };
+    return { ok: false, error: t("error.checkout.generico") };
   }
 }

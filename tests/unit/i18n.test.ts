@@ -24,10 +24,26 @@ import { listSourceFiles, readCode } from '../helpers/source';
 
 const RAICES = [path.join('src')] as const;
 
-/** Todo `t("clave")` / `tPlural("clave")` que aparece en el código. */
-async function clavesUsadas(): Promise<{ simples: Set<string>; plurales: Set<string> }> {
+/**
+ * Todo `t("clave")` / `tPlural("clave")` que aparece en el código, y aparte
+ * **todos los literales de texto** del código.
+ *
+ * Los dos, y no sólo el primero, porque las claves no viajan únicamente
+ * adentro de `t()`: desde el PR S los errores del dominio se lanzan con la
+ * clave como primer argumento (`new ReceiptError("error.comprobante.vacio")`).
+ * Un detector que sólo mirara `t(` daría por muertas todas ésas.
+ *
+ * `literales` se usa para el test de claves muertas y `simples`/`plurales`
+ * para el de claves que faltan, que necesita saber cómo se la pidió.
+ */
+async function clavesUsadas(): Promise<{
+  simples: Set<string>;
+  plurales: Set<string>;
+  literales: Set<string>;
+}> {
   const simples = new Set<string>();
   const plurales = new Set<string>();
+  const literales = new Set<string>();
 
   for (const file of await listSourceFiles(RAICES)) {
     // El catálogo se saltea: ahí las claves están declaradas, no usadas.
@@ -40,13 +56,14 @@ async function clavesUsadas(): Promise<{ simples: Set<string>; plurales: Set<str
     for (const match of code.matchAll(/\btPlural\(\s*["'`]([\w.]+)["'`]/g)) {
       if (match[1]) plurales.add(match[1]);
     }
+    for (const match of code.matchAll(/["'`]([\w.]+)["'`]/g)) {
+      if (match[1]) literales.add(match[1]);
+    }
   }
 
-  // `tPlural("x")` usa `x.uno` y `x.varios`; el regex de arriba también lo
-  // matchea como simple (`tPlural` termina en `t(`… no, pero por las dudas).
   for (const base of plurales) simples.delete(base);
 
-  return { simples, plurales };
+  return { simples, plurales, literales };
 }
 
 describe('catálogo de mensajes', () => {
@@ -67,9 +84,9 @@ describe('catálogo de mensajes', () => {
   });
 
   it('no quedan claves muertas en el catálogo', async () => {
-    const { simples, plurales } = await clavesUsadas();
+    const { plurales, literales } = await clavesUsadas();
 
-    const usadas = new Set(simples);
+    const usadas = new Set(literales);
     for (const base of plurales) {
       usadas.add(`${base}.uno`);
       usadas.add(`${base}.varios`);
