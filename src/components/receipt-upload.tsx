@@ -8,6 +8,7 @@ import { uploadReceipt } from "@/app/actions/receipt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/i18n";
 
 export function ReceiptUpload({
   orderNumber,
@@ -24,9 +25,7 @@ export function ReceiptUpload({
 
   if (remaining <= 0) {
     return (
-      <p className="text-muted-foreground text-sm">
-        Ya subiste el máximo de comprobantes. Si hubo un problema, escribinos por WhatsApp.
-      </p>
+      <p className="text-muted-foreground text-sm">{t("pedido.subirComprobante.maximo")}</p>
     );
   }
 
@@ -48,7 +47,7 @@ export function ReceiptUpload({
             return;
           }
           form.reset();
-          toast.success("Comprobante recibido. Lo revisamos y te avisamos.");
+          toast.success(t("pedido.subirComprobante.recibido"));
           router.refresh();
         });
       }}
@@ -60,12 +59,12 @@ export function ReceiptUpload({
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="file">Comprobante (JPG, PNG o PDF, hasta 5 MB)</Label>
+        <Label htmlFor="file">{t("pedido.subirComprobante.campo")}</Label>
         <Input id="file" name="file" type="file" accept="image/jpeg,image/png,application/pdf" required />
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Subiendo…" : "Enviar comprobante"}
+        {isPending ? t("pedido.subirComprobante.enviando") : t("pedido.subirComprobante.enviar")}
       </Button>
     </form>
   );

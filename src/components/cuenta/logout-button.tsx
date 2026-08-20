@@ -5,6 +5,7 @@ import { useTransition } from "react";
 
 import { salirCliente } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
+import { t } from "@/i18n";
 
 export function CustomerLogoutButton() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export function CustomerLogoutButton() {
         })
       }
     >
-      {isPending ? "Saliendo…" : "Salir"}
+      {isPending ? t("cuenta.saliendo") : t("cuenta.salir")}
     </Button>
   );
 }

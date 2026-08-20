@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 
 import { CustomerRegisterForm } from "@/components/cuenta/register-form";
 import { currentCustomer } from "@/lib/customer-session";
+import { t } from "@/i18n";
 
 export const metadata: Metadata = {
-  title: "Crear cuenta",
+  title: t("cuenta.registro.meta"),
   robots: { index: false, follow: false },
 };
 
@@ -17,26 +18,23 @@ export default async function RegistroPage() {
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-10">
-      <h1 className="text-xl font-semibold tracking-tight">Creá tu cuenta</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Guardamos tus datos para que la próxima compra sea de dos toques.
-      </p>
+      <h1 className="text-xl font-semibold tracking-tight">{t("cuenta.registro.titulo")}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">{t("cuenta.registro.bajada")}</p>
 
       <div className="mt-6">
         <CustomerRegisterForm />
       </div>
 
       <p className="text-muted-foreground mt-6 text-sm">
-        ¿Ya tenés cuenta?{" "}
+        {t("cuenta.registro.yaTenes")}{" "}
         <Link href="/cuenta/entrar" className="underline">
-          Entrá
+          {t("cuenta.registro.entrar")}
         </Link>
         .
       </p>
 
       <p className="text-muted-foreground border-border mt-6 border-t pt-4 text-xs">
-        No hace falta cuenta para comprar. Esto es sólo para no volver a tipear
-        tu dirección.
+        {t("cuenta.registro.noHaceFalta")}
       </p>
     </main>
   );

@@ -100,6 +100,28 @@ describe('catálogo de mensajes', () => {
     expect(vacias).toEqual([]);
   });
 
+  it('los parámetros de un mensaje son los mismos en todos los catálogos', () => {
+    // El error clásico de traducir: se pierde un `{n}` y el mensaje queda
+    // "Quedan" a secas, o aparece un `{nombre}` que nadie le pasa y sale
+    // literal en pantalla. Ninguna de las dos rompe nada, así que sin este
+    // test viajan hasta que alguien las ve en producción.
+    const huecos = (texto: string): string[] =>
+      [...texto.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!).sort();
+
+    const offenders: string[] = [];
+    for (const [lang, catalogo] of Object.entries(catalogosRegistrados())) {
+      for (const [key, esperado] of Object.entries(esPY)) {
+        const traducido = (catalogo as Record<string, string | undefined>)[key];
+        if (traducido === undefined) continue;
+        const a = huecos(esperado).join(',');
+        const b = huecos(traducido).join(',');
+        if (a !== b) offenders.push(`${lang} → ${key}: esperaba [${a}], encontré [${b}]`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('los plurales vienen de a dos', () => {
     const huerfanas: string[] = [];
     for (const key of Object.keys(esPY)) {

@@ -7,6 +7,7 @@ import { lookupOrder } from "@/app/actions/order-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/i18n";
 
 export function OrderLookupForm() {
   const router = useRouter();
@@ -40,17 +41,17 @@ export function OrderLookupForm() {
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="orderNumber">Número de pedido</Label>
-        <Input id="orderNumber" name="orderNumber" required placeholder="PY-000123" />
+        <Label htmlFor="orderNumber">{t("buscarPedido.numero")}</Label>
+        <Input id="orderNumber" name="orderNumber" required placeholder={t("buscarPedido.numero.placeholder")} />
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="phone">WhatsApp usado en la compra</Label>
-        <Input id="phone" name="phone" required placeholder="0981 123 456" inputMode="tel" />
+        <Label htmlFor="phone">{t("buscarPedido.telefono")}</Label>
+        <Input id="phone" name="phone" required placeholder={t("checkout.whatsapp.placeholder")} inputMode="tel" />
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Buscando…" : "Buscar mi pedido"}
+        {isPending ? t("buscarPedido.buscando") : t("buscarPedido.boton")}
       </Button>
     </form>
   );

@@ -1,5 +1,7 @@
 import type { CouponRejection } from '@/domain/coupons';
 
+import { t } from '@/i18n';
+
 import { formatGs } from './money';
 
 /**
@@ -20,31 +22,34 @@ export function couponRejectionMessage(
   switch (reason) {
     case 'no_existe':
     case 'inactivo':
-      return 'Ese código no existe o ya no está disponible.';
+      return t('cupon.rechazo.noExiste');
 
     case 'no_empezo':
-      return 'Ese código todavía no está vigente.';
+      return t('cupon.rechazo.noEmpezo');
 
     case 'vencido':
-      return 'Ese código ya venció.';
+      return t('cupon.rechazo.vencido');
 
     case 'agotado':
-      return 'Ese código ya se usó todas las veces disponibles.';
+      return t('cupon.rechazo.agotado');
 
     case 'agotado_para_vos':
-      return 'Ya usaste ese código la cantidad de veces permitida.';
+      return t('cupon.rechazo.agotadoParaVos');
 
     case 'minimo_no_alcanzado': {
       const min = options.minOrderPyg;
-      if (!min) return 'Tu compra no llega al mínimo que pide ese código.';
+      if (!min) return t('cupon.rechazo.minimo');
 
       const falta = options.subtotalPyg != null ? min - options.subtotalPyg : null;
       return falta && falta > 0
-        ? `Ese código pide una compra mínima de ${formatGs(min)}: te faltan ${formatGs(falta)}.`
-        : `Ese código pide una compra mínima de ${formatGs(min)}.`;
+        ? t('cupon.rechazo.minimoConFalta', {
+            minimo: formatGs(min),
+            falta: formatGs(falta),
+          })
+        : t('cupon.rechazo.minimoConMonto', { minimo: formatGs(min) });
     }
 
     case 'solo_clientes':
-      return 'Ese código es sólo para quienes tienen cuenta.';
+      return t('cupon.rechazo.soloClientes');
   }
 }

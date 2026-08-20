@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { cuentasClientesHabilitadas } from "@/config/tienda";
 import { currentCustomer } from "@/lib/customer-session";
+import { t } from "@/i18n";
 
 /**
  * La entrada a la cuenta en el header (PLAN.md FASE 2, PR E.4).
@@ -28,7 +29,7 @@ export async function CuentaHeaderEntry() {
       href={customer ? "/cuenta" : "/cuenta/entrar"}
       className="text-muted-foreground hover:text-foreground shrink-0 text-sm whitespace-nowrap transition-colors"
     >
-      {customer ? "Mi cuenta" : "Entrar"}
+      {customer ? t("cuenta.header.miCuenta") : t("cuenta.header.entrar")}
     </Link>
   );
 }

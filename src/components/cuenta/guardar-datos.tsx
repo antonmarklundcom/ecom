@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { cuentasClientesHabilitadas } from "@/config/tienda";
 import { currentCustomer } from "@/lib/customer-session";
+import { t } from "@/i18n";
 
 /**
  * "¿Querés guardar tus datos?" — el upsell de la cuenta, **después** de la
@@ -20,17 +21,15 @@ export async function GuardarDatosCta({ orderNumber }: { orderNumber: string }) 
 
   return (
     <section className="border-border bg-muted/40 mt-6 rounded-xl border p-4">
-      <h2 className="text-sm font-medium">¿Guardamos tus datos para la próxima?</h2>
+      <h2 className="text-sm font-medium">{t("cuenta.guardarDatos.titulo")}</h2>
       <p className="text-muted-foreground mt-1 text-sm">
-        Con una cuenta no volvés a tipear tu dirección, y tenés todos tus
-        pedidos en un solo lugar. Tu pedido {orderNumber} ya está hecho: esto es
-        sólo para la próxima vez.
+        {t("cuenta.guardarDatos.texto", { numero: orderNumber })}
       </p>
       <Link
         href="/cuenta/registro"
         className="border-border mt-3 inline-block rounded-lg border px-4 py-2 text-sm font-medium"
       >
-        Crear mi cuenta
+        {t("cuenta.guardarDatos.boton")}
       </Link>
     </section>
   );
