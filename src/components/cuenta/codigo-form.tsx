@@ -7,6 +7,7 @@ import { entrarConCodigo, pedirCodigoAcceso } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/i18n";
 
 /**
  * Entrar sin contraseña (PLAN.md FASE 2, PR F.3).
@@ -46,10 +47,7 @@ export function CodigoAccesoForm() {
           });
         }}
       >
-        <p className="text-muted-foreground text-sm">
-          Si hay una cuenta con ese WhatsApp, te mandamos un código de 6 dígitos.
-          Vence en 10 minutos.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("cuenta.codigo.aviso")}</p>
 
         {error ? (
           <p
@@ -61,21 +59,21 @@ export function CodigoAccesoForm() {
         ) : null}
 
         <div className="grid gap-1.5">
-          <Label htmlFor="codigo">Código</Label>
+          <Label htmlFor="codigo">{t("cuenta.codigo.label")}</Label>
           <Input
             id="codigo"
             value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="123456"
+            placeholder={t("cuenta.codigo.placeholder")}
             className="tabular-nums"
             required
           />
         </div>
 
         <Button type="submit" disabled={isPending || code.length !== 6}>
-          {isPending ? "Entrando…" : "Entrar"}
+          {isPending ? t("cuenta.entrar.entrando") : t("cuenta.entrar.boton")}
         </Button>
 
         <button
@@ -87,7 +85,7 @@ export function CodigoAccesoForm() {
             setError(null);
           }}
         >
-          Usar otro número
+          {t("cuenta.codigo.otroNumero")}
         </button>
       </form>
     );
@@ -108,20 +106,20 @@ export function CodigoAccesoForm() {
       }}
     >
       <div className="grid gap-1.5">
-        <Label htmlFor="otp-phone">WhatsApp</Label>
+        <Label htmlFor="otp-phone">{t("checkout.whatsapp")}</Label>
         <Input
           id="otp-phone"
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
           inputMode="tel"
           autoComplete="tel"
-          placeholder="0981 123 456"
+          placeholder={t("checkout.whatsapp.placeholder")}
           required
         />
       </div>
 
       <Button type="submit" variant="outline" disabled={isPending}>
-        {isPending ? "Mandando…" : "Mandame un código"}
+        {isPending ? t("cuenta.codigo.mandando") : t("cuenta.codigo.pedir")}
       </Button>
     </form>
   );

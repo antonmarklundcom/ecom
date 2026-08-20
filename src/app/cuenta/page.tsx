@@ -7,12 +7,13 @@ import { CustomerLogoutButton } from "@/components/cuenta/logout-button";
 import { findCustomerByPhone, listCustomerOrders } from "@/domain/customers";
 import { orderUrl } from "@/domain/order-access";
 import { currentCustomer } from "@/lib/customer-session";
+import { t } from "@/i18n";
 import { formatGs } from "@/lib/money";
 import { ORDER_STATUS_LABEL_COMPRADOR } from "@/lib/order-labels";
 import { formatDateTimePY, formatPhonePY } from "@/lib/py";
 
 export const metadata: Metadata = {
-  title: "Mi cuenta",
+  title: t("cuenta.meta"),
   // Los links a pedidos llevan el token en la URL: fuera de los buscadores.
   robots: { index: false, follow: false },
 };
@@ -33,19 +34,21 @@ export default async function CuentaPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Hola, {customer.name}</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {t("cuenta.hola", { nombre: customer.name })}
+        </h1>
         <CustomerLogoutButton />
       </div>
 
       <section className="mt-6">
-        <h2 className="font-medium">Mis pedidos</h2>
+        <h2 className="font-medium">{t("cuenta.pedidos")}</h2>
 
         {orders.length === 0 ? (
           <p className="text-muted-foreground border-border mt-2 rounded-xl border border-dashed p-8 text-center text-sm">
-            Todavía no hiciste ningún pedido con esta cuenta.
+            {t("cuenta.pedidos.vacio")}
             <br />
             <Link href="/" className="underline">
-              Mirá lo que hay
+              {t("cuenta.pedidos.mira")}
             </Link>
             .
           </p>
@@ -78,21 +81,16 @@ export default async function CuentaPage() {
           WhatsApp es tuyo — ver `listCustomerOrders`.
         */}
         {customer.phoneVerifiedAt ? null : (
-          <p className="text-muted-foreground mt-3 text-xs">
-            Si compraste antes de crear esta cuenta, esos pedidos no aparecen
-            todavía. Seguilos con el link que te mandamos por WhatsApp.
-          </p>
+          <p className="text-muted-foreground mt-3 text-xs">{t("cuenta.pedidos.invitada")}</p>
         )}
       </section>
 
       <section className="mt-8">
-        <h2 className="font-medium">Mis datos</h2>
+        <h2 className="font-medium">{t("cuenta.datos")}</h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          WhatsApp: <span className="tabular-nums">{formatPhonePY(customer.phone)}</span>
-          <span className="block text-xs">
-            Es la llave de tu cuenta, así que no se cambia desde acá. Escribinos
-            si lo necesitás.
-          </span>
+          {t("cuenta.datos.whatsapp")}{" "}
+          <span className="tabular-nums">{formatPhonePY(customer.phone)}</span>
+          <span className="block text-xs">{t("cuenta.datos.whatsappNota")}</span>
         </p>
 
         <div className="mt-4">

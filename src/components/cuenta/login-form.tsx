@@ -7,6 +7,7 @@ import { entrarCliente } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/i18n";
 
 /**
  * Login de cliente. Un solo campo para el identificador: en Paraguay se
@@ -51,18 +52,18 @@ export function CustomerLoginForm() {
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="identifier">WhatsApp o email</Label>
+        <Label htmlFor="identifier">{t("cuenta.entrar.identificador")}</Label>
         <Input
           id="identifier"
           name="identifier"
           required
           autoComplete="username"
-          placeholder="0981 123 456"
+          placeholder={t("checkout.whatsapp.placeholder")}
         />
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password">{t("cuenta.entrar.password")}</Label>
         <Input
           id="password"
           name="password"
@@ -73,7 +74,7 @@ export function CustomerLoginForm() {
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Entrando…" : "Entrar"}
+        {isPending ? t("cuenta.entrar.entrando") : t("cuenta.entrar.boton")}
       </Button>
     </form>
   );

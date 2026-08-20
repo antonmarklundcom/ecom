@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
+import { t } from "@/i18n";
 
 export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: string }) {
   const router = useRouter();
@@ -51,12 +52,12 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="name">Nombre y apellido</Label>
+        <Label htmlFor="name">{t("checkout.nombre")}</Label>
         <Input id="name" name="name" required minLength={3} autoComplete="name" />
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="phone">WhatsApp</Label>
+        <Label htmlFor="phone">{t("checkout.whatsapp")}</Label>
         <Input
           id="phone"
           name="phone"
@@ -64,22 +65,21 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
           defaultValue={defaultPhone}
           inputMode="tel"
           autoComplete="tel"
-          placeholder="0981 123 456"
+          placeholder={t("checkout.whatsapp.placeholder")}
         />
-        <p className="text-muted-foreground text-xs">
-          Es con lo que entrás, y por donde te avisamos de tu pedido.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("cuenta.registro.telefonoAyuda")}</p>
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="email">
-          Email <span className="text-muted-foreground font-normal">(opcional)</span>
+          {t("checkout.email")}{" "}
+          <span className="text-muted-foreground font-normal">{t("checkout.opcional")}</span>
         </Label>
         <Input id="email" name="email" type="email" autoComplete="email" />
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password">{t("cuenta.entrar.password")}</Label>
         <Input
           id="password"
           name="password"
@@ -89,7 +89,7 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
           autoComplete="new-password"
         />
         <p className="text-muted-foreground text-xs">
-          Al menos {MIN_PASSWORD_LENGTH} caracteres, con letras y números.
+          {t("cuenta.registro.passwordAyuda", { minimo: MIN_PASSWORD_LENGTH })}
         </p>
       </div>
 
@@ -100,11 +100,11 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
           checked={marketingOptIn}
           onChange={(event) => setMarketingOptIn(event.target.checked)}
         />
-        <span>Quiero recibir novedades y promociones por WhatsApp.</span>
+        <span>{t("cuenta.datos.novedades")}</span>
       </label>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Creando…" : "Crear cuenta"}
+        {isPending ? t("cuenta.registro.creando") : t("cuenta.registro.boton")}
       </Button>
     </form>
   );
