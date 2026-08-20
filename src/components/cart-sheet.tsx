@@ -17,6 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { t } from "@/i18n";
 import { describeIssue } from "@/lib/cart-issues";
 import { cartSubtotal, useCart, type CartLine } from "@/lib/cart-store";
 import { formatGs } from "@/lib/money";
@@ -36,10 +37,8 @@ export function CartSheet() {
     <Sheet open={isOpen} onOpenChange={(open) => (open ? undefined : close())}>
       <SheetContent className="flex w-full flex-col sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Tu carrito</SheetTitle>
-          <SheetDescription>
-            Los precios se confirman con el servidor. Todo incluye IVA.
-          </SheetDescription>
+          <SheetTitle>{t("carrito.titulo")}</SheetTitle>
+          <SheetDescription>{t("carrito.descripcion")}</SheetDescription>
         </SheetHeader>
 
         {issues.length > 0 ? (
@@ -54,9 +53,9 @@ export function CartSheet() {
           {lines.length === 0 ? (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-center">
               <ShoppingBag className="size-8" />
-              <p className="text-sm">Tu carrito está vacío.</p>
+              <p className="text-sm">{t("carrito.vacio")}</p>
               <Button variant="outline" onClick={close}>
-                Seguí comprando
+                {t("carrito.seguirComprando")}
               </Button>
             </div>
           ) : (
@@ -89,7 +88,7 @@ export function CartSheet() {
                       onClick={() => remove(line.variantId)}
                     >
                       <Trash2 className="mr-1 size-3.5" />
-                      Quitar
+                      {t("carrito.quitar")}
                     </Button>
                   </div>
                 </li>
@@ -102,22 +101,22 @@ export function CartSheet() {
           <SheetFooter className="gap-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                Subtotal
+                {t("carrito.subtotal")}
                 {isSyncing ? <Loader2 className="ml-1 inline size-3 animate-spin" /> : null}
               </span>
               <span className="text-base font-semibold tabular-nums">{formatGs(subtotal)}</span>
             </div>
             <FreeShippingBar progress={freeShipping} subtotalPyg={subtotal} />
             <p className="text-muted-foreground text-xs">
-              El envío se calcula en el checkout según tu ciudad.
+              {t("carrito.envioEnCheckout")}
             </p>
             <Button asChild size="lg">
               <Link href="/checkout" onClick={close}>
-                Ir al checkout
+                {t("carrito.irAlCheckout")}
               </Link>
             </Button>
             <Button variant="outline" onClick={close}>
-              Seguí comprando
+              {t("carrito.seguirComprando")}
             </Button>
             <ConsultarPorWhatsApp lines={lines} />
           </SheetFooter>
@@ -155,7 +154,7 @@ function ConsultarPorWhatsApp({ lines }: { lines: CartLine[] }) {
       }
       className="text-muted-foreground hover:text-foreground text-center text-sm underline disabled:opacity-60"
     >
-      {isPending ? "Abriendo WhatsApp…" : "¿Tenés una duda? Consultanos por WhatsApp"}
+      {isPending ? t("carrito.abriendoWhatsApp") : t("carrito.consultarWhatsApp")}
     </button>
   );
 }

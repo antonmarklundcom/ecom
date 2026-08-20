@@ -12,13 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BrandFacet } from "@/db/queries";
+import { t } from "@/i18n";
 import { PRICE_RANGES } from "@/lib/price-ranges";
 
-const SORT_LABELS: Record<string, string> = {
-  relevancia: "Más relevantes",
-  "precio-asc": "Precio: menor a mayor",
-  "precio-desc": "Precio: mayor a menor",
-  nuevos: "Más nuevos",
+const SORT_LABELS: Record<string, () => string> = {
+  relevancia: () => t("filtros.orden.relevancia"),
+  "precio-asc": () => t("filtros.orden.precioAsc"),
+  "precio-desc": () => t("filtros.orden.precioDesc"),
+  nuevos: () => t("filtros.orden.nuevos"),
 };
 
 const ALL = "__todas__";
@@ -67,18 +68,18 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
             value={marca ?? ALL}
             onValueChange={(value) => update("marca", value)}
           >
-            <SelectTrigger className="w-[200px]" aria-label="Filtrar por marca">
+            <SelectTrigger className="w-[200px]" aria-label={t("filtros.marca.label")}>
               <SelectValue placeholder="Marca" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Todas las marcas</SelectItem>
+              <SelectItem value={ALL}>{t("filtros.marca.todas")}</SelectItem>
               {brands.map((facet) => (
                 <SelectItem key={facet.brand} value={facet.brand}>
                   {/*
                     El conteo va acá y no sólo en el chip: es antes de elegir
                     cuando sirve saber que esa marca tiene un solo producto.
                   */}
-                  {facet.brand} ({facet.total})
+                  {t("filtros.marca.conCuenta", { marca: facet.brand, n: facet.total })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -86,11 +87,11 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
         ) : null}
 
         <Select value={precio ?? ALL} onValueChange={(value) => update("precio", value)}>
-          <SelectTrigger className="w-[200px]" aria-label="Filtrar por precio">
+          <SelectTrigger className="w-[200px]" aria-label={t("filtros.precio.label")}>
             <SelectValue placeholder="Precio" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>Cualquier precio</SelectItem>
+            <SelectItem value={ALL}>{t("filtros.precio.cualquiera")}</SelectItem>
             {PRICE_RANGES.map((range) => (
               <SelectItem key={range.id} value={range.id}>
                 {range.label}
@@ -103,13 +104,13 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
           value={params.get("orden") ?? "relevancia"}
           onValueChange={(value) => update("orden", value === "relevancia" ? null : value)}
         >
-          <SelectTrigger className="w-[200px]" aria-label="Ordenar">
+          <SelectTrigger className="w-[200px]" aria-label={t("filtros.orden.label")}>
             <SelectValue placeholder="Ordenar" />
           </SelectTrigger>
           <SelectContent>
             {Object.entries(SORT_LABELS).map(([value, label]) => (
               <SelectItem key={value} value={value}>
-                {label}
+                {label()}
               </SelectItem>
             ))}
           </SelectContent>
@@ -127,14 +128,14 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
               >
                 {filtro.label}
                 <X className="size-3.5" aria-hidden />
-                <span className="sr-only">Quitar el filtro {filtro.label}</span>
+                <span className="sr-only">{t("filtros.quitar", { filtro: filtro.label })}</span>
               </button>
             </li>
           ))}
           {activos.length > 1 ? (
             <li>
               <Button variant="ghost" size="sm" onClick={() => router.push("?", { scroll: false })}>
-                Limpiar todo
+                {t("filtros.limpiarTodo")}
               </Button>
             </li>
           ) : null}

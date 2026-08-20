@@ -4,6 +4,7 @@ import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { StockBadge } from "@/components/stock-badge";
 import type { CatalogProduct } from "@/db/queries";
+import { t } from "@/i18n";
 
 export function ProductCard({
   product,
@@ -52,7 +53,7 @@ export function ProductCard({
             <StockBadge available={totalAvailable} />
             {hasVariantRange ? (
               <span className="text-muted-foreground text-xs">
-                {product.variants.length} opciones
+                {t("catalogo.opciones", { n: product.variants.length })}
               </span>
             ) : null}
           </div>

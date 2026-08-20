@@ -6,6 +6,7 @@ import { Suspense, cache } from "react";
 import { CatalogFilters } from "@/components/catalog-filters";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
+import { t, tPlural } from "@/i18n";
 import { parsePriceRange } from "@/lib/price-ranges";
 import { breadcrumbJsonLd, itemListJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
@@ -37,10 +38,10 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const category = await loadCategory(slug).catch(() => null);
-  if (!category) return { title: "Categoría" };
+  if (!category) return { title: t("categoria.meta") };
   return {
     title: category.name,
-    description: `${category.name} en guaraníes, IVA incluido. Envíos a todo Paraguay.`,
+    description: t("categoria.metaDescripcion", { nombre: category.name }),
   };
 }
 
@@ -97,7 +98,7 @@ export default async function CategoryPage({
   const origin = siteOrigin();
   const jsonLd = [
     breadcrumbJsonLd(origin, [
-      { name: "Inicio", path: "/" },
+      { name: t("nav.inicio"), path: "/" },
       { name: category.name, path: `/categoria/${slug}` },
     ]),
     itemListJsonLd(origin, result.products, {
@@ -115,7 +116,7 @@ export default async function CategoryPage({
 
       <nav className="text-muted-foreground text-sm">
         <Link href="/" className="hover:text-foreground">
-          Inicio
+          {t("nav.inicio")}
         </Link>
         <span aria-hidden> / </span>
         <span className="text-foreground">{category.name}</span>
@@ -123,7 +124,7 @@ export default async function CategoryPage({
 
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">{category.name}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        {result.total} {result.total === 1 ? "producto" : "productos"} · precios con IVA incluido
+        {tPlural("catalogo.productos", result.total)} · {t("catalogo.ivaIncluidoNota")}
       </p>
 
       <div className="mt-5">
@@ -134,12 +135,10 @@ export default async function CategoryPage({
 
       {result.products.length === 0 ? (
         <div className="border-border mt-8 rounded-xl border border-dashed p-10 text-center">
-          <p className="font-medium">No encontramos productos con esos filtros</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Probá quitando la marca o ampliando el rango de precio.
-          </p>
+          <p className="font-medium">{t("categoria.sinResultados")}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{t("categoria.sinResultados.ayuda")}</p>
           <Button asChild variant="outline" className="mt-4">
-            <Link href={`/categoria/${slug}`}>Ver toda la categoría</Link>
+            <Link href={`/categoria/${slug}`}>{t("categoria.verTodo")}</Link>
           </Button>
         </div>
       ) : (
@@ -148,7 +147,7 @@ export default async function CategoryPage({
               de nivel (regla heading-order de axe) — la grilla no tiene un
               título visible propio, así que va oculto para lectores de
               pantalla. */}
-          <h2 className="sr-only">Productos</h2>
+          <h2 className="sr-only">{t("catalogo.tituloOculto")}</h2>
           {result.products.map((product, index) => (
             <ProductCard key={product.id} product={product} priority={index < 4} />
           ))}
@@ -156,21 +155,21 @@ export default async function CategoryPage({
       )}
 
       {result.totalPages > 1 ? (
-        <nav className="mt-8 flex items-center justify-center gap-3" aria-label="Paginación">
+        <nav className="mt-8 flex items-center justify-center gap-3" aria-label={t("nav.paginacion")}>
           <Button asChild variant="outline" size="sm" disabled={result.page <= 1}>
             <Link href={buildPageHref(result.page - 1)} aria-disabled={result.page <= 1}>
-              Anterior
+              {t("nav.anterior")}
             </Link>
           </Button>
           <span className="text-muted-foreground text-sm">
-            Página {result.page} de {result.totalPages}
+            {t("nav.pagina", { actual: result.page, total: result.totalPages })}
           </span>
           <Button asChild variant="outline" size="sm" disabled={result.page >= result.totalPages}>
             <Link
               href={buildPageHref(result.page + 1)}
               aria-disabled={result.page >= result.totalPages}
             >
-              Siguiente
+              {t("nav.siguiente")}
             </Link>
           </Button>
         </nav>

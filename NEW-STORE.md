@@ -142,6 +142,26 @@ Efecto secundario que vale la pena: entrar con un código **verifica el
 teléfono**, y ahí `/cuenta` empieza a mostrar los pedidos que esa persona hizo
 como invitada con ese número (ver la limitación del §4b).
 
+### 4d. ¿En qué idioma habla esta tienda?
+
+Por defecto `es-PY`, y las URLs quedan en español siempre (son parte del
+template). Para otro idioma:
+
+1. Copiá `src/i18n/es-PY.ts` a `src/i18n/<lang>.ts` y traducí **los valores**.
+   Las claves no se tocan: son el contrato, y hay un test de CI que exige que
+   todos los catálogos tengan exactamente las mismas.
+2. Agregalo a `CATALOGOS` en `src/i18n/index.ts`.
+3. `lang: "<lang>"` en `tienda.ts`.
+
+`es-PY` queda de fallback por clave, así que una traducción a medio hacer
+muestra español donde falte en vez de un `undefined`. No es una red de
+seguridad silenciosa: el test de CI no deja mergear un catálogo incompleto.
+
+**La plata no se traduce.** Los montos siguen en guaraníes enteros con su `₲`
+(`src/lib/money.ts`): cambiar de moneda no es traducir, es tocar el camino del
+dinero. No hay switcher para el visitante ni rutas por idioma — eso sería otra
+fase.
+
 ### 5. Diseño
 
 **La portada de la home** se cambia sin tocar código: `hero` en

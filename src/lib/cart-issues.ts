@@ -6,19 +6,25 @@
  * esta separación, `mysql2` termina en el bundle del navegador (el build lo
  * corta, pero recién al final).
  */
+import { t } from "@/i18n";
+
 export type CartIssue =
   | { type: "no_disponible"; variantId: number; name: string }
   | { type: "stock_parcial"; variantId: number; name: string; requested: number; available: number }
   | { type: "precio_cambio"; variantId: number; name: string; before: number; after: number };
 
-/** Texto en español para mostrarle el problema al comprador. */
+/** El problema, contado en el idioma de la tienda. */
 export function describeIssue(issue: CartIssue): string {
   switch (issue.type) {
     case "no_disponible":
-      return `${issue.name} se quedó sin stock y lo sacamos del carrito.`;
+      return t("carrito.problema.noDisponible", { nombre: issue.name });
     case "stock_parcial":
-      return `De ${issue.name} quedan ${issue.available} (pediste ${issue.requested}).`;
+      return t("carrito.problema.stockParcial", {
+        nombre: issue.name,
+        disponible: issue.available,
+        pedido: issue.requested,
+      });
     case "precio_cambio":
-      return `El precio de ${issue.name} cambió mientras estaba en tu carrito.`;
+      return t("carrito.problema.precioCambio", { nombre: issue.name });
   }
 }

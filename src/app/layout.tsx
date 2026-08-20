@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { WhatsAppFab } from "@/components/whatsapp-fab";
 import { Toaster } from "@/components/ui/sonner";
+import { idiomaActivo } from "@/i18n";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
 
@@ -43,9 +44,13 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // El idioma **efectivo** y no el que dice el config: si `TIENDA.lang` apunta
+  // a un catálogo que no existe, los textos salen en es-PY y el `lang` del
+  // HTML tiene que decir es-PY. Un lector de pantalla leyendo español con
+  // fonética inglesa es peor que no declarar nada.
   return (
     <html
-      lang={TIENDA.lang}
+      lang={idiomaActivo()}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">

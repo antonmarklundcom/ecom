@@ -4,11 +4,12 @@ import Link from "next/link";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
 import { getCategories, searchProducts } from "@/db/queries";
+import { t, tPlural } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Buscar",
+  title: t("buscar.meta"),
   robots: { index: false },
 };
 
@@ -25,16 +26,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <h1 className="text-2xl font-semibold tracking-tight">
-        {term ? `Resultados para “${term}”` : "Buscar productos"}
+        {term ? t("buscar.resultadosPara", { termino: term }) : t("buscar.titulo")}
       </h1>
 
       {term.length < 2 ? (
-        <p className="text-muted-foreground mt-2 text-sm">
-          Escribí al menos dos letras para buscar.
-        </p>
+        <p className="text-muted-foreground mt-2 text-sm">{t("buscar.minimo")}</p>
       ) : (
         <p className="text-muted-foreground mt-1 text-sm">
-          {results.length} {results.length === 1 ? "producto" : "productos"}
+          {tPlural("catalogo.productos", results.length)}
         </p>
       )}
 
@@ -46,10 +45,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         </div>
       ) : term.length >= 2 ? (
         <div className="border-border mt-8 rounded-xl border border-dashed p-10 text-center">
-          <p className="font-medium">No encontramos nada con “{term}”</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Probá con menos palabras, o mirá las categorías.
-          </p>
+          <p className="font-medium">{t("buscar.nada", { termino: term })}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{t("buscar.nada.ayuda")}</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {categories.map((category) => (
               <Button key={category.id} asChild variant="outline" size="sm">

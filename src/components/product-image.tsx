@@ -1,5 +1,6 @@
 import Image from "next/image";
 
+import { t } from "@/i18n";
 import { categoryPlaceholderSrc, productImageUrl, type ImageSize } from "@/lib/images";
 import { cn } from "@/lib/utils";
 import type { CatalogImage } from "@/db/queries";
@@ -36,7 +37,7 @@ export function ProductImage({
       <div className={wrapper}>
         <Image
           src={categoryPlaceholderSrc(categorySlug)}
-          alt={`${alt} (sin foto todavía)`}
+          alt={t("catalogo.sinFoto", { nombre: alt })}
           fill
           priority={priority}
           sizes={sizes ?? "(max-width: 640px) 50vw, 300px"}

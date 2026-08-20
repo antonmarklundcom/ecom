@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { t } from "@/i18n";
 
 /**
  * Campo de datos bancarios con botón de copiar.
@@ -20,10 +21,10 @@ export function CopyField({ label, value }: { label: string; value: string }) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      toast.success(`${label} copiado`);
+      toast.success(t("copiar.ok", { campo: label }));
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("No se pudo copiar. Copialo a mano.");
+      toast.error(t("copiar.error"));
     }
   };
 
@@ -34,7 +35,7 @@ export function CopyField({ label, value }: { label: string; value: string }) {
         <dd className="truncate text-sm font-medium tabular-nums">{value}</dd>
       </div>
       <Button type="button" variant="outline" size="sm" onClick={copy} className="shrink-0">
-        {copied ? "¡Copiado!" : "Copiar"}
+        {copied ? t("copiar.listo") : t("copiar.boton")}
       </Button>
     </div>
   );

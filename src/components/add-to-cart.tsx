@@ -11,6 +11,7 @@ import { useCart } from "@/lib/cart-store";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
 import { cn } from "@/lib/utils";
 import type { CatalogProductDetail } from "@/db/queries";
+import { t } from "@/i18n";
 
 /**
  * Selector de variante + agregar al carrito.
@@ -55,7 +56,7 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
     <div className="space-y-4">
       {product.variants.length > 1 ? (
         <fieldset>
-          <legend className="mb-2 text-sm font-medium">Elegí una opción</legend>
+          <legend className="mb-2 text-sm font-medium">{t("producto.elegiOpcion")}</legend>
           <div className="flex flex-wrap gap-2">
             {product.variants.map((variant) => {
               const disabled = variant.available <= 0;
@@ -115,12 +116,12 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
               },
               qty
             );
-            toast.success("Agregado al carrito", {
+            toast.success(t("producto.agregado"), {
               description: `${product.name} — ${selected.label}`,
             });
           }}
         >
-          {canAdd ? "Agregar al carrito" : "Sin stock"}
+          {canAdd ? t("producto.agregar") : t("stock.sin")}
         </Button>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { sugerirProductos } from "@/app/actions/search-suggest";
 import type { SearchSuggestion } from "@/db/queries";
+import { t } from "@/i18n";
 import { Input } from "@/components/ui/input";
 
 /** Lo que se espera a que la persona deje de tipear antes de consultar. */
@@ -135,8 +136,8 @@ export function SearchBox({ className }: { className?: string }) {
                 setHighlighted(-1);
               }
             }}
-            placeholder="Buscar productos…"
-            aria-label="Buscar productos"
+            placeholder={t("header.buscar.placeholder")}
+            aria-label={t("header.buscar.label")}
             role="combobox"
             aria-expanded={visibles}
             aria-controls={listId}
@@ -152,7 +153,7 @@ export function SearchBox({ className }: { className?: string }) {
             <ul
               id={listId}
               role="listbox"
-              aria-label="Sugerencias"
+              aria-label={t("header.buscar.sugerencias")}
               className="border-border bg-background absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-lg border shadow-lg"
             >
               {suggestions.map((item, index) => (
@@ -189,7 +190,7 @@ export function SearchBox({ className }: { className?: string }) {
                   }}
                   className="hover:bg-muted text-muted-foreground w-full px-3 py-2 text-left text-xs"
                 >
-                  Ver todos los resultados de “{cleaned}”
+                  {t("header.buscar.verTodos", { termino: cleaned })}
                 </button>
               </li>
             </ul>
