@@ -115,3 +115,26 @@ export function itemListJsonLd(
     })),
   };
 }
+
+/**
+ * Serializa un JSON-LD para meterlo en un `<script type="application/ld+json">`.
+ *
+ * `JSON.stringify` **no** escapa `</script>`: un nombre de producto o de
+ * categoría que lo contenga cierra la etiqueta y lo que sigue se ejecuta como
+ * JavaScript en la vidriera. Esos nombres los escribe alguien del panel —un
+ * `staff` edita productos, el dueño edita categorías—, así que es una escalada
+ * de privilegios desde el panel hacia el navegador de cualquier visitante, no
+ * un problema teórico.
+ *
+ * Se escapan `<` y `>` como escapes unicode (JSON los acepta igual y el parser
+ * los devuelve idénticos), `&` para no armar entidades, y U+2028/U+2029, que
+ * son saltos de línea válidos en JS pero no en un string de JSON.
+ */
+export function jsonLdScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}

@@ -70,6 +70,12 @@ acceso de cada pedido. El login por OTP es lo que la va a escribir.
 
 Se implementa en un solo lugar — el helper `PUBLISHED()` de `src/db/queries.ts`, que toda consulta de vidriera usa — y en `priceCart()`, que es el camino de la plata. Los productos **no se modifican**: conservan `is_active` y `published_at`, así que volver a prender la categoría los devuelve exactamente como estaban.
 
+#### JSON-LD y `dangerouslySetInnerHTML` (FASE 2, PR I)
+
+La ficha de producto y la de categoría inyectan su JSON-LD con `dangerouslySetInnerHTML`, y **`JSON.stringify` no escapa `</script>`**: un nombre de producto o de categoría que lo contenga cierra la etiqueta y lo que siga se ejecuta como JavaScript en el navegador de quien esté mirando la tienda. Esos nombres los escribe alguien del panel —un `staff` edita productos, el dueño edita categorías—, así que sin escapar es un camino desde el panel hacia el navegador de cualquier visitante.
+
+Por eso el JSON-LD sale siempre por `jsonLdScript()` (`src/lib/seo.ts`), que escapa `<`, `>`, `&` y U+2028/U+2029 como escapes unicode. El dato que se parsea del otro lado es idéntico; lo verifica `tests/unit/seo.test.ts`.
+
 #### Matriz de permisos
 
 Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.

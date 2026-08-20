@@ -8,6 +8,7 @@ import {
   breadcrumbJsonLd,
   buildSitemap,
   itemListJsonLd,
+  jsonLdScript,
 } from "../../src/lib/seo";
 
 /**
@@ -167,5 +168,33 @@ describe("JSON-LD de categoría", () => {
     };
 
     expect(jsonLd.itemListElement[0]!.url).toBe("/producto/remera-azul");
+  });
+});
+
+/**
+ * El JSON-LD se inyecta con `dangerouslySetInnerHTML`, y `JSON.stringify` no
+ * escapa `</script>`. Los nombres que entran ahí los escribe alguien del panel
+ * —un `staff` edita productos, el dueño edita categorías—, así que sin esto
+ * hay un camino desde el panel hasta ejecutar JavaScript en el navegador de
+ * cualquier visitante de la tienda.
+ */
+describe('serialización del JSON-LD', () => {
+  it('no deja cerrar la etiqueta script', () => {
+    const html = jsonLdScript({ name: '</script><script>alert(1)</script>' });
+
+    expect(html).not.toContain('</script>');
+    expect(html).not.toContain('<');
+    expect(html).toContain('\\u003c');
+  });
+
+  it('lo escapado sigue siendo el mismo dato al parsearlo', () => {
+    const original = { name: 'Remera <b>azul</b> & blanca', nota: 'a\u2028b' };
+
+    expect(JSON.parse(jsonLdScript(original))).toEqual(original);
+  });
+
+  it('escapa los separadores de línea que JSON acepta y JS no', () => {
+    expect(jsonLdScript({ x: '\u2028' })).toContain('\\u2028');
+    expect(jsonLdScript({ x: '\u2029' })).toContain('\\u2029');
   });
 });
