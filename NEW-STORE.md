@@ -70,8 +70,15 @@ Para una demo mostrable al cliente antes de tener productos reales:
 Los productos reales se cargan desde el panel (`/admin/productos`), o
 adaptando `scripts/seed.ts` si vienen de un CSV/planilla.
 
-Las zonas de envío del seed son las de Gran Asunción — ajustalas al alcance
-real del comercio.
+El seed deja un punto de partida que **se termina de ajustar desde el panel**,
+sin volver a tocar código:
+
+| Qué | Dónde | Ojo con |
+|---|---|---|
+| Categorías del menú | `/admin/categorias` | Desactivar una **le saca de la vidriera también a sus productos**; la pantalla te dice cuántos antes de confirmar. Cambiar el slug rompe las URLs viejas: no hay redirección. |
+| Zonas de envío | `/admin/envios` | Las del seed son las de Gran Asunción. Una ciudad va en **una sola** zona. La ciudad que no esté en ninguna lista se cobra como la zona activa más cara — conviene tener una zona *Interior* sin ciudades y cara, que haga de comodín. |
+
+Las dos pantallas son owner-only.
 
 ### 4b. ¿Esta tienda quiere cuentas de cliente?
 

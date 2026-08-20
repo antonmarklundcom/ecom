@@ -40,6 +40,17 @@ export const CAPABILITIES = [
   "usuarios",
   /** ABM de cupones (PR G): plata que la tienda resigna en cada venta. */
   "cupones",
+  /**
+   * ABM de categorías (PR J). Apagar una categoría le saca de la vidriera
+   * también a sus productos: es la forma más rápida de vaciar una tienda sin
+   * tocar un solo producto.
+   */
+  "categorias",
+  /**
+   * ABM de zonas de envío (PR K). El flete es plata que entra, y una zona mal
+   * puesta se cobra de menos en cada pedido hasta que alguien la mira.
+   */
+  "envios",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

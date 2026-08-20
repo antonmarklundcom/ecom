@@ -140,11 +140,17 @@ Pre-construido para todas las tiendas, **inactivo hasta que la tienda tenga con 
 
 Las piezas puras viven en `src/lib/seo.ts` para que se testeen sin Next ni base. Dos decisiones que valen: sin `NEXT_PUBLIC_SITE_URL` el sitemap sale **vacío** y `robots.txt` no declara `sitemap:` —una URL relativa no le sirve a ningún crawler y un dominio inventado es peor que no publicar—, y el `ItemList` numera desde la página actual (en la página 2 el primer producto es el 13). El test `tests/unit/seo.test.ts` recorre `src/app` y exige que toda ruta de nivel uno que no sea pública esté en `RUTAS_PRIVADAS`: una `/cuenta` nueva que se olvide de la lista se indexaría en silencio.
 
-## PR J — `/admin/categorias` (owner-only)
-ABM: crear, renombrar, reordenar, activar/desactivar (desactivar con productos adentro pide confirmación y explica qué pasa con ellos). Hoy sólo el seed escribe esta tabla. *Branch: `feat/admin-categorias`*
+## PR J — `/admin/categorias` (owner-only) — **hecho**
+ABM completo: crear, renombrar, cambiar el slug, reordenar y activar/desactivar. Hasta acá esta tabla la escribía sólo el seed.
 
-## PR K — `/admin/envios` (owner-only)
-ABM de `shipping_zones`: precio, ciudades, umbral de envío gratis, activar/desactivar. La cotización del checkout ya lee de acá — cambiarla no debe romper pedidos en vuelo (la cotización se recalcula server-side igual que hoy). *Branch: `feat/admin-envios`*
+**Lo que se descubrió haciéndolo, y cambió el alcance:** el filtro `PUBLISHED()` de la vidriera miraba sólo el producto, así que desactivar una categoría dejaba la tienda incoherente — desaparecía del menú y devolvía 404, pero sus productos seguían en la home, en el buscador y en el sitemap, con una miga de pan que llevaba a ese 404. Mientras la tabla la escribía sólo el seed casi no pasaba; con un botón en el panel iba a pasar el primer día. Ahora `PUBLISHED()` exige además que la categoría esté activa (ARCH.md §"Qué se ve en la vidriera"), y la confirmación de desactivar dice el número exacto de productos que dejan de verse.
+
+El orden se guarda renumerando `0..n-1` adentro de la transacción y no intercambiando posiciones: dos tiendas clonadas del mismo seed pueden tener varias categorías en `position = 0`, y ahí un intercambio no cambia nada nunca.
+
+## PR K — `/admin/envios` (owner-only) — **hecho**
+ABM de `shipping_zones`: precio, ciudades, umbral de envío gratis, orden y activar/desactivar. La cotización del checkout ya leía de acá y sigue recalculándose server-side; los pedidos en vuelo conservan el flete que la compradora aceptó (`orders.shipping_pyg`).
+
+Tres reglas nuevas en el dominio, cada una por una forma de perder plata en silencio: una ciudad no puede estar en dos zonas (`quoteShipping` se queda con la primera por `position`, sin avisar), una zona sin ciudades es válida y sirve de comodín del interior, y no se puede apagar la última zona activa (sin ninguna, la tienda cobra ₲0 de flete a todo el país sin que ningún cartel lo diga).
 
 ## PR L — `/admin/actividad` (owner y staff)
 Feed global paginado de `order_events` + `stock_adjustments`, filtrable por usuario (el `actor_user_id` del PR D), tipo y fecha. "¿Qué hizo X hoy?" en una pantalla. *Branch: `feat/admin-actividad`*

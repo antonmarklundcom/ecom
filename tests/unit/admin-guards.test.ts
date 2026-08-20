@@ -214,6 +214,21 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   crearCupon: 'Owner',
   editarCupon: 'Owner',
   cambiarEstadoCupon: 'Owner',
+
+  // Apagar una categoría le saca de la vidriera también a sus productos, y
+  // cambiarle el slug rompe todas las URLs de esa sección que anden dando
+  // vueltas. Un encargado no tiene por qué poder vaciar la tienda de un clic.
+  crearCategoria: 'Owner',
+  editarCategoria: 'Owner',
+  cambiarEstadoCategoria: 'Owner',
+  moverCategoria: 'Owner',
+
+  // El flete es plata que entra en cada pedido, y el error se cobra en
+  // silencio: no rompe nada, no deja log, y se descubre al cerrar el mes.
+  crearZonaEnvio: 'Owner',
+  editarZonaEnvio: 'Owner',
+  cambiarEstadoZonaEnvio: 'Owner',
+  moverZonaEnvio: 'Owner',
 };
 
 describe('cada acción llama al guard que le corresponde', () => {

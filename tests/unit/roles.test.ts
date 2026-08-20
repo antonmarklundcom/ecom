@@ -107,6 +107,10 @@ describe('la matriz de capacidades', () => {
     expect(can('staff', 'exports')).toBe(false);
     expect(can('staff', 'usuarios')).toBe(false);
     expect(can('staff', 'cupones')).toBe(false);
+    // Apagar una categoría vacía la vidriera; una zona mal puesta cobra de
+    // menos en cada pedido. Las dos son decisiones del dueño (PR J y K).
+    expect(can('staff', 'categorias')).toBe(false);
+    expect(can('staff', 'envios')).toBe(false);
     // …pero sí la operación diaria completa.
     expect(can('staff', 'comprobantes')).toBe(true);
     expect(can('staff', 'stock')).toBe(true);

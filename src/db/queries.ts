@@ -38,7 +38,23 @@ export type CatalogProductDetail = CatalogProduct & {
   images: CatalogImage[];
 };
 
-const PUBLISHED = () => and(eq(products.isActive, true), isNotNull(products.publishedAt));
+/**
+ * Qué se ve en la vidriera: producto activo, publicado y **en una categoría
+ * activa**.
+ *
+ * Las tres condiciones, no dos. La de la categoría entró con el ABM del PR J,
+ * cuando desactivar una categoría pasó a ser algo que el dueño hace desde el
+ * navegador: hasta entonces el filtro miraba sólo el producto, y una categoría
+ * apagada desaparecía del menú y devolvía 404 mientras sus productos seguían
+ * en la home, en el buscador y en el sitemap — con una miga de pan que llevaba
+ * derecho a esa página 404. Google indexando fichas huérfanas de una sección
+ * que la tienda dio de baja es exactamente lo que no queremos.
+ *
+ * Toda consulta que use este filtro tiene que hacer `innerJoin(categories)`.
+ * La única que no lo hacía era la del sitemap, y ahora lo hace.
+ */
+const PUBLISHED = () =>
+  and(eq(products.isActive, true), isNotNull(products.publishedAt), eq(categories.isActive, true));
 
 export type CatalogSort = "relevancia" | "precio-asc" | "precio-desc" | "nuevos";
 
@@ -386,6 +402,7 @@ export async function getSitemapEntries(executor?: Executor): Promise<{
     tx
       .select({ slug: products.slug, updatedAt: products.updatedAt })
       .from(products)
+      .innerJoin(categories, eq(products.categoryId, categories.id))
       .where(PUBLISHED())
       .orderBy(asc(products.slug)),
   ]);
