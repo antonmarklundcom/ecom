@@ -369,6 +369,80 @@ export const en: PartialMessages = {
     },
   },
 
+  dominio: {
+    checkout: {
+      telefonoInvalido: "That WhatsApp number doesn't look Paraguayan.",
+      rucInvalido: (motivo: string) => `Invalid RUC: ${motivo}`,
+      ciInvalida: (motivo: string) => `Invalid ID card: ${motivo}`,
+      carritoVacio: "Your cart is empty.",
+      sinDisponibilidad: "Some products are no longer available. Check your cart.",
+      noSePudoCrear: "Couldn't create the order. Try again.",
+      totalCambio: (antes: string, ahora: string) =>
+        `The total changed from ${antes} to ${ahora} while you were filling in your details. ` +
+        "Check it and confirm again.",
+      cuponYaNoSirve: "That discount code can't be used any more. Check the total and confirm again.",
+    },
+
+    whatsapp: {
+      seguimiento: (nombre: string, numero: string, total: string, url: string) =>
+        `Hi ${nombre}! I'm writing about your order ${numero} (${total}). ` +
+        `You can track it here: ${url}`,
+      recuperacion: {
+        vencido: (hola: string, numero: string) =>
+          `${hola} Your order ${numero} went unpaid and the reservation expired. ` +
+          "If you still want it, let us know and we'll check availability.",
+        rechazado: (hola: string, numero: string) =>
+          `${hola} We couldn't validate the receipt for your order ${numero}. ` +
+          "Open the link below, read why, and upload a new one.",
+        pendiente: (hola: string, numero: string) =>
+          `${hola} A reminder about your order ${numero}, still pending payment.`,
+        hola: (nombre: string) => `Hi ${nombre}!`,
+        paraTransferir: "To transfer:",
+        titular: (titular: string) => `Account holder: ${titular}`,
+        ruc: (ruc: string) => `RUC: ${ruc}`,
+        cuenta: (cuenta: string) => `Account: ${cuenta}`,
+        total: (total: string) => `Total: ${total}`,
+        subiComprobante: (url: string) => `Once you've paid, upload the receipt here: ${url}`,
+      },
+    },
+    recibo: {
+      vacio: "The file is empty.",
+      muyGrande: (mb: number) => `The receipt can't be larger than ${mb} MB.`,
+      formato: "Upload a photo (JPG or PNG) or a PDF of the receipt.",
+      maximo: (n: number) =>
+        `You've already uploaded ${n} receipts for this order. Message us on WhatsApp.`,
+      noEncontrado: "We couldn't find that receipt.",
+      motivoObligatorio:
+        "Write why you're rejecting it: the buyer reads it and needs to know what to fix.",
+      yaAprobado: "That receipt was already approved.",
+      yaRechazado: "That receipt was already rejected.",
+    },
+
+    cliente: {
+      telefonoInvalido: "That WhatsApp number doesn't look Paraguayan.",
+      nombreCorto: "Enter your full name.",
+      yaExiste: "There's already an account with that WhatsApp or email. Try signing in.",
+      noSePudoCrear: "We couldn't create the account. Try again.",
+      emailUsado: "That email is already used by another account.",
+    },
+
+    login: {
+      noSePudoGenerar: "Couldn't generate a code. Try again.",
+      noSePudoMandar: "We couldn't send the message.",
+    },
+
+    pedido: {
+      noExiste: (id: number) => `Order ${id} does not exist`,
+      sinStockParaCompletar: (faltan: number) =>
+        `No stock left to complete this order: ${faltan} unit(s) of one variant are missing. ` +
+        "If the payment came through, it has to be refunded.",
+      transicionInvalida: (id: number, desde: string, hasta: string) =>
+        `Invalid transition for order ${id}: ${desde} → ${hasta}`,
+      stockInsuficiente: (variantId: number, pedido: number, hay: number) =>
+        `Not enough stock for variant ${variantId}: asked for ${pedido}, ${hay} available`,
+    },
+  },
+
   errores: {
     error404: "Error 404",
     noEncontramosPagina: "We couldn't find this page",

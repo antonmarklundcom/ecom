@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from '@/lib/password';
 import { normalizePhonePY } from '@/lib/py';
 
 import type { Executor } from './executor';
+import { MENSAJES } from './mensajes';
 
 /**
  * Cuentas de cliente (PLAN.md FASE 2, PR E).
@@ -61,10 +62,10 @@ export async function registerCustomer(
   const tx = executor ?? getDb();
 
   const phone = normalizePhonePY(input.phone);
-  if (!phone) throw new CustomerError('Ese número de WhatsApp no parece paraguayo.');
+  if (!phone) throw new CustomerError(MENSAJES.cliente.telefonoInvalido);
 
   const name = input.name.trim();
-  if (name.length < 3) throw new CustomerError('Poné tu nombre completo.');
+  if (name.length < 3) throw new CustomerError(MENSAJES.cliente.nombreCorto);
 
   const email = input.email ? normalizeCustomerEmail(input.email) : null;
   const passwordHash = await hashPassword(input.password);
@@ -76,7 +77,7 @@ export async function registerCustomer(
     .limit(1);
 
   if (existing[0]) {
-    throw new CustomerError('Ya hay una cuenta con ese WhatsApp o ese email. Probá entrar.');
+    throw new CustomerError(MENSAJES.cliente.yaExiste);
   }
 
   await tx.insert(customers).values({
@@ -90,7 +91,7 @@ export async function registerCustomer(
   });
 
   const created = await findCustomerByPhone(phone, tx);
-  if (!created) throw new CustomerError('No pudimos crear la cuenta. Probá de nuevo.');
+  if (!created) throw new CustomerError(MENSAJES.cliente.noSePudoCrear);
   return created;
 }
 
@@ -193,7 +194,7 @@ export async function updateCustomerProfile(
   const tx = executor ?? getDb();
 
   const name = input.name.trim();
-  if (name.length < 3) throw new CustomerError('Poné tu nombre completo.');
+  if (name.length < 3) throw new CustomerError(MENSAJES.cliente.nombreCorto);
 
   const email = input.email ? normalizeCustomerEmail(input.email) : null;
 
@@ -204,7 +205,7 @@ export async function updateCustomerProfile(
       .where(eq(customers.email, email))
       .limit(1);
     if (taken[0] && taken[0].id !== customerId) {
-      throw new CustomerError('Ese email ya está usado por otra cuenta.');
+      throw new CustomerError(MENSAJES.cliente.emailUsado);
     }
   }
 

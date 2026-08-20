@@ -375,6 +375,95 @@ export const esPY = {
     },
   },
 
+  /**
+   * Errores del dominio (PLAN.md FASE 2, PR S).
+   *
+   * Los throw sites de `src/domain/**` no llevan prosa: piden el texto acá.
+   * Un test de CI (`tests/unit/i18n-dominio.test.ts`) falla si alguno vuelve a
+   * escribir el mensaje a mano — que es exactamente como se pierde una
+   * traducción.
+   *
+   * No están los errores del panel (`AdminUserError`, `AdminCouponError`,
+   * `AdminCategoryError`, `AdminShippingError`): el panel se traduce entero en
+   * el PR R y partirlo en dos deja media pantalla en cada idioma. Tampoco los
+   * de Pagopar ni `MoneyError`: nadie los lee, van al log del servidor, y
+   * traducir un mensaje de diagnóstico es hacerlo más difícil de buscar.
+   */
+  dominio: {
+    checkout: {
+      telefonoInvalido: "El número de WhatsApp no parece paraguayo.",
+      rucInvalido: (motivo: string) => `RUC inválido: ${motivo}`,
+      ciInvalida: (motivo: string) => `CI inválida: ${motivo}`,
+      carritoVacio: "El carrito está vacío.",
+      sinDisponibilidad: "Algunos productos ya no están disponibles. Revisá tu carrito.",
+      noSePudoCrear: "No pude crear el pedido. Probá de nuevo.",
+      totalCambio: (antes: string, ahora: string) =>
+        `El total cambió de ${antes} a ${ahora} mientras completabas los datos. ` +
+        "Revisalo y confirmá de nuevo.",
+      cuponYaNoSirve:
+        "El código de descuento ya no se puede usar. Revisá el total y confirmá de nuevo.",
+    },
+
+    whatsapp: {
+      seguimiento: (nombre: string, numero: string, total: string, url: string) =>
+        `Hola ${nombre}! Te escribo por tu pedido ${numero} (${total}). ` +
+        `Podés seguirlo acá: ${url}`,
+      recuperacion: {
+        vencido: (hola: string, numero: string) =>
+          `${hola} Tu pedido ${numero} quedó sin pagar y se venció la reserva. ` +
+          "Si todavía lo querés, avisanos y lo revisamos según disponibilidad.",
+        rechazado: (hola: string, numero: string) =>
+          `${hola} No pudimos validar el comprobante de tu pedido ${numero}. ` +
+          "Entrá al link de abajo, mirá el motivo y subí uno nuevo.",
+        pendiente: (hola: string, numero: string) =>
+          `${hola} Te recuerdo tu pedido ${numero}, que quedó pendiente de pago.`,
+        hola: (nombre: string) => `Hola ${nombre}!`,
+        paraTransferir: "Para transferir:",
+        titular: (titular: string) => `Titular: ${titular}`,
+        ruc: (ruc: string) => `RUC: ${ruc}`,
+        cuenta: (cuenta: string) => `Cuenta: ${cuenta}`,
+        total: (total: string) => `Total: ${total}`,
+        subiComprobante: (url: string) => `Cuando pagues, subí el comprobante acá: ${url}`,
+      },
+    },
+    recibo: {
+      vacio: "El archivo está vacío.",
+      muyGrande: (mb: number) => `El comprobante no puede pesar más de ${mb} MB.`,
+      formato: "Subí una foto (JPG o PNG) o un PDF del comprobante.",
+      maximo: (n: number) =>
+        `Ya subiste ${n} comprobantes para este pedido. Escribinos por WhatsApp.`,
+      noEncontrado: "No encontramos ese comprobante.",
+      motivoObligatorio:
+        "Escribí el motivo del rechazo: el comprador lo ve y necesita saber qué corregir.",
+      yaAprobado: "Ese comprobante ya estaba aprobado.",
+      yaRechazado: "Ese comprobante ya estaba rechazado.",
+    },
+
+    cliente: {
+      telefonoInvalido: "Ese número de WhatsApp no parece paraguayo.",
+      nombreCorto: "Poné tu nombre completo.",
+      yaExiste: "Ya hay una cuenta con ese WhatsApp o ese email. Probá entrar.",
+      noSePudoCrear: "No pudimos crear la cuenta. Probá de nuevo.",
+      emailUsado: "Ese email ya está usado por otra cuenta.",
+    },
+
+    login: {
+      noSePudoGenerar: "No pude generar un código. Probá de nuevo.",
+      noSePudoMandar: "No pudimos mandar el mensaje.",
+    },
+
+    pedido: {
+      noExiste: (id: number) => `No existe el pedido ${id}`,
+      sinStockParaCompletar: (faltan: number) =>
+        `Ya no hay stock para completar este pedido: faltan ${faltan} unidad(es) de una de las ` +
+        "variantes. Si el pago entró, hay que devolverlo.",
+      transicionInvalida: (id: number, desde: string, hasta: string) =>
+        `Transición inválida para el pedido ${id}: ${desde} → ${hasta}`,
+      stockInsuficiente: (variantId: number, pedido: number, hay: number) =>
+        `Stock insuficiente para la variante ${variantId}: pedí ${pedido}, hay ${hay}`,
+    },
+  },
+
   errores: {
     error404: "Error 404",
     noEncontramosPagina: "No encontramos esta página",

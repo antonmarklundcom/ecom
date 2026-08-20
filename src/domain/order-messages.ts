@@ -4,6 +4,7 @@ import { formatGs } from "@/lib/money";
 import { waLink } from "@/lib/py";
 import { siteOrigin } from "@/lib/site-url";
 
+import { MENSAJES } from "./mensajes";
 import { orderUrl } from "./order-access";
 
 /**
@@ -44,9 +45,11 @@ function firstName(fullName: string): string {
 
 /** Seguimiento genérico: el que se usa desde el detalle del pedido. */
 export function followUpMessage(order: OrderContact): string {
-  return (
-    `Hola ${firstName(order.customerName)}! Te escribo por tu pedido ${order.orderNumber} ` +
-    `(${formatGs(order.totalPyg)}). Podés seguirlo acá: ${buyerOrderUrl(order)}`
+  return MENSAJES.whatsapp.seguimiento(
+    firstName(order.customerName),
+    order.orderNumber,
+    formatGs(order.totalPyg),
+    buyerOrderUrl(order)
   );
 }
 
@@ -63,35 +66,36 @@ export function recoveryMessage(
   order: OrderContact,
   banco: DatosBancarios | null = comercioDatosBancarios()
 ): string {
-  const hola = `Hola ${firstName(order.customerName)}!`;
+  const textos = MENSAJES.whatsapp.recuperacion;
+  const hola = textos.hola(firstName(order.customerName));
   const saludo =
     order.status === "vencido"
-      ? `${hola} Tu pedido ${order.orderNumber} quedó sin pagar y se venció la reserva. Si todavía lo querés, avisanos y lo revisamos según disponibilidad.`
+      ? textos.vencido(hola, order.orderNumber)
       : order.status === "rechazado"
         ? // El comprobante no se pudo validar. El motivo lo escribió el dueño y
           // ella lo lee en la página del pedido; repetirlo por WhatsApp sería
           // contar en una pantalla de bloqueo por qué no le aceptaron un pago.
-          `${hola} No pudimos validar el comprobante de tu pedido ${order.orderNumber}. Entrá al link de abajo, mirá el motivo y subí uno nuevo.`
-        : `${hola} Te recuerdo tu pedido ${order.orderNumber}, que quedó pendiente de pago.`;
+          textos.rechazado(hola, order.orderNumber)
+        : textos.pendiente(hola, order.orderNumber);
 
   const datos = banco
     ? [
         "",
-        "Para transferir:",
+        textos.paraTransferir,
         `${banco.banco} — ${banco.tipoCuenta}`,
-        `Titular: ${banco.titular}`,
-        `RUC: ${banco.ruc}`,
-        `Cuenta: ${banco.cuenta}`,
+        textos.titular(banco.titular),
+        textos.ruc(banco.ruc),
+        textos.cuenta(banco.cuenta),
       ]
     : [];
 
   return [
     saludo,
     "",
-    `Total: ${formatGs(order.totalPyg)}`,
+    textos.total(formatGs(order.totalPyg)),
     ...datos,
     "",
-    `Cuando pagues, subí el comprobante acá: ${buyerOrderUrl(order)}`,
+    textos.subiComprobante(buyerOrderUrl(order)),
   ].join("\n");
 }
 

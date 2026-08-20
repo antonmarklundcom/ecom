@@ -5,6 +5,7 @@ import { withLockRetry } from '@/db/retry';
 import { stockReservations, variants } from '@/db/schema';
 
 import type { Executor } from './executor';
+import { MENSAJES } from './mensajes';
 
 /** Cuánto dura la reserva según el medio de pago (ARCH.md §2 "Stock: holds"). */
 export const RESERVATION_TTL_MINUTES = {
@@ -19,7 +20,7 @@ export class InsufficientStockError extends Error {
     readonly requested: number,
     readonly available: number,
   ) {
-    super(`Stock insuficiente para la variante ${variantId}: pedí ${requested}, hay ${available}`);
+    super(MENSAJES.pedido.stockInsuficiente(variantId, requested, available));
     this.name = 'InsufficientStockError';
   }
 }

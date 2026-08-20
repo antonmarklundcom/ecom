@@ -6,6 +6,7 @@ import { signedReceiptUrl } from "@/lib/cloudinary";
 
 import { ReceiptError } from "./receipts";
 import { transitionOrder } from "./orders";
+import { MENSAJES } from "./mensajes";
 
 /**
  * Revisión del comprobante por parte del dueño (PLAN.md 4.4 y 4.5).
@@ -46,9 +47,7 @@ export async function reviewReceipt(input: {
   const note = input.note?.trim() ?? "";
 
   if (input.decision === "rejected" && note.length < REJECTION_MIN_REASON) {
-    throw new ReceiptError(
-      "Escribí el motivo del rechazo: el comprador lo ve y necesita saber qué corregir.",
-    );
+    throw new ReceiptError(MENSAJES.recibo.motivoObligatorio);
   }
 
   return getDb().transaction(async (tx) => {
@@ -62,13 +61,11 @@ export async function reviewReceipt(input: {
 
     const receipt = locked[0];
     if (!receipt) {
-      throw new ReceiptError("No encontramos ese comprobante.");
+      throw new ReceiptError(MENSAJES.recibo.noEncontrado);
     }
     if (receipt.review !== "pending") {
       throw new ReceiptError(
-        receipt.review === "approved"
-          ? "Ese comprobante ya estaba aprobado."
-          : "Ese comprobante ya estaba rechazado.",
+        receipt.review === "approved" ? MENSAJES.recibo.yaAprobado : MENSAJES.recibo.yaRechazado,
       );
     }
 
@@ -122,7 +119,7 @@ export async function receiptPreview(
 
   const receipt = rows[0];
   if (!receipt) {
-    throw new ReceiptError("No encontramos ese comprobante.");
+    throw new ReceiptError(MENSAJES.recibo.noEncontrado);
   }
 
   return {

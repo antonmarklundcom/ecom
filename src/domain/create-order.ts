@@ -15,6 +15,7 @@ import { normalizePhonePY, validateDoc } from "@/lib/py";
 
 import type { CartInput } from "./cart";
 import { lockCouponForUse, type CouponRejection } from "./coupons";
+import { MENSAJES } from "./mensajes";
 import { nextOrderNumber } from "./order-number";
 import { computeOrderTotals } from "./order-totals";
 import { RESERVATION_TTL_MINUTES, reserveStock } from "./stock";
@@ -122,10 +123,7 @@ export class TotalChangedError extends CheckoutError {
     readonly before: number,
     readonly after: number
   ) {
-    super(
-      `El total cambió de ${formatGs(before)} a ${formatGs(after)} mientras completabas los datos. ` +
-        "Revisalo y confirmá de nuevo."
-    );
+    super(MENSAJES.checkout.totalCambio(formatGs(before), formatGs(after)));
     this.name = "TotalChangedError";
   }
 }
@@ -140,7 +138,7 @@ export class TotalChangedError extends CheckoutError {
  */
 export class CouponRejectedError extends CheckoutError {
   constructor(readonly reason: CouponRejection) {
-    super("El código de descuento ya no se puede usar. Revisá el total y confirmá de nuevo.");
+    super(MENSAJES.checkout.cuponYaNoSirve);
     this.name = "CouponRejectedError";
   }
 }
@@ -153,18 +151,20 @@ function mintAccessToken(): string {
 export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder> {
   const phone = normalizePhonePY(input.customerPhone);
   if (!phone) {
-    throw new CheckoutError("El número de WhatsApp no parece paraguayo.");
+    throw new CheckoutError(MENSAJES.checkout.telefonoInvalido);
   }
 
   const doc = validateDoc(input.docType, input.docNumber);
   if (!doc.ok) {
     throw new CheckoutError(
-      input.docType === "RUC" ? `RUC inválido: ${doc.reason}` : `CI inválida: ${doc.reason}`
+      input.docType === "RUC"
+        ? MENSAJES.checkout.rucInvalido(doc.reason ?? "")
+        : MENSAJES.checkout.ciInvalida(doc.reason ?? "")
     );
   }
 
   if (input.items.length === 0) {
-    throw new CheckoutError("El carrito está vacío.");
+    throw new CheckoutError(MENSAJES.checkout.carritoVacio);
   }
 
   return getDb().transaction(async (tx) => {
@@ -199,10 +199,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
 
     const blocking = cart.issues.filter((issue) => issue.type !== "precio_cambio");
     if (cart.lines.length === 0 || blocking.length > 0) {
-      throw new CheckoutError(
-        "Algunos productos ya no están disponibles. Revisá tu carrito.",
-        cart.issues
-      );
+      throw new CheckoutError(MENSAJES.checkout.sinDisponibilidad, cart.issues);
     }
 
     // 2.b. ¿Le estamos por cobrar algo distinto de lo que vio?
@@ -288,7 +285,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       .where(eq(orders.orderNumber, orderNumber))
       .limit(1);
     const orderId = inserted[0]?.id;
-    if (!orderId) throw new CheckoutError("No pude crear el pedido. Probá de nuevo.");
+    if (!orderId) throw new CheckoutError(MENSAJES.checkout.noSePudoCrear);
 
     // 4. Ítems con snapshot: lo que el comprador aceptó, congelado.
     await tx.insert(orderItems).values(

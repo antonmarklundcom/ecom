@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { receipts } from "@/db/schema";
 
 import type { Executor } from "./executor";
+import { MENSAJES } from "./mensajes";
 
 /**
  * Comprobantes de transferencia (PLAN.md 3.5).
@@ -45,19 +46,19 @@ export function validateReceipt(input: {
   content: Buffer | Uint8Array;
 }): { mime: string } {
   if (input.bytes <= 0) {
-    throw new ReceiptError("El archivo está vacío.");
+    throw new ReceiptError(MENSAJES.recibo.vacio);
   }
   if (input.bytes > RECEIPT_MAX_BYTES) {
-    throw new ReceiptError("El comprobante no puede pesar más de 5 MB.");
+    throw new ReceiptError(MENSAJES.recibo.muyGrande(RECEIPT_MAX_BYTES / (1024 * 1024)));
   }
 
   const sniffed = sniffMime(input.content);
   if (!sniffed) {
-    throw new ReceiptError("Subí una foto (JPG o PNG) o un PDF del comprobante.");
+    throw new ReceiptError(MENSAJES.recibo.formato);
   }
   // Si el navegador declaró otra cosa, mandan los bytes.
   if (!(RECEIPT_ALLOWED_MIME as readonly string[]).includes(sniffed)) {
-    throw new ReceiptError("Subí una foto (JPG o PNG) o un PDF del comprobante.");
+    throw new ReceiptError(MENSAJES.recibo.formato);
   }
 
   return { mime: sniffed };
@@ -75,9 +76,7 @@ export async function countReceipts(orderId: number, executor?: Executor): Promi
 export async function assertCanUpload(orderId: number, executor?: Executor): Promise<void> {
   const already = await countReceipts(orderId, executor);
   if (already >= RECEIPT_MAX_PER_ORDER) {
-    throw new ReceiptError(
-      `Ya subiste ${RECEIPT_MAX_PER_ORDER} comprobantes para este pedido. Escribinos por WhatsApp.`
-    );
+    throw new ReceiptError(MENSAJES.recibo.maximo(RECEIPT_MAX_PER_ORDER));
   }
 }
 

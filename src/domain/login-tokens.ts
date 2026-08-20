@@ -6,6 +6,7 @@ import { getDb } from '@/db';
 import { customers, loginTokens } from '@/db/schema';
 
 import type { Executor } from './executor';
+import { MENSAJES } from './mensajes';
 import type { MessageChannel } from './messaging';
 
 /**
@@ -117,7 +118,7 @@ export async function issueLoginToken(
     }
   }
 
-  throw new LoginTokenError('No pude generar un código. Probá de nuevo.');
+  throw new LoginTokenError(MENSAJES.login.noSePudoGenerar);
 }
 
 export type ConsumedToken = { customerId: number };

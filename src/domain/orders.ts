@@ -12,6 +12,7 @@ import {
 
 import type { Executor, Tx } from './executor';
 import { recordManualPayment } from './manual-payments';
+import { MENSAJES } from './mensajes';
 
 /**
  * Máquina de estados del pedido (ARCH.md §3).
@@ -56,7 +57,7 @@ const RELEASES_STOCK: readonly OrderStatus[] = ['vencido', 'cancelado'];
 
 export class OrderNotFoundError extends Error {
   constructor(readonly orderId: number) {
-    super(`No existe el pedido ${orderId}`);
+    super(MENSAJES.pedido.noExiste(orderId));
     this.name = 'OrderNotFoundError';
   }
 }
@@ -75,10 +76,7 @@ export class StockUnavailableError extends Error {
     readonly needed: number,
     readonly available: number,
   ) {
-    super(
-      `Ya no hay stock para completar este pedido: faltan ${needed - available} ` +
-        `unidad(es) de una de las variantes. Si el pago entró, hay que devolverlo.`,
-    );
+    super(MENSAJES.pedido.sinStockParaCompletar(needed - available));
     this.name = 'StockUnavailableError';
   }
 }
@@ -89,7 +87,7 @@ export class InvalidTransitionError extends Error {
     readonly from: OrderStatus,
     readonly to: OrderStatus,
   ) {
-    super(`Transición inválida para el pedido ${orderId}: ${from} → ${to}`);
+    super(MENSAJES.pedido.transicionInvalida(orderId, from, to));
     this.name = 'InvalidTransitionError';
   }
 }

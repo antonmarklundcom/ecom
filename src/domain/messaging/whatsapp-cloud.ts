@@ -1,3 +1,4 @@
+import { MENSAJES } from '../mensajes';
 import { MessageSendError, type MessageSender, type OutgoingMessage } from './sender';
 
 /**
@@ -86,7 +87,7 @@ export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageS
         // El detalle al log del servidor; hacia afuera, nada. El mensaje de
         // error de Meta puede incluir el número de destino.
         console.error('WhatsApp Cloud: la llamada falló', error);
-        throw new MessageSendError('No pudimos mandar el mensaje.');
+        throw new MessageSendError(MENSAJES.login.noSePudoMandar);
       }
 
       if (!response.ok) {
@@ -95,7 +96,7 @@ export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageS
           response.status,
           await response.text().catch(() => '(sin cuerpo)'),
         );
-        throw new MessageSendError('No pudimos mandar el mensaje.');
+        throw new MessageSendError(MENSAJES.login.noSePudoMandar);
       }
     },
   };
