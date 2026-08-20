@@ -1,7 +1,9 @@
 import Link from "next/link";
 
+import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
+import { TIENDA } from "@/config/tienda";
 import { getCatalog, getCategories, type CatalogProduct } from "@/db/queries";
 
 /**
@@ -23,22 +25,31 @@ export default async function HomePage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <section className="border-border bg-muted/30 rounded-2xl border p-6 sm:p-10">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">
-          Comprá fácil, pagá como quieras
-        </h1>
-        <p className="text-muted-foreground mt-3 max-w-xl text-sm sm:text-base">
-          Transferencia, QR o contra entrega. Precios en guaraníes con IVA incluido y envíos a
-          todo el país. ¿Dudas? Escribinos por WhatsApp.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          {categories[0] ? (
-            <Button asChild size="lg">
-              <Link href={`/categoria/${categories[0].slug}`}>Ver productos</Link>
-            </Button>
-          ) : null}
-        </div>
-      </section>
+      {/*
+        Con `TIENDA.hero` sin configurar —el default— se dibuja este bloque,
+        idéntico al de siempre. La tienda que carga un hero reemplaza el
+        titular, la bajada, el botón y el fondo sin tocar código (PR O).
+      */}
+      {TIENDA.hero ? (
+        <HomeHero hero={TIENDA.hero} />
+      ) : (
+        <section className="border-border bg-muted/30 rounded-2xl border p-6 sm:p-10">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">
+            Comprá fácil, pagá como quieras
+          </h1>
+          <p className="text-muted-foreground mt-3 max-w-xl text-sm sm:text-base">
+            Transferencia, QR o contra entrega. Precios en guaraníes con IVA incluido y envíos a
+            todo el país. ¿Dudas? Escribinos por WhatsApp.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {categories[0] ? (
+              <Button asChild size="lg">
+                <Link href={`/categoria/${categories[0].slug}`}>Ver productos</Link>
+              </Button>
+            ) : null}
+          </div>
+        </section>
+      )}
 
       {error ? (
         <div className="border-border border-l-primary mt-8 rounded-lg border border-l-2 p-4">

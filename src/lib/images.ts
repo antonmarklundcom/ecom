@@ -12,7 +12,7 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 /** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
 const DEFAULT_TRANSFORMS = "f_auto,q_auto";
 
-export type ImageSize = "thumb" | "card" | "detail" | "og";
+export type ImageSize = "thumb" | "card" | "detail" | "og" | "hero";
 
 /**
  * 1200×630 es la caja que esperan WhatsApp, Instagram y Facebook. `c_fill` y
@@ -27,6 +27,9 @@ const SIZE_TRANSFORMS: Record<ImageSize, string> = {
   card: "c_fill,w_600,h_600",
   detail: "c_fit,w_1200,h_1200",
   og: `c_fill,w_${OG_IMAGE_SIZE.width},h_${OG_IMAGE_SIZE.height}`,
+  // Ancho de banner y alto acotado: el hero se estira a todo el ancho y lo
+  // que importa es que no empuje el catálogo abajo del pliegue en un celular.
+  hero: "c_fill,w_1600,h_600",
 };
 
 /**
@@ -61,4 +64,16 @@ const CATEGORY_PLACEHOLDERS = new Set([
 export function categoryPlaceholderSrc(categorySlug: string): string {
   const slug = CATEGORY_PLACEHOLDERS.has(categorySlug) ? categorySlug : "generico";
   return `/placeholders/${slug}.svg`;
+}
+
+/**
+ * Fondo del hero de la home (PLAN.md FASE 2, PR O).
+ *
+ * Devuelve `null` si la tienda no configuró el hero, no puso imagen, o falta
+ * el cloud de Cloudinary. Quien llama dibuja el hero igual, sin foto: una
+ * tienda recién clonada tiene que verse entera antes de tener una sola imagen
+ * cargada.
+ */
+export function heroImageUrl(cloudinaryId: string | null | undefined): string | null {
+  return productImageUrl(cloudinaryId, "hero");
 }

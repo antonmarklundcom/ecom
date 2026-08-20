@@ -33,6 +33,20 @@ describe('flags apagados = la tienda de hoy', () => {
     expect(cuentasClientesHabilitadas()).toBe(false);
   });
 
+  /**
+   * El hero de la home (PR O) es la otra mitad del mismo guardarraíl: es
+   * **piel**, así que el template no puede traer el banner de nadie. Sin
+   * configurar, la home dibuja el bloque de texto de siempre.
+   */
+  it('el template no trae un hero configurado', () => {
+    expect(TIENDA.hero).toBeNull();
+  });
+
+  it('la home sólo dibuja el hero si la tienda lo configuró', async () => {
+    const code = await readCode(path.join('src', 'app', 'page.tsx'));
+    expect(code).toMatch(/TIENDA\.hero \?/);
+  });
+
   it('toda la rama /cuenta está detrás del flag', async () => {
     const files = await listSourceFiles([path.join('src', 'app', 'cuenta')]);
     expect(files.length).toBeGreaterThan(0);

@@ -173,8 +173,12 @@ El contador cuenta sobre la categoría entera y **no** sobre los otros filtros y
 
 Las sugerencias salen del mismo `searchProducts()` que `/buscar` —lo que se ve en la lista es lo que se encuentra al entrar—, con debounce de 250 ms y rate limit propio en el servidor (el debounce es del cliente, y el cliente no es de fiar). El buscador ahora es un `<form action="/buscar" method="get">` de verdad: **sin JavaScript sigue andando**, y las sugerencias son un agregado encima que puede no aparecer sin romper nada.
 
-## PR O — Hero de la home (piel, config-driven)
-Slot de hero/banner en `tienda.ts` (imagen Cloudinary + título + CTA, o lista para carrusel simple). Sin configurar ⇒ la home actual intacta. **Es piel**: cada tienda lo rediseña libre. *Branch: `feat/home-hero`*
+## PR O — Hero de la home (piel, config-driven) — **hecho**
+`TIENDA.hero`: titular, bajada, botón (texto + destino) y foto de fondo por `public_id` de Cloudinary. En `null` por default ⇒ la home queda exactamente como estaba, y hay un test en `flags-apagados.test.ts` que lo verifica: el template no puede traer el banner de nadie.
+
+Sin imagen —o sin `CLOUDINARY_CLOUD_NAME`— el hero se dibuja igual con el fondo neutro; una tienda recién clonada tiene que verse entera antes de tener una foto cargada. El velo oscuro sobre la foto no es decoración: el texto va encima de una imagen que el template no controla, y sin él un fondo claro deja el titular ilegible. El `alt` sale vacío si la tienda no lo escribió — un alt inventado es ruido para un lector de pantalla.
+
+**Es piel**: lo que hay es el mínimo para poner un banner sin tocar código. Carrusel, video o tres CTAs = reescribir `src/app/page.tsx`, que es lo que corresponde. Documentado en NEW-STORE.md §2.
 
 ## PR P–S — i18n por tienda (Nivel A: un idioma por tienda, elegido en `tienda.ts`)
 **En serie y al final** (así las features de arriba se extraen una sola vez). No hay switcher para el visitante ni rutas por locale — eso sería un Nivel B futuro sobre esta base. Las URLs quedan en español para siempre (decisión: son parte del template). Moneda y dinero **fuera de alcance**: `money.ts` queda PYG-entero con su `₲` literal.

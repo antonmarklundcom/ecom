@@ -28,6 +28,26 @@ leer de `TIENDA`, no agregar una excepción.
 
 Cambiá también el favicon (`src/app/favicon.ico`).
 
+**Hero de la home (opcional).** `TIENDA.hero` viene en `null` y con eso la home
+dibuja el bloque de texto de siempre. Poniéndole un objeto —titular, bajada,
+texto y destino del botón, y el `public_id` de Cloudinary de la foto de fondo—
+la home queda con banner sin tocar código:
+
+```ts
+hero: {
+  titulo: "Todo para tu casa, en cuotas",
+  subtitulo: "Envíos a todo el país. Pagá con transferencia, QR o contra entrega.",
+  ctaTexto: "Ver ofertas",
+  ctaHref: "/categoria/hogar-y-cocina",
+  imagenCloudinaryId: "hero/living",
+  imagenAlt: "Living con sillón y lámpara",
+},
+```
+
+Sin `imagenCloudinaryId` (o sin `CLOUDINARY_CLOUD_NAME`) el hero se dibuja
+igual, con el fondo neutro. El hero es **piel**: la tienda que quiera carrusel,
+video o tres botones reescribe `src/app/page.tsx`, que es lo que corresponde.
+
 La imagen que se ve cuando alguien comparte un link por WhatsApp o Instagram
 **no hay que cargarla**: `src/app/opengraph-image.tsx` la dibuja con el nombre
 y el tagline de `TIENDA`. Cada ficha de producto usa su foto principal y sólo

@@ -46,6 +46,38 @@ export type Tienda = {
    * negocio.)
    */
   cuentasClientes: boolean;
+
+  /**
+   * Hero de la home (PLAN.md FASE 2, PR O).
+   *
+   * `null` —el default— deja la home exactamente como está: el bloque de texto
+   * de siempre, sin imagen. Configurarlo es una decisión de cada tienda.
+   *
+   * **Esto es piel** (NEW-STORE.md §5): lo que hay acá es el mínimo para que
+   * una tienda nueva ponga su banner sin tocar código, no un sistema de
+   * páginas. La tienda que quiera un carrusel, video o tres CTAs reescribe
+   * `src/app/page.tsx`, que es lo que se espera que haga.
+   */
+  hero: Hero | null;
+};
+
+export type Hero = {
+  /** Titular. Reemplaza al `<h1>` de la home. */
+  titulo: string;
+  /** Bajada, una o dos líneas. */
+  subtitulo?: string;
+  /** Texto del botón. Sin `ctaHref` no se dibuja. */
+  ctaTexto?: string;
+  /** Ruta interna (`/categoria/moda`) o URL absoluta. */
+  ctaHref?: string;
+  /**
+   * `public_id` de Cloudinary del fondo. Sin cloud configurado o sin este
+   * campo, el hero se dibuja igual con el fondo de siempre: nunca un
+   * rectángulo roto (ver `heroImageUrl` en `src/lib/images.ts`).
+   */
+  imagenCloudinaryId?: string;
+  /** Texto alternativo de la imagen. Obligatorio si hay imagen. */
+  imagenAlt?: string;
 };
 
 export const TIENDA: Tienda = {
@@ -57,6 +89,8 @@ export const TIENDA: Tienda = {
   lang: "es-PY",
   ogLocale: "es_PY",
   cuentasClientes: false,
+  // Sin configurar: la home queda igual que siempre. Ver el tipo `Hero`.
+  hero: null,
 };
 
 /**
