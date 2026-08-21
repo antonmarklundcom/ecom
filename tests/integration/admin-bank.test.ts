@@ -30,7 +30,7 @@ import { createAdminUser } from '../helpers/factories';
 const DATOS = {
   banco: 'Banco Itaú',
   titular: 'Comercial San Roque S.A.',
-  ruc: '80012345-6',
+  ruc: '80012345-0',
   cuenta: '1234567890',
   tipoCuenta: 'Cuenta corriente',
 };
@@ -38,7 +38,7 @@ const DATOS = {
 const ENV = {
   BANCO_NOMBRE: 'Banco Continental',
   BANCO_TITULAR: 'La del entorno S.A.',
-  BANCO_RUC: '80098765-4',
+  BANCO_RUC: '80098765-9',
   BANCO_CUENTA: '999888777',
   BANCO_TIPO_CUENTA: 'Caja de ahorro',
   BANCO_QR_URL: '',
@@ -73,7 +73,7 @@ describe.skipIf(!hasTestDb)('datos bancarios: la fila y el entorno', () => {
     expect(await getDatosBancarios()).toEqual({
       banco: 'Banco Continental',
       titular: 'La del entorno S.A.',
-      ruc: '80098765-4',
+      ruc: '80098765-9',
       cuenta: '999888777',
       tipoCuenta: 'Caja de ahorro',
       qrUrl: null,
@@ -108,7 +108,7 @@ describe.skipIf(!hasTestDb)('datos bancarios: la fila y el entorno', () => {
     expect(await getDatosBancarios()).toEqual({
       banco: 'Banco Continental',
       titular: 'La del entorno S.A.',
-      ruc: '80098765-4',
+      ruc: '80098765-9',
       cuenta: '999888777',
       tipoCuenta: 'Caja de ahorro',
       qrUrl: null,
@@ -145,9 +145,9 @@ describe.skipIf(!hasTestDb)('guardar los cinco campos', () => {
   it('normaliza el RUC pegado y deja el guion puesto', async () => {
     const ownerId = await createAdminUser();
 
-    await saveBankDetails({ data: { ...DATOS, ruc: '800123456' }, actorUserId: ownerId });
+    await saveBankDetails({ data: { ...DATOS, ruc: '800123450' }, actorUserId: ownerId });
 
-    expect((await readBankDetails())?.ruc).toBe('80012345-6');
+    expect((await readBankDetails())?.ruc).toBe('80012345-0');
   });
 
   it('es un singleton: guardar dos veces edita la misma fila', async () => {
