@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin-guard";
 import { EXPORT_MAX_ROWS, csvFilename, toCsv } from "@/lib/csv";
 import { formatDatePY, formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
+import { t } from "@/i18n";
 
 /**
  * Exports a CSV del panel.
@@ -50,7 +51,7 @@ export async function exportOrdersCsv(input: unknown): Promise<AdminActionResult
 
     const parsed = OrdersFiltersSchema.safeParse(input ?? {});
     if (!parsed.success) {
-      return { ok: false, error: "Revisá los filtros antes de bajar el archivo." };
+      return { ok: false, error: t("adminError.filtros") };
     }
 
     const rows = await listOrdersForExport({
@@ -62,7 +63,15 @@ export async function exportOrdersCsv(input: unknown): Promise<AdminActionResult
     });
 
     const csv = toCsv(
-      ["Nº de pedido", "Fecha", "Cliente", "WhatsApp", "Estado", "Método de pago", "Total (₲)"],
+      [
+        t("csv.pedido.numero"),
+        t("csv.pedido.fecha"),
+        t("csv.pedido.cliente"),
+        t("csv.whatsapp"),
+        t("csv.pedido.estado"),
+        t("csv.pedido.metodo"),
+        t("csv.pedido.total"),
+      ],
       rows.map((row) => [
         row.orderNumber,
         formatDateTimePY(row.createdAt),
@@ -98,7 +107,7 @@ export async function exportProductsCsv(input: unknown): Promise<AdminActionResu
 
     const parsed = ProductsFiltersSchema.safeParse(input ?? {});
     if (!parsed.success) {
-      return { ok: false, error: "Revisá los filtros antes de bajar el archivo." };
+      return { ok: false, error: t("adminError.filtros") };
     }
 
     const rows = await listVariantsForExport({
@@ -107,7 +116,14 @@ export async function exportProductsCsv(input: unknown): Promise<AdminActionResu
     });
 
     const csv = toCsv(
-      ["SKU", "Producto", "Categoría", "Variante", "Precio (₲)", "Stock"],
+      [
+        t("csv.producto.sku"),
+        t("csv.producto.nombre"),
+        t("csv.producto.categoria"),
+        t("csv.producto.variante"),
+        t("csv.producto.precio"),
+        t("csv.producto.stock"),
+      ],
       rows.map((row) => [
         row.sku,
         row.productName,
@@ -153,13 +169,13 @@ export async function exportMarketingOptInsCsv(): Promise<AdminActionResult<CsvE
     await requireOwnerSession();
 
     if (!cuentasClientesHabilitadas()) {
-      return { ok: false, error: "Esta tienda no tiene cuentas de cliente." };
+      return { ok: false, error: t("adminError.sinCuentasClientes") };
     }
 
     const rows = await listMarketingOptIns();
 
     const csv = toCsv(
-      ["Nombre", "WhatsApp", "Email", "Aceptó el"],
+      [t("csv.cliente.nombre"), t("csv.whatsapp"), t("csv.cliente.email"), t("csv.cliente.acepto")],
       rows.map((row) => [row.name, row.phone, row.email ?? "", formatDatePY(row.since)]),
     );
 

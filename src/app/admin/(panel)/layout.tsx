@@ -5,6 +5,7 @@ import type React from "react";
 import { LogoutButton } from "@/components/admin/logout-button";
 import { can } from "@/lib/permissions";
 import { UnauthorizedError, getSession, requireAdmin, type AdminActor } from "@/lib/session";
+import { t } from "@/i18n";
 
 /**
  * Puerta del panel. Todo lo que cuelga de este layout exige sesión de admin.
@@ -33,7 +34,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             href={can(actor.role, "dashboard") ? "/admin" : "/admin/pedidos"}
             className="font-semibold tracking-tight"
           >
-            Panel
+            {t("panel.titulo")}
           </Link>
           {/*
             Nav por rol: un vendedor ve "Pedidos" y nada más. Esconder el link
@@ -42,28 +43,28 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             va a contestar 403.
           */}
           <nav className="flex flex-1 items-center gap-1 overflow-x-auto text-sm">
-            {can(actor.role, "dashboard") ? <NavLink href="/admin">Resumen</NavLink> : null}
-            <NavLink href="/admin/pedidos">Pedidos</NavLink>
+            {can(actor.role, "dashboard") ? <NavLink href="/admin">{t("panel.nav.resumen")}</NavLink> : null}
+            <NavLink href="/admin/pedidos">{t("panel.nav.pedidos")}</NavLink>
             {can(actor.role, "productos") ? (
-              <NavLink href="/admin/productos">Productos</NavLink>
+              <NavLink href="/admin/productos">{t("panel.nav.productos")}</NavLink>
             ) : null}
             {can(actor.role, "clientes") ? (
-              <NavLink href="/admin/clientes">Clientes</NavLink>
+              <NavLink href="/admin/clientes">{t("panel.nav.clientes")}</NavLink>
             ) : null}
             {can(actor.role, "cupones") ? (
-              <NavLink href="/admin/cupones">Cupones</NavLink>
+              <NavLink href="/admin/cupones">{t("panel.nav.cupones")}</NavLink>
             ) : null}
             {can(actor.role, "actividad") ? (
-              <NavLink href="/admin/actividad">Actividad</NavLink>
+              <NavLink href="/admin/actividad">{t("panel.nav.actividad")}</NavLink>
             ) : null}
             {can(actor.role, "categorias") ? (
-              <NavLink href="/admin/categorias">Categorías</NavLink>
+              <NavLink href="/admin/categorias">{t("panel.nav.categorias")}</NavLink>
             ) : null}
             {can(actor.role, "envios") ? (
-              <NavLink href="/admin/envios">Envíos</NavLink>
+              <NavLink href="/admin/envios">{t("panel.nav.envios")}</NavLink>
             ) : null}
             {can(actor.role, "usuarios") ? (
-              <NavLink href="/admin/usuarios">Usuarios</NavLink>
+              <NavLink href="/admin/usuarios">{t("panel.nav.usuarios")}</NavLink>
             ) : null}
           </nav>
           <LogoutButton />

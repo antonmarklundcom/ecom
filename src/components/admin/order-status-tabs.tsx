@@ -4,6 +4,7 @@ import { ORDER_STATUSES, type OrderStatus } from "@/db/schema";
 import type { OrderStatusCounts } from "@/domain/admin-orders";
 
 import { ORDER_STATUS_LABEL } from "@/lib/order-labels";
+import { t } from "@/i18n";
 
 /**
  * Accesos rápidos por estado, arriba del listado de pedidos.
@@ -74,11 +75,11 @@ export function OrderStatusTabs({
   );
 
   return (
-    <nav aria-label="Filtrar por estado" className="-mx-4 mt-4 overflow-x-auto px-4">
+    <nav aria-label={t("panel.filtros.porEstado")} className="-mx-4 mt-4 overflow-x-auto px-4">
       <ul className="flex w-max gap-2">
         <li>
           <Chip href={href(undefined)} active={active === undefined} count={counts.total}>
-            Todos
+            {t("panel.filtros.todos")}
           </Chip>
         </li>
         {visible.map((status) => (

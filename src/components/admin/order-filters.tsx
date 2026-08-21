@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
+import { t } from "@/i18n";
 
 type Defaults = { estado: string; metodo: string; desde: string; hasta: string; q: string };
 
@@ -49,11 +50,11 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
         <Input
           name="q"
           defaultValue={defaults.q}
-          placeholder="Nº de pedido, WhatsApp o RUC"
-          aria-label="Buscar pedido"
+          placeholder={t("panel.filtros.buscarPedido")}
+          aria-label={t("panel.filtros.buscarPedido.label")}
           inputMode="search"
         />
-        <Button type="submit">Buscar</Button>
+        <Button type="submit">{t("panel.filtros.buscar")}</Button>
       </div>
 
       <button
@@ -62,8 +63,8 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >
-        {open ? "Ocultar filtros" : "Más filtros"}
-        {!open && activeCount > 0 ? ` (${activeCount})` : ""}
+        {open ? t("panel.filtros.ocultar") : t("panel.filtros.mas")}
+        {!open && activeCount > 0 ? t("panel.filtros.activos", { n: activeCount }) : ""}
       </button>
 
       {/* Colapsados por defecto: en un celular, cuatro selects arriba del
@@ -71,14 +72,14 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
       {open ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label htmlFor="estado">Estado</Label>
+            <Label htmlFor="estado">{t("panel.filtros.estado")}</Label>
             <select
               id="estado"
               name="estado"
               defaultValue={defaults.estado}
               className="border-input bg-background h-9 rounded-md border px-3 text-sm"
             >
-              <option value="">Todos</option>
+              <option value="">{t("panel.filtros.todos")}</option>
               {ORDER_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {ORDER_STATUS_LABEL[status]}
@@ -88,14 +89,14 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="metodo">Método de pago</Label>
+            <Label htmlFor="metodo">{t("panel.filtros.metodo")}</Label>
             <select
               id="metodo"
               name="metodo"
               defaultValue={defaults.metodo}
               className="border-input bg-background h-9 rounded-md border px-3 text-sm"
             >
-              <option value="">Todos</option>
+              <option value="">{t("panel.filtros.todos")}</option>
               {PAYMENT_METHODS.map((method) => (
                 <option key={method} value={method}>
                   {PAYMENT_METHOD_LABEL[method]}
@@ -105,25 +106,25 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="desde">Desde</Label>
+            <Label htmlFor="desde">{t("panel.filtros.desde")}</Label>
             <Input id="desde" name="desde" type="date" defaultValue={defaults.desde} />
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="hasta">Hasta</Label>
+            <Label htmlFor="hasta">{t("panel.filtros.hasta")}</Label>
             <Input id="hasta" name="hasta" type="date" defaultValue={defaults.hasta} />
           </div>
 
           <div className="flex gap-2 sm:col-span-2">
             <Button type="submit" className="flex-1">
-              Aplicar
+              {t("panel.filtros.aplicar")}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => router.push("/admin/pedidos")}
             >
-              Limpiar
+              {t("panel.filtros.limpiar")}
             </Button>
           </div>
         </div>

@@ -157,6 +157,14 @@ template). Para otro idioma:
 muestra español donde falte en vez de un `undefined`. No es una red de
 seguridad silenciosa: el test de CI no deja mergear un catálogo incompleto.
 
+El catálogo cubre **la vidriera y el panel**: son unas 890 claves, y traducirlas
+todas es un rato largo. Si sólo te interesa que compre gente en otro idioma,
+empezá por las áreas `header/footer/home/catalogo/producto/carrito/checkout/
+pedido/cuenta/error*` y dejá `panel*` y `adminError*` para después — el dueño
+suele hablar el idioma del comercio. El test de claves completas se aplica a
+los catálogos **registrados**, así que traducí y registrá recién cuando esté
+entero.
+
 **La plata no se traduce.** Los montos siguen en guaraníes enteros con su `₲`
 (`src/lib/money.ts`): cambiar de moneda no es traducir, es tocar el camino del
 dinero. No hay switcher para el visitante ni rutas por idioma — eso sería otra

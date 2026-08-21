@@ -1,4 +1,5 @@
 import type { OrderStatus, PaymentMethod } from "@/db/schema";
+import { t } from "@/i18n";
 
 /**
  * Los textos de la máquina de estados, en un solo archivo.
@@ -15,56 +16,58 @@ import type { OrderStatus, PaymentMethod } from "@/db/schema";
  * enteraba con un `undefined` en pantalla. Acá los dos `Record<OrderStatus,
  * string>` fallan el typecheck juntos.
  *
- * Es además el punto de extracción del i18n (PLAN.md, PR P–S): un catálogo de
- * mensajes reemplaza este archivo y nada más.
+ * Desde el PR R los textos salen del catálogo (`estado.panel.*`,
+ * `estado.comprador.*`). Este archivo queda igual y sigue siendo lo que fuerza
+ * la decisión: los dos `Record<OrderStatus, string>` fallan el typecheck juntos
+ * si alguien agrega un estado y se olvida de una de las dos vistas.
  */
 
 /** Cómo lo lee el dueño en el panel: qué hay que hacer con este pedido. */
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  pendiente_pago: "Esperando pago",
-  esperando_verificacion: "Verificar comprobante",
-  pagado: "Pagado",
-  preparando: "Preparando",
-  enviado: "Enviado",
-  entregado: "Entregado",
-  rechazado: "Comprobante rechazado",
-  vencido: "Vencido",
-  cancelado: "Cancelado",
-  reembolsado: "Reembolsado",
+  pendiente_pago: t("estado.panel.pendiente_pago"),
+  esperando_verificacion: t("estado.panel.esperando_verificacion"),
+  pagado: t("estado.panel.pagado"),
+  preparando: t("estado.panel.preparando"),
+  enviado: t("estado.panel.enviado"),
+  entregado: t("estado.panel.entregado"),
+  rechazado: t("estado.panel.rechazado"),
+  vencido: t("estado.panel.vencido"),
+  cancelado: t("estado.panel.cancelado"),
+  reembolsado: t("estado.panel.reembolsado"),
 };
 
 /** Cómo lo lee el comprador en `/pedido/[orderNumber]`: qué pasa con lo suyo. */
 export const ORDER_STATUS_LABEL_COMPRADOR: Record<OrderStatus, string> = {
-  pendiente_pago: "Esperando tu pago",
-  esperando_verificacion: "Comprobante en revisión",
-  pagado: "Pago confirmado",
-  preparando: "Preparando tu pedido",
-  enviado: "En camino",
-  entregado: "Entregado",
-  rechazado: "Comprobante rechazado",
-  vencido: "Vencido",
-  cancelado: "Cancelado",
-  reembolsado: "Reembolsado",
+  pendiente_pago: t("estado.comprador.pendiente_pago"),
+  esperando_verificacion: t("estado.comprador.esperando_verificacion"),
+  pagado: t("estado.comprador.pagado"),
+  preparando: t("estado.comprador.preparando"),
+  enviado: t("estado.comprador.enviado"),
+  entregado: t("estado.comprador.entregado"),
+  rechazado: t("estado.comprador.rechazado"),
+  vencido: t("estado.comprador.vencido"),
+  cancelado: t("estado.comprador.cancelado"),
+  reembolsado: t("estado.comprador.reembolsado"),
 };
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  transferencia: "Transferencia / QR",
-  contra_entrega: "Contra entrega",
-  tarjeta: "Tarjeta",
+  transferencia: t("metodo.transferencia"),
+  contra_entrega: t("metodo.contra_entrega"),
+  tarjeta: t("metodo.tarjeta"),
 };
 
 /** Verbo del botón que lleva a cada estado, en voseo. */
 export const TRANSITION_LABEL: Partial<Record<OrderStatus, string>> = {
-  pagado: "Marcar como pagado",
-  preparando: "Empezar a preparar",
-  enviado: "Marcar como enviado",
-  entregado: "Marcar como entregado",
-  cancelado: "Cancelar pedido",
-  vencido: "Marcar como vencido",
-  rechazado: "Rechazar comprobante",
-  reembolsado: "Marcar como reembolsado",
-  pendiente_pago: "Volver a esperando pago",
-  esperando_verificacion: "Volver a verificación",
+  pagado: t("transicion.pagado"),
+  preparando: t("transicion.preparando"),
+  enviado: t("transicion.enviado"),
+  entregado: t("transicion.entregado"),
+  cancelado: t("transicion.cancelado"),
+  vencido: t("transicion.vencido"),
+  rechazado: t("transicion.rechazado"),
+  reembolsado: t("transicion.reembolsado"),
+  pendiente_pago: t("transicion.pendiente_pago"),
+  esperando_verificacion: t("transicion.esperando_verificacion"),
 };
 
 /**

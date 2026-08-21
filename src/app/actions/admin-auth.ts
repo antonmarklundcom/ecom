@@ -14,6 +14,7 @@ import {
 } from "@/lib/rate-limit";
 import { safeNextPath } from "@/lib/safe-redirect";
 import { getSession } from "@/lib/session";
+import { t, tPlural } from "@/i18n";
 
 /**
  * Login del panel (PLAN.md 4.1).
@@ -23,7 +24,8 @@ import { getSession } from "@/lib/session";
  */
 
 /** Un único mensaje para "no existe", "contraseña incorrecta" y "usuario inactivo". */
-const GENERIC_ERROR = "Email o contraseña incorrectos.";
+/** Función y no constante: `t()` se resuelve al importar el módulo. */
+const genericError = (): string => t("adminError.login.generico");
 
 const LoginSchema = z.object({
   email: z.string().trim().min(3).max(200),
@@ -43,7 +45,7 @@ export async function loginAdmin(formData: FormData): Promise<LoginResult> {
   });
 
   if (!parsed.success) {
-    return { ok: false, error: GENERIC_ERROR };
+    return { ok: false, error: genericError() };
   }
 
   // Fuerza bruta: el límite es por IP **y** por email, porque el atacante
@@ -60,13 +62,13 @@ export async function loginAdmin(formData: FormData): Promise<LoginResult> {
     const minutes = Math.ceil(seconds / 60);
     return {
       ok: false,
-      error: `Demasiados intentos. Esperá ${minutes} ${minutes === 1 ? "minuto" : "minutos"}.`,
+      error: tPlural("adminError.login.demasiados", minutes),
     };
   }
 
   const user = await authenticate(parsed.data.email, parsed.data.password);
   if (!user) {
-    return { ok: false, error: GENERIC_ERROR };
+    return { ok: false, error: genericError() };
   }
 
   // Entró: se le devuelven los intentos para que un login legítimo después de

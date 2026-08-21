@@ -9,7 +9,7 @@ import { getDb, getPool } from '@/db';
 import { applySchemaExtras } from '@/db/extras';
 import { setupState, users } from '@/db/schema';
 import { createUser, normalizeEmail } from '@/lib/auth';
-import { hashPassword, validatePasswordStrength } from '@/lib/password';
+import { hashPassword, passwordStrengthMessage, validatePasswordStrength } from '@/lib/password';
 import { SETUP_LIMIT, SETUP_WINDOW_MS, clientIp, rateLimit } from '@/lib/rate-limit';
 
 /**
@@ -111,7 +111,7 @@ export async function POST(request: Request): Promise<Response> {
   if (input.owner) {
     const strength = validatePasswordStrength(input.owner.password);
     if (!strength.ok) {
-      return json({ error: 'password_debil', detalle: strength.reason }, 400);
+      return json({ error: 'password_debil', detalle: passwordStrengthMessage(strength.reason) }, 400);
     }
   }
 

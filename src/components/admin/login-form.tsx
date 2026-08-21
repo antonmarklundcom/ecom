@@ -6,6 +6,7 @@ import { loginAdmin } from "@/app/actions/admin-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/i18n";
 
 export function LoginForm({ next }: { next: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export function LoginForm({ next }: { next: string }) {
       ) : null}
 
       <div className="grid gap-1.5">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">{t("panel.login.email")}</Label>
         <Input
           id="email"
           name="email"
@@ -51,7 +52,7 @@ export function LoginForm({ next }: { next: string }) {
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password">{t("panel.login.password")}</Label>
         <Input
           id="password"
           name="password"
@@ -62,7 +63,7 @@ export function LoginForm({ next }: { next: string }) {
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Entrando…" : "Entrar"}
+        {isPending ? t("panel.login.entrando") : t("panel.login.entrar")}
       </Button>
     </form>
   );

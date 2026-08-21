@@ -15,6 +15,7 @@ import {
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
 /**
  * ABM de zonas de envío (PLAN.md FASE 2, PR K). **Todas owner-only.**
@@ -36,12 +37,12 @@ import {
 const CitiesSchema = z.array(z.string()).max(400);
 
 const ZoneDataSchema = z.object({
-  name: z.string().trim().min(1, "Poné el nombre de la zona").max(160),
+  name: z.string().trim().min(1, t("adminForm.nombreZona")).max(160),
   slug: z.string().trim().max(120).optional(),
   cities: CitiesSchema,
-  pricePyg: z.number().int("El precio va en guaraníes enteros").min(0),
+  pricePyg: z.number().int(t("adminForm.precioEntero")).min(0),
   /** `null` explícito = esta zona no ofrece envío gratis. */
-  freeThresholdPyg: z.number().int("El umbral va en guaraníes enteros").positive().nullable(),
+  freeThresholdPyg: z.number().int(t("adminForm.umbralEntero")).positive().nullable(),
 });
 
 export async function crearZonaEnvio(input: unknown): Promise<AdminActionResult<{ id: number }>> {
@@ -50,7 +51,7 @@ export async function crearZonaEnvio(input: unknown): Promise<AdminActionResult<
 
     const parsed = ZoneDataSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     const created = await createShippingZone({
@@ -80,7 +81,7 @@ export async function editarZonaEnvio(input: unknown): Promise<AdminActionResult
 
     const parsed = UpdateSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     await updateShippingZone({
@@ -112,7 +113,7 @@ export async function cambiarEstadoZonaEnvio(input: unknown): Promise<AdminActio
     await requireOwnerSession();
 
     const parsed = ActiveSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: "No entendí qué zona cambiar." };
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.zona") };
 
     await setShippingZoneActive({
       zoneId: parsed.data.zoneId,
@@ -137,7 +138,7 @@ export async function moverZonaEnvio(input: unknown): Promise<AdminActionResult>
     await requireOwnerSession();
 
     const parsed = MoveSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: "No entendí hacia dónde mover." };
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.mover") };
 
     await moveShippingZone({
       zoneId: parsed.data.zoneId,

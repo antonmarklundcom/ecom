@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import { CategoriesManager } from "@/components/admin/categories-manager";
 import { listAdminCategories } from "@/domain/admin-categories";
 import { requireCapabilityPage } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
-export const metadata: Metadata = { title: "Categorías" };
+export const metadata: Metadata = { title: t("panel.categorias.meta") };
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +22,9 @@ export default async function AdminCategoriesPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Categorías</h1>
+      <h1 className="text-xl font-semibold tracking-tight">{t("panel.categorias.titulo")}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        El menú de la tienda, en el orden en que se ve. Nada se borra: una
-        categoría se desactiva, y con ella dejan de verse sus productos hasta
-        que la vuelvas a prender.
+        {t("panel.categorias.bajada")}
       </p>
 
       <div className="mt-6">

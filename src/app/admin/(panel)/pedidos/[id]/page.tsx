@@ -15,8 +15,9 @@ import { formatGs, ivaIncluded } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { VENDEDOR_TRANSITIONS } from "@/lib/session";
 import { formatDateTimePY, formatPhonePY } from "@/lib/py";
+import { t } from "@/i18n";
 
-export const metadata: Metadata = { title: "Pedido" };
+export const metadata: Metadata = { title: t("panel.pedido.meta") };
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   return (
     <div>
       <Link href="/admin/pedidos" className="text-muted-foreground text-sm">
-        ← Pedidos
+        {t("panel.porCobrar.volver")}
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -75,7 +76,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
             rel="noopener noreferrer"
             className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
           >
-            Escribir por WhatsApp
+            {t("panel.pedido.escribir")}
           </a>
         ) : null}
         {recoveryHref ? (
@@ -85,7 +86,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
             rel="noopener noreferrer"
             className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
           >
-            Mandar datos para pagar
+            {t("panel.pedido.mandarDatos")}
           </a>
         ) : null}
       </div>
@@ -95,18 +96,18 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
           es un dato que se descubre después de cerrar la caja. */}
       {order.isGift ? (
         <section className="border-border bg-muted/40 mt-4 rounded-lg border p-3">
-          <h2 className="text-sm font-medium">Es un regalo</h2>
+          <h2 className="text-sm font-medium">{t("panel.pedido.esRegalo")}</h2>
           {order.giftNote ? (
             <p className="mt-1 text-sm whitespace-pre-line">“{order.giftNote}”</p>
           ) : (
-            <p className="text-muted-foreground mt-1 text-sm">Sin mensaje para la tarjeta.</p>
+            <p className="text-muted-foreground mt-1 text-sm">{t("panel.pedido.sinMensaje")}</p>
           )}
         </section>
       ) : null}
 
       {receipts.length > 0 && verComprobantes ? (
         <section className="mt-6">
-          <h2 className="font-medium">Comprobantes</h2>
+          <h2 className="font-medium">{t("panel.pedido.comprobantes")}</h2>
           <div className="mt-2">
             <ReceiptReview
               receipts={receipts.map((receipt) => ({
@@ -129,7 +130,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         unidades, que es exactamente su trabajo.
       */}
       <section className="mt-6">
-        <h2 className="font-medium">Ítems</h2>
+        <h2 className="font-medium">{t("panel.pedido.items")}</h2>
         <ul className="divide-border mt-2 divide-y text-sm">
           {items.map((item) => (
             <li key={item.id} className="flex justify-between gap-4 py-2">
@@ -138,7 +139,12 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
                 <span className="text-muted-foreground"> × {item.qty}</span>
                 <span className="text-muted-foreground block text-xs">
                   {item.skuSnapshot}
-                  {verPrecios ? ` · ${formatGs(item.unitPricePyg)} c/u · IVA ${item.ivaRate}%` : ""}
+                  {verPrecios
+                    ? t("panel.pedido.itemDetalle", {
+                        precio: formatGs(item.unitPricePyg),
+                        tasa: item.ivaRate,
+                      })
+                    : ""}
                 </span>
               </span>
               {verPrecios ? (
@@ -151,19 +157,21 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         {verPrecios ? (
           <>
             <dl className="border-border mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-sm">
-              <dt className="text-muted-foreground">Subtotal</dt>
+              <dt className="text-muted-foreground">{t("panel.pedido.subtotal")}</dt>
               <dd className="text-right tabular-nums">{formatGs(order.subtotalPyg)}</dd>
               {order.discountPyg > 0 ? (
                 <>
                   <dt className="text-muted-foreground">
-                    Descuento{order.couponCode ? ` — ${order.couponCode}` : ""}
+                    {order.couponCode
+                      ? t("panel.pedido.descuentoCon", { codigo: order.couponCode })
+                      : t("panel.pedido.descuento")}
                   </dt>
                   <dd className="text-right tabular-nums">−{formatGs(order.discountPyg)}</dd>
                 </>
               ) : null}
-              <dt className="text-muted-foreground">Envío</dt>
+              <dt className="text-muted-foreground">{t("panel.pedido.envio")}</dt>
               <dd className="text-right tabular-nums">{formatGs(order.shippingPyg)}</dd>
-              <dt className="font-medium">Total</dt>
+              <dt className="font-medium">{t("panel.pedido.total")}</dt>
               <dd className="text-right font-semibold tabular-nums">{formatGs(order.totalPyg)}</dd>
             </dl>
 
@@ -171,13 +179,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
             desglose de lo que ya se cobró, no algo que se suma. */}
             <dl className="border-border bg-muted/40 mt-3 grid grid-cols-2 gap-1 rounded-lg border p-3 text-xs">
               <dt className="text-muted-foreground col-span-2 font-medium">
-                IVA incluido en el total
+                {t("panel.pedido.ivaIncluido")}
               </dt>
-              <dt className="text-muted-foreground">IVA 10%</dt>
+              <dt className="text-muted-foreground">{t("panel.pedido.iva10")}</dt>
               <dd className="text-right tabular-nums">{formatGs(order.iva10Pyg)}</dd>
-              <dt className="text-muted-foreground">IVA 5%</dt>
+              <dt className="text-muted-foreground">{t("panel.pedido.iva5")}</dt>
               <dd className="text-right tabular-nums">{formatGs(order.iva5Pyg)}</dd>
-              <dt className="text-muted-foreground">Gravado</dt>
+              <dt className="text-muted-foreground">{t("panel.pedido.gravado")}</dt>
               <dd className="text-right tabular-nums">
                 {formatGs(order.totalPyg - order.iva10Pyg - order.iva5Pyg)}
               </dd>
@@ -185,13 +193,16 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
 
             <details className="mt-2">
               <summary className="text-muted-foreground cursor-pointer text-xs">
-                Ver IVA por línea
+                {t("panel.pedido.ivaPorLinea")}
               </summary>
               <ul className="text-muted-foreground mt-2 space-y-1 text-xs">
                 {items.map((item) => (
                   <li key={item.id} className="flex justify-between gap-4">
                     <span>
-                      {item.nameSnapshot} · IVA {item.ivaRate}%
+                      {t("panel.pedido.lineaIva", {
+                        nombre: item.nameSnapshot,
+                        tasa: item.ivaRate,
+                      })}
                     </span>
                     <span className="tabular-nums">
                       {formatGs(ivaIncluded(item.lineTotalPyg, item.ivaRate))}
@@ -205,37 +216,40 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       </section>
 
       <section className="mt-6">
-        <h2 className="font-medium">Cliente</h2>
+        <h2 className="font-medium">{t("panel.pedido.cliente")}</h2>
         <dl className="mt-2 grid gap-1 text-sm">
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Nombre</dt>
+            <dt className="text-muted-foreground">{t("panel.pedido.nombre")}</dt>
             <dd className="text-right">{order.customerName}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">WhatsApp</dt>
+            <dt className="text-muted-foreground">{t("panel.pedido.whatsapp")}</dt>
             <dd className="text-right tabular-nums">{formatPhonePY(order.customerPhone)}</dd>
           </div>
           {order.customerEmail ? (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Email</dt>
+              <dt className="text-muted-foreground">{t("panel.pedido.email")}</dt>
               <dd className="text-right break-all">{order.customerEmail}</dd>
             </div>
           ) : null}
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Documento</dt>
+            <dt className="text-muted-foreground">{t("panel.pedido.documento")}</dt>
             <dd className="text-right tabular-nums">
               {order.docType === "NINGUNO"
-                ? "Consumidor final"
-                : `${order.docType} ${order.docNumber ?? ""}`}
+                ? t("panel.pedido.consumidorFinal")
+                : t("panel.pedido.docConNumero", {
+                    tipo: order.docType,
+                    numero: order.docNumber ?? "",
+                  })}
             </dd>
           </div>
           {/* Se muestra sólo si contestó: en los pedidos anteriores a la
               casilla la columna es NULL, y "no se preguntó" no es un "no". */}
           {order.marketingOptIn !== null ? (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Novedades</dt>
+              <dt className="text-muted-foreground">{t("panel.pedido.novedades")}</dt>
               <dd className="text-right">
-                {order.marketingOptIn ? "Acepta" : "No acepta"}
+                {order.marketingOptIn ? t("panel.pedido.acepta") : t("panel.pedido.noAcepta")}
                 {order.marketingOptInAt ? (
                   <span className="text-muted-foreground block text-xs tabular-nums">
                     {formatDateTimePY(order.marketingOptInAt)}
@@ -245,13 +259,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
             </div>
           ) : null}
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Envío</dt>
+            <dt className="text-muted-foreground">{t("panel.pedido.envio")}</dt>
             <dd className="max-w-[60%] text-right">
               {order.shipAddress}
               {order.shipBarrio ? `, ${order.shipBarrio}` : ""}, {order.shipCity}
               {order.shipReference ? (
                 <span className="text-muted-foreground block text-xs">
-                  Ref: {order.shipReference}
+                  {t("panel.pedido.referencia", { referencia: order.shipReference })}
                 </span>
               ) : null}
             </dd>
@@ -260,15 +274,15 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       </section>
 
       <section className="mt-6">
-        <h2 className="font-medium">Cambiar estado</h2>
+        <h2 className="font-medium">{t("panel.pedido.cambiarEstado")}</h2>
         {nextStatuses.length === 0 ? (
           // Dos motivos distintos para no tener botones, y decir el que no es
           // manda a alguien a buscar un problema que no existe: el pedido
           // terminó, o este rol no despacha desde acá.
           <p className="text-muted-foreground mt-2 text-sm">
             {ORDER_TRANSITIONS[order.status].length === 0
-              ? "Este pedido está en un estado final: ya no se puede mover."
-              : "Tu usuario no puede mover este pedido desde este estado."}
+              ? t("panel.pedido.estadoFinal")
+              : t("panel.pedido.sinPermiso")}
           </p>
         ) : (
           <div className="mt-2">
@@ -278,7 +292,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       </section>
 
       <section className="mt-6">
-        <h2 className="font-medium">Historial</h2>
+        <h2 className="font-medium">{t("panel.pedido.historial")}</h2>
         <ol className="mt-2 space-y-2 text-sm">
           {events.map((event) => (
             <li key={event.id} className="border-border flex flex-wrap gap-x-3 border-b pb-2">
@@ -286,12 +300,16 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
                 {formatDateTimePY(event.createdAt)}
               </span>
               <span>
-                {event.fromStatus ? `${ORDER_STATUS_LABEL[event.fromStatus]} → ` : ""}
+                {event.fromStatus
+                  ? t("panel.pedido.transicionDesde", {
+                      estado: ORDER_STATUS_LABEL[event.fromStatus],
+                    })
+                  : ""}
                 {ORDER_STATUS_LABEL[event.toStatus]}
               </span>
               <span className="text-muted-foreground w-full text-xs">
                 {event.actor}
-                {event.reason ? ` · ${event.reason}` : ""}
+                {event.reason ? t("panel.pedido.motivoEvento", { motivo: event.reason }) : ""}
               </span>
             </li>
           ))}

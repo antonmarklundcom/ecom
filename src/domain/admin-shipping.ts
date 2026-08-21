@@ -1,7 +1,11 @@
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
+import type { MessageKey, Params } from '@/i18n';
+
+import { DomainError } from './errors';
 
 import { getDb } from '@/db';
 import { shippingZones } from '@/db/schema';
+import { t } from '@/i18n';
 import { parseCityList } from '@/lib/city-list';
 import { assertGs } from '@/lib/money';
 import { slugify } from '@/lib/slug';
@@ -41,9 +45,9 @@ import { normalizeCity } from './shipping';
  *    que cobra ₲35.000 llegue ahí de un clic, no.
  */
 
-export class AdminShippingError extends Error {
-  constructor(message: string) {
-    super(message);
+export class AdminShippingError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = 'AdminShippingError';
   }
 }
@@ -105,14 +109,14 @@ type ZonaNormalizada = {
 
 function normalizar(input: ShippingZoneInput): ZonaNormalizada {
   const name = input.name.trim().replace(/\s+/g, ' ');
-  if (name.length < 2) throw new AdminShippingError('El nombre necesita al menos 2 caracteres.');
-  if (name.length > 160) throw new AdminShippingError('El nombre no puede pasar los 160 caracteres.');
+  if (name.length < 2) throw new AdminShippingError('adminError.envio.nombreCorto');
+  if (name.length > 160) throw new AdminShippingError('adminError.envio.nombreLargo');
 
   const slug = slugify(input.slug?.trim() || name);
   if (slug.length === 0) {
-    throw new AdminShippingError('De ese nombre no sale ningún identificador. Escribí el slug a mano.');
+    throw new AdminShippingError('adminError.envio.sinSlug');
   }
-  if (slug.length > 120) throw new AdminShippingError('El slug no puede pasar los 120 caracteres.');
+  if (slug.length > 120) throw new AdminShippingError('adminError.envio.slugLargo');
 
   // Se guarda la ciudad **como la escribió el dueño** —"Fernando de la Mora"
   // es lo que va a leer la compradora en el checkout— y se compara por su
@@ -123,7 +127,9 @@ function normalizar(input: ShippingZoneInput): ZonaNormalizada {
     const city = raw.trim().replace(/\s+/g, ' ');
     if (city.length === 0) continue;
     if (city.length > 120) {
-      throw new AdminShippingError(`"${city.slice(0, 30)}…" es demasiado largo para una ciudad.`);
+      throw new AdminShippingError('adminError.envio.ciudadLarga', {
+        ciudad: city.slice(0, 30),
+      });
     }
     // `set` a secas pisaría el valor: entre "LAMBARÉ" y "lambare" quedaría la
     // última, y lo que la compradora tiene que leer en el checkout es la
@@ -133,17 +139,14 @@ function normalizar(input: ShippingZoneInput): ZonaNormalizada {
   }
   const cities = [...vistas.values()];
 
-  const pricePyg = exigirGuaranies(input.pricePyg, 'El precio del envío');
-  if (pricePyg < 0) throw new AdminShippingError('El precio del envío no puede ser negativo.');
+  const pricePyg = exigirGuaranies(input.pricePyg, t('adminError.envio.precioLabel'));
+  if (pricePyg < 0) throw new AdminShippingError('adminError.envio.precioNegativo');
 
   let freeThresholdPyg: number | null = null;
   if (input.freeThresholdPyg !== null) {
-    freeThresholdPyg = exigirGuaranies(input.freeThresholdPyg, 'El umbral de envío gratis');
+    freeThresholdPyg = exigirGuaranies(input.freeThresholdPyg, t('adminError.envio.umbralLabel'));
     if (freeThresholdPyg <= 0) {
-      throw new AdminShippingError(
-        'Un umbral de ₲0 haría gratis todos los envíos de la zona. Si es lo que querés, ' +
-          'poné el precio en ₲0 y dejá el umbral vacío.',
-      );
+      throw new AdminShippingError('adminError.envio.umbralCero');
     }
   }
 
@@ -156,9 +159,11 @@ function normalizar(input: ShippingZoneInput): ZonaNormalizada {
  * guaraníes, recibí 35000.5". Acá se traduce, sin dejar de validar.
  */
 function exigirGuaranies(value: number, label: string): number {
-  if (!Number.isFinite(value)) throw new AdminShippingError(`${label} tiene que ser un número.`);
+  if (!Number.isFinite(value)) {
+    throw new AdminShippingError('adminError.envio.noEsNumero', { campo: label });
+  }
   if (!Number.isInteger(value)) {
-    throw new AdminShippingError(`${label} va en guaraníes enteros, sin centavos.`);
+    throw new AdminShippingError('adminError.envio.noEsEntero', { campo: label });
   }
   return assertGs(value, label);
 }
@@ -193,10 +198,10 @@ async function exigirCiudadesLibres(
   for (const city of cities) {
     const dueña = tomadas.get(normalizeCity(city));
     if (dueña !== undefined) {
-      throw new AdminShippingError(
-        `"${city}" ya está en la zona "${dueña}". Una ciudad va en una sola zona: ` +
-          'con dos, el precio del envío depende del orden de las zonas y nadie se entera.',
-      );
+      throw new AdminShippingError('adminError.envio.ciudadRepetida', {
+        ciudad: city,
+        zona: dueña,
+      });
     }
   }
 }
@@ -212,7 +217,7 @@ export async function createShippingZone(
       .from(shippingZones)
       .where(eq(shippingZones.slug, zona.slug))
       .limit(1);
-    if (existing[0]) throw new AdminShippingError(`Ya hay una zona con el identificador "${zona.slug}".`);
+    if (existing[0]) throw new AdminShippingError('adminError.envio.slugRepetido', { slug: zona.slug });
 
     await exigirCiudadesLibres(tx, zona.cities, null);
 
@@ -235,7 +240,7 @@ export async function createShippingZone(
       .where(eq(shippingZones.slug, zona.slug))
       .limit(1);
     const row = created[0];
-    if (!row) throw new AdminShippingError('No pude crear la zona.');
+    if (!row) throw new AdminShippingError('adminError.envio.noPude');
     return toRow(row);
   });
 }
@@ -263,14 +268,14 @@ export async function updateShippingZone(input: {
       .limit(1)
       .for('update');
     const actual = rows[0];
-    if (!actual) throw new AdminShippingError('Esa zona no existe.');
+    if (!actual) throw new AdminShippingError('adminError.envio.noExiste');
 
     const choque = await tx
       .select({ id: shippingZones.id })
       .from(shippingZones)
       .where(and(eq(shippingZones.slug, zona.slug), ne(shippingZones.id, actual.id)))
       .limit(1);
-    if (choque[0]) throw new AdminShippingError(`Ya hay otra zona con el identificador "${zona.slug}".`);
+    if (choque[0]) throw new AdminShippingError('adminError.envio.slugRepetidoOtra', { slug: zona.slug });
 
     await exigirCiudadesLibres(tx, zona.cities, actual.id);
 
@@ -304,7 +309,7 @@ export async function setShippingZoneActive(input: {
       .limit(1)
       .for('update');
     const zona = rows[0];
-    if (!zona) throw new AdminShippingError('Esa zona no existe.');
+    if (!zona) throw new AdminShippingError('adminError.envio.noExiste');
     if (zona.isActive === input.isActive) return;
 
     if (!input.isActive) {
@@ -315,11 +320,7 @@ export async function setShippingZoneActive(input: {
         .for('update');
 
       if (otras.length === 0) {
-        throw new AdminShippingError(
-          'Es la última zona activa: sin ninguna, la tienda pasa a cobrar ₲0 de envío a todo el ' +
-            'país sin avisar en ninguna pantalla. Si querés dejar de cobrar el flete, poné el ' +
-            'precio de esta zona en ₲0.',
-        );
+        throw new AdminShippingError('adminError.envio.ultimaActiva');
       }
     }
 
@@ -350,7 +351,7 @@ export async function moveShippingZone(input: {
       .for('update');
 
     const index = rows.findIndex((row) => row.id === input.zoneId);
-    if (index === -1) throw new AdminShippingError('Esa zona no existe.');
+    if (index === -1) throw new AdminShippingError('adminError.envio.noExiste');
 
     const target = input.direction === 'up' ? index - 1 : index + 1;
     if (target >= 0 && target < rows.length) {

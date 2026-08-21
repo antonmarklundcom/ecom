@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import { ShippingZonesManager } from "@/components/admin/shipping-zones-manager";
 import { listAdminShippingZones } from "@/domain/admin-shipping";
 import { requireCapabilityPage } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
-export const metadata: Metadata = { title: "Envíos" };
+export const metadata: Metadata = { title: t("panel.envios.meta") };
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +26,9 @@ export default async function AdminShippingPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Zonas de envío</h1>
+      <h1 className="text-xl font-semibold tracking-tight">{t("panel.envios.titulo")}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        Cuánto sale el flete a cada ciudad. Lo que cambies acá se cotiza de los
-        próximos pedidos en adelante — los que ya se hicieron conservan el envío
-        que la compradora aceptó pagar.
+        {t("panel.envios.bajada")}
       </p>
 
       <div className="mt-6">

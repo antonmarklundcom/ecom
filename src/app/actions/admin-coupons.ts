@@ -16,6 +16,7 @@ import {
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
+import { t } from "@/i18n";
 
 /**
  * ABM de cupones (PLAN.md FASE 2, PR G.4). **Owner-only.**
@@ -30,11 +31,11 @@ import { parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
  */
 
 const CouponSchema = z.object({
-  code: z.string().trim().min(3, "El código necesita al menos 3 caracteres").max(40),
+  code: z.string().trim().min(3, t("adminForm.codigoCupon")).max(40),
   type: z.enum(COUPON_TYPES),
   // Entero y nada más: es un porcentaje (1..100) o guaraníes enteros. Un float
   // acá es el principio de un descuento que no cuadra.
-  value: z.number().int("El valor va en enteros").positive(),
+  value: z.number().int(t("adminForm.valorEntero")).positive(),
   minOrderPyg: z.number().int().nonnegative().nullable().optional(),
   desde: z.string().trim().optional(),
   hasta: z.string().trim().optional(),
@@ -67,7 +68,7 @@ export async function crearCupon(input: unknown): Promise<AdminActionResult<{ id
 
     const parsed = CouponSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     const id = await createCoupon(toInput(parsed.data));
@@ -89,7 +90,7 @@ export async function editarCupon(input: unknown): Promise<AdminActionResult> {
 
     const parsed = EditSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     await updateCoupon(parsed.data.id, toInput(parsed.data));
@@ -113,7 +114,7 @@ export async function cambiarEstadoCupon(input: unknown): Promise<AdminActionRes
     await requireOwnerSession();
 
     const parsed = ToggleSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: "No entendí qué cupón cambiar." };
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.cupon") };
 
     await setCouponActive(parsed.data.id, parsed.data.isActive);
 

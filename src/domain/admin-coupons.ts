@@ -1,4 +1,7 @@
 import { and, count, desc, eq, sql } from 'drizzle-orm';
+import type { MessageKey, Params } from '@/i18n';
+
+import { DomainError } from './errors';
 
 import { getDb } from '@/db';
 import { coupons, orders, type CouponType } from '@/db/schema';
@@ -14,9 +17,9 @@ import type { Executor } from './executor';
  * confiar al formulario porque son sobre plata.
  */
 
-export class AdminCouponError extends Error {
-  constructor(message: string) {
-    super(message);
+export class AdminCouponError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = 'AdminCouponError';
   }
 }
@@ -104,14 +107,14 @@ export type CouponInput = {
  */
 function validate(input: CouponInput): void {
   const code = normalizeCouponCode(input.code);
-  if (code.length < 3) throw new AdminCouponError('El código necesita al menos 3 caracteres.');
+  if (code.length < 3) throw new AdminCouponError('adminError.cupon.codigoCorto');
 
   if (!Number.isInteger(input.value) || input.value <= 0) {
-    throw new AdminCouponError('El valor tiene que ser un entero mayor que cero.');
+    throw new AdminCouponError('adminError.cupon.valor');
   }
 
   if (input.type === 'porcentaje' && input.value > 100) {
-    throw new AdminCouponError('Un porcentaje no puede pasar de 100.');
+    throw new AdminCouponError('adminError.cupon.porcentaje');
   }
 
   if (input.type === 'monto_fijo') {
@@ -121,18 +124,18 @@ function validate(input: CouponInput): void {
   if (input.minOrderPyg != null) assertGs(input.minOrderPyg, 'mínimo de compra');
 
   if (input.startsAt && input.endsAt && input.startsAt > input.endsAt) {
-    throw new AdminCouponError('La fecha de inicio es posterior a la de fin.');
+    throw new AdminCouponError('adminError.cupon.fechas');
   }
 
   if (input.maxUses != null && (!Number.isInteger(input.maxUses) || input.maxUses < 1)) {
-    throw new AdminCouponError('El tope de usos tiene que ser un entero mayor que cero.');
+    throw new AdminCouponError('adminError.cupon.topeUsos');
   }
 
   if (
     input.maxUsesPerCustomer != null &&
     (!Number.isInteger(input.maxUsesPerCustomer) || input.maxUsesPerCustomer < 1)
   ) {
-    throw new AdminCouponError('El tope por cliente tiene que ser un entero mayor que cero.');
+    throw new AdminCouponError('adminError.cupon.topeCliente');
   }
 }
 
@@ -142,7 +145,7 @@ export async function createCoupon(input: CouponInput): Promise<number> {
 
   return getDb().transaction(async (tx) => {
     const existing = await tx.select({ id: coupons.id }).from(coupons).where(eq(coupons.code, code)).limit(1);
-    if (existing[0]) throw new AdminCouponError('Ya existe un cupón con ese código.');
+    if (existing[0]) throw new AdminCouponError('adminError.cupon.codigoRepetido');
 
     await tx.insert(coupons).values({
       code,
@@ -159,7 +162,7 @@ export async function createCoupon(input: CouponInput): Promise<number> {
 
     const created = await tx.select({ id: coupons.id }).from(coupons).where(eq(coupons.code, code)).limit(1);
     const id = created[0]?.id;
-    if (!id) throw new AdminCouponError('No pude crear el cupón.');
+    if (!id) throw new AdminCouponError('adminError.cupon.noPude');
     return id;
   });
 }
@@ -181,7 +184,7 @@ export async function updateCoupon(id: number, input: CouponInput): Promise<void
   return getDb().transaction(async (tx) => {
     const rows = await tx.select().from(coupons).where(eq(coupons.id, id)).limit(1).for('update');
     const current = rows[0];
-    if (!current) throw new AdminCouponError('Ese cupón no existe.');
+    if (!current) throw new AdminCouponError('adminError.cupon.noExiste');
 
     const used = await tx
       .select({ n: count() })
@@ -190,10 +193,7 @@ export async function updateCoupon(id: number, input: CouponInput): Promise<void
     const yaSeUso = Number(used[0]?.n ?? 0) > 0;
 
     if (yaSeUso && (code !== current.code || input.type !== current.type || input.value !== current.value)) {
-      throw new AdminCouponError(
-        'Ese cupón ya se usó en pedidos reales: no se le puede cambiar el código ni el descuento. ' +
-          'Desactivalo y creá uno nuevo.',
-      );
+      throw new AdminCouponError('adminError.cupon.yaUsado');
     }
 
     const duplicate = await tx
@@ -201,7 +201,7 @@ export async function updateCoupon(id: number, input: CouponInput): Promise<void
       .from(coupons)
       .where(and(eq(coupons.code, code), sql`${coupons.id} <> ${id}`))
       .limit(1);
-    if (duplicate[0]) throw new AdminCouponError('Ya existe otro cupón con ese código.');
+    if (duplicate[0]) throw new AdminCouponError('adminError.cupon.codigoRepetidoOtro');
 
     await tx
       .update(coupons)
@@ -229,7 +229,7 @@ export async function updateCoupon(id: number, input: CouponInput): Promise<void
 export async function setCouponActive(id: number, isActive: boolean): Promise<void> {
   const db = getDb();
   const rows = await db.select({ id: coupons.id }).from(coupons).where(eq(coupons.id, id)).limit(1);
-  if (!rows[0]) throw new AdminCouponError('Ese cupón no existe.');
+  if (!rows[0]) throw new AdminCouponError('adminError.cupon.noExiste');
 
   await db.update(coupons).set({ isActive }).where(eq(coupons.id, id));
 }

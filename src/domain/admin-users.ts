@@ -3,8 +3,11 @@ import { and, asc, count, eq, ne } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { users, type UserRole } from '@/db/schema';
 import { normalizeEmail } from '@/lib/auth';
-import { hashPassword, validatePasswordStrength } from '@/lib/password';
+import { MIN_PASSWORD_LENGTH, hashPassword, validatePasswordStrength } from '@/lib/password';
 
+import type { MessageKey, Params } from '@/i18n';
+
+import { DomainError } from './errors';
 import type { Executor } from './executor';
 
 /**
@@ -22,9 +25,9 @@ import type { Executor } from './executor';
  * rápido —`authenticate()` lo rechaza— y conserva la auditoría.
  */
 
-export class AdminUserError extends Error {
-  constructor(message: string) {
-    super(message);
+export class AdminUserError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = 'AdminUserError';
   }
 }
@@ -78,14 +81,17 @@ export async function createAdminUser(input: {
   role: UserRole;
 }): Promise<AdminUserRow> {
   const email = normalizeEmail(input.email);
-  if (!email.includes('@')) throw new AdminUserError('Revisá el email.');
+  if (!email.includes('@')) throw new AdminUserError('adminError.usuario.email');
 
+  // `strength.reason` ya es una clave del catálogo, así que se relanza tal
+  // cual: el motivo concreto ("al menos 10 caracteres") es lo que le sirve a
+  // quien está eligiendo la contraseña.
   const strength = validatePasswordStrength(input.password);
-  if (!strength.ok) throw new AdminUserError(strength.reason ?? 'Contraseña demasiado débil.');
+  if (!strength.ok) throw new AdminUserError(strength.reason, { minimo: MIN_PASSWORD_LENGTH });
 
   return getDb().transaction(async (tx) => {
     const existing = await tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-    if (existing[0]) throw new AdminUserError('Ya hay un usuario con ese email.');
+    if (existing[0]) throw new AdminUserError('adminError.usuario.emailRepetido');
 
     await tx.insert(users).values({
       email,
@@ -96,7 +102,7 @@ export async function createAdminUser(input: {
 
     const created = await tx.select().from(users).where(eq(users.email, email)).limit(1);
     const row = created[0];
-    if (!row) throw new AdminUserError('No pude crear el usuario.');
+    if (!row) throw new AdminUserError('adminError.usuario.noPude');
 
     return {
       id: row.id,
@@ -126,21 +132,16 @@ export async function setAdminUserActive(input: {
   actingUserId: number;
 }): Promise<void> {
   if (input.userId === input.actingUserId && !input.isActive) {
-    throw new AdminUserError(
-      'No podés desactivar tu propia cuenta: quedarías afuera del panel sin forma de volver.',
-    );
+    throw new AdminUserError('adminError.usuario.noTeDesactives');
   }
 
   return getDb().transaction(async (tx) => {
     const rows = await tx.select().from(users).where(eq(users.id, input.userId)).limit(1).for('update');
     const user = rows[0];
-    if (!user) throw new AdminUserError('Ese usuario no existe.');
+    if (!user) throw new AdminUserError('adminError.usuario.noExiste');
 
     if (!input.isActive && user.role === 'owner' && (await otrosOwnersActivos(tx, user.id)) === 0) {
-      throw new AdminUserError(
-        'Es el último dueño activo: la tienda quedaría sin nadie que pueda gestionar usuarios. ' +
-          'Nombrá otro dueño primero.',
-      );
+      throw new AdminUserError('adminError.usuario.ultimoDueno');
     }
 
     await tx.update(users).set({ isActive: input.isActive }).where(eq(users.id, user.id));
@@ -158,15 +159,13 @@ export async function setAdminUserRole(input: {
   actingUserId: number;
 }): Promise<void> {
   if (input.userId === input.actingUserId && input.role !== 'owner') {
-    throw new AdminUserError(
-      'No podés quitarte a vos mismo el rol de dueño: perderías el acceso a esta pantalla.',
-    );
+    throw new AdminUserError('adminError.usuario.noTeDegrades');
   }
 
   return getDb().transaction(async (tx) => {
     const rows = await tx.select().from(users).where(eq(users.id, input.userId)).limit(1).for('update');
     const user = rows[0];
-    if (!user) throw new AdminUserError('Ese usuario no existe.');
+    if (!user) throw new AdminUserError('adminError.usuario.noExiste');
     if (user.role === input.role) return;
 
     if (
@@ -175,10 +174,7 @@ export async function setAdminUserRole(input: {
       user.isActive &&
       (await otrosOwnersActivos(tx, user.id)) === 0
     ) {
-      throw new AdminUserError(
-        'Es el último dueño activo: si lo degradás, nadie puede volver a nombrar dueños. ' +
-          'Nombrá otro dueño primero.',
-      );
+      throw new AdminUserError('adminError.usuario.ultimoDuenoDegradar');
     }
 
     await tx.update(users).set({ role: input.role }).where(eq(users.id, user.id));
@@ -198,13 +194,13 @@ export async function resetAdminUserPassword(input: {
   password: string;
 }): Promise<void> {
   const strength = validatePasswordStrength(input.password);
-  if (!strength.ok) throw new AdminUserError(strength.reason ?? 'Contraseña demasiado débil.');
+  if (!strength.ok) throw new AdminUserError(strength.reason, { minimo: MIN_PASSWORD_LENGTH });
 
   const passwordHash = await hashPassword(input.password);
   const db = getDb();
 
   const rows = await db.select({ id: users.id }).from(users).where(eq(users.id, input.userId)).limit(1);
-  if (!rows[0]) throw new AdminUserError('Ese usuario no existe.');
+  if (!rows[0]) throw new AdminUserError('adminError.usuario.noExiste');
 
   await db.update(users).set({ passwordHash }).where(eq(users.id, input.userId));
 }

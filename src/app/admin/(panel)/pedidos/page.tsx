@@ -18,8 +18,9 @@ import { comercioWaLink } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
+import { t, tPlural } from "@/i18n";
 
-export const metadata: Metadata = { title: "Pedidos" };
+export const metadata: Metadata = { title: t("panel.pedidos.meta") };
 
 // El listado muestra estados que cambian a cada rato: nunca se cachea.
 export const dynamic = "force-dynamic";
@@ -60,17 +61,17 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Pedidos</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{t("panel.pedidos.titulo")}</h1>
         <div className="flex items-center gap-3">
           {/* El trabajo de cobrar es una tarea aparte de mirar el listado:
               tiene su pantalla y se llega de un toque. */}
           {can(actor.role, "pedidos.cobrar") ? (
             <Link href="/admin/pedidos/por-cobrar" className="text-sm underline">
-              Por cobrar
+              {t("panel.pedidos.porCobrar")}
             </Link>
           ) : null}
           <p className="text-muted-foreground text-sm tabular-nums">
-            {result.total} {result.total === 1 ? "pedido" : "pedidos"}
+            {tPlural("panel.pedidos.cuenta", result.total)}
           </p>
         </div>
       </div>
@@ -98,7 +99,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
 
       {result.rows.length === 0 ? (
         <p className="text-muted-foreground border-border mt-6 rounded-xl border border-dashed p-8 text-center text-sm">
-          No hay pedidos con esos filtros.
+          {t("panel.pedidos.sinResultados")}
         </p>
       ) : (
         // Tarjetas en vez de tabla: el dueño abre esto en el celular, y una
@@ -125,9 +126,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
                   {formatDateTimePY(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
                   {order.pendingReceipts > 0 ? (
                     <span className="text-foreground font-medium">
-                      {" "}
-                      · {order.pendingReceipts} comprobante
-                      {order.pendingReceipts === 1 ? "" : "s"} sin revisar
+                      {tPlural("panel.pedidos.comprobantes", order.pendingReceipts)}
                     </span>
                   ) : null}
                 </p>
@@ -154,7 +153,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
             params={{ estado: status, metodo: method, desde, hasta, q: search }}
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Baja los pedidos con los filtros puestos, no sólo esta página.
+            {t("panel.pedidos.csvAyuda")}
           </p>
         </div>
       ) : null}
@@ -184,20 +183,20 @@ function Pagination({
   };
 
   return (
-    <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label="Paginación">
+    <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label={t("nav.paginacion")}>
       {page > 1 ? (
         <Link href={href(page - 1)} className="border-border rounded-lg border px-3 py-2">
-          ← Anteriores
+          {t("panel.paginacion.anteriores")}
         </Link>
       ) : (
         <span />
       )}
       <span className="text-muted-foreground tabular-nums">
-        Página {page} de {totalPages}
+        {t("nav.pagina", { actual: page, total: totalPages })}
       </span>
       {page < totalPages ? (
         <Link href={href(page + 1)} className="border-border rounded-lg border px-3 py-2">
-          Siguientes →
+          {t("panel.paginacion.siguientes")}
         </Link>
       ) : (
         <span />
@@ -215,8 +214,13 @@ function NotifyOwnerLink({ order }: { order: AdminOrderRow }) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const adminUrl = `${siteUrl}/admin/pedidos/${order.id}`;
   const waHref = comercioWaLink(
-    `Pedido nuevo ${order.orderNumber} — ${order.customerName} — ${formatGs(order.totalPyg)} ` +
-      `(${PAYMENT_METHOD_LABEL[order.paymentMethod]}). Ver: ${adminUrl}`
+    t("panel.pedidos.avisoMensaje", {
+      numero: order.orderNumber,
+      cliente: order.customerName,
+      total: formatGs(order.totalPyg),
+      metodo: PAYMENT_METHOD_LABEL[order.paymentMethod],
+      url: adminUrl,
+    })
   );
   if (!waHref) return null;
 
@@ -228,7 +232,7 @@ function NotifyOwnerLink({ order }: { order: AdminOrderRow }) {
         rel="noopener noreferrer"
         className="text-muted-foreground hover:text-foreground text-xs"
       >
-        Avisar por WhatsApp →
+        {t("panel.pedidos.avisarWhatsApp")}
       </a>
     </div>
   );

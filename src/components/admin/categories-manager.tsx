@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { slugify } from "@/lib/slug";
+import { t, tPlural } from "@/i18n";
 
 export type AdminCategoryCard = {
   id: number;
@@ -37,15 +38,14 @@ export function CategoriesManager({ categories }: { categories: AdminCategoryCar
       ) : (
         <div>
           <Button type="button" onClick={() => setEditing("nueva")}>
-            Crear categoría
+            {t("panel.categoria.crear")}
           </Button>
         </div>
       )}
 
       {categories.length === 0 ? (
         <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
-          Todavía no hay categorías. Sin al menos una, no se puede cargar ningún
-          producto: cada producto pertenece a una.
+          {t("panel.categoria.vacio")}
         </p>
       ) : (
         <ul className="grid gap-3">
@@ -88,7 +88,7 @@ function CategoryRow({
     startTransition(async () => {
       const result = await action();
       if (!result.ok) {
-        setError(result.error ?? "No pudimos hacer eso.");
+        setError(result.error ?? t("panel.abm.noPudimos"));
         return;
       }
       toast.success(done);
@@ -103,13 +103,15 @@ function CategoryRow({
         <span className="font-medium">
           {category.name}
           {category.isActive ? null : (
-            <span className="text-muted-foreground font-normal"> · desactivada</span>
+            <span className="text-muted-foreground font-normal">
+              {t("panel.categoria.desactivada")}
+            </span>
           )}
         </span>
         <span className="text-muted-foreground text-sm tabular-nums">
-          {category.productos} producto{category.productos === 1 ? "" : "s"}
+          {tPlural("panel.categoria.productos", category.productos)}
           {category.publicados !== category.productos
-            ? ` · ${category.publicados} en la vidriera`
+            ? t("panel.categoria.enVidriera", { n: category.publicados })
             : ""}
         </span>
       </div>
@@ -136,25 +138,11 @@ function CategoryRow({
           sorpresa que se descubre por las ventas que no llegan.
         */
         <div className="border-border mt-3 grid gap-2 rounded-lg border p-3 text-sm">
-          <p className="font-medium">¿Desactivar “{category.name}”?</p>
+          <p className="font-medium">{t("panel.categoria.confirmar", { nombre: category.name })}</p>
           <p className="text-muted-foreground text-xs">
-            {category.publicados === 0 ? (
-              <>
-                No hay productos publicados en esta categoría, así que la
-                vidriera no cambia. Sólo desaparece del menú y{" "}
-                <span className="font-mono">/categoria/{category.slug}</span>{" "}
-                pasa a dar 404.
-              </>
-            ) : (
-              <>
-                Sus <strong>{category.publicados}</strong> producto
-                {category.publicados === 1 ? "" : "s"} publicado
-                {category.publicados === 1 ? "" : "s"} dejan de verse en toda la
-                tienda: home, buscador, sitemap y sus propias fichas. No se
-                borra nada — los productos quedan como están y vuelven solos
-                cuando reactivés la categoría.
-              </>
-            )}
+            {category.publicados === 0
+              ? t("panel.categoria.confirmar.sinPublicados", { slug: category.slug })
+              : tPlural("panel.categoria.confirmar.conPublicados", category.publicados)}
           </p>
           <div className="flex gap-2">
             <Button
@@ -164,11 +152,11 @@ function CategoryRow({
               onClick={() =>
                 run(
                   () => cambiarEstadoCategoria({ categoryId: category.id, isActive: false }),
-                  "Categoría desactivada.",
+                  t("panel.categoria.desactivadaOk"),
                 )
               }
             >
-              {isPending ? "Desactivando…" : "Sí, desactivar"}
+              {isPending ? t("panel.categoria.desactivando") : t("panel.categoria.siDesactivar")}
             </Button>
             <Button
               type="button"
@@ -177,14 +165,14 @@ function CategoryRow({
               disabled={isPending}
               onClick={() => setConfirmando(false)}
             >
-              Volver
+              {t("panel.acciones.volver")}
             </Button>
           </div>
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="outline" onClick={onEdit} disabled={isPending}>
-            Editar
+            {t("panel.abm.editar")}
           </Button>
 
           <Button
@@ -199,23 +187,23 @@ function CategoryRow({
               }
               run(
                 () => cambiarEstadoCategoria({ categoryId: category.id, isActive: true }),
-                "Categoría reactivada.",
+                t("panel.categoria.reactivadaOk"),
               );
             }}
           >
-            {category.isActive ? "Desactivar" : "Reactivar"}
+            {category.isActive ? t("panel.abm.desactivar") : t("panel.abm.reactivar")}
           </Button>
 
           <Button
             type="button"
             size="sm"
             variant="outline"
-            aria-label={`Subir ${category.name}`}
+            aria-label={t("panel.abm.subir", { nombre: category.name })}
             disabled={isPending || category.esPrimera}
             onClick={() =>
               run(
                 () => moverCategoria({ categoryId: category.id, direction: "up" }),
-                "Orden actualizado.",
+                t("panel.abm.ordenActualizado"),
               )
             }
           >
@@ -225,12 +213,12 @@ function CategoryRow({
             type="button"
             size="sm"
             variant="outline"
-            aria-label={`Bajar ${category.name}`}
+            aria-label={t("panel.abm.bajar", { nombre: category.name })}
             disabled={isPending || category.esUltima}
             onClick={() =>
               run(
                 () => moverCategoria({ categoryId: category.id, direction: "down" }),
-                "Orden actualizado.",
+                t("panel.abm.ordenActualizado"),
               )
             }
           >
@@ -282,14 +270,16 @@ function CategoryForm({
             setError(result.error);
             return;
           }
-          toast.success(category ? "Categoría actualizada." : "Categoría creada.");
+          toast.success(category ? t("panel.categoria.actualizada") : t("panel.categoria.creada"));
           onDone();
           router.refresh();
         });
       }}
     >
       <h2 className="font-medium">
-        {category ? `Editar ${category.name}` : "Nueva categoría"}
+        {category
+          ? t("panel.categoria.editarTitulo", { nombre: category.name })
+          : t("panel.categoria.nueva")}
       </h2>
 
       {error ? (
@@ -303,7 +293,7 @@ function CategoryForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="categoria-name">Nombre</Label>
+          <Label htmlFor="categoria-name">{t("panel.categoria.nombre")}</Label>
           <Input
             id="categoria-name"
             value={name}
@@ -317,12 +307,12 @@ function CategoryForm({
             }}
           />
           <p className="text-muted-foreground text-xs">
-            Lo que se lee en el menú de la tienda.
+            {t("panel.categoria.nombreAyuda")}
           </p>
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="categoria-slug">URL</Label>
+          <Label htmlFor="categoria-slug">{t("panel.categoria.url")}</Label>
           <Input
             id="categoria-slug"
             value={slug}
@@ -334,7 +324,7 @@ function CategoryForm({
             }}
           />
           <p className="text-muted-foreground text-xs break-all">
-            Queda <span className="font-mono">/categoria/{slugFinal || "…"}</span>
+            {t("panel.categoria.urlPreview", { slug: slugFinal || "…" })}
           </p>
         </div>
       </div>
@@ -346,20 +336,20 @@ function CategoryForm({
           redirección posible y la URL anterior pasa a 404 para siempre.
         */
         <p className="border-border rounded-lg border p-3 text-xs">
-          Estás cambiando la URL. La anterior (
-          <span className="font-mono break-all">/categoria/{category?.slug}</span>) va a
-          dar 404: los links compartidos por WhatsApp y lo que Google tenga
-          indexado dejan de funcionar. El nombre se puede cambiar sin tocar la
-          URL — para eso son dos campos.
+          {t("panel.categoria.avisoUrl", { slug: category?.slug ?? "" })}
         </p>
       ) : null}
 
       <div className="flex gap-2">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Guardando…" : category ? "Guardar cambios" : "Crear categoría"}
+          {isPending
+            ? t("panel.acciones.guardando")
+            : category
+              ? t("panel.abm.guardarCambios")
+              : t("panel.categoria.crear")}
         </Button>
         <Button type="button" variant="outline" disabled={isPending} onClick={onDone}>
-          Cancelar
+          {t("panel.abm.cancelar")}
         </Button>
       </div>
     </form>

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { t } from "@/i18n";
 import { can, type Capability } from "@/lib/permissions";
 import {
   ForbiddenError,
@@ -101,7 +102,7 @@ export type AdminActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; e
  */
 export function adminActionError(context: string, error: unknown): { ok: false; error: string } {
   if (error instanceof UnauthorizedError) {
-    return { ok: false, error: "Se cerró tu sesión. Volvé a entrar." };
+    return { ok: false, error: t("adminError.sesionCerrada") };
   }
   if (error instanceof ForbiddenError) {
     return { ok: false, error: error.message };
@@ -110,10 +111,7 @@ export function adminActionError(context: string, error: unknown): { ok: false; 
     return { ok: false, error: error.message };
   }
   console.error(`${context} falló`, error);
-  return {
-    ok: false,
-    error: "No pudimos completar la acción. Probá de nuevo.",
-  };
+  return { ok: false, error: t("adminError.generico") };
 }
 
 const KNOWN_DOMAIN_ERRORS = [

@@ -15,6 +15,7 @@ import {
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
 /**
  * ABM de categorías (PLAN.md FASE 2, PR J). **Todas owner-only.**
@@ -40,7 +41,7 @@ function revalidarVidriera(): void {
 }
 
 const CreateSchema = z.object({
-  name: z.string().trim().min(1, "Poné el nombre de la categoría").max(120),
+  name: z.string().trim().min(1, t("adminForm.nombreCategoria")).max(120),
   slug: z.string().trim().max(120).optional(),
 });
 
@@ -50,7 +51,7 @@ export async function crearCategoria(input: unknown): Promise<AdminActionResult<
 
     const parsed = CreateSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     const created = await createCategory({
@@ -68,7 +69,7 @@ export async function crearCategoria(input: unknown): Promise<AdminActionResult<
 
 const UpdateSchema = z.object({
   categoryId: z.number().int().positive(),
-  name: z.string().trim().min(1, "Poné el nombre de la categoría").max(120),
+  name: z.string().trim().min(1, t("adminForm.nombreCategoria")).max(120),
   slug: z.string().trim().max(120).optional(),
 });
 
@@ -78,7 +79,7 @@ export async function editarCategoria(input: unknown): Promise<AdminActionResult
 
     const parsed = UpdateSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     await updateCategory({
@@ -105,7 +106,7 @@ export async function cambiarEstadoCategoria(input: unknown): Promise<AdminActio
     await requireOwnerSession();
 
     const parsed = ActiveSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: "No entendí qué categoría cambiar." };
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.categoria") };
 
     await setCategoryActive({
       categoryId: parsed.data.categoryId,
@@ -130,7 +131,7 @@ export async function moverCategoria(input: unknown): Promise<AdminActionResult>
     await requireOwnerSession();
 
     const parsed = MoveSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: "No entendí hacia dónde mover." };
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.mover") };
 
     await moveCategory({
       categoryId: parsed.data.categoryId,
