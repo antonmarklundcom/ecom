@@ -1,6 +1,6 @@
 import type { OrderStatus } from "@/db/schema";
 import { t } from "@/i18n";
-import { comercioDatosBancarios, type DatosBancarios } from "@/lib/comercio";
+import type { DatosBancarios } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { waLink } from "@/lib/py";
 import { siteOrigin } from "@/lib/site-url";
@@ -58,13 +58,18 @@ export function followUpMessage(order: OrderContact): string {
  *
  * Lleva exactamente lo que sacó del camino a ese pedido — a dónde transferir,
  * cuánto exacto, y el link para subir el comprobante — porque la fricción que
- * lo frenó fue tener que pedir esos datos de nuevo. Sin `BANCO_*` configurado
- * se manda igual, sin la parte bancaria: mejor un recordatorio incompleto que
- * un banco inventado (mismo criterio que la página del pedido).
+ * lo frenó fue tener que pedir esos datos de nuevo. Sin datos bancarios
+ * cargados se manda igual, sin la parte bancaria: mejor un recordatorio
+ * incompleto que un banco inventado (mismo criterio que la página del pedido).
+ *
+ * `banco` es un **parámetro obligatorio y sin default**, a propósito. Tenía un
+ * default que leía los datos por su cuenta, y desde el PR T esa lectura toca
+ * la base: un default así convertía el listado de "por cobrar" en una consulta
+ * por fila. Que lo resuelva quien arma la pantalla, una vez, y lo pase.
  */
 export function recoveryMessage(
   order: OrderContact,
-  banco: DatosBancarios | null = comercioDatosBancarios()
+  banco: DatosBancarios | null
 ): string {
   // El saludo va **adentro** de cada mensaje y no concatenado adelante: en
   // otro idioma el nombre puede no ir primero, y quien traduce necesita la

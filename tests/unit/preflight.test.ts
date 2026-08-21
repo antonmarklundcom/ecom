@@ -76,7 +76,6 @@ describe("preflight", () => {
 
   it("cada variable que falta bloquea por separado", () => {
     const casos: Array<[string, PreflightEnv]> = [
-      ["banco", { BANCO_CUENTA: "" }],
       ["cron_secret", { CRON_SECRET: "" }],
       ["session_secret", { SESSION_SECRET: "" }],
       ["cloudinary", { CLOUDINARY_API_SECRET: "" }],
@@ -116,6 +115,19 @@ describe("preflight", () => {
     expect(
       severityOf(envSano({ NODE_ENV: "development", PAGOPAR_MODE: "mock" }), "pagopar_mode"),
     ).toBe("advierte");
+  });
+
+  it("los BANCO_* vacíos advierten, no bloquean", () => {
+    // Desde el PR T los datos bancarios se cargan desde /admin/banco y el
+    // entorno es el fallback. Este script no toca la base a propósito, así que
+    // no puede saber si la tabla está cargada: bloquear el deploy por unas
+    // variables que pueden estar legítimamente vacías sería un falso positivo
+    // permanente. El aviso que sí sabe vive en /admin, que lee la base.
+    expect(severityOf(envSano({ BANCO_CUENTA: "" }), "banco")).toBe("advierte");
+    expect(severityOf(envSano({ BANCO_NOMBRE: "", BANCO_TITULAR: "", BANCO_RUC: "", BANCO_CUENTA: "", BANCO_TIPO_CUENTA: "" }), "banco")).toBe(
+      "advierte",
+    );
+    expect(severityOf(envSano(), "banco")).toBe("ok");
   });
 
   it("sin credenciales de Pagopar advierte, no bloquea", () => {

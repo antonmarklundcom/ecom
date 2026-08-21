@@ -48,6 +48,18 @@ function configure(): typeof sdk {
 /** Carpeta pública: imágenes de producto, servidas directamente por CDN. */
 export const CLOUDINARY_PRODUCTS_FOLDER = "productos";
 
+/**
+ * Carpeta **pública** del QR SPI del comercio (PLAN.md FASE 2, PR T).
+ *
+ * Pública y separada de `comprobantes/` a propósito: ese folder es
+ * `authenticated` y sólo se sirve con URL firmada, que es exactamente lo
+ * contrario de lo que necesita una imagen que la compradora tiene que ver en
+ * la página del pedido sin estar logueada en ningún lado. Meter el QR ahí
+ * sería, además, poner un archivo del comercio adentro del folder donde viven
+ * los comprobantes de pago de sus clientas.
+ */
+export const CLOUDINARY_BANK_FOLDER = "banco";
+
 /** Carpeta privada: comprobantes de pago, sólo accesibles vía URL firmada. */
 export const CLOUDINARY_RECEIPTS_FOLDER = "comprobantes";
 

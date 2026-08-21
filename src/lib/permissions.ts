@@ -52,6 +52,13 @@ export const CAPABILITIES = [
    */
   "envios",
   /**
+   * Los datos bancarios de la tienda (PR T): a qué cuenta transfieren las
+   * compradoras. Quien los puede cambiar puede desviar la facturación entera
+   * sin dejar un solo pedido raro, así que no se delega — owner, como los
+   * reembolsos.
+   */
+  "banco",
+  /**
    * El feed de actividad (PR L): quién hizo qué, en una pantalla. Es de
    * lectura y no toca nada, pero muestra el trabajo de cada persona con nombre
    * y apellido — es supervisión, no mostrador.

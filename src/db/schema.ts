@@ -704,3 +704,50 @@ export const setupState = mysqlTable('setup_state', {
   /** How many times the route ran. Only ever climbs; useful in a post-mortem. */
   runs: int('runs').notNull().default(1),
 });
+
+// ---------------------------------------------------------------------------
+// Datos bancarios (PLAN.md FASE 2, PR T) — singleton, editable desde /admin
+// ---------------------------------------------------------------------------
+
+/**
+ * A dónde transferir: banco, titular, RUC, cuenta y tipo de cuenta.
+ *
+ * Vivían sólo en `BANCO_*` del entorno, y eso significaba que corregir un
+ * número de cuenta mal tipeado era un cambio en el hPanel y un redeploy — o
+ * sea, una llamada al desarrollador para arreglar el dato del que depende
+ * **el método de pago principal** de la tienda. Acá lo edita el dueño desde
+ * el navegador y el entorno queda de fallback (ver `getDatosBancarios`).
+ *
+ * Singleton con el patrón de `setup_state`: una sola fila, `id` siempre 1, y
+ * **columnas explícitas** en vez de clave-valor. Un key-value acepta
+ * `bnaco = "Itaú"` sin quejarse y deja de tener tipos; acá una columna que no
+ * existe no compila.
+ *
+ * Esto es **copy de display**: no entra en `computeOrderTotals` ni en ningún
+ * total. Cambiarlo cambia lo que la compradora lee en la página del pedido y
+ * en el WhatsApp de recuperación, nunca cuánto paga.
+ *
+ * Los cinco campos de texto son `NOT NULL` y el dominio los exige
+ * todos-o-nada: media cuenta cargada es peor que ninguna, porque la página
+ * mostraría un banco sin número. Sin fila —o con la fila incompleta— la
+ * página avisa en vez de inventar, igual que antes.
+ */
+export const bankDetails = mysqlTable('bank_details', {
+  id: tinyint('id').primaryKey(),
+  banco: varchar('banco', { length: 120 }).notNull(),
+  titular: varchar('titular', { length: 160 }).notNull(),
+  ruc: varchar('ruc', { length: 20 }).notNull(),
+  cuenta: varchar('cuenta', { length: 60 }).notNull(),
+  tipoCuenta: varchar('tipo_cuenta', { length: 60 }).notNull(),
+  /**
+   * `public_id` del QR SPI en Cloudinary, en una carpeta **pública**. NULL =
+   * sin QR cargado, y ahí manda `BANCO_QR_URL` del entorno si está.
+   */
+  qrCloudinaryId: varchar('qr_cloudinary_id', { length: 255 }),
+  updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+  /**
+   * Quién lo tocó por última vez. `ON DELETE SET NULL`: el dato bancario de
+   * la tienda no se puede ir con el usuario que lo cargó.
+   */
+  updatedBy: int('updated_by').references(() => users.id, { onDelete: 'set null' }),
+});

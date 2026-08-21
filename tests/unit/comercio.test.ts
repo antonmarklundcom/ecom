@@ -9,6 +9,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * que avisarlo en vez de mostrar un banco o un RUC inventados. Este test
  * fija ese comportamiento para las dos puntas: falta todo, y falta un solo
  * campo.
+ *
+ * Desde el PR T el entorno es **el fallback** y no la única fuente: la tabla
+ * `bank_details` gana cuando está cargada. Acá se prueba sólo la mitad que no
+ * toca la base —`datosBancariosDeEnv`, que sigue siendo síncrona a propósito—
+ * y la precedencia entre las dos fuentes vive en
+ * `tests/integration/admin-bank.test.ts`, que es donde hay una base para que
+ * una fila le gane a una variable.
  */
 
 const BANCO_VARS = [
@@ -30,11 +37,11 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe('comercioDatosBancarios', () => {
+describe('datosBancariosDeEnv', () => {
   it('devuelve null si no hay ningún dato bancario configurado', async () => {
     clearBancoEnv();
-    const { comercioDatosBancarios } = await import('../../src/lib/comercio');
-    expect(comercioDatosBancarios()).toBeNull();
+    const { datosBancariosDeEnv } = await import('../../src/lib/comercio');
+    expect(datosBancariosDeEnv()).toBeNull();
   });
 
   it('devuelve null si falta un solo campo obligatorio', async () => {
@@ -46,8 +53,8 @@ describe('comercioDatosBancarios', () => {
     // BANCO_TIPO_CUENTA queda vacío a propósito.
     vi.resetModules();
 
-    const { comercioDatosBancarios } = await import('../../src/lib/comercio');
-    expect(comercioDatosBancarios()).toBeNull();
+    const { datosBancariosDeEnv } = await import('../../src/lib/comercio');
+    expect(datosBancariosDeEnv()).toBeNull();
   });
 
   it('devuelve los datos completos, con qrUrl null si no está configurado', async () => {
@@ -59,8 +66,8 @@ describe('comercioDatosBancarios', () => {
     vi.stubEnv('BANCO_TIPO_CUENTA', 'Cuenta corriente');
     vi.resetModules();
 
-    const { comercioDatosBancarios } = await import('../../src/lib/comercio');
-    expect(comercioDatosBancarios()).toEqual({
+    const { datosBancariosDeEnv } = await import('../../src/lib/comercio');
+    expect(datosBancariosDeEnv()).toEqual({
       banco: 'Banco Itaú',
       titular: 'Comercial San Roque S.A.',
       ruc: '80012345-6',
@@ -80,8 +87,8 @@ describe('comercioDatosBancarios', () => {
     vi.stubEnv('BANCO_QR_URL', '/banco-qr.png');
     vi.resetModules();
 
-    const { comercioDatosBancarios } = await import('../../src/lib/comercio');
-    expect(comercioDatosBancarios()?.qrUrl).toBe('/banco-qr.png');
+    const { datosBancariosDeEnv } = await import('../../src/lib/comercio');
+    expect(datosBancariosDeEnv()?.qrUrl).toBe('/banco-qr.png');
   });
 });
 

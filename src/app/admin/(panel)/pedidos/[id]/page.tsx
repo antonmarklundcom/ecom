@@ -11,6 +11,7 @@ import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
 import { listReceipts } from "@/domain/receipts";
 import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
 import { adminActor } from "@/lib/admin-guard";
+import { getDatosBancarios } from "@/lib/comercio";
 import { formatGs, ivaIncluded } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { VENDEDOR_TRANSITIONS } from "@/lib/session";
@@ -33,14 +34,20 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   if (!found) notFound();
 
   const { order, items } = found;
-  const [events, receipts] = await Promise.all([getOrderEvents(order.id), listReceipts(order.id)]);
+  const [events, receipts, banco] = await Promise.all([
+    getOrderEvents(order.id),
+    listReceipts(order.id),
+    // Una sola lectura por pantalla: `recoveryMessage` ya no los busca solo
+    // (ver `src/domain/order-messages.ts`).
+    getDatosBancarios(),
+  ]);
 
   // Los dos mensajes salen del mismo armador que usa "Por cobrar": el link
   // tokenizado y la regla de no listar lo comprado se escriben una sola vez
   // (ver `src/domain/order-messages.ts`).
   const waHref = buyerWaLink(order, followUpMessage(order));
   const recoveryHref = isRecoverableStatus(order.status)
-    ? buyerWaLink(order, recoveryMessage(order))
+    ? buyerWaLink(order, recoveryMessage(order, banco))
     : null;
 
   const verPrecios = can(actor.role, "precios");

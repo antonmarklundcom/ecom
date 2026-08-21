@@ -10,7 +10,7 @@ import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-acce
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import { t } from "@/i18n";
-import { comercioDatosBancarios, comercioWaLink } from "@/lib/comercio";
+import { comercioWaLink, getDatosBancarios } from "@/lib/comercio";
 import { formatGs, formatGsPlain } from "@/lib/money";
 import { ORDER_STATUS_LABEL_COMPRADOR } from "@/lib/order-labels";
 import { formatDateTimePY } from "@/lib/py";
@@ -42,10 +42,11 @@ export default async function OrderPage({
   const order = await requireOrderAccess(orderNumber, token);
   if (!order) notFound();
 
-  const [items, events, receiptCount] = await Promise.all([
+  const [items, events, receiptCount, datosBancarios] = await Promise.all([
     getOrderItems(order.id),
     getOrderEvents(order.id),
     countReceipts(order.id),
+    getDatosBancarios(),
   ]);
 
   const waHref = comercioWaLink(
@@ -54,8 +55,6 @@ export default async function OrderPage({
       total: formatGs(order.totalPyg),
     })
   );
-
-  const datosBancarios = comercioDatosBancarios();
 
   // PLAN 3.6: mensaje pre-armado con nro. de pedido, total y la URL
   // tokenizada — bien por debajo del límite de ~1500 caracteres de waLink()

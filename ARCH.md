@@ -85,8 +85,9 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 | Cupones (ABM) | ✅ | ❌ | ❌ |
 | Categorías (ABM) | ✅ | ❌ | ❌ |
 | Zonas de envío (ABM) | ✅ | ❌ | ❌ |
+| Datos bancarios de la tienda | ✅ | ❌ | ❌ |
 
-Lo que el `owner` no delega tiene siempre el mismo motivo: **el error no se ve y no se puede deshacer**. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs que se sumaron en la FASE 2 son de la misma familia: un cupón mal puesto se descubre cuando ya lo usaron cien personas, apagar una categoría le saca de la vidriera a todos sus productos de una vez, y una zona de envío con el precio viejo cobra de menos en cada pedido sin romper nada, sin dejar log y sin que nadie se entere hasta cerrar el mes.
+Lo que el `owner` no delega tiene siempre el mismo motivo: **el error no se ve y no se puede deshacer**. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs que se sumaron en la FASE 2 son de la misma familia: un cupón mal puesto se descubre cuando ya lo usaron cien personas, apagar una categoría le saca de la vidriera a todos sus productos de una vez, y una zona de envío con el precio viejo cobra de menos en cada pedido sin romper nada, sin dejar log y sin que nadie se entere hasta cerrar el mes. Los datos bancarios (FASE 2, PR T) son el caso más puro de la familia: quien puede cambiar el número de cuenta al que transfieren las compradoras desvía la facturación entera a otra cuenta sin generar un solo pedido raro — la tienda sigue andando igual y el dueño se entera cuando mira su banco.
 
 Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado.
 
@@ -357,6 +358,50 @@ sin enterarse:
 
 Editar una zona **no toca los pedidos en vuelo**: el flete quedó copiado en
 `orders.shipping_pyg` cuando se creó cada pedido.
+
+### Datos bancarios: dos fuentes con precedencia (FASE 2, PR T)
+
+A dónde transfieren las compradoras vivía sólo en `BANCO_*` del entorno, y eso
+hacía que corregir un dígito del número de cuenta fuera un cambio en el hPanel
+más un Redeploy a mano — una llamada al desarrollador para arreglar el dato del
+que depende el método de pago principal de la tienda.
+
+Ahora sale de `getDatosBancarios()` (`src/lib/comercio.ts`), que lee **en este
+orden**:
+
+1. La tabla `bank_details` — singleton con el patrón de `setup_state` (una sola
+   fila, `id` siempre 1, columnas explícitas), que el `owner` edita desde
+   `/admin/banco`.
+2. Los `BANCO_*` del entorno, de fallback.
+
+El orden es lo que hace que una tienda que ya está vendiendo no cambie en nada
+el día que actualiza el template: tabla vacía ⇒ manda el entorno.
+
+**Esto es copy de display, no plata.** No entra en `computeOrderTotals` ni en
+ningún total: lo consumen la página del pedido, `order-messages.ts` y el
+listado de "por cobrar". Cambiarlo cambia lo que una pantalla dice, nunca
+cuánto paga alguien.
+
+Dos reglas en el dominio (`src/domain/admin-bank.ts`), las dos porque **una
+cuenta a medias es peor que ninguna**:
+
+- **Todos-o-nada** en los cinco campos de texto. Media cuenta cargada mostraría
+  un banco sin número, y esa transferencia se hace mal. Sin los cinco, la
+  página avisa que faltan los datos en vez de inventar — el criterio de siempre.
+- **El RUC se valida con su dígito verificador** (`validateRuc`, módulo 11 de la
+  DNIT). Es el único de los cinco que se puede verificar solo, y un RUC mal
+  tipeado no rompe nada de este lado: rompe la transferencia de otra persona, en
+  el banco.
+
+El QR del SPI se sube a un folder **público** de Cloudinary (`banco/`), nunca a
+`comprobantes/`, que es `authenticated` y sólo se sirve firmado. El tipo de
+archivo se valida por los bytes, igual que las fotos de producto.
+
+`pnpm preflight` sigue siendo env-only y **no toca la base a propósito** (se
+corre en el servidor de producción), así que desde ahí los `BANCO_*` vacíos
+pasaron a **advertir** en vez de bloquear: pueden estar legítimamente vacíos con
+la tabla cargada. El aviso que sí sabe es el cartel de `/admin`, que lee la base
+y aparece cuando no hay datos en ninguna de las dos fuentes.
 
 ### La cotización de envío no cobra
 

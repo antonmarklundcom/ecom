@@ -6,6 +6,7 @@ import { listOrders } from "@/domain/admin-orders";
 import { getDashboardSummary, salesTrend, topProducts } from "@/domain/admin-dashboard";
 import { lowStockVariants } from "@/domain/admin-products";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
+import { getDatosBancarios } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDatePY, formatDateTimePY } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
@@ -19,18 +20,38 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboardPage() {
   const actor = await requireCapabilityPage("dashboard");
 
-  const [summary, awaiting, lowStock, unmatched, top, trend] = await Promise.all([
+  const [summary, awaiting, lowStock, unmatched, top, trend, banco] = await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
     lowStockVariants(3, 8),
     findUnmatchedPayments({ limit: 10 }),
     topProducts(),
     salesTrend(),
+    getDatosBancarios(),
   ]);
 
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">{t("panel.resumen.titulo")}</h1>
+
+      {/*
+        Sin datos bancarios en ninguna de las dos fuentes (tabla ni entorno),
+        la página del pedido le dice a la compradora que faltan — ese aviso ya
+        existía. Lo que faltaba era el del otro lado: el dueño no mira la
+        página de un pedido ajeno, así que nunca se enteraba. `pnpm preflight`
+        tampoco alcanza: es env-only y no ve la tabla.
+      */}
+      {banco === null && can(actor.role, "banco") ? (
+        <section className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
+          <h2 className="font-medium">{t("panel.resumen.sinBanco")}</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {t("panel.resumen.sinBanco.ayuda")}
+          </p>
+          <Link href="/admin/banco" className="mt-2 inline-block text-sm font-medium underline">
+            {t("panel.resumen.sinBanco.link")}
+          </Link>
+        </section>
+      ) : null}
 
       {/*
         Va arriba de todo y sólo aparece si hay algo: es plata de un comprador

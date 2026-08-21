@@ -5,7 +5,7 @@ import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { listOrdersToRecover, type RecoverableOrderRow } from "@/domain/admin-orders";
 import { buyerWaLink, recoveryMessage } from "@/domain/order-messages";
-import { comercioDatosBancarios } from "@/lib/comercio";
+import { getDatosBancarios, type DatosBancarios } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
@@ -34,8 +34,12 @@ export const dynamic = "force-dynamic";
 export default async function PorCobrarPage() {
   await requireCapabilityPage("pedidos.cobrar");
 
-  const { rows, total } = await listOrdersToRecover();
-  const banco = comercioDatosBancarios();
+  const [{ rows, total }, banco] = await Promise.all([
+    listOrdersToRecover(),
+    // Una sola vez para toda la pantalla y no una por fila: `recoveryMessage`
+    // los recibe como parámetro desde el PR T (ver `order-messages.ts`).
+    getDatosBancarios(),
+  ]);
 
   const vencidos = rows.filter((row) => row.status === "vencido").length;
 
@@ -95,7 +99,7 @@ export default async function PorCobrarPage() {
                 </p>
               </Link>
 
-              <RecoveryLink order={order} />
+              <RecoveryLink order={order} banco={banco} />
             </li>
           ))}
         </ul>
@@ -113,8 +117,14 @@ function Antiguedad({ days }: { days: number }) {
   return <>{tPlural("panel.porCobrar.antiguedad", days)}</>;
 }
 
-function RecoveryLink({ order }: { order: RecoverableOrderRow }) {
-  const href = buyerWaLink(order, recoveryMessage(order));
+function RecoveryLink({
+  order,
+  banco,
+}: {
+  order: RecoverableOrderRow;
+  banco: DatosBancarios | null;
+}) {
+  const href = buyerWaLink(order, recoveryMessage(order, banco));
   if (!href) return null;
 
   return (

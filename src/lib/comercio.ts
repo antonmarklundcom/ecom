@@ -1,3 +1,5 @@
+import { readBankDetails } from "@/domain/admin-bank";
+import { bankQrUrl } from "@/lib/images";
 import { normalizePhonePY, waLink } from "@/lib/py";
 
 /**
@@ -24,18 +26,59 @@ export type DatosBancarios = {
   ruc: string;
   cuenta: string;
   tipoCuenta: string;
-  /** URL pública del QR SPI — ver `BANCO_QR_URL` en `.env.example`. */
+  /** URL pública del QR SPI, ya armada. `null` si esta tienda no cargó ninguno. */
   qrUrl: string | null;
 };
 
 /**
  * Datos bancarios para la página SPI/QR (ARCH.md §5).
  *
- * `null` si falta cualquiera de los campos obligatorios — la página los
- * muestra con un aviso en vez de inventar un banco o un RUC de ejemplo,
- * mismo criterio que el 503 del webhook de Pagopar sin configurar.
+ * **Dos fuentes, en este orden** (PLAN.md FASE 2, PR T):
+ *
+ * 1. La tabla `bank_details`, que el dueño edita desde `/admin/banco`.
+ * 2. Las variables `BANCO_*` del entorno — el camino de siempre.
+ *
+ * El orden es el que importa: la tienda que ya está andando con su `.env`
+ * cargado **no cambia en nada** el día que actualiza el template (tabla vacía
+ * ⇒ manda el entorno), y el día que el dueño corrige su número de cuenta
+ * desde el navegador, esa corrección pisa al entorno sin redeploy. El entorno
+ * queda como fallback y no como respaldo: nadie lo va a mantener al día
+ * después del primer cambio hecho desde el panel.
+ *
+ * `null` si falta cualquiera de los cinco campos obligatorios en las dos
+ * fuentes — la página los muestra con un aviso en vez de inventar un banco o
+ * un RUC de ejemplo, mismo criterio que el 503 del webhook de Pagopar sin
+ * configurar.
+ *
+ * Es `async` porque ahora toca la base. Cada página lo resuelve **una vez** y
+ * lo pasa a quien lo necesite (ver `recoveryMessage`): antes de esto, el
+ * listado de "por cobrar" lo releía una vez por fila.
  */
-export function comercioDatosBancarios(): DatosBancarios | null {
+export async function getDatosBancarios(): Promise<DatosBancarios | null> {
+  const fila = await readBankDetails();
+
+  if (fila) {
+    return {
+      banco: fila.banco,
+      titular: fila.titular,
+      ruc: fila.ruc,
+      cuenta: fila.cuenta,
+      tipoCuenta: fila.tipoCuenta,
+      qrUrl: bankQrUrl(fila.qrCloudinaryId) ?? qrUrlDeEnv(),
+    };
+  }
+
+  return datosBancariosDeEnv();
+}
+
+/**
+ * El camino viejo, intacto: los cinco `BANCO_*` o `null`.
+ *
+ * Sigue siendo síncrono y sin base a propósito — lo usa `getDatosBancarios`
+ * como fallback y es lo que hace que una tienda sin la tabla cargada se
+ * comporte exactamente como antes de este PR.
+ */
+export function datosBancariosDeEnv(): DatosBancarios | null {
   const banco = (process.env.BANCO_NOMBRE ?? "").trim();
   const titular = (process.env.BANCO_TITULAR ?? "").trim();
   const ruc = (process.env.BANCO_RUC ?? "").trim();
@@ -44,6 +87,10 @@ export function comercioDatosBancarios(): DatosBancarios | null {
 
   if (!banco || !titular || !ruc || !cuenta || !tipoCuenta) return null;
 
-  const qrUrl = (process.env.BANCO_QR_URL ?? "").trim();
-  return { banco, titular, ruc, cuenta, tipoCuenta, qrUrl: qrUrl || null };
+  return { banco, titular, ruc, cuenta, tipoCuenta, qrUrl: qrUrlDeEnv() };
+}
+
+/** `BANCO_QR_URL` — sigue valiendo, y es el fallback del QR de Cloudinary. */
+function qrUrlDeEnv(): string | null {
+  return (process.env.BANCO_QR_URL ?? "").trim() || null;
 }

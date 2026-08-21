@@ -63,7 +63,7 @@ imagen sale relativa y el link se comparte sin foto.
 | `DATABASE_URL` | base local (docker) y después la de Hostinger |
 | `SESSION_SECRET` | `openssl rand -base64 32` — **uno nuevo por tienda**, nunca reciclado |
 | `WHATSAPP_NUMBER` | el del comercio |
-| `BANCO_*` | datos reales de la cuenta; incompletos, la página avisa en vez de inventar |
+| `BANCO_*` | **legacy/fallback.** Podés dejarlos vacíos: los datos bancarios se cargan desde `/admin/banco` con la tienda ya arriba (ver §4a). Si los ponés y la tabla está vacía, mandan éstos |
 | `CLOUDINARY_*` | cuenta o folder propio de esta tienda |
 | `NEXT_PUBLIC_SITE_URL` | dominio final |
 | `CRON_SECRET` | ≥ 16 caracteres, nuevo por tienda |
@@ -96,8 +96,40 @@ sin volver a tocar código:
 |---|---|---|
 | Categorías del menú | `/admin/categorias` | Desactivar una **le saca de la vidriera también a sus productos**; la pantalla te dice cuántos antes de confirmar. Cambiar el slug rompe las URLs viejas: no hay redirección. |
 | Zonas de envío | `/admin/envios` | Las del seed son las de Gran Asunción. Una ciudad va en **una sola** zona. La ciudad que no esté en ninguna lista se cobra como la zona activa más cara — conviene tener una zona *Interior* sin ciudades y cara, que haga de comodín. |
+| Datos bancarios | `/admin/banco` | A dónde transfieren. Vacío, la página del pedido avisa en vez de inventar una cuenta. Ver §4a. |
 
-Las dos pantallas son owner-only.
+Las tres pantallas son owner-only.
+
+### 4a. Los datos bancarios se cargan desde el navegador
+
+La transferencia es el método de pago principal de una tienda paraguaya, y el
+dato del que depende —banco, titular, RUC, número y tipo de cuenta, más el QR
+del SPI— **se carga desde `/admin/banco`**, no desde un archivo. El motivo es
+concreto: corregir un dígito mal tipeado de la cuenta era, hasta este PR, un
+cambio de variable en el hPanel y un Redeploy a mano; ahora es un botón, y lo
+puede hacer el dueño sin llamarte.
+
+Dos reglas que la pantalla sostiene:
+
+- **Los cinco campos van juntos.** Media cuenta cargada mostraría un banco sin
+  número, y esa transferencia se hace mal. Con alguno vacío no se guarda nada, y
+  la página del pedido sigue avisando que faltan los datos en vez de inventar.
+- **El RUC se verifica** con su dígito verificador (módulo 11 de la DNIT). Un
+  RUC mal tipeado no rompe nada de este lado: rompe la transferencia de otra
+  persona, en el banco.
+
+El QR del SPI es opcional y se sube desde la misma pantalla (JPG/PNG/WebP, hasta
+5 MB). Va a una carpeta **pública** de Cloudinary, separada de la de
+comprobantes. Sin QR, la página muestra los datos con botón de copiar, que es lo
+que hacía siempre.
+
+**Compatibilidad con lo de antes:** los `BANCO_*` del entorno siguen andando y
+son el fallback. Tabla vacía ⇒ manda el entorno, así que una tienda que ya está
+vendiendo no cambia en nada el día que actualiza el template. En cuanto el dueño
+guarda desde el panel, la fila pisa al entorno para siempre — y ahí conviene
+vaciar las variables, para que no queden dos verdades. `pnpm preflight` avisa
+(sin frenar el deploy) si están vacías, porque desde afuera de la base no puede
+saber si la tabla está cargada; el que sí sabe es el cartel de `/admin`.
 
 ### 4b. ¿Esta tienda quiere cuentas de cliente?
 

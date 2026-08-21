@@ -217,7 +217,22 @@ function checkPagoparMode(env: PreflightEnv): PreflightCheck {
   };
 }
 
-/** Sin los cinco, la página SPI/QR no puede mostrar dónde transferir. */
+/**
+ * Los cinco `BANCO_*` del entorno.
+ *
+ * **Advierte y ya no bloquea** (PLAN.md FASE 2, PR T). Desde que los datos
+ * bancarios se editan desde `/admin/banco`, el entorno pasó a ser el fallback
+ * y no la única fuente: una tienda perfectamente configurada puede tener las
+ * cinco variables vacías y la tabla cargada, y frenarle el deploy por eso
+ * sería un falso positivo permanente.
+ *
+ * Este script **no toca la base a propósito** —se corre en el servidor de
+ * producción y no puede tener efectos ni depender de que la base esté arriba—
+ * así que desde acá no hay forma de saber si la tabla está cargada. Lo que
+ * queda es decir la verdad completa: faltan en el entorno, y hay otro lugar
+ * donde pueden estar. El aviso que sí sabe es el del panel, que lee la base y
+ * aparece en `/admin` cuando no hay datos en **ninguna** de las dos fuentes.
+ */
 function checkBancoVars(env: PreflightEnv): PreflightCheck {
   const missing = BANCO_VARS.filter((name) => value(env, name) === "");
 
@@ -226,17 +241,20 @@ function checkBancoVars(env: PreflightEnv): PreflightCheck {
       id: "banco",
       severity: "ok",
       title: "Datos bancarios (SPI/QR)",
-      detail: "los cinco configurados",
+      detail: "los cinco configurados en el entorno",
     };
   }
 
   return {
     id: "banco",
-    severity: "bloquea",
+    severity: "advierte",
     title: "Datos bancarios (SPI/QR)",
     detail:
-      `faltan ${missing.join(", ")}. Sin esto la página del pedido muestra un aviso en vez ` +
-      "de la cuenta, y la transferencia —el método principal del MVP— no se puede completar",
+      `faltan ${missing.join(", ")} en el entorno. Desde la FASE 2 esto es configurable desde ` +
+      "/admin/banco y lo que se cargue ahí manda sobre el entorno, así que puede estar bien. " +
+      "Si tampoco están cargados en el panel, la página del pedido muestra un aviso en vez de " +
+      "la cuenta y la transferencia —el método principal del MVP— no se puede completar: " +
+      "el resumen de /admin lo dice con la base a la vista",
   };
 }
 

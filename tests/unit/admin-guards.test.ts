@@ -160,6 +160,14 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   cambiarEstadoCategoria: 'Owner',
   moverCategoria: 'Owner',
 
+  // A qué cuenta transfieren las compradoras. Quien lo puede cambiar puede
+  // desviar la facturación entera a otra cuenta sin dejar un pedido raro ni un
+  // log de plata: la tienda sigue andando igual y el dueño se entera cuando
+  // mira su banco. No se delega.
+  guardarDatosBancarios: 'Owner',
+  subirQrBancario: 'Owner',
+  quitarQrBancario: 'Owner',
+
   // El flete es plata que entra en cada pedido, y el error se cobra en
   // silencio: no rompe nada, no deja log, y se descubre al cerrar el mes.
   crearZonaEnvio: 'Owner',
