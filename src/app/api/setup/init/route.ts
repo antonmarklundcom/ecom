@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { getDb, getPool } from '@/db';
 import { applySchemaExtras } from '@/db/extras';
 import { setupState, users } from '@/db/schema';
+import { preflight } from '@/domain/preflight';
 import { createUser, normalizeEmail } from '@/lib/auth';
 import { hashPassword, passwordStrengthMessage, validatePasswordStrength } from '@/lib/password';
 import { SETUP_LIMIT, SETUP_WINDOW_MS, clientIp, rateLimit } from '@/lib/rate-limit';
@@ -36,7 +37,17 @@ import { SETUP_LIMIT, SETUP_WINDOW_MS, clientIp, rateLimit } from '@/lib/rate-li
  *  2. `applySchemaExtras()` — FULLTEXT, FK self-ref y el contador de pedidos,
  *     que el dialecto MySQL de drizzle-kit no genera. Ya era idempotente.
  *  3. Seed del catálogo de ejemplo, si se pide.
- *  4. Cuenta del dueño, si se pide.
+ *  4. Zonas de envío de la tienda, si vienen en el cuerpo (`zonas`). Upsert por
+ *     `slug`, el mismo de `seedCatalog` — nunca borra las que no vengan.
+ *  5. Cuenta del dueño, si se pide.
+ *
+ * Y devuelve el **reporte de `preflight()`** (PLAN.md FASE 2, PR U): qué falta
+ * para cobrar de verdad, medido contra el entorno **de este proceso**, que es
+ * el del servidor. Antes eso pedía correr `pnpm preflight` desde la máquina de
+ * quien deploya, contra un `.env` copiado a mano — o sea, contra un entorno
+ * parecido al de producción y no contra el de producción. `preflight()` no
+ * toca la base ni la red y no imprime el valor de ningún secreto: sólo si está
+ * y si tiene el largo mínimo, así que es seguro contestarlo acá.
  *
  * 1 y 2 corren **siempre**: son idempotentes por construcción, así que esta
  * ruta es además el corredor de migraciones de los deploys siguientes (mandale
@@ -138,7 +149,29 @@ const BODY = z.object({
       name: z.string().max(160).optional(),
     })
     .optional(),
-  /** Reabre seed y dueño en una tienda ya inicializada. */
+  /**
+   * Zonas de envío reales de la tienda. Upsert por `slug`; lo que no venga en
+   * la lista **no se toca** (borrar una zona en uso no se ofrece por HTTP).
+   *
+   * El tope de 100 y el de 400 ciudades son los mismos que acepta el ABM del
+   * panel: esta ruta no puede ser una puerta más ancha que la pantalla.
+   */
+  zonas: z
+    .array(
+      z.object({
+        slug: z.string().trim().min(1).max(120),
+        name: z.string().trim().min(1).max(160),
+        cities: z.array(z.string().trim().min(1).max(120)).max(400).optional().default([]),
+        // Guaraníes enteros. `assertGs` lo vuelve a exigir adentro del upsert:
+        // esto es el mensaje para quien escribe el curl, eso es la regla.
+        pricePyg: z.number().int().min(0),
+        freeThresholdPyg: z.number().int().positive().nullable().optional().default(null),
+        position: z.number().int().min(0).optional().default(0),
+      }),
+    )
+    .max(100)
+    .optional(),
+  /** Reabre seed, zonas y dueño en una tienda ya inicializada. */
   force: z.boolean().optional().default(false),
 });
 
@@ -146,6 +179,7 @@ type Pasos = {
   migraciones: string;
   extras: string;
   seed: string;
+  zonas: string;
   duenio: string;
 };
 
@@ -163,12 +197,13 @@ async function run(input: Input): Promise<Response> {
     // en una base ya inicializada la lista es corta, no vacía.
     extras: `aplicados (${extras.length})`,
     seed: 'no pedido',
+    zonas: 'no pedidas',
     duenio: 'no pedido',
   };
 
   const previo = (await db.select().from(setupState).where(eq(setupState.id, 1)).limit(1))[0];
   const yaInicializada = previo !== undefined;
-  const pideDatos = input.seed || input.owner !== undefined;
+  const pideDatos = input.seed || input.owner !== undefined || input.zonas !== undefined;
 
   // Segunda llamada pidiendo sembrar o crear al dueño, sin `force`: 409 y no
   // 200, porque no se hizo lo que se pidió. Las migraciones sí corrieron —esa
@@ -183,6 +218,7 @@ async function run(input: Input): Promise<Response> {
         pasos: {
           ...pasos,
           seed: 'salteado (ya inicializada)',
+          zonas: 'salteadas (ya inicializada)',
           duenio: 'salteado (ya inicializada)',
         },
         yaEstaba: {
@@ -210,6 +246,26 @@ async function run(input: Input): Promise<Response> {
     pasos.seed = 'sembrado';
   }
 
+  if (input.zonas !== undefined) {
+    // Mismo import dinámico y por la misma razón que el seed: `scripts/` vive
+    // fuera del alias `@`, y no tiene por qué entrar al bundle de una ruta que
+    // casi siempre se llama sin zonas.
+    const { upsertShippingZones } = await import('../../../../../scripts/seed');
+    const n = await upsertShippingZones(
+      input.zonas.map((zona, index) => ({
+        slug: zona.slug,
+        name: zona.name,
+        cities: zona.cities,
+        pricePyg: zona.pricePyg,
+        freeThresholdPyg: zona.freeThresholdPyg,
+        // Sin `position` explícita, el orden del array es el orden de la
+        // tabla: es lo que quiso decir quien escribió el curl.
+        position: zona.position || index,
+      })),
+    );
+    pasos.zonas = `${n} actualizada(s)`;
+  }
+
   let duenio: 'creado' | 'actualizado' | undefined;
   if (input.owner) {
     duenio = await upsertOwner(input.owner);
@@ -227,6 +283,13 @@ async function run(input: Input): Promise<Response> {
     // con acceso al hPanel, y esta respuesta suele terminar pegada ahí.
     usuarios,
     primeraVez: !yaInicializada,
+    // El reporte tal cual lo arma el dominio, medido contra el entorno de
+    // **este** proceso — que es el punto: hasta ahora había que correr el
+    // script desde la máquina de quien deploya, con un .env copiado a mano, o
+    // sea contra un entorno *parecido* al de producción. `preflight()` no toca
+    // la base ni la red y nunca imprime el valor de un secreto (sólo si está y
+    // si tiene el largo mínimo), así que es seguro contestarlo acá.
+    preflight: preflight(),
   });
 }
 

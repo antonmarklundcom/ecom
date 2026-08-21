@@ -45,8 +45,40 @@ function configure(): typeof sdk {
   return sdk;
 }
 
+/**
+ * Prefijo opcional de todas las carpetas de esta tienda (PLAN.md FASE 2, PR U).
+ *
+ * Vacío por defecto, que es el comportamiento de siempre: `productos/`,
+ * `comprobantes/`, `banco/`. Con `CLOUDINARY_FOLDER_PREFIX="lenceria"` pasan a
+ * ser `lenceria/productos/` y compañía.
+ *
+ * Existe por una razón concreta y no por prolijidad: **el `public_id` de un
+ * comprobante sale del número de pedido**, y los números de pedido se repiten
+ * entre tiendas — todas acuñan `PY-000123`, a propósito (el prefijo participa
+ * del hash de Pagopar, así que no es por tienda). Dos tiendas que comparten
+ * una cuenta de Cloudinary sin prefijo terminan con los comprobantes de
+ * `PY-000123` de las dos mezclados en la misma carpeta: quien administra esa
+ * cuenta no puede distinguirlos, y el `-${Date.now()}` que los separa es un
+ * desempate por milisegundo, no una separación por tienda. El prefijo es lo
+ * que hace que sean dos carpetas distintas.
+ *
+ * **No se cambia con archivos ya subidos.** El `public_id` queda guardado
+ * entero en la fila (`receipts.cloudinary_id`, `product_images.cloudinary_id`),
+ * así que las imágenes viejas se siguen sirviendo desde donde están; lo que
+ * cambia es a dónde van las nuevas. Mezclar dos prefijos en una tienda no
+ * rompe nada, pero deja las fotos repartidas en dos árboles para siempre —
+ * elegilo al crear la tienda y no lo toques más.
+ */
+function folderPrefix(): string {
+  const raw = (process.env.CLOUDINARY_FOLDER_PREFIX ?? "").trim();
+  // Se acepta lo que escriba una persona apurada —`/lenceria/`, `lenceria//`—
+  // y se guarda una sola forma: sin barras en las puntas.
+  const limpio = raw.replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
+  return limpio === "" ? "" : `${limpio}/`;
+}
+
 /** Carpeta pública: imágenes de producto, servidas directamente por CDN. */
-export const CLOUDINARY_PRODUCTS_FOLDER = "productos";
+export const CLOUDINARY_PRODUCTS_FOLDER = `${folderPrefix()}productos`;
 
 /**
  * Carpeta **pública** del QR SPI del comercio (PLAN.md FASE 2, PR T).
@@ -58,10 +90,10 @@ export const CLOUDINARY_PRODUCTS_FOLDER = "productos";
  * sería, además, poner un archivo del comercio adentro del folder donde viven
  * los comprobantes de pago de sus clientas.
  */
-export const CLOUDINARY_BANK_FOLDER = "banco";
+export const CLOUDINARY_BANK_FOLDER = `${folderPrefix()}banco`;
 
 /** Carpeta privada: comprobantes de pago, sólo accesibles vía URL firmada. */
-export const CLOUDINARY_RECEIPTS_FOLDER = "comprobantes";
+export const CLOUDINARY_RECEIPTS_FOLDER = `${folderPrefix()}comprobantes`;
 
 /**
  * Genera una URL firmada de corta duración para un recurso privado

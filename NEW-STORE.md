@@ -9,27 +9,92 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
 ---
 
+## El camino corto
+
+```bash
+git clone <tu-repo> && cd <tu-repo> && pnpm install
+git remote add template git@github.com:antonmarklundcom/ecom.git
+pnpm nueva-tienda        # seis preguntas: marca, WhatsApp, dominio
+docker compose up -d && pnpm db:push && pnpm db:seed && pnpm create-owner
+pnpm preflight
+```
+
+Eso es todo lo que se puede automatizar. **Lo único que queda a mano es lo de
+terceros**, porque son cuentas de otro que nadie puede abrir por vos:
+
+| Qué | Dónde | Para qué |
+|---|---|---|
+| Hosting y base | hPanel de Hostinger | `DATABASE_URL` y el deploy (DEPLOY.md) |
+| Dominio | tu registrador | `NEXT_PUBLIC_SITE_URL` — el wizard ya lo escribe, falta apuntarlo |
+| Cloudinary | cloudinary.com | fotos de producto y comprobantes de pago |
+| Pagopar | el comercio | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
+| Datos bancarios | `/admin/banco`, con la tienda arriba | a dónde transfieren (§4a) |
+| Fotos y favicon | el comercio | `src/app/favicon.ico` y `/admin/productos` |
+
+El resto de este documento es el detalle de cada paso: leelo si algo no
+cuadra, o si querés saber por qué el wizard hace lo que hace.
+
+---
+
 ## Checklist (en orden)
 
 ### 1. Crear el repo
 
 1. En GitHub, "Use this template" → repo nuevo (ej. `ropa-store`).
 2. `git clone` y `pnpm install`.
-3. Fijá el punto de partida **ahora**, no el día que lo necesites:
+3. Agregá el remoto del template **ahora**, no el día que lo necesites:
 
    ```bash
    git remote add template git@github.com:antonmarklundcom/ecom.git
-   pnpm template:diff --marcar    # crea .template-baseline — commitealo
    ```
 
-   Sin eso, el primer `pnpm template:diff` corre en modo degradado y los
-   commits del template te aparecen todos, para siempre (ver "Arreglos que
+   `pnpm nueva-tienda` (paso 2) corre `template:diff --marcar` solo y deja
+   `.template-baseline` escrito —commitealo—; sin el remoto no puede, te lo
+   avisa, y el primer `pnpm template:diff` corre en modo degradado con los
+   commits del template apareciendo todos, para siempre (ver "Arreglos que
    aparecen después" al final).
 
-### 2. Marca — un solo archivo
+### 2. Marca y secretos — `pnpm nueva-tienda`
 
-Editá [`src/config/tienda.ts`](./src/config/tienda.ts): nombre, título, meta
-description, tagline del pie, `lang` y `ogLocale`. Header, pie, títulos del
+```bash
+pnpm nueva-tienda            # interactivo
+pnpm nueva-tienda --dry-run  # muestra qué haría, no escribe nada
+```
+
+Pregunta seis cosas —nombre, título del navegador, meta description, tagline
+del pie, WhatsApp y dominio— y con eso:
+
+- reescribe los campos de marca de [`src/config/tienda.ts`](./src/config/tienda.ts);
+- genera `SESSION_SECRET`, `CRON_SECRET` y `SETUP_SECRET` con
+  `crypto.randomBytes` (no con `openssl`, que en Windows no existe) y los
+  escribe en `.env.local` junto con el WhatsApp y el dominio;
+- imprime el bloque exacto de variables para pegar en el hPanel;
+- corre `pnpm template:diff --marcar`.
+
+**Es idempotente:** correrlo de nuevo ofrece los valores de hoy como default
+—Enter los deja— y **nunca regenera un secreto que ya exista**. Eso último no
+es prolijidad: un `SESSION_SECRET` nuevo cierra todas las sesiones del panel, y
+un `CRON_SECRET` nuevo deja al cron de Hostinger llamando con la llave vieja
+hasta que alguien lo mire.
+
+Sin terminal interactiva (un script, CI) las seis respuestas van por bandera y
+el script falla diciéndolo si falta alguna:
+
+```bash
+pnpm nueva-tienda --nombre "Lencería Guaraní" \
+  --titulo "Lencería Guaraní — Comprá online en Paraguay" \
+  --descripcion "…" --tagline "…" \
+  --whatsapp 0981123456 --dominio lenceria.com.py
+```
+
+Lo que el wizard **no** hace, a propósito: no toca la base, no sube nada a
+ningún lado y no inventa las credenciales de terceros. Eso es lo de la tabla
+de arriba.
+
+#### Lo que igual conviene saber
+
+Editás [`src/config/tienda.ts`](./src/config/tienda.ts) a mano cuando quieras
+cambiar `lang`, `ogLocale`, los flags o el `hero`. Header, pie, títulos del
 navegador y Open Graph salen todos de ahí.
 
 Hay un test que falla si alguien vuelve a escribir el nombre a mano en otro
@@ -56,18 +121,21 @@ imagen sale relativa y el link se comparte sin foto.
 
 ### 3. Entorno
 
-`cp .env.example .env.local` y completá. Lo que cambia sí o sí por tienda:
+`pnpm nueva-tienda` ya creó `.env.local` y completó los secretos, el WhatsApp
+y el dominio. Lo que falta completar a mano es lo de terceros. La tabla
+entera, para saber qué es cada cosa:
 
 | Variable | Qué es |
 |---|---|
 | `DATABASE_URL` | base local (docker) y después la de Hostinger |
-| `SESSION_SECRET` | `openssl rand -base64 32` — **uno nuevo por tienda**, nunca reciclado |
-| `WHATSAPP_NUMBER` | el del comercio |
+| `SESSION_SECRET` | **lo genera el wizard.** Uno nuevo por tienda, nunca reciclado |
+| `WHATSAPP_NUMBER` | **lo escribe el wizard.** El del comercio |
 | `BANCO_*` | **legacy/fallback.** Podés dejarlos vacíos: los datos bancarios se cargan desde `/admin/banco` con la tienda ya arriba (ver §4a). Si los ponés y la tabla está vacía, mandan éstos |
-| `CLOUDINARY_*` | cuenta o folder propio de esta tienda |
-| `NEXT_PUBLIC_SITE_URL` | dominio final |
-| `CRON_SECRET` | ≥ 16 caracteres, nuevo por tienda |
-| `SETUP_SECRET` | sólo en el servidor y sólo durante el primer deploy: habilita `/api/setup/init` y después se borra (DEPLOY.md §4) |
+| `CLOUDINARY_*` | cuenta de Cloudinary de esta tienda |
+| `CLOUDINARY_FOLDER_PREFIX` | opcional, vacío por defecto. Ponelo **si varias tiendas comparten una cuenta de Cloudinary**: el `public_id` de un comprobante sale del número de pedido, y todas las tiendas acuñan `PY-000123`, así que sin prefijo los comprobantes de las dos terminan mezclados en la misma carpeta. Elegilo al crear la tienda y no lo toques más |
+| `NEXT_PUBLIC_SITE_URL` | **lo escribe el wizard.** El dominio final |
+| `CRON_SECRET` | **lo genera el wizard.** ≥ 16 caracteres, nuevo por tienda |
+| `SETUP_SECRET` | **lo genera el wizard.** Va sólo en el servidor y sólo durante el primer deploy: habilita `/api/setup/init` y después se borra (DEPLOY.md §4) |
 | `PAGOPAR_*` | credenciales del comercio; vacías = sin tarjeta, o `PAGOPAR_MODE="mock"` para demo |
 | `CUSTOMER_SESSION_SECRET` | **sólo** si esta tienda prende las cuentas de cliente (ver abajo). Otro secreto, nunca una copia de `SESSION_SECRET` |
 

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { products, setupState, users } from '../../src/db/schema';
+import { products, setupState, shippingZones, users } from '../../src/db/schema';
 import { resetRateLimits } from '../../src/lib/rate-limit';
 import { verifyPassword } from '../../src/lib/password';
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
@@ -282,6 +282,89 @@ describe.skipIf(!hasTestDb)('POST /api/setup/init', () => {
     const texto = JSON.stringify(await response.json());
     expect(texto).toContain('cuerpo_invalido');
     expect(texto).not.toContain('contrasenia123');
+  });
+
+  // --- Zonas de envío y preflight (PLAN.md FASE 2, PR U) --------------------
+
+  it('acepta las zonas reales de la tienda en el cuerpo', async () => {
+    // El paso que faltaba para no tener que abrir /admin a cargarlas a mano
+    // en cada tienda nueva.
+    const response = await inicializar({
+      zonas: [
+        { slug: 'asuncion', name: 'Asunción', cities: ['Asunción'], pricePyg: 25000, freeThresholdPyg: 500000 },
+        { slug: 'interior', name: 'Interior', cities: [], pricePyg: 80000 },
+      ],
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { pasos: Record<string, string> };
+    expect(body.pasos.zonas).toContain('2');
+
+    const zonas = await getTestDb().select().from(shippingZones);
+    expect(zonas.map((zona) => zona.slug).sort()).toEqual(['asuncion', 'interior']);
+    // Sin `position` explícita manda el orden del array: es lo que quiso decir
+    // quien escribió el curl.
+    expect(zonas.find((zona) => zona.slug === 'asuncion')?.position).toBe(0);
+    expect(zonas.find((zona) => zona.slug === 'interior')?.position).toBe(1);
+    expect(zonas.find((zona) => zona.slug === 'interior')?.freeThresholdPyg).toBeNull();
+  });
+
+  it('el upsert es por slug: repetir no duplica, y no borra lo que no viene', async () => {
+    await inicializar({
+      zonas: [{ slug: 'asuncion', name: 'Asunción', cities: ['Asunción'], pricePyg: 25000 }],
+    });
+
+    await inicializar({
+      force: true,
+      zonas: [{ slug: 'asuncion', name: 'Gran Asunción', cities: ['Asunción', 'Luque'], pricePyg: 30000 }],
+    });
+
+    const zonas = await getTestDb().select().from(shippingZones);
+    expect(zonas).toHaveLength(1);
+    expect(zonas[0]?.name).toBe('Gran Asunción');
+    expect(zonas[0]?.pricePyg).toBe(30000);
+  });
+
+  it('un flete con decimales no entra: la plata es entera', async () => {
+    const response = await inicializar({
+      zonas: [{ slug: 'asuncion', name: 'Asunción', cities: [], pricePyg: 25000.5 }],
+    });
+
+    expect(response.status).toBe(400);
+    expect(await getTestDb().select().from(shippingZones)).toEqual([]);
+  });
+
+  it('mandar zonas a una tienda ya inicializada pide force, igual que el seed', async () => {
+    await inicializar({ seed: true });
+
+    const response = await inicializar({
+      zonas: [{ slug: 'nueva', name: 'Nueva', cities: [], pricePyg: 1000 }],
+    });
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { pasos: Record<string, string> };
+    expect(body.pasos.zonas).toContain('salteadas');
+    expect(
+      (await getTestDb().select().from(shippingZones)).some((zona) => zona.slug === 'nueva'),
+    ).toBe(false);
+  });
+
+  it('la respuesta trae el reporte de preflight del servidor', async () => {
+    // Esto es lo que mata el paso "corré pnpm preflight desde tu máquina
+    // contra el env de prod": lo contesta el proceso que va a atender a las
+    // compradoras, con las variables que de verdad tiene cargadas.
+    const response = await inicializar({});
+    const body = (await response.json()) as {
+      preflight: { ok: boolean; blocking: number; checks: Array<{ id: string; detail: string }> };
+    };
+
+    expect(typeof body.preflight.ok).toBe('boolean');
+    expect(body.preflight.checks.map((check) => check.id)).toContain('session_secret');
+
+    // Y sigue sin imprimir el valor de ningún secreto: sólo si está y si mide.
+    const texto = JSON.stringify(body.preflight);
+    expect(texto).not.toContain(SECRET);
+    expect(texto).not.toContain(process.env.SESSION_SECRET ?? '\u0000no-hay');
   });
 
   it('en producción exige https', async () => {

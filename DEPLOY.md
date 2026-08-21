@@ -176,14 +176,38 @@ inicializa sola con un curl.
 
    Corre las migraciones de `./drizzle`, aplica los extras (FULLTEXT, FK
    self-ref, contador de pedidos), siembra el catálogo de ejemplo y crea la
-   cuenta del dueño. Responde con el resultado de cada paso.
+   cuenta del dueño. Responde con el resultado de cada paso **y con el reporte
+   completo de `pnpm preflight`**, medido contra el entorno de este servidor —
+   que es el único que importa.
+
+   Si ya tenés las zonas de envío reales de la tienda, van en el mismo cuerpo y
+   te ahorran cargarlas a mano desde `/admin/envios`:
+
+   ```json
+   {
+     "seed": true,
+     "owner": { "email": "...", "password": "..." },
+     "zonas": [
+       { "slug": "asuncion", "name": "Asunción", "cities": ["Asunción"], "pricePyg": 25000, "freeThresholdPyg": 500000 },
+       { "slug": "interior", "name": "Interior", "cities": [], "pricePyg": 80000 }
+     ]
+   }
+   ```
+
+   Upsert por `slug`, así que repetir la llamada actualiza en vez de duplicar.
+   **No borra las zonas que no vengan en la lista**: borrar una zona que la
+   tienda usa no se ofrece por HTTP.
 
 4. **Verificá**:
 
    ```bash
    curl -fsS https://DOMAIN/api/health   # {"ok":true,"db":true}
-   pnpm preflight
    ```
+
+   El `preflight` ya vino en la respuesta del paso 3 (mirá `blocking` y los
+   checks con severidad `bloquea`). Correr `pnpm preflight` desde tu máquina
+   mide tu `.env.local`, no el del servidor: sirve como ensayo, no como
+   verificación del deploy.
 
 5. **Sacá `SETUP_SECRET`** de las Environment variables y apretá **Redeploy**.
    La ruta vuelve a responder 503 y ahí queda para siempre.
@@ -205,8 +229,9 @@ curl -X POST https://DOMAIN/api/setup/init \
 ```
 
 Lo que no se repite solo es lo que escribe datos del negocio: con la tienda ya
-inicializada, un `seed` o un `owner` responden **409** con el resumen de lo que
-ya estaba, en vez de volver a sembrar el catálogo sobre una tienda que ya vende.
+inicializada, un `seed`, unas `zonas` o un `owner` responden **409** con el
+resumen de lo que ya estaba, en vez de volver a sembrar el catálogo sobre una
+tienda que ya vende.
 Para reabrirlos hay que pedirlo con `{"force":true}`. El stock nunca se resetea
 por esta vía, ni con `force`.
 
