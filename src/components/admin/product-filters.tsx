@@ -7,6 +7,7 @@ import {
   ADMIN_PRODUCT_SORT_LABEL,
   type AdminProductSort,
 } from "@/lib/admin-product-sort";
+import { t } from "@/i18n";
 
 const TODAS = "";
 
@@ -53,7 +54,7 @@ export function ProductFilters({
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       <label className="sr-only" htmlFor="categoria">
-        Categoría
+        {t("panel.filtros.categoria")}
       </label>
       <select
         id="categoria"
@@ -62,7 +63,7 @@ export function ProductFilters({
         onChange={(event) => go({ categoria: event.target.value })}
         className="border-input bg-background h-9 rounded-md border px-3 text-sm"
       >
-        <option value={TODAS}>Todas las categorías</option>
+        <option value={TODAS}>{t("panel.filtros.todasCategorias")}</option>
         {categories.map((category) => (
           <option key={category.id} value={String(category.id)}>
             {category.name}
@@ -71,7 +72,7 @@ export function ProductFilters({
       </select>
 
       <label className="sr-only" htmlFor="orden">
-        Ordenar
+        {t("panel.filtros.ordenar")}
       </label>
       <select
         id="orden"

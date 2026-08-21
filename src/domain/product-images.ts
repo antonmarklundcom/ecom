@@ -39,15 +39,15 @@ export function validateProductImage(input: {
   content: Buffer | Uint8Array;
 }): { mime: string } {
   if (input.bytes <= 0) {
-    throw new AdminInputError("El archivo está vacío.");
+    throw new AdminInputError("adminError.foto.vacia");
   }
   if (input.bytes > PRODUCT_IMAGE_MAX_BYTES) {
-    throw new AdminInputError("La foto no puede pesar más de 5 MB.");
+    throw new AdminInputError("adminError.foto.pesada");
   }
 
   const mime = sniffImageMime(input.content);
   if (!mime) {
-    throw new AdminInputError("Subí una foto en JPG, PNG o WebP.");
+    throw new AdminInputError("adminError.foto.formato");
   }
   return { mime };
 }

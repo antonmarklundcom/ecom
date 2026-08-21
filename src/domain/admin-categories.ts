@@ -1,4 +1,7 @@
 import { and, asc, count, eq, isNotNull, ne, sql } from 'drizzle-orm';
+import type { MessageKey, Params } from '@/i18n';
+
+import { DomainError } from './errors';
 
 import { getDb } from '@/db';
 import { categories, products } from '@/db/schema';
@@ -36,9 +39,9 @@ import type { Executor } from './executor';
  *    que la vidriera dibuje subcategorías, este archivo es el lugar.
  */
 
-export class AdminCategoryError extends Error {
-  constructor(message: string) {
-    super(message);
+export class AdminCategoryError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = 'AdminCategoryError';
   }
 }
@@ -97,19 +100,17 @@ export async function listAdminCategories(executor?: Executor): Promise<AdminCat
 /** El nombre y el slug, validados igual en el alta y en la edición. */
 function normalizar(input: { name: string; slug?: string | null }): { name: string; slug: string } {
   const name = input.name.trim().replace(/\s+/g, ' ');
-  if (name.length < 2) throw new AdminCategoryError('El nombre necesita al menos 2 caracteres.');
-  if (name.length > 120) throw new AdminCategoryError('El nombre no puede pasar los 120 caracteres.');
+  if (name.length < 2) throw new AdminCategoryError('adminError.categoria.nombreCorto');
+  if (name.length > 120) throw new AdminCategoryError('adminError.categoria.nombreLargo');
 
   // Sin slug propio, sale del nombre. Con slug propio, igual se normaliza: lo
   // que se guarda tiene que ser lo que entra en una URL, y no la versión con
   // mayúsculas y espacios que alguien pegó de un Word.
   const slug = slugify(input.slug?.trim() || name);
   if (slug.length === 0) {
-    throw new AdminCategoryError(
-      'De ese nombre no sale ninguna URL. Escribí el slug a mano, con letras y números.',
-    );
+    throw new AdminCategoryError('adminError.categoria.sinUrl');
   }
-  if (slug.length > 120) throw new AdminCategoryError('El slug no puede pasar los 120 caracteres.');
+  if (slug.length > 120) throw new AdminCategoryError('adminError.categoria.slugLargo');
 
   return { name, slug };
 }
@@ -127,7 +128,7 @@ export async function createCategory(input: {
       .where(eq(categories.slug, slug))
       .limit(1);
     if (existing[0]) {
-      throw new AdminCategoryError(`Ya hay una categoría con la URL "${slug}".`);
+      throw new AdminCategoryError('adminError.categoria.urlRepetida', { slug });
     }
 
     // Al final de la lista: una categoría nueva no tiene por qué empujar a las
@@ -144,7 +145,7 @@ export async function createCategory(input: {
 
     const created = await tx.select().from(categories).where(eq(categories.slug, slug)).limit(1);
     const row = created[0];
-    if (!row) throw new AdminCategoryError('No pude crear la categoría.');
+    if (!row) throw new AdminCategoryError('adminError.categoria.noPude');
 
     return {
       id: row.id,
@@ -181,14 +182,14 @@ export async function updateCategory(input: {
       .limit(1)
       .for('update');
     const category = rows[0];
-    if (!category) throw new AdminCategoryError('Esa categoría no existe.');
+    if (!category) throw new AdminCategoryError('adminError.categoria.noExiste');
 
     const choque = await tx
       .select({ id: categories.id })
       .from(categories)
       .where(and(eq(categories.slug, slug), ne(categories.id, category.id)))
       .limit(1);
-    if (choque[0]) throw new AdminCategoryError(`Ya hay otra categoría con la URL "${slug}".`);
+    if (choque[0]) throw new AdminCategoryError('adminError.categoria.urlRepetidaOtra', { slug });
 
     await tx.update(categories).set({ name, slug }).where(eq(categories.id, category.id));
   });
@@ -224,7 +225,7 @@ export async function setCategoryActive(input: {
     .from(categories)
     .where(eq(categories.id, input.categoryId))
     .limit(1);
-  if (!rows[0]) throw new AdminCategoryError('Esa categoría no existe.');
+  if (!rows[0]) throw new AdminCategoryError('adminError.categoria.noExiste');
 
   await db
     .update(categories)
@@ -252,7 +253,7 @@ export async function moveCategory(input: {
       .for('update');
 
     const index = rows.findIndex((row) => row.id === input.categoryId);
-    if (index === -1) throw new AdminCategoryError('Esa categoría no existe.');
+    if (index === -1) throw new AdminCategoryError('adminError.categoria.noExiste');
 
     const target = input.direction === 'up' ? index - 1 : index + 1;
     // Fuera de rango no es un error: es el botón de la primera fila. Renumerar

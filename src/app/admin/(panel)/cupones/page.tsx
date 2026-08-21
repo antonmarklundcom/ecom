@@ -4,8 +4,9 @@ import { CouponsManager } from "@/components/admin/coupons-manager";
 import { listAdminCoupons } from "@/domain/admin-coupons";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { formatDatePY } from "@/lib/py";
+import { t } from "@/i18n";
 
-export const metadata: Metadata = { title: "Cupones" };
+export const metadata: Metadata = { title: t("panel.cupones.meta") };
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +22,9 @@ export default async function AdminCouponsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Cupones</h1>
+      <h1 className="text-xl font-semibold tracking-tight">{t("panel.cupones.titulo")}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        Mientras no haya ninguno activo, el checkout no muestra el campo de
-        descuento. Un cupón usado no se puede editar ni borrar: se desactiva.
+        {t("panel.cupones.bajada")}
       </p>
 
       <div className="mt-6">

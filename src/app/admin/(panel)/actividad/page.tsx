@@ -11,8 +11,9 @@ import {
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { ORDER_STATUS_LABEL } from "@/lib/order-labels";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
+import { t, tPlural } from "@/i18n";
 
-export const metadata: Metadata = { title: "Actividad" };
+export const metadata: Metadata = { title: t("panel.actividad.meta") };
 
 // Un feed de lo que acaba de pasar no se cachea nunca.
 export const dynamic = "force-dynamic";
@@ -71,14 +72,13 @@ export default async function AdminActivityPage({ searchParams }: { searchParams
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Actividad</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{t("panel.actividad.titulo")}</h1>
         <p className="text-muted-foreground text-sm tabular-nums">
-          {result.total} {result.total === 1 ? "movimiento" : "movimientos"}
+          {tPlural("panel.actividad.movimientos", result.total)}
         </p>
       </div>
       <p className="text-muted-foreground mt-1 text-sm">
-        Todo lo que se movió en la tienda: cambios de estado de pedidos y ajustes
-        de stock, del más nuevo al más viejo. Es un registro, no se edita.
+        {t("panel.actividad.bajada")}
       </p>
 
       <div className="mt-4">
@@ -95,7 +95,7 @@ export default async function AdminActivityPage({ searchParams }: { searchParams
 
       {result.rows.length === 0 ? (
         <p className="text-muted-foreground border-border mt-6 rounded-xl border border-dashed p-8 text-center text-sm">
-          No hay movimientos con esos filtros.
+          {t("panel.actividad.sinResultados")}
         </p>
       ) : (
         <ul className="mt-4 grid gap-2">
@@ -126,8 +126,11 @@ function ActivityItem({ row }: { row: ActivityRow }) {
               </Link>{" "}
               <span className="font-normal">
                 {row.fromStatus === null
-                  ? `creado como ${ORDER_STATUS_LABEL[row.toStatus]}`
-                  : `${ORDER_STATUS_LABEL[row.fromStatus]} → ${ORDER_STATUS_LABEL[row.toStatus]}`}
+                  ? t("panel.actividad.creadoComo", { estado: ORDER_STATUS_LABEL[row.toStatus] })
+                  : t("panel.actividad.transicion", {
+                      desde: ORDER_STATUS_LABEL[row.fromStatus],
+                      hasta: ORDER_STATUS_LABEL[row.toStatus],
+                    })}
               </span>
             </>
           ) : (
@@ -142,8 +145,11 @@ function ActivityItem({ row }: { row: ActivityRow }) {
                   antes→después importa tanto como el delta, porque es lo que
                   se compara contra el conteo físico.
                 */}
-                {row.delta > 0 ? `+${row.delta}` : row.delta} ({row.previousOnHand} →{" "}
-                {row.newOnHand})
+                {t("panel.actividad.deltaStock", {
+                  delta: row.delta > 0 ? `+${row.delta}` : row.delta,
+                  antes: row.previousOnHand,
+                  despues: row.newOnHand,
+                })}
               </span>
             </>
           )}
@@ -165,7 +171,7 @@ function ActivityItem({ row }: { row: ActivityRow }) {
         dueño está buscando a Ana. Se muestran los dos y no se pierde ninguno.
       */}
       <p className="text-muted-foreground mt-1 text-xs">
-        {row.actorName ?? "El sistema"}
+        {row.actorName ?? t("panel.actividad.elSistema")}
         <span className="opacity-70"> · {row.actor}</span>
       </p>
     </li>
@@ -194,20 +200,20 @@ function Pagination({
   };
 
   return (
-    <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label="Paginación">
+    <nav className="mt-6 flex items-center justify-between gap-3 text-sm" aria-label={t("nav.paginacion")}>
       {page > 1 ? (
         <Link href={href(page - 1)} className="border-border rounded-lg border px-3 py-2">
-          ← Más nuevos
+          {t("panel.actividad.masNuevos")}
         </Link>
       ) : (
         <span />
       )}
       <span className="text-muted-foreground tabular-nums">
-        Página {page} de {totalPages}
+        {t("nav.pagina", { actual: page, total: totalPages })}
       </span>
       {page < totalPages ? (
         <Link href={href(page + 1)} className="border-border rounded-lg border px-3 py-2">
-          Más viejos →
+          {t("panel.actividad.masViejos")}
         </Link>
       ) : (
         <span />

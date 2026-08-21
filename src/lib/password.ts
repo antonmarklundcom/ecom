@@ -1,18 +1,32 @@
 import bcrypt from 'bcryptjs';
 
+import { t, type MessageKey } from '@/i18n';
+
 /** Coste de bcrypt. 12 ≈ 250 ms en el slot Node de Hostinger — suficiente. */
 export const BCRYPT_ROUNDS = 12;
 
 export const MIN_PASSWORD_LENGTH = 10;
 
-export function validatePasswordStrength(password: string): { ok: boolean; reason?: string } {
+/**
+ * Devuelve una **clave del catálogo** y no la frase: el motivo se le muestra a
+ * quien está eligiendo la contraseña, así que es texto de tienda y va con el
+ * resto (PR R). Quien llama decide si lo muestra tal cual o lo envuelve.
+ */
+export function validatePasswordStrength(
+  password: string,
+): { ok: true } | { ok: false; reason: MessageKey } {
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return { ok: false, reason: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres` };
+    return { ok: false, reason: 'adminError.password.corta' };
   }
   if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-    return { ok: false, reason: 'La contraseña debe combinar letras y números' };
+    return { ok: false, reason: 'adminError.password.simple' };
   }
   return { ok: true };
+}
+
+/** El motivo ya resuelto, para quien sólo quiere el texto. */
+export function passwordStrengthMessage(reason: MessageKey): string {
+  return t(reason, { minimo: MIN_PASSWORD_LENGTH });
 }
 
 export function hashPassword(password: string): Promise<string> {

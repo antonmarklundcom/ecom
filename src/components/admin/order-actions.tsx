@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import type { OrderStatus } from "@/db/schema";
 
 import { DESTRUCTIVE_TRANSITIONS, ORDER_STATUS_LABEL, TRANSITION_LABEL } from "@/lib/order-labels";
+import { t } from "@/i18n";
 
 /**
  * Botones de cambio de estado.
@@ -41,7 +42,7 @@ export function OrderActions({
       }
       setPendingStatus(null);
       setReason("");
-      toast.success(`Pedido marcado como "${ORDER_STATUS_LABEL[to]}".`);
+      toast.success(t("panel.acciones.marcado", { estado: ORDER_STATUS_LABEL[to] }));
       router.refresh();
     });
   };
@@ -63,13 +64,13 @@ export function OrderActions({
         <div className="border-border grid gap-2 rounded-xl border p-3">
           <p className="text-sm font-medium">{TRANSITION_LABEL[pendingStatus]}</p>
           <label className="text-muted-foreground text-xs" htmlFor="reason">
-            Motivo (queda en el historial del pedido)
+            {t("panel.acciones.motivo")}
           </label>
           <Input
             id="reason"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            placeholder="Ej: el cliente pidió cancelar"
+            placeholder={t("panel.acciones.motivo.placeholder")}
             maxLength={500}
           />
           <div className="flex gap-2">
@@ -79,7 +80,7 @@ export function OrderActions({
               disabled={isPending}
               onClick={() => run(pendingStatus, reason)}
             >
-              {isPending ? "Guardando…" : "Confirmar"}
+              {isPending ? t("panel.acciones.guardando") : t("panel.acciones.confirmar")}
             </Button>
             <Button
               type="button"
@@ -90,7 +91,7 @@ export function OrderActions({
                 setReason("");
               }}
             >
-              Volver
+              {t("panel.acciones.volver")}
             </Button>
           </div>
         </div>

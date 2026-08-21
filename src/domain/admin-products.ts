@@ -12,6 +12,9 @@ import {
 import type { AdminProductSort } from "@/lib/admin-product-sort";
 import { EXPORT_MAX_ROWS } from "@/lib/csv";
 
+import type { MessageKey, Params } from "@/i18n";
+
+import { DomainError } from "./errors";
 import type { Executor } from "./executor";
 import { heldQtyMap } from "./stock";
 
@@ -22,9 +25,9 @@ import { heldQtyMap } from "./stock";
  * borradores y lo despublicado: es la vista del dueño, no la de la vidriera.
  */
 
-export class AdminInputError extends Error {
-  constructor(message: string) {
-    super(message);
+export class AdminInputError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = "AdminInputError";
   }
 }
@@ -271,7 +274,7 @@ export async function createProduct(input: ProductWrite, executor?: Executor): P
     .where(eq(products.slug, input.slug))
     .limit(1);
   const created = rows[0];
-  if (!created) throw new AdminInputError("No pude crear el producto.");
+  if (!created) throw new AdminInputError("adminError.producto.noPude");
   return created.id;
 }
 
@@ -289,7 +292,7 @@ export async function updateProduct(
     .where(eq(products.id, productId))
     .limit(1);
   const current = existing[0];
-  if (!current) throw new AdminInputError("Ese producto no existe.");
+  if (!current) throw new AdminInputError("adminError.producto.noExiste");
 
   await tx
     .update(products)
@@ -320,7 +323,7 @@ async function assertSlugFree(
     .limit(1);
   const clash = rows[0];
   if (clash && clash.id !== exceptProductId) {
-    throw new AdminInputError(`Ya hay un producto con el slug "${slug}".`);
+    throw new AdminInputError("adminError.producto.slugRepetido", { slug });
   }
 }
 
@@ -353,7 +356,7 @@ export async function saveVariant(
     .limit(1);
   const existing = clash[0];
   if (existing && existing.id !== input.id) {
-    throw new AdminInputError(`El SKU "${input.sku}" ya está usado por otra variante.`);
+    throw new AdminInputError("adminError.producto.skuRepetido", { sku: input.sku });
   }
 
   if (input.id === undefined) {
@@ -414,10 +417,10 @@ export async function adjustStock(input: StockAdjustment): Promise<{
 }> {
   const reason = input.reason.trim();
   if (reason.length < ADJUSTMENT_MIN_REASON) {
-    throw new AdminInputError("Escribí el motivo del ajuste (ej: rotura, conteo, reposición).");
+    throw new AdminInputError("adminError.stock.sinMotivo");
   }
   if (!Number.isInteger(input.delta) || input.delta === 0) {
-    throw new AdminInputError("El ajuste tiene que ser un número entero distinto de cero.");
+    throw new AdminInputError("adminError.stock.deltaCero");
   }
 
   return getDb().transaction(async (tx) => {
@@ -428,15 +431,16 @@ export async function adjustStock(input: StockAdjustment): Promise<{
       .for("update");
 
     const variant = locked[0];
-    if (!variant) throw new AdminInputError("Esa variante no existe.");
+    if (!variant) throw new AdminInputError("adminError.producto.varianteNoExiste");
 
     // `on_hand` es UNSIGNED: restar de más haría wrap-around a un número
     // gigante en vez de fallar. Se corta acá.
     const newOnHand = variant.onHand + input.delta;
     if (newOnHand < 0) {
-      throw new AdminInputError(
-        `No podés descontar ${Math.abs(input.delta)}: hay ${variant.onHand} en stock.`,
-      );
+      throw new AdminInputError("adminError.stock.negativo", {
+        cantidad: Math.abs(input.delta),
+        stock: variant.onHand,
+      });
     }
 
     await tx.update(variants).set({ onHand: newOnHand }).where(eq(variants.id, variant.id));

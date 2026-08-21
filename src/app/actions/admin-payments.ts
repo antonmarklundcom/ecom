@@ -11,6 +11,7 @@ import {
   requireStaffSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
 /**
  * Las dos acciones sobre "Pagos sin pedido vivo" (ARCH.md §4.1).
@@ -42,7 +43,7 @@ export async function retryPaymentRevival(
 
     const parsed = PaymentSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "No entendí de qué pago se trata." };
+      return { ok: false, error: t("adminError.noEntendi.pago") };
     }
 
     const result = await retryOrderRevival({
@@ -75,7 +76,7 @@ export async function markPaymentRefunded(
 
     const parsed = RefundSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "Faltan datos para registrar la devolución." };
+      return { ok: false, error: t("adminError.noEntendi.devolucion") };
     }
 
     const result = await refundPayment({

@@ -16,6 +16,7 @@ import {
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
 /**
  * Gestión de usuarios del panel (PLAN.md FASE 2, PR C).
@@ -32,8 +33,8 @@ import {
  */
 
 const CreateSchema = z.object({
-  email: z.email("Revisá el email").max(200),
-  password: z.string().min(1, "Poné una contraseña temporal").max(200),
+  email: z.email(t("adminForm.email")).max(200),
+  password: z.string().min(1, t("adminForm.passwordTemporal")).max(200),
   name: z.string().trim().max(160).optional(),
   role: z.enum(USER_ROLES),
 });
@@ -44,7 +45,7 @@ export async function crearUsuario(input: unknown): Promise<AdminActionResult<{ 
 
     const parsed = CreateSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     const created = await createAdminUser({
@@ -72,7 +73,7 @@ export async function cambiarEstadoUsuario(input: unknown): Promise<AdminActionR
     const actor = await requireOwnerSession();
 
     const parsed = ActiveSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: "No entendí qué usuario cambiar." };
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.usuario") };
 
     await setAdminUserActive({
       userId: parsed.data.userId,
@@ -101,7 +102,7 @@ export async function cambiarRolUsuario(input: unknown): Promise<AdminActionResu
     const actor = await requireOwnerSession();
 
     const parsed = RoleSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: "No entendí qué rol poner." };
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.rol") };
 
     await setAdminUserRole({
       userId: parsed.data.userId,
@@ -119,7 +120,7 @@ export async function cambiarRolUsuario(input: unknown): Promise<AdminActionResu
 
 const ResetSchema = z.object({
   userId: z.number().int().positive(),
-  password: z.string().min(1, "Poné la contraseña nueva").max(200),
+  password: z.string().min(1, t("adminForm.passwordNueva")).max(200),
 });
 
 export async function resetearPassword(input: unknown): Promise<AdminActionResult> {
@@ -128,7 +129,7 @@ export async function resetearPassword(input: unknown): Promise<AdminActionResul
 
     const parsed = ResetSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
     }
 
     await resetAdminUserPassword({

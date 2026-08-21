@@ -14,6 +14,7 @@ import {
   requireStaffSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
 /**
  * Acciones del panel sobre un pedido (PLAN.md 4.4 y 4.5).
@@ -41,7 +42,7 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
 
     const parsed = AdvanceSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "No entendí qué querés hacer con el pedido." };
+      return { ok: false, error: t("adminError.noEntendi.pedido") };
     }
 
     // El destino es lo que decide el permiso: los tres roles usan esta misma
@@ -80,7 +81,7 @@ export async function decideReceipt(input: unknown): Promise<AdminActionResult> 
 
     const parsed = ReviewSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "Faltan datos para revisar el comprobante." };
+      return { ok: false, error: t("adminError.noEntendi.comprobante") };
     }
 
     const result = await reviewReceipt({
@@ -118,7 +119,7 @@ export async function previewReceipt(
 
     const parsed = PreviewSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "Comprobante inválido." };
+      return { ok: false, error: t("adminError.comprobanteInvalido") };
     }
 
     const preview = await receiptPreview(parsed.data.receiptId);

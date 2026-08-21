@@ -15,18 +15,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { USER_ROLES, type UserRole } from "@/db/schema";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
+import { t } from "@/i18n";
 
 /** Cómo se llama cada rol para el dueño, con lo que puede en una línea. */
 const ROLE_LABEL: Record<UserRole, string> = {
-  owner: "Dueño",
-  staff: "Encargado",
-  vendedor: "Vendedor",
+  owner: t("panel.rol.owner"),
+  staff: t("panel.rol.staff"),
+  vendedor: t("panel.rol.vendedor"),
 };
 
 const ROLE_HELP: Record<UserRole, string> = {
-  owner: "Todo, incluidos usuarios, devoluciones y descargas de CSV.",
-  staff: "Pedidos, comprobantes, productos y stock. Sin devoluciones ni CSV.",
-  vendedor: "Ve pedidos y los despacha. Sin montos, comprobantes ni stock.",
+  owner: t("panel.rol.owner.ayuda"),
+  staff: t("panel.rol.staff.ayuda"),
+  vendedor: t("panel.rol.vendedor.ayuda"),
 };
 
 export type AdminUserCard = {
@@ -70,7 +71,7 @@ function NewUserForm() {
     return (
       <div>
         <Button type="button" onClick={() => setOpen(true)}>
-          Agregar usuario
+          {t("panel.usuario.agregar")}
         </Button>
       </div>
     );
@@ -96,13 +97,13 @@ function NewUserForm() {
             setError(result.error);
             return;
           }
-          toast.success("Usuario creado. Pasale la contraseña por un canal seguro.");
+          toast.success(t("panel.usuario.creado"));
           setOpen(false);
           router.refresh();
         });
       }}
     >
-      <h2 className="font-medium">Nuevo usuario</h2>
+      <h2 className="font-medium">{t("panel.usuario.nuevo")}</h2>
 
       {error ? (
         <p
@@ -115,19 +116,20 @@ function NewUserForm() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="nuevo-email">Email</Label>
+          <Label htmlFor="nuevo-email">{t("panel.usuario.email")}</Label>
           <Input id="nuevo-email" name="email" type="email" required autoComplete="off" />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="nuevo-name">
-            Nombre <span className="text-muted-foreground font-normal">(opcional)</span>
+            {t("panel.usuario.nombre")}{" "}
+            <span className="text-muted-foreground font-normal">{t("checkout.opcional")}</span>
           </Label>
           <Input id="nuevo-name" name="name" autoComplete="off" />
         </div>
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="nuevo-password">Contraseña temporal</Label>
+        <Label htmlFor="nuevo-password">{t("panel.usuario.passwordTemporal")}</Label>
         <Input
           id="nuevo-password"
           name="password"
@@ -143,9 +145,7 @@ function NewUserForm() {
           donde quiera; el texto le recuerda que la cambie.
         */}
         <p className="text-muted-foreground text-xs">
-          Al menos {MIN_PASSWORD_LENGTH} caracteres, con letras y números. Se la
-          pasás vos por WhatsApp o en persona — la tienda no manda emails. Que la
-          cambie al entrar.
+          {t("panel.usuario.passwordAyuda", { minimo: MIN_PASSWORD_LENGTH })}
         </p>
       </div>
 
@@ -153,10 +153,10 @@ function NewUserForm() {
 
       <div className="flex gap-2">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Creando…" : "Crear usuario"}
+          {isPending ? t("panel.usuario.creando") : t("panel.usuario.crear")}
         </Button>
         <Button type="button" variant="outline" disabled={isPending} onClick={() => setOpen(false)}>
-          Cancelar
+          {t("panel.abm.cancelar")}
         </Button>
       </div>
     </form>
@@ -177,7 +177,7 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
     startTransition(async () => {
       const result = await action();
       if (!result.ok) {
-        setError(result.error ?? "No pudimos hacer eso.");
+        setError(result.error ?? t("panel.abm.noPudimos"));
         return;
       }
       toast.success(done);
@@ -193,12 +193,14 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
         <span className="font-medium break-all">
           {user.name ? `${user.name} · ` : ""}
           {user.email}
-          {soyYo ? <span className="text-muted-foreground font-normal"> (vos)</span> : null}
+          {soyYo ? (
+            <span className="text-muted-foreground font-normal">{t("panel.usuario.vos")}</span>
+          ) : null}
         </span>
         <span className="text-sm">
           {ROLE_LABEL[user.role]}
           {user.isActive ? null : (
-            <span className="text-muted-foreground"> · desactivado</span>
+            <span className="text-muted-foreground">{t("panel.usuario.desactivado")}</span>
           )}
         </span>
       </div>
@@ -208,7 +210,9 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
           "Nunca entró" es información distinta de "entró hace mucho": es lo que
           le dice al dueño que la cuenta que creó el martes sigue sin usarse.
         */}
-        {user.lastLogin ? `Último ingreso: ${user.lastLogin}` : "Nunca entró"}
+        {user.lastLogin
+          ? t("panel.usuario.ultimoIngreso", { fecha: user.lastLogin })
+          : t("panel.usuario.nuncaEntro")}
       </p>
 
       {error ? (
@@ -223,7 +227,7 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
       {resetting ? (
         <div className="border-border mt-3 grid gap-2 rounded-lg border p-3">
           <Label htmlFor={`pass-${user.id}`} className="text-xs">
-            Contraseña nueva para {user.email}
+            {t("panel.usuario.passwordNueva", { email: user.email })}
           </Label>
           <Input
             id={`pass-${user.id}`}
@@ -240,11 +244,11 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
               onClick={() =>
                 run(
                   () => resetearPassword({ userId: user.id, password }),
-                  "Contraseña cambiada. Pasásela por un canal seguro.",
+                  t("panel.usuario.passwordCambiada"),
                 )
               }
             >
-              {isPending ? "Guardando…" : "Cambiar contraseña"}
+              {isPending ? t("panel.acciones.guardando") : t("panel.usuario.cambiarPassword")}
             </Button>
             <Button
               type="button"
@@ -256,7 +260,7 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
                 setPassword("");
               }}
             >
-              Volver
+              {t("panel.acciones.volver")}
             </Button>
           </div>
         </div>
@@ -265,13 +269,13 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
           <select
             value={user.role}
             disabled={isPending || soyYo}
-            aria-label={`Rol de ${user.email}`}
+            aria-label={t("panel.rol.de", { email: user.email })}
             className="border-input bg-background h-9 rounded-md border px-2 text-sm disabled:opacity-60"
             onChange={(event) =>
               run(
                 () =>
                   cambiarRolUsuario({ userId: user.id, role: event.target.value as UserRole }),
-                "Rol actualizado.",
+                t("panel.usuario.rolActualizado"),
               )
             }
           >
@@ -289,7 +293,7 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
             disabled={isPending}
             onClick={() => setResetting(true)}
           >
-            Resetear contraseña
+            {t("panel.usuario.resetear")}
           </Button>
 
           {/*
@@ -307,11 +311,11 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
               onClick={() =>
                 run(
                   () => cambiarEstadoUsuario({ userId: user.id, isActive: !user.isActive }),
-                  user.isActive ? "Usuario desactivado." : "Usuario reactivado.",
+                  user.isActive ? t("panel.usuario.desactivadoOk") : t("panel.usuario.reactivadoOk"),
                 )
               }
             >
-              {user.isActive ? "Desactivar" : "Reactivar"}
+              {user.isActive ? t("panel.abm.desactivar") : t("panel.abm.reactivar")}
             </Button>
           )}
         </div>
@@ -319,8 +323,7 @@ function UserRow({ user, actingUserId }: { user: AdminUserCard; actingUserId: nu
 
       {soyYo ? (
         <p className="text-muted-foreground mt-2 text-xs">
-          Tu propia cuenta no se puede desactivar ni degradar desde acá: quedarías
-          afuera del panel sin forma de volver.
+          {t("panel.usuario.tuCuenta")}
         </p>
       ) : null}
     </li>
@@ -338,7 +341,7 @@ function RolePicker({
 }) {
   return (
     <fieldset className="grid gap-2">
-      <legend className="text-sm font-medium">Rol</legend>
+      <legend className="text-sm font-medium">{t("panel.rol.label")}</legend>
       {USER_ROLES.map((role) => (
         <label key={role} className="flex items-start gap-2 text-sm">
           <input

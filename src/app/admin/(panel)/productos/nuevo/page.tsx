@@ -4,8 +4,9 @@ import Link from "next/link";
 import { ProductForm } from "@/components/admin/product-form";
 import { listCategories } from "@/domain/admin-products";
 import { requireCapabilityPage } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
-export const metadata: Metadata = { title: "Nuevo producto" };
+export const metadata: Metadata = { title: t("panel.productoNuevo.meta") };
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +18,11 @@ export default async function NewProductPage() {
   return (
     <div>
       <Link href="/admin/productos" className="text-muted-foreground text-sm">
-        ← Productos
+        {t("panel.productoNuevo.volver")}
       </Link>
-      <h1 className="mt-2 text-xl font-semibold tracking-tight">Nuevo producto</h1>
+      <h1 className="mt-2 text-xl font-semibold tracking-tight">{t("panel.productoNuevo.titulo")}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        Primero se crea el producto; las variantes, los precios y las fotos se cargan después.
+        {t("panel.productoNuevo.bajada")}
       </p>
 
       <div className="mt-6">

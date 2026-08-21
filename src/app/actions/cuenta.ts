@@ -34,7 +34,7 @@ import {
   rateLimit,
   resetRateLimitKey,
 } from "@/lib/rate-limit";
-import { MIN_PASSWORD_LENGTH, validatePasswordStrength } from "@/lib/password";
+import { passwordStrengthMessage, validatePasswordStrength } from "@/lib/password";
 import { normalizePhonePY } from "@/lib/py";
 
 /**
@@ -97,7 +97,7 @@ export async function registrarCliente(input: unknown): Promise<CuentaResult> {
   if (!strength.ok) {
     return {
       ok: false,
-      error: strength.reason ?? `La contraseña necesita al menos ${MIN_PASSWORD_LENGTH} caracteres`,
+      error: passwordStrengthMessage(strength.reason),
     };
   }
 

@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/admin/login-form";
 import { safeNextPath } from "@/lib/safe-redirect";
 import { getSession } from "@/lib/session";
+import { t } from "@/i18n";
 
 export const metadata: Metadata = {
-  title: "Entrar",
+  title: t("panel.login.meta"),
   robots: { index: false, follow: false },
 };
 
@@ -29,9 +30,9 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: S
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-col justify-center px-4 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Panel del comercio</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{t("panel.login.titulo")}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        Entrá con tu cuenta para ver los pedidos.
+        {t("panel.login.bajada")}
       </p>
       <div className="mt-6">
         <LoginForm next={next} />

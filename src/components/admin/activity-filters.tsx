@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/i18n";
 
 export type ActivityActorOption = { id: number; label: string; isActive: boolean };
 
@@ -52,60 +53,60 @@ export function ActivityFiltersForm({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="filtro-quien">Quién</Label>
+          <Label htmlFor="filtro-quien">{t("panel.actividad.quien")}</Label>
           <select
             id="filtro-quien"
             name="quien"
             defaultValue={defaults.quien}
             className="border-input bg-background h-9 rounded-md border px-2 text-sm"
           >
-            <option value="">Cualquiera</option>
+            <option value="">{t("panel.actividad.cualquiera")}</option>
             {/*
               "El sistema" no es un usuario y no se puede omitir: son las filas
               sin `actor_user_id` —el cron que vence pedidos, el webhook de
               Pagopar, la compradora subiendo su comprobante— y es justo lo que
               se quiere mirar cuando algo cambió y nadie lo tocó.
             */}
-            <option value="sistema">El sistema (cron, Pagopar, la compradora)</option>
+            <option value="sistema">{t("panel.actividad.sistema")}</option>
             {actores.map((actor) => (
               <option key={actor.id} value={String(actor.id)}>
                 {actor.label}
-                {actor.isActive ? "" : " (desactivado)"}
+                {actor.isActive ? "" : t("panel.actividad.desactivado")}
               </option>
             ))}
           </select>
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="filtro-tipo">Tipo</Label>
+          <Label htmlFor="filtro-tipo">{t("panel.actividad.tipo")}</Label>
           <select
             id="filtro-tipo"
             name="tipo"
             defaultValue={defaults.tipo}
             className="border-input bg-background h-9 rounded-md border px-2 text-sm"
           >
-            <option value="">Todo</option>
-            <option value="pedido">Cambios de pedido</option>
-            <option value="stock">Ajustes de stock</option>
+            <option value="">{t("panel.actividad.todo")}</option>
+            <option value="pedido">{t("panel.actividad.tipoPedido")}</option>
+            <option value="stock">{t("panel.actividad.tipoStock")}</option>
           </select>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="filtro-desde">Desde</Label>
+          <Label htmlFor="filtro-desde">{t("panel.filtros.desde")}</Label>
           <Input id="filtro-desde" name="desde" type="date" defaultValue={defaults.desde} />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor="filtro-hasta">Hasta</Label>
+          <Label htmlFor="filtro-hasta">{t("panel.filtros.hasta")}</Label>
           <Input id="filtro-hasta" name="hasta" type="date" defaultValue={defaults.hasta} />
-          <p className="text-muted-foreground text-xs">Incluye todo ese día.</p>
+          <p className="text-muted-foreground text-xs">{t("panel.actividad.hastaIncluye")}</p>
         </div>
       </div>
 
       <div className="flex gap-2">
         <Button type="submit" size="sm">
-          Filtrar
+          {t("panel.actividad.filtrar")}
         </Button>
         <Button
           type="button"
@@ -113,7 +114,7 @@ export function ActivityFiltersForm({
           variant="outline"
           onClick={() => router.push("/admin/actividad")}
         >
-          Limpiar
+          {t("panel.filtros.limpiar")}
         </Button>
       </div>
     </form>

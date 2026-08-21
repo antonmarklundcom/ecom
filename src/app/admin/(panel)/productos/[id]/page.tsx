@@ -8,8 +8,9 @@ import { VariantEditor } from "@/components/admin/variant-editor";
 import { getAdminProduct, listCategories, listStockAdjustments } from "@/domain/admin-products";
 import { formatDateTimePY } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
+import { t } from "@/i18n";
 
-export const metadata: Metadata = { title: "Producto" };
+export const metadata: Metadata = { title: t("panel.producto.meta") };
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
   return (
     <div>
       <Link href="/admin/productos" className="text-muted-foreground text-sm">
-        ← Productos
+        {t("panel.producto.volver")}
       </Link>
       <h1 className="mt-2 text-xl font-semibold tracking-tight">{product.name}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
@@ -54,7 +55,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
       </p>
 
       <section className="mt-6">
-        <h2 className="font-medium">Datos</h2>
+        <h2 className="font-medium">{t("panel.producto.datos")}</h2>
         <div className="mt-2">
           <ProductForm
             categories={categories.map((category) => ({ id: category.id, name: category.name }))}
@@ -74,7 +75,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-medium">Variantes y stock</h2>
+        <h2 className="font-medium">{t("panel.producto.variantes")}</h2>
         <div className="mt-2">
           <VariantEditor
             productId={product.id}
@@ -95,7 +96,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
 
       {adjustments.length > 0 ? (
         <section className="mt-8">
-          <h2 className="font-medium">Últimos ajustes de stock</h2>
+          <h2 className="font-medium">{t("panel.producto.ultimosAjustes")}</h2>
           <ul className="divide-border mt-2 divide-y text-sm">
             {adjustments.map((adjustment) => (
               <li key={adjustment.id} className="py-2">
@@ -110,8 +111,13 @@ export default async function AdminProductPage({ params }: { params: Params }) {
                   </span>
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  {formatDateTimePY(adjustment.createdAt)} · {adjustment.actor} ·{" "}
-                  {adjustment.previousOnHand} → {adjustment.newOnHand} · {adjustment.reason}
+                  {t("panel.producto.ajusteLinea", {
+                    fecha: formatDateTimePY(adjustment.createdAt),
+                    actor: adjustment.actor,
+                    antes: adjustment.previousOnHand,
+                    despues: adjustment.newOnHand,
+                    motivo: adjustment.reason,
+                  })}
                 </p>
               </li>
             ))}
@@ -120,7 +126,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
       ) : null}
 
       <section className="mt-8">
-        <h2 className="font-medium">Fotos</h2>
+        <h2 className="font-medium">{t("panel.producto.fotos")}</h2>
         <div className="mt-2">
           <ProductImages
             productId={product.id}

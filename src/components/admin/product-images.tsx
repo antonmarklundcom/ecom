@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { productImageUrl } from "@/lib/images";
+import { t } from "@/i18n";
 
 type ImageCard = { id: number; cloudinaryId: string; alt: string | null };
 
@@ -46,7 +47,7 @@ export function ProductImages({
                   {url ? (
                     <Image
                       src={url}
-                      alt={image.alt ?? "Foto del producto"}
+                      alt={image.alt ?? t("panel.fotos.alt")}
                       fill
                       unoptimized
                       sizes="200px"
@@ -68,21 +69,19 @@ export function ProductImages({
                         setError(result.error);
                         return;
                       }
-                      toast.success("Foto quitada.");
+                      toast.success(t("panel.fotos.quitada"));
                       router.refresh();
                     });
                   }}
                 >
-                  Quitar
+                  {t("panel.fotos.quitar")}
                 </Button>
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="text-muted-foreground text-sm">
-          Todavía no hay fotos: en la tienda se ve un placeholder de color.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("panel.fotos.vacio")}</p>
       )}
 
       <form
@@ -101,21 +100,21 @@ export function ProductImages({
               return;
             }
             formRef.current?.reset();
-            toast.success("Foto subida.");
+            toast.success(t("panel.fotos.subida"));
             router.refresh();
           });
         }}
       >
         <div className="grid gap-1.5">
-          <Label htmlFor="file">Agregar foto (JPG, PNG o WebP, hasta 5 MB)</Label>
+          <Label htmlFor="file">{t("panel.fotos.agregar")}</Label>
           <Input id="file" name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor="alt">Descripción de la foto (accesibilidad y SEO)</Label>
-          <Input id="alt" name="alt" maxLength={255} placeholder="Remera azul de frente" />
+          <Label htmlFor="alt">{t("panel.fotos.descripcion")}</Label>
+          <Input id="alt" name="alt" maxLength={255} placeholder={t("panel.fotos.descripcion.placeholder")} />
         </div>
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Subiendo…" : "Subir foto"}
+          {isPending ? t("panel.fotos.subiendo") : t("panel.fotos.subir")}
         </Button>
       </form>
     </div>

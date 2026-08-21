@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { parseCityList } from "@/lib/city-list";
 import { formatGs } from "@/lib/money";
 import { slugify } from "@/lib/slug";
+import { t, tPlural } from "@/i18n";
 
 export type AdminShippingZoneCard = {
   id: number;
@@ -51,24 +52,23 @@ export function ShippingZonesManager({ zones }: { zones: AdminShippingZoneCard[]
       ) : (
         <div>
           <Button type="button" onClick={() => setEditing("nueva")}>
-            Crear zona
+            {t("panel.zona.crear")}
           </Button>
         </div>
       )}
 
       {zones.length === 0 ? (
         <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
-          Todavía no hay zonas de envío. Mientras no haya ninguna activa, el
-          checkout cobra ₲0 de flete y lo dice en pantalla — está bien para una
-          demo y no para cobrar de verdad.
+          {t("panel.zona.vacio")}
         </p>
       ) : (
         <>
           {fallback ? (
             <p className="border-border rounded-xl border p-3 text-xs">
-              Una ciudad que no esté en ninguna lista se cotiza como{" "}
-              <strong>{fallback.name}</strong> ({formatGs(fallback.pricePyg)}), que es
-              la zona activa más cara. El checkout se lo avisa a la compradora.
+              {t("panel.zona.comodin", {
+                zona: fallback.name,
+                precio: formatGs(fallback.pricePyg),
+              })}
             </p>
           ) : null}
 
@@ -99,7 +99,7 @@ function ZoneRow({ zone, onEdit }: { zone: AdminShippingZoneCard; onEdit: () => 
     startTransition(async () => {
       const result = await action();
       if (!result.ok) {
-        setError(result.error ?? "No pudimos hacer eso.");
+        setError(result.error ?? t("panel.abm.noPudimos"));
         return;
       }
       toast.success(done);
@@ -113,29 +113,26 @@ function ZoneRow({ zone, onEdit }: { zone: AdminShippingZoneCard; onEdit: () => 
         <span className="font-medium">
           {zone.name}
           {zone.isActive ? null : (
-            <span className="text-muted-foreground font-normal"> · desactivada</span>
+            <span className="text-muted-foreground font-normal">{t("panel.zona.desactivada")}</span>
           )}
         </span>
         <span className="text-sm tabular-nums">
-          {zone.pricePyg === 0 ? "Envío gratis" : formatGs(zone.pricePyg)}
+          {zone.pricePyg === 0 ? t("panel.zona.envioGratis") : formatGs(zone.pricePyg)}
         </span>
       </div>
 
       <p className="text-muted-foreground mt-1 text-xs">
-        {zone.cities.length === 0 ? (
-          <>Sin ciudades: sólo se usa como comodín cuando es la activa más cara.</>
-        ) : (
-          <>
-            {zone.cities.length} ciudad{zone.cities.length === 1 ? "" : "es"}:{" "}
-            {zone.cities.slice(0, 6).join(", ")}
-            {zone.cities.length > 6 ? `, +${zone.cities.length - 6} más` : ""}
-          </>
-        )}
+        {zone.cities.length === 0
+          ? t("panel.zona.sinCiudades")
+          : tPlural("panel.zona.ciudades", zone.cities.length, {
+              lista: zone.cities.slice(0, 6).join(", "),
+            })}
+        {zone.cities.length > 6 ? t("panel.zona.masCiudades", { n: zone.cities.length - 6 }) : ""}
       </p>
 
       {zone.freeThresholdPyg !== null ? (
         <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-          Gratis a partir de {formatGs(zone.freeThresholdPyg)} de subtotal.
+          {t("panel.zona.gratisDesde", { monto: formatGs(zone.freeThresholdPyg) })}
         </p>
       ) : null}
 
@@ -150,7 +147,7 @@ function ZoneRow({ zone, onEdit }: { zone: AdminShippingZoneCard; onEdit: () => 
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={onEdit} disabled={isPending}>
-          Editar
+          {t("panel.abm.editar")}
         </Button>
         <Button
           type="button"
@@ -160,20 +157,20 @@ function ZoneRow({ zone, onEdit }: { zone: AdminShippingZoneCard; onEdit: () => 
           onClick={() =>
             run(
               () => cambiarEstadoZonaEnvio({ zoneId: zone.id, isActive: !zone.isActive }),
-              zone.isActive ? "Zona desactivada." : "Zona activada.",
+              zone.isActive ? t("panel.zona.desactivadaOk") : t("panel.zona.activadaOk"),
             )
           }
         >
-          {zone.isActive ? "Desactivar" : "Activar"}
+          {zone.isActive ? t("panel.abm.desactivar") : t("panel.abm.activar")}
         </Button>
         <Button
           type="button"
           size="sm"
           variant="outline"
-          aria-label={`Subir ${zone.name}`}
+          aria-label={t("panel.abm.subir", { nombre: zone.name })}
           disabled={isPending || zone.esPrimera}
           onClick={() =>
-            run(() => moverZonaEnvio({ zoneId: zone.id, direction: "up" }), "Orden actualizado.")
+            run(() => moverZonaEnvio({ zoneId: zone.id, direction: "up" }), t("panel.abm.ordenActualizado"))
           }
         >
           ↑
@@ -182,10 +179,10 @@ function ZoneRow({ zone, onEdit }: { zone: AdminShippingZoneCard; onEdit: () => 
           type="button"
           size="sm"
           variant="outline"
-          aria-label={`Bajar ${zone.name}`}
+          aria-label={t("panel.abm.bajar", { nombre: zone.name })}
           disabled={isPending || zone.esUltima}
           onClick={() =>
-            run(() => moverZonaEnvio({ zoneId: zone.id, direction: "down" }), "Orden actualizado.")
+            run(() => moverZonaEnvio({ zoneId: zone.id, direction: "down" }), t("panel.abm.ordenActualizado"))
           }
         >
           ↓
@@ -234,13 +231,15 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             setError(result.error);
             return;
           }
-          toast.success(zone ? "Zona actualizada." : "Zona creada.");
+          toast.success(zone ? t("panel.zona.actualizada") : t("panel.zona.creada"));
           onDone();
           router.refresh();
         });
       }}
     >
-      <h2 className="font-medium">{zone ? `Editar ${zone.name}` : "Nueva zona"}</h2>
+      <h2 className="font-medium">
+        {zone ? t("panel.zona.editarTitulo", { nombre: zone.name }) : t("panel.zona.nueva")}
+      </h2>
 
       {error ? (
         <p
@@ -253,7 +252,7 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="zona-name">Nombre</Label>
+          <Label htmlFor="zona-name">{t("panel.zona.nombre")}</Label>
           <Input
             id="zona-name"
             value={name}
@@ -267,12 +266,12 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             }}
           />
           <p className="text-muted-foreground text-xs">
-            Lo lee la compradora en el checkout: “Envío — Gran Asunción”.
+            {t("panel.zona.nombreAyuda")}
           </p>
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="zona-price">Precio del envío</Label>
+          <Label htmlFor="zona-price">{t("panel.zona.precio")}</Label>
           <Input
             id="zona-price"
             name="pricePyg"
@@ -284,42 +283,34 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             inputMode="numeric"
           />
           <p className="text-muted-foreground text-xs">
-            Guaraníes enteros, IVA 10% incluido como el resto de los precios.
+            {t("panel.zona.precioAyuda")}
           </p>
         </div>
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="zona-cities">Ciudades</Label>
+        <Label htmlFor="zona-cities">{t("panel.zona.ciudadesLabel")}</Label>
         <textarea
           id="zona-cities"
           value={cities}
           rows={5}
           className="border-input bg-background min-h-24 rounded-md border px-3 py-2 text-sm"
-          placeholder={"Asunción\nLambaré\nFernando de la Mora"}
+          placeholder={t("panel.zona.ciudades.placeholder")}
           onChange={(event) => setCities(event.target.value)}
         />
         <p className="text-muted-foreground text-xs">
-          Una por línea o separadas por coma — pegá la lista como la tengas.{" "}
-          {parsed.length === 0 ? (
-            <>
-              Sin ninguna, esta zona nunca coincide con una ciudad: sólo se cobra
-              si es la activa más cara, o sea como comodín del interior.
-            </>
-          ) : (
-            <>
-              Van {parsed.length}. Los acentos y las mayúsculas no importan al
-              comparar; se guarda como lo escribiste.
-            </>
-          )}
+          {t("panel.zona.ciudadesAyuda")}
+          {parsed.length === 0
+            ? t("panel.zona.ciudadesAyuda.ninguna")
+            : t("panel.zona.ciudadesAyuda.algunas", { n: parsed.length })}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="zona-free">
-            Envío gratis desde{" "}
-            <span className="text-muted-foreground font-normal">(opcional)</span>
+            {t("panel.zona.gratisLabel")}{" "}
+            <span className="text-muted-foreground font-normal">{t("checkout.opcional")}</span>
           </Label>
           <Input
             id="zona-free"
@@ -331,12 +322,12 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             inputMode="numeric"
           />
           <p className="text-muted-foreground text-xs">
-            Sobre el subtotal, sin el envío. Vacío = esta zona no lo ofrece.
+            {t("panel.zona.gratisAyuda")}
           </p>
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="zona-slug">Identificador</Label>
+          <Label htmlFor="zona-slug">{t("panel.zona.identificador")}</Label>
           <Input
             id="zona-slug"
             value={slug}
@@ -348,18 +339,21 @@ function ZoneForm({ zone, onDone }: { zone?: AdminShippingZoneCard; onDone: () =
             }}
           />
           <p className="text-muted-foreground text-xs">
-            Interno: no sale en ninguna URL. Sirve para distinguir dos zonas que
-            se llamen parecido.
+            {t("panel.zona.identificadorAyuda")}
           </p>
         </div>
       </div>
 
       <div className="flex gap-2">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Guardando…" : zone ? "Guardar cambios" : "Crear zona"}
+          {isPending
+            ? t("panel.acciones.guardando")
+            : zone
+              ? t("panel.abm.guardarCambios")
+              : t("panel.zona.crear")}
         </Button>
         <Button type="button" variant="outline" disabled={isPending} onClick={onDone}>
-          Cancelar
+          {t("panel.abm.cancelar")}
         </Button>
       </div>
     </form>
