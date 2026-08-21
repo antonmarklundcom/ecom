@@ -164,7 +164,15 @@ describe.skipIf(!hasTestDb)('POST /api/setup/init', () => {
 
     expect(texto).not.toContain('duenio@tienda.com.py');
     expect(texto).not.toContain('contrasenia123');
-    expect(texto).not.toMatch(/"id"/);
+
+    // Ids de la base, que es lo que este control siempre quiso decir: un
+    // `"id": 7`. Desde el PR U la respuesta trae el reporte de preflight, y
+    // cada control tiene un `"id"` que es un **slug** estable para grepear en
+    // el log del deploy (`"marca"`, `"cron_secret"`) — no una fila de ninguna
+    // tabla. Buscar la palabra "id" a secas convertía este guard en un
+    // detector de la palabra y no de la filtración.
+    expect(texto).not.toMatch(/"id"\s*:\s*\d/);
+    expect(texto).not.toMatch(/"\w*[iI]d"\s*:\s*\d/);
   });
 
   it('sin pedir nada sólo migra: es el corredor de migraciones de los deploys siguientes', async () => {
