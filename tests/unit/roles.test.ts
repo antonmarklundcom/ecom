@@ -111,6 +111,9 @@ describe('la matriz de capacidades', () => {
     // menos en cada pedido. Las dos son decisiones del dueño (PR J y K).
     expect(can('staff', 'categorias')).toBe(false);
     expect(can('staff', 'envios')).toBe(false);
+    // A qué cuenta transfieren las compradoras (PR T): quien lo puede cambiar
+    // desvía la facturación entera sin dejar un pedido raro.
+    expect(can('staff', 'banco')).toBe(false);
     // …pero sí la operación diaria completa.
     expect(can('staff', 'comprobantes')).toBe(true);
     expect(can('staff', 'stock')).toBe(true);

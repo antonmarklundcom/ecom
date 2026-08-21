@@ -53,7 +53,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm backfill:pagos-manuales` | completa la fila de `payments` de los pedidos cobrados por transferencia o contra entrega **antes** de que eso se registrara solo (ARCH.md §5.1). Ensayo por defecto: agregá `--apply` para escribir |
 | `pnpm backup` | copia comprimida de la base en `backups/` (`--retener N` para la limpieza por antigüedad). Se corre desde tu máquina, no desde Hostinger — DEPLOY.md §7 |
 | `pnpm template:diff` | qué arreglos del template le faltan a esta tienda (`--marcar` para fijar el punto de partida) — NEW-STORE.md |
-| `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `BANCO_*`, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
+| `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
 
 ### `pnpm demo` — la tienda lista para mostrar
 
@@ -185,10 +185,15 @@ Bloquea con: `TIENDA.nombre` todavía en el placeholder del template ("TiendaPY"
 en el header y en cada link compartido no es un deploy, es un papelón), el sobre
 de la respuesta del webhook de Pagopar sin confirmar (TASKS.md §21 — sólo si hay
 credenciales de Pagopar cargadas: sin ellas no hay tarjeta ni webhook y queda en
-advertencia), `BANCO_*` incompletos, `CRON_SECRET` o `SESSION_SECRET` vacíos o
-demasiado cortos, Cloudinary sin configurar, y `PAGOPAR_MODE=mock` en un entorno
-con `NODE_ENV=production`. Advierte —sin frenar— con las credenciales de Pagopar
-faltantes: la tienda cobra igual por transferencia y contra entrega.
+advertencia), `CRON_SECRET` o `SESSION_SECRET` vacíos o demasiado cortos,
+Cloudinary sin configurar, y `PAGOPAR_MODE=mock` en un entorno con
+`NODE_ENV=production`. Advierte —sin frenar— con las credenciales de Pagopar
+faltantes (la tienda cobra igual por transferencia y contra entrega) y con los
+`BANCO_*` incompletos: desde la FASE 2 los datos bancarios se cargan desde
+`/admin/banco` y el entorno es sólo el fallback, así que vacíos pueden ser
+correctos. Quien sabe de verdad si faltan es el panel, que lee la base: `/admin`
+le pone un cartel al dueño cuando no hay datos en **ninguna** de las dos
+fuentes.
 
 No toca la base ni la red, y nunca imprime el valor de un secreto: sólo si está
 y si tiene el largo mínimo.

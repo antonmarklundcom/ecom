@@ -123,4 +123,5 @@ const KNOWN_DOMAIN_ERRORS = [
   "PaymentRecoveryError",
   "MoneyError",
   "AdminInputError",
+  "AdminBankError",
 ];

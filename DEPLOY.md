@@ -26,8 +26,15 @@ En el hPanel, dentro del sitio:
 
 3. **Environment variables**: cargá una por una las de `.env.example` que la
    tienda necesita — `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET`,
-   `WHATSAPP_NUMBER`, `BANCO_*`, `CLOUDINARY_*`, `NEXT_PUBLIC_SITE_URL`,
-   `PAGOPAR_*` si va con tarjeta, y `NODE_ENV=production`.
+   `WHATSAPP_NUMBER`, `CLOUDINARY_*`, `NEXT_PUBLIC_SITE_URL`, `PAGOPAR_*` si va
+   con tarjeta, y `NODE_ENV=production`.
+
+   Los `BANCO_*` **ya no hacen falta acá**: los datos bancarios se cargan una
+   vez desde `/admin/banco` con la tienda arriba, y eso es lo que conviene —
+   corregir un dígito del número de cuenta desde el hPanel obliga a un
+   Redeploy (ver el aviso de abajo), y desde el panel es un botón. Siguen
+   funcionando como fallback para las tiendas que ya los tenían cargados: si
+   están puestos y la tabla está vacía, la tienda muestra los del entorno.
 
    No hay `.env.local` en el servidor: en Hostinger las variables viven en el
    panel, no en un archivo. Lo que no cargues ahí, no existe.

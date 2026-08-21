@@ -537,6 +537,24 @@ export const esPY = {
   "adminError.envio.ultimaActiva":
     "Es la última zona activa: sin ninguna, la tienda pasa a cobrar ₲0 de envío a todo el país sin avisar en ninguna pantalla. Si querés dejar de cobrar el flete, poné el precio de esta zona en ₲0.",
 
+  // Datos bancarios (PR T). No son plata —no entran en ningún total— pero son
+  // a dónde va la plata de otra persona, así que el RUC se verifica de verdad.
+  "adminError.banco.campo.banco": "el banco",
+  "adminError.banco.campo.titular": "el titular",
+  "adminError.banco.campo.ruc": "el RUC",
+  "adminError.banco.campo.cuenta": "el número de cuenta",
+  "adminError.banco.campo.tipoCuenta": "el tipo de cuenta",
+  "adminError.banco.incompleto":
+    "Faltan {campos}. Los cinco datos se guardan juntos: media cuenta cargada muestra un banco sin número, y esa transferencia se hace mal.",
+  "adminError.banco.largo": "{campo} no puede pasar los {maximo} caracteres.",
+  "adminError.banco.ruc":
+    "El RUC no es válido ({motivo}). Revisá el dígito verificador: va después del guion, y un RUC mal tipeado rompe la transferencia en el banco, no acá.",
+  "adminError.banco.qrVacio": "No llegó ninguna imagen del QR.",
+  "adminError.banco.sinDatosParaQr":
+    "Guardá primero los datos de la cuenta: el QR solo no se muestra en ningún lado.",
+  "adminError.banco.noExiste": "Todavía no hay datos bancarios cargados.",
+  "adminError.banco.elegiQr": "Elegí la imagen del QR.",
+
   "adminError.usuario.email": "Revisá el email.",
   "adminError.password.corta": "La contraseña debe tener al menos {minimo} caracteres",
   "adminError.password.simple": "La contraseña debe combinar letras y números",
@@ -622,6 +640,11 @@ export const esPY = {
   "adminForm.motivoAjuste": "Escribí el motivo del ajuste",
   "adminForm.nombreCategoria": "Poné el nombre de la categoría",
   "adminForm.nombreZona": "Poné el nombre de la zona",
+  "adminForm.banco.banco": "Poné el nombre del banco",
+  "adminForm.banco.titular": "Poné el titular de la cuenta",
+  "adminForm.banco.ruc": "Poné el RUC del titular",
+  "adminForm.banco.cuenta": "Poné el número de cuenta",
+  "adminForm.banco.tipoCuenta": "Poné el tipo de cuenta",
   "adminForm.codigoCupon": "El código necesita al menos 3 caracteres",
   "adminForm.valorEntero": "El valor va en enteros",
   "adminForm.email": "Revisá el email",
@@ -706,6 +729,7 @@ export const esPY = {
   "panel.nav.actividad": "Actividad",
   "panel.nav.categorias": "Categorías",
   "panel.nav.envios": "Envíos",
+  "panel.nav.banco": "Banco",
   "panel.nav.usuarios": "Usuarios",
 
   "panel.login.meta": "Entrar",
@@ -1016,6 +1040,37 @@ export const esPY = {
   "panel.envios.bajada":
     "Cuánto sale el flete a cada ciudad. Lo que cambies acá se cotiza de los próximos pedidos en adelante — los que ya se hicieron conservan el envío que la compradora aceptó pagar.",
 
+  "panel.banco.meta": "Banco",
+  "panel.banco.titulo": "Datos bancarios",
+  "panel.banco.bajada":
+    "A dónde transfieren tus compradoras. Lo que guardes acá es lo que muestra la página del pedido y lo que va en el WhatsApp de recuperación — sin redeploy y sin tocar ningún archivo.",
+  "panel.banco.desdeEntorno":
+    "Hoy la tienda muestra los datos que están cargados en el entorno del servidor: {banco}, {titular}, cuenta {cuenta}. Lo que guardes acá los reemplaza a partir de ese momento.",
+  "panel.banco.sinNada":
+    "Todavía no hay datos bancarios en ningún lado: la página del pedido avisa que faltan en vez de mostrar una cuenta. Cargalos acá y la transferencia queda habilitada.",
+  "panel.banco.formTitulo": "La cuenta del comercio",
+  "panel.banco.guardado": "Datos bancarios guardados.",
+  "panel.banco.campo.banco": "Banco",
+  "panel.banco.campo.titular": "Titular",
+  "panel.banco.campo.ruc": "RUC",
+  "panel.banco.campo.cuenta": "Número de cuenta",
+  "panel.banco.campo.tipoCuenta": "Tipo de cuenta",
+  "panel.banco.titularAyuda": "Como figura en el banco: si no coincide, la transferencia rebota.",
+  "panel.banco.rucAyuda": "Con el dígito verificador: 80012345-6. Lo verificamos antes de guardar.",
+  "panel.banco.tipoCuentaAyuda": "Es lo que se lee como etiqueta al lado del número en la página del pedido.",
+  "panel.banco.tipoCuentaPlaceholder": "Cuenta corriente",
+  "panel.banco.actualizado": "Última edición: {fecha}",
+  "panel.banco.qrTitulo": "QR del SPI",
+  "panel.banco.qrBajada":
+    "Opcional. Con QR cargado, la compradora escanea desde la app de su banco en vez de copiar el número a mano — que es donde se equivoca.",
+  "panel.banco.qrVacio": "Todavía no hay QR cargado: la página muestra los datos con botón de copiar.",
+  "panel.banco.qrArchivo": "Imagen del QR",
+  "panel.banco.qrArchivoAyuda": "JPG, PNG o WebP, hasta 5 MB. Sacale la captura desde la app del banco.",
+  "panel.banco.qrSubir": "Subir QR",
+  "panel.banco.qrSubido": "QR cargado.",
+  "panel.banco.qrQuitar": "Quitar QR",
+  "panel.banco.qrQuitado": "QR quitado.",
+
   "panel.usuarios.meta": "Usuarios",
   "panel.usuarios.titulo": "Usuarios del panel",
   "panel.usuarios.bajada":
@@ -1036,6 +1091,11 @@ export const esPY = {
   "panel.resumen.sinPedidoVivo": "Pagos sin pedido vivo",
   "panel.resumen.sinPedidoVivo.ayuda":
     "Entró la plata pero el pedido no está cobrado — normalmente el pago llegó justo después de que el pedido venciera y la mercadería ya se había vendido. Reintentar vuelve a probar si hoy hay stock; si no lo hay, no pasa nada y podés volver a intentarlo. Marcar como devuelto es para cuando ya le transferiste la plata de vuelta al comprador.",
+  "panel.resumen.sinBanco": "Faltan los datos bancarios",
+  "panel.resumen.sinBanco.ayuda":
+    "La página del pedido está avisando que no hay a dónde transferir, y la transferencia es el método principal de la tienda. Se cargan una vez y quedan.",
+  "panel.resumen.sinBanco.link": "Cargar los datos bancarios →",
+
   "panel.resumen.ventasHoy": "Ventas de hoy",
   "panel.resumen.ventasMes": "Ventas del mes",
   "panel.resumen.cobrados.uno": "{n} pedido cobrado",
@@ -1135,7 +1195,7 @@ export const esPY = {
   "panel.porCobrar.cortado":
     "Mostramos los {n} más viejos de {total}. Cobrá estos y volvé a entrar.",
   "panel.porCobrar.sinBanco":
-    "Faltan los datos bancarios (BANCO_* en el entorno): el mensaje sale sin la parte de la transferencia. Cargalos y el botón queda completo.",
+    "Faltan los datos bancarios: el mensaje sale sin la parte de la transferencia. Cargalos en Banco y el botón queda completo.",
   "panel.porCobrar.sinResultados": "No hay pedidos esperando pago.",
   "panel.porCobrar.hoy": "hoy",
   "panel.porCobrar.antiguedad.uno": "hace {n} día",

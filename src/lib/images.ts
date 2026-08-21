@@ -12,7 +12,7 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 /** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
 const DEFAULT_TRANSFORMS = "f_auto,q_auto";
 
-export type ImageSize = "thumb" | "card" | "detail" | "og" | "hero";
+export type ImageSize = "thumb" | "card" | "detail" | "og" | "hero" | "qr";
 
 /**
  * 1200×630 es la caja que esperan WhatsApp, Instagram y Facebook. `c_fill` y
@@ -37,6 +37,12 @@ const SIZE_TRANSFORMS: Record<ImageSize, string> = {
    * segundos antes de ver un producto (ARCH.md §6).
    */
   hero: "c_fill,w_1600,h_600",
+  /**
+   * El QR del SPI (PR T). `c_fit` y no `c_fill`: recortar un QR lo rompe —
+   * deja de escanear— y ahí no hay "se ve un poco mal", hay una compradora
+   * parada frente a la app del banco que no puede pagar.
+   */
+  qr: "c_fit,w_600,h_600",
 };
 
 /**
@@ -71,4 +77,15 @@ const CATEGORY_PLACEHOLDERS = new Set([
 export function categoryPlaceholderSrc(categorySlug: string): string {
   const slug = CATEGORY_PLACEHOLDERS.has(categorySlug) ? categorySlug : "generico";
   return `/placeholders/${slug}.svg`;
+}
+
+/**
+ * El QR SPI del comercio, subido desde `/admin/banco` (PLAN.md FASE 2, PR T).
+ *
+ * Es la misma URL pública de siempre con la transformación `qr`; existe como
+ * función propia para que quien la lee no tenga que acordarse de pasar el
+ * tamaño correcto, que en un QR no es cosmético (ver arriba).
+ */
+export function bankQrUrl(cloudinaryId: string | null | undefined): string | null {
+  return productImageUrl(cloudinaryId, "qr");
 }
