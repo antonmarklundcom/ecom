@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { listSourceFiles, readCode } from '../helpers/source';
+import { exportedAsyncFunctions, listSourceFiles, readCode } from '../helpers/source';
 
 /**
  * Guardarraíl del PR #4 (PLAN.md 4.9): **toda** server action de admin
@@ -31,73 +31,10 @@ async function adminActionModules(): Promise<string[]> {
   );
 }
 
-/**
- * Extrae el cuerpo de cada `export async function` del módulo.
- *
- * Cuenta llaves para encontrar el cierre en vez de usar una regex sobre todo
- * el archivo: si no, una acción sin guard "pasa" porque la de al lado sí lo
- * tiene.
- */
-/**
- * Encuentra la llave que abre el cuerpo, saltándose los parámetros y el tipo
- * de retorno.
- *
- * Tomar la primera `{` que aparece no sirve: en
- * `): Promise<AdminActionResult<{ productId: number }>> {` esa llave es la del
- * tipo genérico, y el cuerpo extraído queda vacío — o sea, una acción sin
- * guard pasaría el test.
- *
- * @param from índice justo después del `(` que abre los parámetros.
- */
-function findBodyStart(code: string, from: number): number {
-  let parens = 1;
-  let index = from;
-  while (index < code.length && parens > 0) {
-    if (code[index] === '(') parens += 1;
-    else if (code[index] === ')') parens -= 1;
-    index += 1;
-  }
-
-  // Ya pasamos los parámetros: ahora el tipo de retorno. La `{` del cuerpo es
-  // la primera que aparece fuera de todo `<...>`.
-  let angles = 0;
-  for (; index < code.length; index += 1) {
-    const char = code[index];
-    if (char === '<') angles += 1;
-    else if (char === '>') angles = Math.max(0, angles - 1);
-    else if (char === '{' && angles === 0) return index;
-  }
-  return -1;
-}
-
-function exportedActions(code: string): Array<{ name: string; body: string }> {
-  const actions: Array<{ name: string; body: string }> = [];
-  const signature = /export\s+async\s+function\s+(\w+)\s*\(/g;
-
-  let match: RegExpExecArray | null;
-  while ((match = signature.exec(code)) !== null) {
-    const name = match[1];
-    if (!name) continue;
-
-    const bodyStart = findBodyStart(code, signature.lastIndex);
-    if (bodyStart === -1) continue;
-
-    let depth = 0;
-    let end = bodyStart;
-    for (let i = bodyStart; i < code.length; i += 1) {
-      if (code[i] === '{') depth += 1;
-      else if (code[i] === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          end = i;
-          break;
-        }
-      }
-    }
-    actions.push({ name, body: code.slice(bodyStart, end + 1) });
-  }
-  return actions;
-}
+// La extracción de cuerpos (llaves contadas, genéricos del tipo de retorno
+// salteados) vive en `tests/helpers/source.ts` y la comparten los tres tests
+// que grepean cuerpos de funciones.
+const exportedActions = exportedAsyncFunctions;
 
 describe('server actions de admin', () => {
   it('hay acciones de admin para revisar (el test no se quedó sin objetivo)', async () => {

@@ -181,8 +181,11 @@ solo.
 pnpm preflight
 ```
 
-Bloquea con: el sobre de la respuesta del webhook de Pagopar sin confirmar
-(TASKS.md §21), `BANCO_*` incompletos, `CRON_SECRET` o `SESSION_SECRET` vacíos o
+Bloquea con: `TIENDA.nombre` todavía en el placeholder del template ("TiendaPY"
+en el header y en cada link compartido no es un deploy, es un papelón), el sobre
+de la respuesta del webhook de Pagopar sin confirmar (TASKS.md §21 — sólo si hay
+credenciales de Pagopar cargadas: sin ellas no hay tarjeta ni webhook y queda en
+advertencia), `BANCO_*` incompletos, `CRON_SECRET` o `SESSION_SECRET` vacíos o
 demasiado cortos, Cloudinary sin configurar, y `PAGOPAR_MODE=mock` en un entorno
 con `NODE_ENV=production`. Advierte —sin frenar— con las credenciales de Pagopar
 faltantes: la tienda cobra igual por transferencia y contra entrega.

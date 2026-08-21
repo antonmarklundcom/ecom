@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { listSourceFiles, readCode } from '../helpers/source';
+import { exportedAsyncFunctions, listSourceFiles, readCode } from '../helpers/source';
 
 /**
  * Guardarraíl del PR D: lo que hace una persona del panel queda atribuido.
@@ -35,7 +35,7 @@ describe('atribución de lo que hace el panel', () => {
     const offenders: string[] = [];
     for (const file of files) {
       const code = await readCode(file);
-      for (const action of exportedActions(code)) {
+      for (const action of exportedAsyncFunctions(code)) {
         if (!ESCRITURAS_AUDITADAS.test(action.body)) continue;
         if (!ATRIBUCION.test(action.body)) {
           offenders.push(`${file} → ${action.name}()`);
@@ -53,7 +53,7 @@ describe('atribución de lo que hace el panel', () => {
 
     let conEscritura = 0;
     for (const file of files) {
-      for (const action of exportedActions(await readCode(file))) {
+      for (const action of exportedAsyncFunctions(await readCode(file))) {
         if (ESCRITURAS_AUDITADAS.test(action.body)) conEscritura += 1;
       }
     }
@@ -69,40 +69,3 @@ describe('atribución de lo que hace el panel', () => {
     expect(orders).toMatch(/actorUserId/);
   });
 });
-
-function exportedActions(code: string): Array<{ name: string; body: string }> {
-  const actions: Array<{ name: string; body: string }> = [];
-  const signature = /export\s+async\s+function\s+(\w+)\s*\(/g;
-
-  let match: RegExpExecArray | null;
-  while ((match = signature.exec(code)) !== null) {
-    const name = match[1];
-    if (!name) continue;
-
-    let parens = 1;
-    let index = signature.lastIndex;
-    while (index < code.length && parens > 0) {
-      if (code[index] === '(') parens += 1;
-      else if (code[index] === ')') parens -= 1;
-      index += 1;
-    }
-
-    const bodyStart = code.indexOf('{', index);
-    if (bodyStart === -1) continue;
-
-    let depth = 0;
-    let end = bodyStart;
-    for (let i = bodyStart; i < code.length; i += 1) {
-      if (code[i] === '{') depth += 1;
-      else if (code[i] === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          end = i;
-          break;
-        }
-      }
-    }
-    actions.push({ name, body: code.slice(bodyStart, end + 1) });
-  }
-  return actions;
-}

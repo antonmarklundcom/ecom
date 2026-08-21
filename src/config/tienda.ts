@@ -84,8 +84,18 @@ export type Hero = {
   cta?: { label: string; href: string };
 };
 
+/**
+ * El nombre con el que se clona el template.
+ *
+ * No se edita en la tienda nueva: es la definición de "todavía no lo
+ * renombraron", y `pnpm preflight` bloquea mientras `TIENDA.nombre` siga
+ * siendo éste. Vive acá y no en `preflight.ts` porque este archivo es el único
+ * al que `marca-centralizada.test.ts` le permite escribir el nombre.
+ */
+export const MARCA_PLACEHOLDER = "TiendaPY";
+
 export const TIENDA: Tienda = {
-  nombre: "TiendaPY",
+  nombre: MARCA_PLACEHOLDER,
   titulo: "TiendaPY — Comprá online en Paraguay",
   descripcion:
     "Tienda online paraguaya. Precios en guaraníes, IVA incluido, envíos a todo el país y atención por WhatsApp.",

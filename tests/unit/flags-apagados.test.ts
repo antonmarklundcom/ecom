@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TIENDA, cuentasClientesHabilitadas } from '@/config/tienda';
 
-import { listSourceFiles, readCode } from '../helpers/source';
+import { exportedAsyncFunctions, listSourceFiles, readCode } from '../helpers/source';
 
 /**
  * **Guardarraíl 1 del PLAN.md, en CI**: con todos los flags apagados la tienda
@@ -53,7 +53,7 @@ describe('flags apagados = la tienda de hoy', () => {
     const code = await readCode(actionsModule);
 
     const offenders: string[] = [];
-    for (const action of exportedActions(code)) {
+    for (const action of exportedAsyncFunctions(code)) {
       const flagAt = action.body.search(FLAG);
       if (flagAt === -1) {
         offenders.push(`${action.name}(): no mira el flag`);
@@ -104,44 +104,3 @@ describe('flags apagados = la tienda de hoy', () => {
     expect(clientes).toMatch(FLAG);
   });
 });
-
-/** Igual que el de `admin-guards.test.ts`: cuerpo por cuerpo, no todo el archivo. */
-function exportedActions(code: string): Array<{ name: string; body: string }> {
-  const actions: Array<{ name: string; body: string }> = [];
-  const signature = /export\s+async\s+function\s+(\w+)\s*\(/g;
-
-  let match: RegExpExecArray | null;
-  while ((match = signature.exec(code)) !== null) {
-    const name = match[1];
-    if (!name) continue;
-
-    const bodyStart = code.indexOf('{', findParamsEnd(code, signature.lastIndex));
-    if (bodyStart === -1) continue;
-
-    let depth = 0;
-    let end = bodyStart;
-    for (let i = bodyStart; i < code.length; i += 1) {
-      if (code[i] === '{') depth += 1;
-      else if (code[i] === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          end = i;
-          break;
-        }
-      }
-    }
-    actions.push({ name, body: code.slice(bodyStart, end + 1) });
-  }
-  return actions;
-}
-
-function findParamsEnd(code: string, from: number): number {
-  let parens = 1;
-  let index = from;
-  while (index < code.length && parens > 0) {
-    if (code[index] === '(') parens += 1;
-    else if (code[index] === ')') parens -= 1;
-    index += 1;
-  }
-  return index;
-}

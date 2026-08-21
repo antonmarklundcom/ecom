@@ -15,6 +15,16 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
 1. En GitHub, "Use this template" → repo nuevo (ej. `ropa-store`).
 2. `git clone` y `pnpm install`.
+3. Fijá el punto de partida **ahora**, no el día que lo necesites:
+
+   ```bash
+   git remote add template git@github.com:antonmarklundcom/ecom.git
+   pnpm template:diff --marcar    # crea .template-baseline — commitealo
+   ```
+
+   Sin eso, el primer `pnpm template:diff` corre en modo degradado y los
+   commits del template te aparecen todos, para siempre (ver "Arreglos que
+   aparecen después" al final).
 
 ### 2. Marca — un solo archivo
 
@@ -24,9 +34,18 @@ navegador y Open Graph salen todos de ahí.
 
 Hay un test que falla si alguien vuelve a escribir el nombre a mano en otro
 archivo (`tests/unit/marca-centralizada.test.ts`). Si te grita, la solución es
-leer de `TIENDA`, no agregar una excepción.
+leer de `TIENDA`, no agregar una excepción. Y si te salteás este paso entero,
+`pnpm preflight` bloquea: una tienda con `nombre: "TiendaPY"` no cobra.
 
-Cambiá también el favicon (`src/app/favicon.ico`).
+Cambiá también el favicon (`src/app/favicon.ico`) — eso ningún control lo
+verifica, así que va en la misma pasada.
+
+Dos cosas que **no** son por tienda, a propósito: los números de pedido salen
+`PY-000123` en todas las tiendas (el prefijo participa del hash de Pagopar y
+cambiarlo con pedidos ya emitidos es tocar el camino de la plata), y las
+ilustraciones de `public/placeholders/` sólo conocen las cuatro categorías del
+seed — una categoría real sin foto cae en el placeholder genérico, que es feo a
+propósito: la solución son fotos, no más placeholders.
 
 La imagen que se ve cuando alguien comparte un link por WhatsApp o Instagram
 **no hay que cargarla**: `src/app/opengraph-image.tsx` la dibuja con el nombre

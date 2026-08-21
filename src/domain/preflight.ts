@@ -1,4 +1,4 @@
-import { TIENDA } from "@/config/tienda";
+import { MARCA_PLACEHOLDER, TIENDA } from "@/config/tienda";
 
 import { WEBHOOK_ENVELOPE_CONFIRMED } from "./pagopar/protocol";
 import { PAGOPAR_MOCK_MODE } from "./pagopar/mode";
@@ -63,7 +63,8 @@ const BANCO_VARS = [
 
 export function preflight(env: PreflightEnv = process.env): PreflightReport {
   const checks: PreflightCheck[] = [
-    checkWebhookEnvelope(),
+    checkMarca(),
+    checkWebhookEnvelope(env),
     checkPagoparMode(env),
     checkBancoVars(env),
     checkCronSecret(env),
@@ -84,20 +85,74 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
 }
 
 /**
+ * La marca sigue siendo la del template.
+ *
+ * Ningún otro control mira `tienda.ts`, y éste existe porque el olvido es el
+ * más visible de todos: "TiendaPY" queda en el header, en el `<title>`, en el
+ * pie y en la imagen de Open Graph que se dibuja para **cada** link compartido
+ * por WhatsApp. La tienda cobra igual — por eso no lo frena ningún candado del
+ * código — pero cobrar con la marca del template es el papelón del primer
+ * deploy, y es exactamente el paso 2 de NEW-STORE.md.
+ */
+function checkMarca(): PreflightCheck {
+  const nombre = TIENDA.nombre.trim();
+
+  if (nombre.toLowerCase() !== MARCA_PLACEHOLDER.toLowerCase()) {
+    return {
+      id: "marca",
+      severity: "ok",
+      title: "Marca de la tienda",
+      detail: `"${nombre}"`,
+    };
+  }
+
+  return {
+    id: "marca",
+    severity: "bloquea",
+    title: "Marca de la tienda",
+    detail:
+      `src/config/tienda.ts sigue con el nombre del template ("${MARCA_PLACEHOLDER}"): header, ` +
+      "títulos del navegador y la imagen de Open Graph de cada link compartido van a decir eso. " +
+      "Editá TIENDA (NEW-STORE.md §2) — y de paso el favicon, que ningún control verifica",
+  };
+}
+
+/**
  * El sobre de la respuesta del webhook, sin confirmar (TASKS.md §21).
  *
- * Es el único control que no mira el entorno: es un hecho sobre el código. Si
- * Pagopar espera otra forma, reintenta el aviso una y otra vez y termina
- * marcando el pago como no notificado, con la plata cobrada y el pedido sin
- * marcar. Bloquea siempre, en cualquier entorno.
+ * Es un hecho sobre el código, no sobre el entorno. Si Pagopar espera otra
+ * forma, reintenta el aviso una y otra vez y termina marcando el pago como no
+ * notificado, con la plata cobrada y el pedido sin marcar.
+ *
+ * Bloquea sólo si la tienda cargó credenciales de Pagopar: sin ellas el
+ * checkout no ofrece tarjeta y el webhook no existe para esta tienda —
+ * frenarle el deploy a una tienda de transferencia y contra entrega por un
+ * protocolo que no usa sería un falso positivo permanente. Queda en
+ * `advierte` para que el día que carguen las credenciales ya sepan qué falta.
  */
-function checkWebhookEnvelope(): PreflightCheck {
+function checkWebhookEnvelope(env: PreflightEnv): PreflightCheck {
   if (WEBHOOK_ENVELOPE_CONFIRMED) {
     return {
       id: "pagopar_webhook_envelope",
       severity: "ok",
       title: "Sobre de la respuesta del webhook de Pagopar",
       detail: "confirmado contra la doc v2 vigente",
+    };
+  }
+
+  const sinCredenciales = ["PAGOPAR_PUBLIC_KEY", "PAGOPAR_PRIVATE_KEY", "PAGOPAR_BASE_URL"].every(
+    (name) => value(env, name) === "",
+  );
+
+  if (sinCredenciales) {
+    return {
+      id: "pagopar_webhook_envelope",
+      severity: "advierte",
+      title: "Sobre de la respuesta del webhook de Pagopar",
+      detail:
+        "sin confirmar contra la doc v2 vigente — irrelevante mientras esta tienda no cargue " +
+        "credenciales de Pagopar (sin ellas no hay tarjeta ni webhook). Al cargarlas, esto pasa " +
+        "a bloquear hasta confirmarlo contra el sandbox",
     };
   }
 
