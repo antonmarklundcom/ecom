@@ -18,7 +18,10 @@ import { lockCouponForUse, type CouponRejection } from "./coupons";
 import { nextOrderNumber } from "./order-number";
 import { computeOrderTotals } from "./order-totals";
 import { RESERVATION_TTL_MINUTES, reserveStock } from "./stock";
+import type { MessageKey, Params } from "@/i18n";
 import type { CartIssue } from "@/lib/cart-issues";
+
+import { DomainError } from "./errors";
 
 /**
  * Creación del pedido (PLAN.md 3.3).
@@ -94,12 +97,12 @@ export type CreatedOrder = {
   reservedUntil: Date;
 };
 
-export class CheckoutError extends Error {
-  constructor(
-    message: string,
-    readonly issues: CartIssue[] = []
-  ) {
-    super(message);
+export class CheckoutError extends DomainError {
+  readonly issues: CartIssue[];
+
+  constructor(code: MessageKey, options: { params?: Params; issues?: CartIssue[] } = {}) {
+    super(code, options.params);
+    this.issues = options.issues ?? [];
     this.name = "CheckoutError";
   }
 }
@@ -122,10 +125,9 @@ export class TotalChangedError extends CheckoutError {
     readonly before: number,
     readonly after: number
   ) {
-    super(
-      `El total cambió de ${formatGs(before)} a ${formatGs(after)} mientras completabas los datos. ` +
-        "Revisalo y confirmá de nuevo."
-    );
+    super("error.checkout.totalCambio", {
+      params: { antes: formatGs(before), despues: formatGs(after) },
+    });
     this.name = "TotalChangedError";
   }
 }
@@ -140,7 +142,7 @@ export class TotalChangedError extends CheckoutError {
  */
 export class CouponRejectedError extends CheckoutError {
   constructor(readonly reason: CouponRejection) {
-    super("El código de descuento ya no se puede usar. Revisá el total y confirmá de nuevo.");
+    super("error.checkout.cuponCaido");
     this.name = "CouponRejectedError";
   }
 }
@@ -153,18 +155,19 @@ function mintAccessToken(): string {
 export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder> {
   const phone = normalizePhonePY(input.customerPhone);
   if (!phone) {
-    throw new CheckoutError("El número de WhatsApp no parece paraguayo.");
+    throw new CheckoutError("error.checkout.telefono");
   }
 
   const doc = validateDoc(input.docType, input.docNumber);
   if (!doc.ok) {
     throw new CheckoutError(
-      input.docType === "RUC" ? `RUC inválido: ${doc.reason}` : `CI inválida: ${doc.reason}`
+      input.docType === "RUC" ? "error.checkout.ruc" : "error.checkout.ci",
+      { params: { motivo: doc.reason ?? "" } }
     );
   }
 
   if (input.items.length === 0) {
-    throw new CheckoutError("El carrito está vacío.");
+    throw new CheckoutError("error.checkout.carritoVacio");
   }
 
   return getDb().transaction(async (tx) => {
@@ -199,10 +202,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
 
     const blocking = cart.issues.filter((issue) => issue.type !== "precio_cambio");
     if (cart.lines.length === 0 || blocking.length > 0) {
-      throw new CheckoutError(
-        "Algunos productos ya no están disponibles. Revisá tu carrito.",
-        cart.issues
-      );
+      throw new CheckoutError("error.checkout.noDisponible", { issues: cart.issues });
     }
 
     // 2.b. ¿Le estamos por cobrar algo distinto de lo que vio?
@@ -288,7 +288,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       .where(eq(orders.orderNumber, orderNumber))
       .limit(1);
     const orderId = inserted[0]?.id;
-    if (!orderId) throw new CheckoutError("No pude crear el pedido. Probá de nuevo.");
+    if (!orderId) throw new CheckoutError("error.checkout.noPude");
 
     // 4. Ítems con snapshot: lo que el comprador aceptó, congelado.
     await tx.insert(orderItems).values(

@@ -404,6 +404,25 @@ Overselling is prevented at the write: the reservation insert runs inside a tran
 
 ---
 
+### Errores del dominio: código, no prosa (FASE 2, PR S)
+
+Los errores que **una persona lee** se lanzan con una clave del catálogo, no
+con su texto: `throw new CheckoutError("error.checkout.carritoVacio")`. La base
+`DomainError` (`src/domain/errors.ts`) arma el `message` con esa clave, así que
+todo lo que ya leía `error.message` —los formularios, los logs,
+`adminActionError`— sigue funcionando sin cambios, y además queda el `code`
+para poder preguntar *qué* pasó sin comparar prosa.
+
+El motivo no es estético: con la prosa adentro de cada `throw`, los textos que
+la compradora ve quedan repartidos por veinte archivos de dominio, entre
+transacciones y bloqueos de fila, y quien traduce tiene que ir a buscarlos ahí.
+
+**Lo que no se traduce**: los errores que sólo lee un desarrollador siguen
+siendo `Error` a secas con su mensaje técnico. `qty inválida para la variante
+3` o `Transición inválida para el pedido 12: pagado → pendiente_pago` no van a
+un catálogo — nadie los va a leer en guaraní, y un stack trace tiene que decir
+exactamente qué pasó.
+
 ## 3. Order state machine
 
 ```

@@ -1,4 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { MessageKey, Params } from '@/i18n';
+
+import { DomainError } from './errors';
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
@@ -33,9 +36,9 @@ export const LOGIN_TOKEN_TTL_MS = 10 * 60 * 1000;
 
 const CODE_DIGITS = 6;
 
-export class LoginTokenError extends Error {
-  constructor(message: string) {
-    super(message);
+export class LoginTokenError extends DomainError {
+  constructor(code: MessageKey, params?: Params) {
+    super(code, params);
     this.name = 'LoginTokenError';
   }
 }
@@ -117,7 +120,7 @@ export async function issueLoginToken(
     }
   }
 
-  throw new LoginTokenError('No pude generar un código. Probá de nuevo.');
+  throw new LoginTokenError('error.cuenta.codigoNoPude');
 }
 
 export type ConsumedToken = { customerId: number };
