@@ -29,8 +29,8 @@ Falta para poder vender de verdad: la cuenta de Hostinger (deploy, PLAN.md 4.11)
 
 ```bash
 pnpm install
-cp .env.example .env.local          # completá SESSION_PASSWORD: openssl rand -base64 32
-                                     # y opcionalmente PAGOPAR_MODE="mock" (probar tarjeta sin cuenta de Pagopar)
+pnpm nueva-tienda                   # marca + secretos + .env.local (NEW-STORE.md §2)
+                                     # opcional: PAGOPAR_MODE="mock" para probar tarjeta sin cuenta de Pagopar
 docker compose up -d                # MySQL 8 en localhost:3306 (base `ecom`)
 pnpm db:push                        # schema + FULLTEXT + FK self-ref + contador
 pnpm db:seed                        # 4 categorías, 24 productos, 43 variantes, 4 zonas de envío
@@ -52,6 +52,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm reconcile` | control de caja: los totales de cada pedido (incluido el descuento de cupones) más ocho invariantes entre tablas; sale con código 1 si algo no cuadra |
 | `pnpm backfill:pagos-manuales` | completa la fila de `payments` de los pedidos cobrados por transferencia o contra entrega **antes** de que eso se registrara solo (ARCH.md §5.1). Ensayo por defecto: agregá `--apply` para escribir |
 | `pnpm backup` | copia comprimida de la base en `backups/` (`--retener N` para la limpieza por antigüedad). Se corre desde tu máquina, no desde Hostinger — DEPLOY.md §7 |
+| `pnpm nueva-tienda` | wizard de tienda nueva: marca, secretos, `.env.local` y el bloque de variables del hPanel. Idempotente; `--dry-run` no escribe nada — NEW-STORE.md §2 |
 | `pnpm template:diff` | qué arreglos del template le faltan a esta tienda (`--marcar` para fijar el punto de partida) — NEW-STORE.md |
 | `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
 

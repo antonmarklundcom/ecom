@@ -11,6 +11,7 @@
     "test": "vitest run",
     "db:push": "drizzle-kit push && tsx scripts/post-push.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "nueva-tienda": "tsx scripts/nueva-tienda.ts",
     "demo": "tsx scripts/demo.ts",
     "db:studio": "drizzle-kit studio",
     "db:check": "tsx scripts/db-check.ts",

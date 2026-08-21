@@ -18,6 +18,68 @@ import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_SHIPPING_ZONES } from './seed-data
  */
 const RESET_STOCK = process.argv.includes('--reset-stock');
 
+/** Una zona tal como la escribe el seed o el cuerpo de `/api/setup/init`. */
+export type SeedShippingZone = {
+  slug: string;
+  name: string;
+  cities: readonly string[];
+  pricePyg: number;
+  freeThresholdPyg: number | null;
+  position: number;
+};
+
+/**
+ * Alta o actualización de zonas de envío, por `slug`.
+ *
+ * Exportada aparte del seed porque la usan dos caminos: `pnpm db:seed`, con
+ * las zonas de ejemplo de Gran Asunción, y `POST /api/setup/init`, con las
+ * zonas reales de la tienda en el cuerpo (PLAN.md FASE 2, PR U). Un segundo
+ * upsert escrito a mano en la ruta sería un segundo lugar donde olvidarse del
+ * `assertGs`, que es lo único que separa un flete en guaraníes enteros de un
+ * `35000.5` guardado en una columna de plata.
+ *
+ * Idempotente por `slug`: re-correrlo actualiza precios, ciudades y orden sin
+ * duplicar filas. **No borra las zonas que no vengan en la lista** — borrar
+ * una zona que la tienda usa es exactamente el tipo de daño que un curl
+ * repetido no tiene que poder hacer.
+ */
+export async function upsertShippingZones(
+  zonas: readonly SeedShippingZone[],
+  executor?: ReturnType<typeof getDb>,
+): Promise<number> {
+  const db = executor ?? getDb();
+
+  for (const zone of zonas) {
+    assertGs(zone.pricePyg, `shipping_zones.${zone.slug}.price_pyg`);
+    if (zone.freeThresholdPyg !== null) {
+      assertGs(zone.freeThresholdPyg, `shipping_zones.${zone.slug}.free_threshold_pyg`);
+    }
+
+    await db
+      .insert(shippingZones)
+      .values({
+        slug: zone.slug,
+        name: zone.name,
+        cities: [...zone.cities],
+        pricePyg: zone.pricePyg,
+        freeThresholdPyg: zone.freeThresholdPyg,
+        position: zone.position,
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          name: zone.name,
+          cities: [...zone.cities],
+          pricePyg: zone.pricePyg,
+          freeThresholdPyg: zone.freeThresholdPyg,
+          position: zone.position,
+          isActive: true,
+        },
+      });
+  }
+
+  return zonas.length;
+}
+
 /**
  * Siembra el catálogo (categorías, zonas de envío, productos y variantes).
  *
@@ -44,29 +106,7 @@ export async function seedCatalog(resetStock: boolean = RESET_STOCK): Promise<vo
   console.log(`✓ ${SEED_CATEGORIES.length} categorías`);
 
   // --- Zonas de envío -----------------------------------------------------
-  for (const zone of SEED_SHIPPING_ZONES) {
-    assertGs(zone.pricePyg, `shipping_zones.${zone.slug}.price_pyg`);
-    await db
-      .insert(shippingZones)
-      .values({
-        slug: zone.slug,
-        name: zone.name,
-        cities: [...zone.cities],
-        pricePyg: zone.pricePyg,
-        freeThresholdPyg: zone.freeThresholdPyg,
-        position: zone.position,
-      })
-      .onDuplicateKeyUpdate({
-        set: {
-          name: zone.name,
-          cities: [...zone.cities],
-          pricePyg: zone.pricePyg,
-          freeThresholdPyg: zone.freeThresholdPyg,
-          position: zone.position,
-          isActive: true,
-        },
-      });
-  }
+  await upsertShippingZones(SEED_SHIPPING_ZONES);
   console.log(`✓ ${SEED_SHIPPING_ZONES.length} zonas de envío`);
 
   // --- Productos + variantes ---------------------------------------------
