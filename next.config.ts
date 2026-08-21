@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
  * Cabeceras de seguridad que no dependen del request (PLAN.md 4.9).
  *
  * El `Content-Security-Policy` **no** está acá: lleva un nonce distinto por
- * request y se arma en `src/middleware.ts`.
+ * request y se arma en `src/proxy.ts` (el ex `middleware.ts` de Next 16).
  */
 const SECURITY_HEADERS = [
   // Un año, subdominios incluidos. Hostinger sirve el certificado; sin HSTS,

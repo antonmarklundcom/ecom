@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { MARCA_PLACEHOLDER, TIENDA } from "@/config/tienda";
+
 import { preflight, type PreflightEnv, type PreflightSeverity } from "../../src/domain/preflight";
 
 /**
@@ -9,10 +11,13 @@ import { preflight, type PreflightEnv, type PreflightSeverity } from "../../src/
  * cuando todo está, y frenar el deploy cuando falta algo. Los dos lados se
  * prueban acá, uno por control.
  *
- * `WEBHOOK_ENVELOPE_CONFIRMED` sigue en `false` mientras no haya credenciales
- * de sandbox (TASKS.md §21), así que **hoy nunca sale limpio**: el test lo dice
- * explícitamente en vez de esconderlo, y el día que se confirme el sobre este
- * archivo es lo primero que se pone rojo.
+ * Dos controles dependen del estado del repo y no del entorno, así que sus
+ * expectativas se calculan en vez de escribirse: `marca` bloquea en el
+ * template (donde `TIENDA.nombre` sigue siendo el placeholder) y pasa en una
+ * tienda renombrada, y `pagopar_webhook_envelope` bloquea mientras
+ * `WEBHOOK_ENVELOPE_CONFIRMED` siga en `false` (TASKS.md §21) **y** haya
+ * credenciales de Pagopar cargadas. Este archivo tiene que quedar verde en el
+ * template y en cada tienda salida de él.
  */
 
 /** Un entorno completo y sano, salvo por lo que cada test rompa. */
@@ -50,16 +55,22 @@ function severityOf(env: PreflightEnv, id: string): PreflightSeverity {
 }
 
 describe("preflight", () => {
-  it("con todo configurado, lo único que bloquea es el sobre del webhook", () => {
+  it("con todo configurado, sólo bloquean los pendientes del estado del repo", () => {
     const report = preflight(envSano());
 
     const bloquean = report.checks
       .filter((check) => check.severity === "bloquea")
       .map((check) => check.id);
 
-    // Es el pendiente real de TASKS.md §21 y el único que queda. Cuando se
-    // confirme contra el sandbox, esta expectativa pasa a ser `[]`.
-    expect(bloquean).toEqual(["pagopar_webhook_envelope"]);
+    // El sobre del webhook es el pendiente real de TASKS.md §21 (envSano trae
+    // credenciales de Pagopar, así que bloquea); `marca` bloquea sólo mientras
+    // el repo sea el template sin renombrar. Cuando se confirme el sobre, la
+    // lista pierde ese id.
+    const esperado = [
+      ...(TIENDA.nombre === MARCA_PLACEHOLDER ? ["marca"] : []),
+      "pagopar_webhook_envelope",
+    ];
+    expect(bloquean).toEqual(esperado);
     expect(report.ok).toBe(false);
   });
 
@@ -115,6 +126,26 @@ describe("preflight", () => {
         "pagopar_credenciales",
       ),
     ).toBe("advierte");
+  });
+
+  it("el sobre del webhook sólo bloquea si hay credenciales de Pagopar", () => {
+    // Una tienda de transferencia y contra entrega no tiene webhook: frenarle
+    // el deploy por un protocolo que no usa sería un falso positivo permanente.
+    // Con una sola credencial cargada ya se asume que la tarjeta viene en
+    // camino, y ahí sí bloquea hasta confirmar el sobre contra el sandbox.
+    const sinCredenciales = envSano({
+      PAGOPAR_PUBLIC_KEY: "",
+      PAGOPAR_PRIVATE_KEY: "",
+      PAGOPAR_BASE_URL: "",
+    });
+    expect(severityOf(sinCredenciales, "pagopar_webhook_envelope")).toBe("advierte");
+    expect(severityOf(envSano(), "pagopar_webhook_envelope")).toBe("bloquea");
+    expect(
+      severityOf(
+        envSano({ PAGOPAR_PUBLIC_KEY: "", PAGOPAR_BASE_URL: "" }),
+        "pagopar_webhook_envelope",
+      ),
+    ).toBe("bloquea");
   });
 
   it("una URL de sitio sin https bloquea en producción", () => {
@@ -212,7 +243,8 @@ describe("preflight · secreto de sesión de cliente", () => {
   it("con las cuentas prendidas y sin secreto, bloquea", async () => {
     vi.resetModules();
     vi.doMock("@/config/tienda", () => ({
-      TIENDA: { cuentasClientes: true },
+      MARCA_PLACEHOLDER: "TiendaPY",
+      TIENDA: { nombre: "Tienda Test", cuentasClientes: true },
       cuentasClientesHabilitadas: () => true,
     }));
 
@@ -232,7 +264,8 @@ describe("preflight · secreto de sesión de cliente", () => {
   it("con las cuentas prendidas, copiar SESSION_SECRET bloquea", async () => {
     vi.resetModules();
     vi.doMock("@/config/tienda", () => ({
-      TIENDA: { cuentasClientes: true },
+      MARCA_PLACEHOLDER: "TiendaPY",
+      TIENDA: { nombre: "Tienda Test", cuentasClientes: true },
       cuentasClientesHabilitadas: () => true,
     }));
 
@@ -255,7 +288,8 @@ describe("preflight · secreto de sesión de cliente", () => {
   it("con las cuentas prendidas y un secreto propio, pasa", async () => {
     vi.resetModules();
     vi.doMock("@/config/tienda", () => ({
-      TIENDA: { cuentasClientes: true },
+      MARCA_PLACEHOLDER: "TiendaPY",
+      TIENDA: { nombre: "Tienda Test", cuentasClientes: true },
       cuentasClientesHabilitadas: () => true,
     }));
 
@@ -269,4 +303,53 @@ describe("preflight · secreto de sesión de cliente", () => {
     vi.doUnmock("@/config/tienda");
     vi.resetModules();
   });
+});
+
+/**
+ * La marca del template (NEW-STORE.md §2).
+ *
+ * Igual que el flag de cuentas: `TIENDA` es un módulo, no una variable de
+ * entorno, así que los dos lados se prueban mockeándolo. El test de arriba
+ * ("sólo bloquean los pendientes del estado del repo") cubre además el repo
+ * real, calculando la expectativa según si este checkout es el template o una
+ * tienda renombrada.
+ */
+describe("preflight · marca de la tienda", () => {
+  it("con el nombre del template sin tocar, bloquea", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/tienda", () => ({
+      MARCA_PLACEHOLDER: "TiendaPY",
+      TIENDA: { nombre: "TiendaPY", cuentasClientes: false },
+      cuentasClientesHabilitadas: () => false,
+    }));
+
+    const { preflight: sinRenombrar } = await import("../../src/domain/preflight");
+    const check = sinRenombrar(envSano()).checks.find((c) => c.id === "marca");
+
+    // Cobrar con "TiendaPY" en el header y en cada link compartido es el
+    // papelón del primer deploy, y ningún otro control lo mira.
+    expect(check?.severity).toBe("bloquea");
+    expect(check?.detail).toMatch(/tienda\.ts/);
+
+    vi.doUnmock("@/config/tienda");
+    vi.resetModules();
+  });
+
+  it("con la tienda renombrada, pasa", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/tienda", () => ({
+      MARCA_PLACEHOLDER: "TiendaPY",
+      TIENDA: { nombre: "Lencería Bella", cuentasClientes: false },
+      cuentasClientesHabilitadas: () => false,
+    }));
+
+    const { preflight: renombrada } = await import("../../src/domain/preflight");
+    const check = renombrada(envSano()).checks.find((c) => c.id === "marca");
+
+    expect(check?.severity).toBe("ok");
+
+    vi.doUnmock("@/config/tienda");
+    vi.resetModules();
+  });
+
 });
