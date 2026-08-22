@@ -21,9 +21,11 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 
 ## Estado
 
-✅ **PR #1 a #5 del `PLAN.md` mergeados**: schema y dominio (PR #1), vidriera (PR #2), checkout SPI/QR + contra entrega (PR #3), panel del dueño con su endurecimiento (PR #4) y Pagopar (PR #5, con modo mock para probarlo sin cuenta).
+✅ **El template está cerrado.** FASE 1 (PR #1 a #5: schema y dominio, vidriera, checkout SPI/QR + contra entrega, panel del dueño, Pagopar con su modo mock) y sus PRs de endurecimiento, más la **FASE 2 completa** (PR A a U de `PLAN.md`): roles owner/staff/vendedor, `/admin/usuarios`, atribución auditable, cuentas de cliente opcionales, login sin contraseña pre-armado, cupones, los ABMs que faltaban (categorías, zonas, banco), actividad, filtros y búsqueda, hero de la home, i18n por tienda y `pnpm nueva-tienda`.
 
-Falta para poder vender de verdad: la cuenta de Hostinger (deploy, PLAN.md 4.11), los datos bancarios reales del comercio, el número de WhatsApp, las credenciales de Pagopar y las fotos de producto. Son bloqueos de terceros, no trabajo pendiente de este repo — están todos juntos en la sección **"Bloqueado por terceros"** de `TASKS.md`.
+Una tienda nueva sale de "Use this template" y llega a preflight verde sin editar un archivo a mano — el camino corto está en **[NEW-STORE.md](./NEW-STORE.md)**.
+
+Lo único que falta para vender de verdad no es código de este repo: la cuenta de Hostinger (deploy, DEPLOY.md), los datos bancarios del comercio (se cargan desde `/admin/banco`), el número de WhatsApp, Cloudinary, las credenciales de Pagopar si va con tarjeta y las fotos de producto. Están todos juntos en la sección **"Bloqueado por terceros"** de `TASKS.md`.
 
 ## Arrancar en local
 

@@ -1,7 +1,9 @@
 # TASKS.md — Sprint activo: **cierre de bloqueos de terceros**
 
-PR #1 a #5 del `PLAN.md` ya están mergeados en `main` — schema, vidriera,
-checkout SPI/QR, admin y Pagopar. `pnpm demo` deja la base en un estado
+La FASE 1 (PR #1 a #5 — schema, vidriera, checkout SPI/QR, admin y Pagopar) y
+la **FASE 2 entera** (PR A a U de `PLAN.md` — roles, cuentas de cliente,
+cupones, los ABMs que faltaban del panel, i18n y `pnpm nueva-tienda`) están
+mergeadas en `main`. `pnpm demo` deja la base en un estado
 mostrable con un pedido en cada estado (ver README). Lo único que queda sin
 marcar en este archivo son ítems que dependen de que alguien fuera de este
 repo entregue algo: una cuenta, un dominio, credenciales o datos reales del

@@ -3,7 +3,7 @@
 **Stack (locked):** Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js slot** + Cloudinary.
 No Supabase, no Vercel, no Cloudflare. Deploy mechanics live in `DEPLOY.md` and the `nextjs-deploy-hostinger` skill.
 
-**Estado:** el plan original (PR #1–#5: schema, vidriera, checkout, admin, Pagopar) está **terminado y mergeado**, más los PRs de endurecimiento #6–#12 — el historial completo vive en `TASKS.md`. Este archivo es el plan de la **FASE 2**: cuentas de cliente opcionales, roles de verdad, cupones, ABMs que faltan del panel, UX de la vidriera e i18n por tienda.
+**Estado:** la **FASE 2 está terminada y mergeada** — PR A a U, con CI verde completo en cada uno. El plan original (PR #1–#5: schema, vidriera, checkout, admin, Pagopar) y los PRs de endurecimiento #6–#12 ya estaban antes; el historial completo vive en `TASKS.md`. Lo que queda abierto no es código de este repo: son las cuentas y los datos de terceros que lista `TASKS.md` §"Bloqueado por terceros". Este archivo queda como el registro de qué se construyó en la FASE 2 —cuentas de cliente opcionales, roles de verdad, cupones, los ABMs que faltaban del panel, UX de la vidriera, i18n por tienda y el arranque automatizado de una tienda nueva— y de por qué cada decisión salió como salió.
 
 **Objetivo de la FASE 2:** que el template sea *vendible* — que el dueño administre su tienda entera (usuarios, categorías, zonas) desde el navegador sin llamar al desarrollador, que la tienda pueda tener clientes con cuenta (para perks y marketing) **sin obligar a nadie a registrarse**, y que una tienda nueva pueda salir en otro idioma cambiando un solo archivo.
 
@@ -34,7 +34,7 @@ Los seis de `README.md` §"Reglas no negociables" siguen vigentes y tienen tests
 
 # CHAT 1 — Opus 5 · maquinaria: roles, cuentas, cupones
 
-## PR A — Higiene (sin dependencias, chico)
+## PR A — Higiene (sin dependencias, chico) — **hecho**
 *Branch: `feat/higiene-docs`*
 
 | # | Task | Model |
@@ -45,7 +45,7 @@ Los seis de `README.md` §"Reglas no negociables" siguen vigentes y tienen tests
 
 **Exit:** `rg "Next.js 15"` sin resultados; un solo módulo exporta labels de estado; un checkout con email lo persiste en `orders.customer_email`.
 
-## PR B — Roles de verdad: owner / staff / vendedor
+## PR B — Roles de verdad: owner / staff / vendedor — **hecho**
 *Branch: `feat/roles-reales` · Sin dependencias*
 
 Hoy `requireOwnerSession()` existe pero **nadie la llama**: owner y staff pueden lo mismo, incluidos reembolsos. Este PR cablea los dos niveles y agrega el tercero.
@@ -60,7 +60,7 @@ Hoy `requireOwnerSession()` existe pero **nadie la llama**: owner y staff pueden
 
 **Exit:** un `staff` que intenta reembolsar recibe error prolijo; un `vendedor` sólo ve pedidos y los marca enviados/entregados.
 
-## PR C — `/admin/usuarios` (depende de: B)
+## PR C — `/admin/usuarios` (depende de: B) — **hecho**
 *Branch: `feat/admin-usuarios`*
 
 La página que hace al template vendible: el dueño gestiona a sus empleados sin SSH ni llamarte.
@@ -73,7 +73,7 @@ La página que hace al template vendible: el dueño gestiona a sus empleados sin
 
 **Exit:** flujo completo probado: owner crea un staff, el staff entra, el owner lo desactiva y el staff ya no entra.
 
-## PR D — Atribución auditable (depende de: B, chico)
+## PR D — Atribución auditable (depende de: B, chico) — **hecho**
 *Branch: `feat/actor-user-id`*
 
 | # | Task | Model |
@@ -82,7 +82,7 @@ La página que hace al template vendible: el dueño gestiona a sus empleados sin
 
 **Exit:** un evento nuevo de admin queda con FK consultable, no sólo el string `admin:email`.
 
-## PR E — Cuentas de cliente (flag, apagado por defecto) (paralelo con B)
+## PR E — Cuentas de cliente (flag, apagado por defecto) (paralelo con B) — **hecho**
 *Branch: `feat/cuentas-clientes`*
 
 **El checkout como invitado no se toca.** La cuenta es un upsell ("guardá tus datos para la próxima"), nunca una pared. Con `TIENDA.cuentasClientes: false` (el default) nada de esto se renderiza.
@@ -98,7 +98,7 @@ La página que hace al template vendible: el dueño gestiona a sus empleados sin
 
 **Exit:** con el flag apagado, snapshot de la tienda idéntico a `main`; con el flag prendido, registro → compra logueada → historial en `/cuenta`, y el invitado compra igual que siempre.
 
-## PR F — Login sin contraseña, pre-armado (depende de: E)
+## PR F — Login sin contraseña, pre-armado (depende de: E) — **hecho**
 *Branch: `feat/login-sin-password`*
 
 Pre-construido para todas las tiendas, **inactivo hasta que la tienda tenga con qué mandar mensajes**: mandar un OTP por WhatsApp requiere WhatsApp Cloud API (credenciales + número verificado de Meta) — eso es lo que una tienda nueva "tiene que verificar antes de usarlo".
@@ -111,7 +111,7 @@ Pre-construido para todas las tiendas, **inactivo hasta que la tienda tenga con 
 
 **Exit:** en dev (sender `consola`) el flujo completo anda; sin credenciales el login sólo ofrece contraseña.
 
-## PR G — Cupones (depende de: B; `solo_clientes` degrada sin E)
+## PR G — Cupones (depende de: B; `solo_clientes` degrada sin E) — **hecho**
 *Branch: `feat/cupones`*
 
 | # | Task | Model |
@@ -124,7 +124,7 @@ Pre-construido para todas las tiendas, **inactivo hasta que la tienda tenga con 
 
 **Exit:** `pnpm reconcile` cuadra con pedidos con descuento; el cupón agotado pierde la carrera limpiamente.
 
-**Cierre del chat 1:** correr `/security-review` sobre el acumulado, `pnpm reconcile` y `pnpm preflight`, y dejar en el chat un informe: qué se hizo, riesgos vistos, ideas que surgieron.
+**Cierre del chat 1:** cumplido — A–G mergeados con CI verde completo (unitarios e integración contra MySQL), `/security-review` corrido sobre el acumulado, `pnpm reconcile` cuadrando y `pnpm preflight` bloqueando lo que tiene que bloquear.
 
 ---
 
@@ -195,6 +195,40 @@ Dos bordes que el test fija: sin `CLOUDINARY_CLOUD_NAME` en el entorno —el est
 **Exit del chat 2:** cumplido. Con `lang: "es-PY"` —el default— los textos son los de siempre; el catálogo tiene ~890 claves y cubre la vidriera **y** el panel; los tres tests de CI (toda clave usada existe, ninguna clave muerta, mismos parámetros en todos los catálogos) sostienen que siga siendo cierto. Un segundo idioma es copiar `es-PY.ts`, traducir los valores y agregarlo a `CATALOGOS` — las claves son el contrato y el test no deja mergear uno incompleto.
 
 **Cierre del chat 2:** mismo informe final: hecho, riesgos, ideas.
+
+---
+
+# DESPUÉS DE LOS DOS CHATS — lo que faltaba para que el template se use solo
+
+Los dos PRs que cierran la FASE 2. No estaban en el plan original: salieron de
+usar el template desde cero y anotar qué seguía siendo trabajo manual.
+
+## PR T — Los datos bancarios salen del entorno y entran al panel — **hecho**
+`/admin/banco` (owner-only): banco, titular, RUC, cuenta, tipo de cuenta y el
+QR, editables con la tienda arriba y sin redeploy. Las variables `BANCO_*`
+siguen andando como **fallback** —una tienda ya configurada no cambia en nada—
+y la fila cargada desde el panel les gana; la precedencia está fijada en
+ARCH.md §5.1. El motivo es el de siempre en esta familia de permisos: quien
+puede cambiar el número de cuenta al que transfieren las compradoras desvía la
+facturación entera sin generar un solo pedido raro (ARCH.md §1), así que es
+owner-only y queda auditado.
+
+## PR U — De "Use this template" a preflight verde, sin editar archivos a mano — **hecho**
+`pnpm nueva-tienda`: seis preguntas y con eso reescribe la marca de
+`tienda.ts`, genera `SESSION_SECRET` / `CRON_SECRET` / `SETUP_SECRET` con
+`crypto.randomBytes` (no con `openssl`, que en Windows no existe), escribe
+`.env.local`, imprime el bloque exacto del hPanel y corre
+`template:diff --marcar`. Idempotente y **nunca regenera un secreto que ya
+exista** —uno nuevo cierra todas las sesiones del panel y deja al cron llamando
+con la llave vieja—; `--dry-run` no escribe nada y las seis respuestas se
+pueden pasar por bandera para correrlo sin TTY.
+
+Se suman `CLOUDINARY_FOLDER_PREFIX` (varias tiendas en una misma cuenta de
+Cloudinary dejan de mezclar comprobantes: todas acuñan `PY-000123`) y, en
+`/api/setup/init`, el alta de zonas de envío por `{zonas:[...]}` más el reporte
+de `preflight()` medido **contra el entorno del servidor**, que es lo que mata
+el paso de correr el preflight desde tu máquina contra un `.env` parecido al de
+producción.
 
 ---
 
