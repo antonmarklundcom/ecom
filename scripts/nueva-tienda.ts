@@ -161,7 +161,11 @@ export function reescribirTienda(source: string, datos: DatosTienda): string {
     // La sangría se conserva y el valor sale **en una línea**: el original
     // puede tener la descripción partida por prettier, y dejar el `campo:`
     // solo arriba de un string corto sería un archivo que el próximo
-    // `prettier --write` vuelve a tocar.
+    // `prettier --write` vuelve a tocar. Una línea larga tampoco es el
+    // formato final —una descripción de 150 caracteres pasa el printWidth—,
+    // así que después de escribir se corre prettier sobre el archivo
+    // (`formatearTienda`): sin eso, el primer commit de la tienda nueva
+    // arranca con lint-staged reformateando un archivo que nadie tocó.
     const regex = new RegExp(`(\\n)([ \\t]*)${campo}:\\s*[\\s\\S]*?,(\\n)`);
     if (!regex.test(nuevo)) {
       throw new Error(`No encontré el campo "${campo}" en TIENDA. Editalo a mano.`);
@@ -172,6 +176,35 @@ export function reescribirTienda(source: string, datos: DatosTienda): string {
   }
 
   return source.replace(literal, nuevo);
+}
+
+/**
+ * Deja `src/config/tienda.ts` como lo dejaría `prettier --write`.
+ *
+ * El reemplazo de arriba escribe cada campo en una línea, y una descripción
+ * de 150 caracteres se pasa del `printWidth`. Sin esta pasada el archivo
+ * queda formateado distinto de todo el repo y el primer `git commit` de la
+ * tienda nueva lo reformatea solo (husky + lint-staged), que es ruido en el
+ * peor momento: el diff inicial deja de ser "cambié la marca".
+ *
+ * Si prettier no se puede cargar —alguien corre el wizard sin instalar las
+ * devDependencies— no es un error: el archivo queda escrito igual y sólo se
+ * pierde el formato. Un wizard que se cae después de escribir es peor que uno
+ * que deja una línea larga.
+ */
+async function formatearTienda(archivo: string): Promise<void> {
+  try {
+    const prettier = await import('prettier');
+    const source = readFileSync(archivo, 'utf8');
+    const config = await prettier.resolveConfig(archivo);
+    const formateado = await prettier.format(source, {
+      ...config,
+      filepath: archivo,
+    });
+    if (formateado !== source) writeFileSync(archivo, formateado);
+  } catch {
+    // Ver el comentario de arriba: formatear es prolijidad, no el trabajo.
+  }
 }
 
 /**
@@ -528,7 +561,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (tiendaCambia) writeFileSync(TIENDA_FILE, tiendaNueva);
+  if (tiendaCambia) {
+    writeFileSync(TIENDA_FILE, tiendaNueva);
+    await formatearTienda(TIENDA_FILE);
+  }
   writeFileSync(ENV_FILE, env.contenido);
 
   imprimirHPanel(env.contenido, aEscribir);
