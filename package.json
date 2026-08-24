@@ -23,7 +23,8 @@
     "backfill:pagos-manuales": "tsx scripts/backfill-manual-payments.ts",
     "preflight": "tsx scripts/preflight.ts",
     "backup": "tsx scripts/backup-db.ts",
-    "template:diff": "tsx scripts/template-diff.ts"
+    "template:diff": "tsx scripts/template-diff.ts",
+    "setup:doctor": "tsx scripts/doctor.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

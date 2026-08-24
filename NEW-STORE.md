@@ -9,15 +9,29 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
 ---
 
+**Corré todo esto en tu máquina, en una terminal — no en un contenedor
+remoto.** Los pasos de la base de datos necesitan Docker Desktop corriendo de
+verdad; un contenedor de Claude Code en la nube no tiene daemon de Docker y
+esos pasos van a fallar.
+
 ## El camino corto
 
 ```bash
 git clone <tu-repo> && cd <tu-repo> && pnpm install
 git remote add template git@github.com:antonmarklundcom/ecom.git
+pnpm setup:doctor              # ¿Node, pnpm, Docker y los remotos están listos?
 pnpm nueva-tienda        # seis preguntas: marca, WhatsApp, dominio
 docker compose up -d && pnpm db:push && pnpm db:seed && pnpm create-owner
 pnpm preflight
 ```
+
+`pnpm setup:doctor` revisa la máquina, no la tienda: versión de Node contra
+`.nvmrc`, versión de pnpm contra `packageManager`, si el daemon de Docker
+responde, y si los remotos `origin` y `template` son alcanzables (esto último
+agarra el caso de una SSH key de GitHub que todavía no está cargada). Corré
+esto **antes** de `pnpm nueva-tienda`: los tres problemas que más tiempo
+hacen perder — Docker Desktop cerrado, SSH sin configurar, Node viejo — se
+ven todos juntos acá en vez de descubrirse uno por uno a mitad del wizard.
 
 Eso es todo lo que se puede automatizar. **Lo único que queda a mano es lo de
 terceros**, porque son cuentas de otro que nadie puede abrir por vos:
@@ -53,6 +67,10 @@ cuadra, o si querés saber por qué el wizard hace lo que hace.
    avisa, y el primer `pnpm template:diff` corre en modo degradado con los
    commits del template apareciendo todos, para siempre (ver "Arreglos que
    aparecen después" al final).
+
+4. `pnpm setup:doctor` — confirma que Node, pnpm, Docker y los dos remotos están
+   listos antes de seguir. Es la máquina, no la tienda; `pnpm preflight`
+   (paso 6) es la otra mitad, la de si esta tienda ya puede cobrar.
 
 ### 2. Marca y secretos — `pnpm nueva-tienda`
 
