@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { CheckoutError, TotalChangedError, createOrder } from "@/domain/create-order";
+import { notifyNewOrder } from "@/domain/messaging/order-notification";
 import { orderUrl } from "@/domain/order-access";
 import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config";
 import { startPagoparCheckout } from "@/domain/pagopar/checkout";
@@ -113,6 +114,17 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       shipBarrio: parsed.data.shipBarrio || null,
       shipReference: parsed.data.shipReference || null,
       giftNote: parsed.data.giftNote || null,
+    });
+
+    // Se avisa acá, para todo método de pago: transferencia y contra entrega
+    // ya necesitan que el dueño mire el pedido (revisar el comprobante,
+    // preparar el envío), y con tarjeta prefiero un aviso de más — un
+    // checkout abandonado en Pagopar— a uno de menos. No tira: ver
+    // `notifyNewOrder`.
+    await notifyNewOrder({
+      orderNumber: order.orderNumber,
+      totalPyg: order.totalPyg,
+      customerName: parsed.data.customerName,
     });
 
     if (parsed.data.paymentMethod === "tarjeta") {

@@ -172,8 +172,22 @@ pnpm dev                 # tienda en / y panel en /admin
 Para una demo mostrable al cliente antes de tener productos reales:
 `pnpm demo` (catálogo + un pedido en cada estado).
 
-Los productos reales se cargan desde el panel (`/admin/productos`), o
-adaptando `scripts/seed.ts` si vienen de un CSV/planilla.
+Los productos reales se cargan desde el panel (`/admin/productos`), o con
+
+```bash
+pnpm import-csv catalogo.csv --dry-run   # valida todo, no escribe nada
+pnpm import-csv catalogo.csv             # importa
+```
+
+si vienen de una planilla. Una fila = una variante; los campos de producto
+(`producto_slug`, `producto_nombre`, `categoria_slug`, `descripcion`, `marca`,
+`iva`) se repiten en cada fila de ese producto. Columnas completas y ejemplos
+en `scripts/import-productos.ts`. Valida **todo** el archivo antes de escribir
+la primera fila —un error a mitad de planilla no deja el catálogo a medio
+cargar— y es idempotente por `slug`/`sku`, así que reimportar una planilla
+corregida no duplica nada. Las categorías tienen que existir antes en
+`/admin/categorias`: el comando no las crea, porque el orden del menú es una
+decisión de la tienda.
 
 El seed deja un punto de partida que **se termina de ajustar desde el panel**,
 sin volver a tocar código:
@@ -185,6 +199,24 @@ sin volver a tocar código:
 | Datos bancarios | `/admin/banco` | A dónde transfieren. Vacío, la página del pedido avisa en vez de inventar una cuenta. Ver §4a. |
 
 Las tres pantallas son owner-only.
+
+### 4e. Aviso de "pedido nuevo" por WhatsApp (opcional, apagado)
+
+Sin esto, el dueño se entera de un pedido sólo si tiene `/admin/pedidos`
+abierto. Con `ORDER_NOTIFICATIONS_WHATSAPP_TO` (a qué número avisar) y
+`WHATSAPP_CLOUD_ORDER_TEMPLATE_NAME` (una plantilla de Meta aprobada,
+**distinta** de la del login: son contenidos distintos y Meta exige una
+plantilla por cada uno) configurados, `notifyNewOrder`
+(`src/domain/messaging/order-notification.ts`) manda un WhatsApp por cada
+pedido nuevo, sea cual sea el método de pago. Reusa las credenciales de
+`WHATSAPP_CLOUD_PHONE_NUMBER_ID`/`ACCESS_TOKEN` del §4c — mismo número, otra
+plantilla.
+
+Con destinatario pero sin plantilla, en dev el aviso sale por la consola del
+servidor (nunca en producción) — sirve para probar el flujo antes de que
+Meta apruebe la plantilla. Sin destinatario, no hay a quién avisarle y la
+feature no existe. Nunca tira: una notificación que falla no puede tumbar un
+checkout que ya escribió el pedido.
 
 ### 4a. Los datos bancarios se cargan desde el navegador
 
