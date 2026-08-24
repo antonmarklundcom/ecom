@@ -225,11 +225,16 @@ describe('cobertura de la revisión', () => {
     expect(files.length).toBeGreaterThan(0);
 
     // Cada acción exportada tiene que llamar a *algún* guard: el de admin, el
-    // del comprador (token del pedido) o el rate limit. Las de carrito son
-    // stateless y no tocan nada del servidor.
+    // del comprador (token del pedido) o el rate limit.
+    //
+    // `cart.ts` era la única excepción del repo, porque no tocaba nada del
+    // servidor. Dejó de serlo el día que empezó a poder dejar una fila de
+    // analítica: ahora tiene su rate limit como todo lo demás, y por eso la
+    // lista de excepciones quedó vacía. Que siga vacía es la señal de que
+    // nadie agregó una acción sin guard "por ahora".
     const GUARDS =
       /requireAdminSession|requireStaffSession|requireOwnerSession|requireCustomerSession|requireOrderAccess|rateLimit\s*\(|cuentasClientesHabilitadas\s*\(/;
-    const SIN_ESTADO = new Set([path.join(ACTIONS, 'cart.ts')]);
+    const SIN_ESTADO = new Set<string>();
 
     const offenders: string[] = [];
     for (const file of files) {
@@ -246,12 +251,28 @@ describe('cobertura de la revisión', () => {
     const routes = (await listSourceFiles([API])).filter((file) => file.endsWith('route.ts'));
     expect(routes.length).toBeGreaterThan(0);
 
-    // La única excepción, y con nombre y apellido: el health check tiene que
-    // poder llamarlo el monitoreo sin credenciales. Se la banca porque no toca
-    // ningún dato —un `SELECT 1`— y contesta dos booleanos: ni versiones, ni
-    // schema, ni el error de MySQL. Cualquier ruta nueva que quiera entrar acá
-    // tiene que poder decir lo mismo.
-    const SIN_GUARD = new Set([path.join(API, 'health', 'route.ts')]);
+    // Las excepciones, con nombre y apellido y con el porqué de cada una.
+    // Cualquier ruta nueva que quiera entrar acá tiene que poder decir lo
+    // mismo que éstas: que no hay nada del otro lado que proteger.
+    //
+    // - `health`: lo llama el monitoreo sin credenciales. No toca ningún dato
+    //   —un `SELECT 1`— y contesta dos booleanos: ni versiones, ni schema, ni
+    //   el error de MySQL.
+    //
+    // - `analytics/visita`: el beacon de páginas vistas. Lo llama el navegador
+    //   de cada visitante anónimo, así que un secreto sería un secreto
+    //   publicado en el bundle. No lee ni devuelve un solo dato —contesta 204
+    //   vacío siempre, incluso cuando descarta el evento— y lo único que
+    //   escribe es una fila de estadística con una ruta que normaliza el
+    //   servidor. El peor caso de un abuso es un número de visitas inflado,
+    //   que es la limitación conocida y aceptada por escrito de **toda** la
+    //   analítica web (ver `src/domain/analytics.ts`): por eso las compras y
+    //   los checkouts no se miden así. Lo que sí tiene, y el test de abajo lo
+    //   exige, es cookie de visita válida y rate limit.
+    const SIN_GUARD = new Set([
+      path.join(API, 'health', 'route.ts'),
+      path.join(API, 'analytics', 'visita', 'route.ts'),
+    ]);
 
     const offenders: string[] = [];
     for (const file of routes) {
@@ -263,6 +284,37 @@ describe('cobertura de la revisión', () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  it('la excepción del beacon no es un permiso para no verificar nada', async () => {
+    // La exención de arriba se gana con estas tres cosas. Sin ellas la ruta
+    // pasa de "escribe una fila de estadística" a "cualquiera llena una tabla
+    // y atribuye páginas vistas a la visita de otra persona".
+    const route = await readCode(
+      path.join('src', 'app', 'api', 'analytics', 'visita', 'route.ts'),
+    );
+
+    // 1. Sin cookie de visita no escribe nada, y el id sale de la cookie —
+    //    nunca del cuerpo, que lo elegiría quien llama.
+    expect(route).toMatch(/visitIdActual\s*\(/);
+    // 2. Rate limit por visita y por IP.
+    expect(route).toMatch(/rateLimit\(`analytics:visita:/);
+    expect(route).toMatch(/rateLimit\(`analytics:ip:/);
+    // 3. La ruta que se guarda la decide el servidor.
+    expect(route).toMatch(/normalizarPath\s*\(/);
+  });
+
+  it('revalidateCart dejó de ser la acción sin guard el día que empezó a escribir', async () => {
+    // `cart.ts` está exento del test de guards de arriba porque no tocaba
+    // nada del servidor. Desde que puede dejar una fila de analítica, esa
+    // razón ya no vale sola: el camino que escribe tiene su rate limit.
+    const cart = await readCode(path.join('src', 'app', 'actions', 'cart.ts'));
+
+    if (/registrarAgregadoAlCarrito/.test(cart)) {
+      expect(cart, 'el camino que escribe analítica necesita rate limit').toMatch(
+        /rateLimit\(`analytics:carrito:/,
+      );
+    }
   });
 });
 

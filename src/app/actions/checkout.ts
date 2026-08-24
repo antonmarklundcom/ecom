@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 
+import { registrarCheckoutIniciado, registrarCompra } from "@/domain/analytics";
 import { CheckoutError, TotalChangedError, createOrder } from "@/domain/create-order";
 import { notifyNewOrder } from "@/domain/messaging/order-notification";
 import { orderUrl } from "@/domain/order-access";
@@ -12,6 +13,7 @@ import { DOC_TYPES, PAYMENT_METHODS } from "@/db/schema";
 import type { CartIssue } from "@/lib/cart-issues";
 import { t } from "@/i18n";
 import { currentCustomer } from "@/lib/customer-session";
+import { visitIdActual } from "@/lib/visit-cookie";
 import {
   CHECKOUT_LIMIT,
   CHECKOUT_WINDOW_MS,
@@ -98,6 +100,25 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
     return { ok: false, error: t("error.checkout.sinTarjeta") };
   }
 
+  // Los dos escalones de abajo del embudo se anotan **acá y no en el
+  // dominio**: `createOrder` es maquinaria del camino de la plata y no tiene
+  // por qué enterarse de que existe una analítica. Acá, en la acción, el
+  // registro queda fuera de la transacción del pedido — que es la propiedad
+  // que importa, porque un INSERT de estadística que falle adentro haría
+  // rollback de un pedido bueno.
+  //
+  // El `visitId` sale de la cookie, igual que el `customerId` sale de la
+  // sesión: nada de identidad viaja en el formulario.
+  const visitId = await visitIdActual();
+
+  // "Inició el checkout" = apretó confirmar con datos que pasaron el schema y
+  // el rate limit. No es "abrió /checkout", que ya queda medido por el
+  // pageview de esa ruta. Se anota **antes** de crear el pedido, a propósito:
+  // el escalón tiene que contar también a quien no llegó a comprar —un cupón
+  // vencido, stock que se acabó mientras completaba— porque ése es
+  // exactamente el abandono que el embudo existe para mostrar.
+  if (visitId !== null) await registrarCheckoutIniciado(visitId);
+
   try {
     // La cuenta sale de **la cookie**, no del formulario: un `customerId` que
     // viaje en el input deja atar la compra propia a la cuenta de cualquiera.
@@ -115,6 +136,16 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       shipReference: parsed.data.shipReference || null,
       giftNote: parsed.data.giftNote || null,
     });
+
+    // El pedido ya está escrito y su stock reservado. Nada de lo que siga
+    // —esto y el aviso de abajo— puede tumbarlo: las dos cosas atrapan sus
+    // propios errores y no tiran (ver `registrarCompra` y `notifyNewOrder`).
+    //
+    // Sin monto: la fila guarda el `orderId` y listo. Cuánto entró y si entró
+    // se leen de `orders` al consultar, así que un pedido que después se vence
+    // o se reembolsa deja de contar como conversión sin que nadie tenga que
+    // acordarse de tocar nada.
+    if (visitId !== null) await registrarCompra(visitId, order.orderId);
 
     // Se avisa acá, para todo método de pago: transferencia y contra entrega
     // ya necesitan que el dueño mire el pedido (revisar el comprobante,

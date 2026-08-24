@@ -684,6 +684,71 @@ suite and never on the merchant's server.
 
 ---
 
+## 6.5 Analítica propia (first-party, sin terceros)
+
+Una tabla append-only, `analytics_events`, y dos módulos: `domain/analytics.ts`
+escribe, `domain/admin-analytics.ts` lee. La pantalla es `/admin/analitica`,
+owner-only.
+
+**No hay ningún script de terceros y ningún dato sale del servidor.** No es una
+omisión pendiente de completar: es el diseño, y está escrito con su porqué en
+`domain/analytics.ts`. Sin IP, sin user-agent, sin referrer, sin querystring,
+sin fingerprinting y sin identificadores compartidos con nadie.
+
+### La cookie de visita no es una sesión
+
+`ecom_visita` guarda 16 bytes al azar, es httpOnly, dura 180 días y es
+`SameSite=Lax` (con `Strict` no llegaría en el click desde Instagram, que es la
+visita cuya página de entrada más interesa medir). No va firmada porque no
+afirma nada.
+
+La regla que la hace inofensiva de falsificar: **un `visitId` no autoriza
+nada.** Nunca en un `WHERE` que decida qué datos ve alguien, nunca al lado de
+un `customerId`, nunca como fallback de una sesión ausente. Hay un test de CI
+que verifica que ningún módulo fuera de la analítica lo nombre siquiera.
+
+### Tres niveles de confianza, y la pantalla los distingue
+
+| Evento | Quién lo escribe | Se puede bloquear |
+|---|---|---|
+| `visita` | el navegador avisa a `/api/analytics/visita` | sí — limitación conocida y aceptada |
+| `carrito_agregado` | el servidor, pegado a `revalidateCart` | no sin romper el carrito |
+| `checkout_iniciado`, `compra` | el servidor, en `submitCheckout` | no |
+
+Consecuencia: **las tasas de conversión son un piso.** El numerador lo escribe
+el servidor y el denominador lo reporta el navegador, así que lo que falta está
+siempre del lado de las visitas. La pantalla muestra al lado los pedidos
+cobrados leídos directo de `orders`, que es la medida de cuánto se pierde por
+cookies.
+
+### Ni una columna de plata
+
+`analytics_events` guarda `order_id` y nunca un monto ni un estado. Cuánto
+entró y si entró se leen de `orders` al consultar, con el mismo
+`REVENUE_STATUSES` que el resumen: un pedido que se vence o se reembolsa deja
+de contar como conversión solo, sin que nadie toque la tabla de eventos.
+Guardar el monto sería una copia del dinero fuera del camino del dinero, que
+`pnpm reconcile` ya no revisa.
+
+Por lo mismo, "lo más vendido" **no** usa esta tabla: `topProducts()` ya lo
+calcula desde `order_items`. Lo que la analítica agrega es lo que no existía —
+la gente que miró y no compró, o sea el denominador.
+
+### Nunca puede tumbar un checkout
+
+Todas las funciones de escritura atrapan sus propios errores y no tiran, igual
+que `notifyNewOrder`. Y nada de esto entra en la transacción de `createOrder`:
+los eventos se anotan desde la server action, después. `create-order.ts` no
+menciona la analítica, y hay un test que lo verifica.
+
+### Escala
+
+Agregación por rango en cada lectura, sin rollups. Para el volumen de un
+comercio chico son cientos de miles de filas con dos índices. La cota al
+crecimiento es `pnpm analytics:purge` (`ANALYTICS_RETENTION_DAYS`, un año por
+defecto), que es un comando y no parte del cron de pedidos: ése es el camino de
+la plata y tiene su propio timeout.
+
 ## 7. FASE 2 (not built in MVP): FacturaPY integration
 
 The store MVP issues **no legal invoices**. But the schema is already invoice-complete — RUC/CI with DV validation, `iva_rate` per line, per-rate IVA subtotals — so connecting it later is roughly one day of work, not a remodel.

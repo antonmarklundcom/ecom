@@ -25,7 +25,8 @@
     "backup": "tsx scripts/backup-db.ts",
     "template:diff": "tsx scripts/template-diff.ts",
     "setup:doctor": "tsx scripts/doctor.ts",
-    "import-csv": "tsx scripts/import-productos.ts"
+    "import-csv": "tsx scripts/import-productos.ts",
+    "analytics:purge": "tsx scripts/purge-analytics.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

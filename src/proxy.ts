@@ -3,12 +3,19 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { USER_ROLES } from "@/lib/roles";
 import { sessionOptions, type AdminSession } from "@/lib/session";
+import {
+  VISIT_COOKIE,
+  esVisitId,
+  nuevoVisitId,
+  rutaSinVisita,
+  visitCookieOptions,
+} from "@/lib/visit-id";
 
 /**
  * Proxy — el ex `middleware.ts`, renombrado en Next 16 (PLAN.md 4.1 y 4.9).
  *
- * Hace dos cosas: pone las cabeceras de seguridad de todo el sitio y cuida la
- * puerta de `/admin/*`.
+ * Hace tres cosas: pone las cabeceras de seguridad de todo el sitio, cuida la
+ * puerta de `/admin/*` y acuña la cookie anónima de visita.
  *
  * Sobre la puerta: esto es UX, **no** es el control de acceso. Manda al login
  * a quien no tiene cookie para que no vea un error feo. La defensa real está
@@ -58,7 +65,42 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
+  asegurarCookieDeVisita(request, response);
   return withSecurityHeaders(response, nonce, isAdmin);
+}
+
+/**
+ * Le pone al visitante anónimo su cookie `ecom_visita` si todavía no tiene una.
+ *
+ * ### Por qué acá y no en una server action
+ *
+ * Porque es el único lugar que corre **antes** de dibujar la página y puede
+ * escribir una cookie. Next no deja que un Server Component la escriba durante
+ * el render, así que la alternativa sería acuñarla en la primera llamada de
+ * analítica — y entonces el pageview que la dispara sería siempre el de un
+ * visitante que "no existía", o sea el primero de cada persona, que es
+ * justamente la página de entrada que se quiere medir.
+ *
+ * ### Qué no hace
+ *
+ * No la renueva en cada request. Reescribir la cookie en cada navegación
+ * convertiría los seis meses en "seis meses desde la última vez", que es un
+ * identificador que no vence nunca mientras alguien siga entrando. Se acuña
+ * una vez y vence cuando dijo que iba a vencer.
+ *
+ * Tampoco acuña nada en `/admin`, en `/api` ni en `/dev` (ver `rutaSinVisita`):
+ * la analítica mide la vidriera, y las páginas que abre el dueño trabajando no
+ * son visitas de una compradora.
+ */
+function asegurarCookieDeVisita(request: NextRequest, response: NextResponse): void {
+  if (rutaSinVisita(request.nextUrl.pathname)) return;
+  if (esVisitId(request.cookies.get(VISIT_COOKIE)?.value)) return;
+
+  response.cookies.set(
+    VISIT_COOKIE,
+    nuevoVisitId(),
+    visitCookieOptions(process.env.NODE_ENV === "production"),
+  );
 }
 
 /**

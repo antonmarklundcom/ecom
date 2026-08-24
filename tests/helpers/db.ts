@@ -28,6 +28,10 @@ export async function closeTestDb(): Promise<void> {
 }
 
 const TABLES = [
+  // Primero: tiene FK a `orders` y a `variants`. Con FOREIGN_KEY_CHECKS en 0
+  // el orden no la haría fallar, pero sí dejaría filas huérfanas que el
+  // siguiente test reengancharía a pedidos nuevos con el mismo id.
+  'analytics_events',
   'order_events',
   'stock_reservations',
   'receipts',

@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { WhatsAppFab } from "@/components/whatsapp-fab";
 import { Toaster } from "@/components/ui/sonner";
+import { VisitTracker } from "@/components/visit-tracker";
 import { idiomaActivo } from "@/i18n";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
@@ -60,6 +61,12 @@ export default function RootLayout({
         <CartSheet />
         <WhatsAppFab />
         <Toaster />
+        {/*
+          Analítica propia: avisa que se dibujó una página y nada más. No hay
+          ningún script de terceros en este layout, y no lo va a haber — ver
+          `src/domain/analytics.ts`.
+        */}
+        <VisitTracker />
       </body>
     </html>
   );

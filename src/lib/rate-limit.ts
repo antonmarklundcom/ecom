@@ -209,3 +209,42 @@ export const CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
  */
 export const QUOTE_LIMIT = 60;
 export const QUOTE_WINDOW_MS = 60 * 1000;
+
+/**
+ * Límite del beacon de pageviews (`/api/analytics/visita`).
+ *
+ * Es la única ruta pública que escribe una fila sin que nadie pruebe nada, así
+ * que lo que se cuida no es un secreto: es que la tabla de estadísticas no se
+ * pueda llenar a pedido, y que el slot de Node de Hostinger no se vaya en
+ * INSERTs de un script.
+ *
+ * Se aplica por `visitId` y **también** por IP, porque cada uno corta un abuso
+ * distinto: el de visita acota cuántas filas puede escribir un navegador —que
+ * es lo que ensucia el embudo—, y el de IP acota a quien rota cookies para
+ * esquivar el primero.
+ *
+ * Los dos son holgados a propósito. Una compradora navegando rápido en el
+ * celular hace decenas de pageviews en un minuto, y una familia o una oficina
+ * detrás de un mismo NAT los suman todos. Perder una visita legítima por un
+ * límite apretado empeora el mismo número que la ruta existe para medir.
+ */
+export const ANALYTICS_VISIT_LIMIT = 60;
+export const ANALYTICS_VISIT_WINDOW_MS = 60 * 1000;
+export const ANALYTICS_IP_LIMIT = 600;
+export const ANALYTICS_IP_WINDOW_MS = 60 * 1000;
+
+/**
+ * Límite del registro de "agregado al carrito", que viaja pegado a
+ * `revalidateCart`.
+ *
+ * `revalidateCart` era hasta ahora la única acción sin guard del repo, porque
+ * no tocaba nada del servidor. Desde que puede escribir una fila de analítica,
+ * sí toca: el límite es lo que la devuelve al mismo régimen que todo lo demás.
+ *
+ * Sólo cuenta las llamadas que **declaran** el gesto de agregar; abrir el
+ * carrito o entrar al checkout revalidan igual que siempre, sin límite, porque
+ * siguen sin escribir nada. Alto porque agregar cinco variantes seguidas es un
+ * comportamiento normal de alguien que está por comprar.
+ */
+export const ANALYTICS_CART_LIMIT = 60;
+export const ANALYTICS_CART_WINDOW_MS = 60 * 1000;

@@ -48,8 +48,13 @@ export type CartState = {
    * DB. Vive en el store, no en un `useEffect`: así el estado se actualiza
    * desde una acción del usuario (abrir el carrito, agregar algo) y no desde
    * un efecto que dispara renders en cascada.
+   *
+   * `agregado` es la variante que se acaba de agregar, y sólo la manda `add()`.
+   * Es lo que le permite al servidor anotar el escalón "agregó al carrito" del
+   * embudo sin un segundo viaje de red — ver `revalidateCart`. Sin ese dato la
+   * revalidación es exactamente la de siempre.
    */
-  sync: () => Promise<void>;
+  sync: (agregado?: number) => Promise<void>;
 };
 
 export const CART_STORAGE_KEY = "tienda-py-cart";
@@ -92,7 +97,7 @@ export const useCart = create<CartState>()(
       freeShipping: null,
       isSyncing: false,
 
-      add: (line, qty = 1) =>
+      add: (line, qty = 1) => {
         set((state) => {
           const existing = state.lines.find((item) => item.variantId === line.variantId);
           if (existing) {
@@ -109,7 +114,18 @@ export const useCart = create<CartState>()(
             lines: [...state.lines, { ...line, qty: Math.min(MAX_QTY_PER_LINE, qty) }],
             isOpen: true,
           };
-        }),
+        });
+
+        // Revalidar al agregar era la intención declarada de `sync()` desde el
+        // principio y no estaba cableado: el carrito se abría con el precio
+        // que tenía guardado el navegador y recién se corregía al reabrirlo.
+        // Ahora el slide-over que se acaba de abrir muestra precio, stock y
+        // barra de envío gratis ya confirmados por la base.
+        //
+        // Es un viaje de red por "agregar", y es el mismo que lleva el evento
+        // de analítica: por eso va pegado acá y no en una llamada aparte.
+        void get().sync(line.variantId);
+      },
 
       setQty: (variantId, qty) =>
         set((state) => ({
@@ -135,7 +151,7 @@ export const useCart = create<CartState>()(
 
       close: () => set({ isOpen: false }),
 
-      sync: async () => {
+      sync: async (agregado) => {
         const { lines } = get();
         if (lines.length === 0) {
           set({ issues: [], freeShipping: null, isSyncing: false });
@@ -144,13 +160,14 @@ export const useCart = create<CartState>()(
 
         set({ isSyncing: true });
         try {
-          const priced = await revalidateCart(
-            lines.map((line) => ({
+          const priced = await revalidateCart({
+            lines: lines.map((line) => ({
               variantId: line.variantId,
               qty: line.qty,
               unitPricePyg: line.unitPricePyg,
-            }))
-          );
+            })),
+            agregado,
+          });
           set({
             lines: priced.lines.map<CartLine>((line) => ({
               variantId: line.variantId,

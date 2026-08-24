@@ -751,3 +751,138 @@ export const bankDetails = mysqlTable('bank_details', {
    */
   updatedBy: int('updated_by').references(() => users.id, { onDelete: 'set null' }),
 });
+
+// ---------------------------------------------------------------------------
+// Analítica propia — el embudo de la vidriera, sin terceros
+// ---------------------------------------------------------------------------
+
+/**
+ * Los cuatro hechos del embudo. El orden es el del embudo, de arriba hacia
+ * abajo, y **no** es casual: así se lee el ENUM en un `ORDER BY` sin tener que
+ * inventar una columna de orden.
+ *
+ * - `visita`             — una página de la vidriera se dibujó en un navegador.
+ * - `carrito_agregado`   — alguien agregó una variante al carrito.
+ * - `checkout_iniciado`  — alguien apretó "confirmar" en el checkout.
+ * - `compra`             — el pedido se creó (`orders.id` en `order_id`).
+ *
+ * Qué tan confiable es cada uno está escrito en `src/domain/analytics.ts`: no
+ * son todos iguales y la pantalla del panel lo dice.
+ */
+export const ANALYTICS_EVENT_TYPES = [
+  'visita',
+  'carrito_agregado',
+  'checkout_iniciado',
+  'compra',
+] as const;
+export type AnalyticsEventType = (typeof ANALYTICS_EVENT_TYPES)[number];
+
+/**
+ * Una fila por hecho del embudo. Append-only: nadie la edita nunca.
+ *
+ * ### Por qué una tabla nueva y no las que ya están
+ *
+ * Lo vendido —qué producto, cuánta plata, en qué estado— **ya se puede
+ * calcular** desde `orders` y `order_items`, y de hecho se calcula:
+ * `topProducts()` en `admin-dashboard.ts` no necesitó una sola fila de acá.
+ * Duplicar eso sería crear una segunda verdad sobre la plata, que es
+ * exactamente lo que este repo evita en todos lados.
+ *
+ * Lo que **no** existe en ninguna tabla es el otro lado del embudo: la gente
+ * que miró y no compró. Un pedido no vendido no deja fila en ningún lado, y
+ * sin esas filas no hay denominador — o sea, no hay tasa de conversión. Eso es
+ * lo único que esta tabla agrega.
+ *
+ * ### Por qué no hay ni una columna de plata
+ *
+ * A propósito, y es la decisión de diseño importante de la tabla. La tentación
+ * es guardar `total_pyg` en la fila de `compra` para que el reporte sume sin
+ * joins. Sería una copia del monto viviendo fuera del camino del dinero, que
+ * ya no la revisa `pnpm reconcile` y que un reembolso o un cambio de estado
+ * dejan mintiendo para siempre.
+ *
+ * En vez de eso la fila guarda **el `order_id` y nada más**: el monto, el
+ * estado y si esa plata entró de verdad se leen de `orders` al momento de
+ * consultar, con el mismo `REVENUE_STATUSES` que usa el resumen del panel. Un
+ * pedido que se vence o se reembolsa deja de contar como conversión sin que
+ * nadie tenga que acordarse de tocar esta tabla.
+ *
+ * ### Sin datos personales
+ *
+ * Ninguna columna guarda IP, user-agent, referrer, teléfono ni email. El único
+ * vínculo con una persona es `order_id`, y sólo porque esa persona ya dejó sus
+ * datos para que le lleven el pedido. La política completa —y por qué es una
+ * decisión y no un descuido— está en `src/domain/analytics.ts`.
+ */
+export const analyticsEvents = mysqlTable(
+  'analytics_events',
+  {
+    // BIGINT y no INT: es la única tabla del schema donde una fila no cuesta
+    // nada (un pageview), así que es la única que puede pasar los 2.100
+    // millones. Ocho bytes hoy contra una migración con la tienda vendiendo.
+    id: bigint('id', { mode: 'number', unsigned: true }).autoincrement().primaryKey(),
+
+    /**
+     * La cookie `ecom_visita` (ver `src/lib/visit-id.ts`). 32 caracteres hex.
+     *
+     * **No es una identidad y no autoriza nada.** Es la etiqueta que permite
+     * agrupar "estas filas son del mismo navegador"; nada más. Sin FK a
+     * ninguna tabla, porque no apunta a ninguna persona.
+     */
+    visitId: varchar('visit_id', { length: 32 }).notNull(),
+
+    type: mysqlEnum('type', ANALYTICS_EVENT_TYPES).notNull(),
+
+    /**
+     * La ruta, ya normalizada por el servidor (`normalizarPath`): sin
+     * querystring, sin fragmento y recortada. Sólo la llevan las `visita`.
+     *
+     * El querystring se tira entero y eso incluye `?q=` de la búsqueda: es
+     * texto que tipeó una persona y no tiene por qué quedar guardado. De paso
+     * evita que `/buscar` se convierta en diez mil rutas distintas.
+     */
+    path: varchar('path', { length: 255 }),
+
+    /**
+     * Qué variante se agregó al carrito. Sólo la llevan las
+     * `carrito_agregado`.
+     *
+     * `ON DELETE SET NULL` y no RESTRICT como en `order_items`: una estadística
+     * no puede impedir que el dueño borre una variante del catálogo, y el
+     * hecho de que alguien la agregó al carrito en marzo sigue siendo cierto
+     * aunque la variante ya no exista.
+     */
+    variantId: int('variant_id').references(() => variants.id, {
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    }),
+
+    /**
+     * El pedido que se creó. Sólo lo llevan las `compra`, y es el único
+     * puente entre esta tabla y el resto del sistema.
+     *
+     * `ON DELETE CASCADE`: la fila dice "esta visita creó ese pedido". Sin el
+     * pedido no dice nada —no hay monto que leer ni estado que consultar— así
+     * que se va con él en vez de quedar como una conversión fantasma que
+     * infla la tasa.
+     */
+    orderId: int('order_id').references(() => orders.id, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // El índice del reporte: todas las consultas del panel filtran por rango
+    // de fechas y casi todas por tipo. En este orden y no al revés, porque
+    // `type` tiene cuatro valores y `created_at` es el que discrimina.
+    index('analytics_type_created_idx').on(t.type, t.createdAt),
+    // El de la correlación: "todas las filas de esta visita, en orden". Es el
+    // que hace barata la conversión por página de entrada.
+    index('analytics_visit_idx').on(t.visitId, t.createdAt),
+    // El del embudo por producto y el de la purga por antigüedad.
+    index('analytics_variant_idx').on(t.variantId),
+    index('analytics_created_idx').on(t.createdAt),
+  ],
+);

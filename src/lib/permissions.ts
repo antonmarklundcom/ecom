@@ -64,6 +64,17 @@ export const CAPABILITIES = [
    * y apellido — es supervisión, no mostrador.
    */
   "actividad",
+  /**
+   * La pantalla de analítica: el embudo de la vidriera y qué convierte.
+   *
+   * Owner, como el resumen y el banco. No es por los datos —no hay uno solo
+   * personal ahí adentro— sino por lo que la pantalla es: qué se mira y no se
+   * compra, qué campaña funcionó, dónde se cae la gente. Eso es la estrategia
+   * comercial del negocio, y en un comercio chico esa conversación es del
+   * dueño. El `staff` ya tiene el `dashboard` para trabajar, que es lo que
+   * necesita el mostrador.
+   */
+  "analitica",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

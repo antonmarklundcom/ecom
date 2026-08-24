@@ -218,6 +218,46 @@ Meta apruebe la plantilla. Sin destinatario, no hay a quién avisarle y la
 feature no existe. Nunca tira: una notificación que falla no puede tumbar un
 checkout que ya escribió el pedido.
 
+### 4f. Analítica propia (prendida, sin configurar nada)
+
+`/admin/analitica` —owner-only— muestra el embudo de la vidriera: visitantes,
+cuántos agregaron al carrito, cuántos confirmaron el checkout, cuántos
+compraron, y **por qué página entró** cada uno de los que compró.
+
+No hay nada que configurar y no hay ninguna cuenta de terceros: **no hay Google
+Analytics, no hay píxel de Meta y ningún dato sale de tu servidor**. Se mide
+contra tu propia base, con una cookie de primera parte que guarda un número al
+azar y nada más. No se guarda la IP, ni el user-agent, ni el referrer, ni lo
+que la gente busca. La política completa está escrita en
+`src/domain/analytics.ts`.
+
+Lo que hay que saber para leer los números bien:
+
+| Número | De dónde sale | Cuánto creerle |
+|---|---|---|
+| Páginas vistas, visitantes | el navegador avisa | **estimación**: un bloqueador o el JavaScript apagado se los comen |
+| Agregados al carrito | lo escribe el servidor al re-preciar el carrito | alto: bloquearlo rompe el carrito |
+| Checkouts y compras | lo escribe el servidor | **exacto**: no depende del navegador |
+
+Consecuencia práctica: **las tasas de conversión son un piso, no un promedio.**
+Lo que falta siempre está del lado de las visitas. Por eso la pantalla muestra
+al lado los pedidos cobrados contados directo de la tabla de pedidos: si ese
+número es mucho mayor que "Compraron", la diferencia son compras sin cookie, no
+ventas que falten. La pantalla lista además el resto de los límites conocidos
+(dos dispositivos, cookies borradas, los navegadores de adentro de WhatsApp e
+Instagram, los bots).
+
+"Lo más vendido" **no** usa la analítica: sale de los pedidos, igual que en el
+resumen, y no necesita ninguna cookie. Lo que la analítica agrega al lado es lo
+que antes no existía: qué se agrega al carrito y no se compra.
+
+Retención: los eventos se guardan para siempre salvo que corras
+`pnpm analytics:purge`, que borra lo más viejo que `ANALYTICS_RETENTION_DAYS`
+(un año por defecto; `--dry-run` cuenta sin borrar). No está enganchado al cron
+de pedidos a propósito —ése es el camino de la plata y tiene su timeout— así
+que si la querés automática es una línea semanal más en el cron del hPanel.
+Para el volumen de un comercio chico, no correrla nunca tampoco es un problema.
+
 ### 4a. Los datos bancarios se cargan desde el navegador
 
 La transferencia es el método de pago principal de una tienda paraguaya, y el
@@ -360,6 +400,7 @@ Qué se puede redibujar libremente y qué no:
 | tokens de `globals.css`, tipografía, imágenes | checkout y sus rutas API |
 | textos y copy | `/admin` completo |
 | | `src/lib/**` (sesión, seguridad, guaraníes) |
+| | `src/domain/analytics*.ts` y la cookie de visita |
 
 Regla práctica: si el archivo toca plata, stock o estados de pedido, no se
 toca por tienda. Si sólo dibuja, es libre.

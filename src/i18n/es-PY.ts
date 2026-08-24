@@ -727,6 +727,7 @@ export const esPY = {
   "panel.nav.clientes": "Clientes",
   "panel.nav.cupones": "Cupones",
   "panel.nav.actividad": "Actividad",
+  "panel.nav.analitica": "Analítica",
   "panel.nav.categorias": "Categorías",
   "panel.nav.envios": "Envíos",
   "panel.nav.banco": "Banco",
@@ -1250,4 +1251,80 @@ export const esPY = {
   // También lo usa `/admin/productos/nuevo`, que lo dibuja arriba del
   // formulario para poder volver sin perder el filtro.
   "panel.productoNuevo.volver": "← Productos",
+
+  // -------------------------------------------------------------------------
+  // Panel — Analítica
+  // -------------------------------------------------------------------------
+  "panel.analitica.meta": "Analítica",
+  "panel.analitica.titulo": "Analítica",
+  "panel.analitica.bajada":
+    "Todo esto se mide acá adentro, contra la base de tu tienda. No hay Google Analytics, no hay píxel de Facebook y ningún dato sale de este servidor.",
+
+  "panel.analitica.rango": "Período",
+  "panel.analitica.rango.dias": "{n} días",
+  "panel.analitica.rango.desde": "Desde el {fecha}.",
+
+  "panel.analitica.embudo": "El embudo",
+  "panel.analitica.embudo.ayuda":
+    "Cada escalón cuenta navegadores distintos, no clics: alguien que agrega cinco cosas al carrito cuenta una vez.",
+  "panel.analitica.embudo.visitantes": "Visitantes",
+  "panel.analitica.embudo.conCarrito": "Agregaron al carrito",
+  "panel.analitica.embudo.conCheckout": "Confirmaron el checkout",
+  "panel.analitica.embudo.compradores": "Compraron",
+  "panel.analitica.visitas": "{n} páginas vistas en total",
+  "panel.analitica.delAnterior": "{pct} % del escalón anterior",
+  "panel.analitica.sinDato": "—",
+
+  "panel.analitica.conversion": "Conversión general",
+  "panel.analitica.conversion.ayuda":
+    "De cada 100 visitantes, cuántos terminaron con un pedido cobrado. Es un piso, no un promedio: las compras las cuenta el servidor y las visitas las reporta el navegador, así que lo que falta siempre está del lado de las visitas.",
+
+  "panel.analitica.control": "Control contra los pedidos",
+  "panel.analitica.control.ayuda":
+    "Pedidos cobrados en el período, contados directo de la tabla de pedidos. Si este número es bastante mayor que “Compraron”, la diferencia son compras sin cookie — no ventas que falten.",
+  "panel.analitica.control.pedidos": "{n} pedidos cobrados",
+
+  "panel.analitica.entrada": "Conversión por página de entrada",
+  "panel.analitica.entrada.ayuda":
+    "Por qué página entró cada visitante en este período, y qué porcentaje de los que entraron por ahí terminó comprando.",
+  "panel.analitica.entrada.col.pagina": "Página",
+  "panel.analitica.entrada.col.visitantes": "Visitantes",
+  "panel.analitica.entrada.col.compradores": "Compraron",
+  "panel.analitica.entrada.col.tasa": "Conversión",
+  "panel.analitica.entrada.sinPagina": "Sin página de entrada",
+  "panel.analitica.entrada.sinPagina.ayuda":
+    "Compras cuyo navegador no dejó ninguna página vista en este período: se le bloqueó el aviso, o entró antes del período. Se muestran para que la suma cierre con tus pedidos.",
+
+  "panel.analitica.paginas": "Páginas más vistas",
+  "panel.analitica.paginas.visitas": "{visitas} vistas · {visitantes} visitantes",
+
+  "panel.analitica.agregados": "Lo que más se agrega al carrito",
+  "panel.analitica.agregados.ayuda":
+    "Puesto al lado de lo más vendido contesta la pregunta cara: qué se agrega mucho y se vende poco. Eso suele ser el precio, el flete o una foto que promete otra cosa.",
+  "panel.analitica.agregados.veces": "{n} veces",
+
+  "panel.analitica.vendido": "Lo más vendido del mes",
+  "panel.analitica.vendido.ayuda":
+    "Sale de los pedidos cobrados, no de la analítica: es el mismo número del resumen y no necesita ninguna cookie.",
+  "panel.analitica.vendido.unidades": "{n} u.",
+
+  "panel.analitica.sinDatos": "Todavía no hay nada medido en este período.",
+
+  "panel.analitica.limites": "Qué no ven estos números",
+  "panel.analitica.limite.dispositivos":
+    "Un navegador es un visitante. Quien mira en el celular y compra en la notebook cuenta como dos: una visita que “no convirtió” y una compra sin página de entrada.",
+  "panel.analitica.limite.cookies":
+    "Borrar cookies, la ventana de incógnito o cambiar de navegador arrancan de cero: suman un visitante y bajan la conversión.",
+  "panel.analitica.limite.appsMensajeria":
+    "Los navegadores de adentro de WhatsApp e Instagram muchas veces empiezan limpios cada vez que se abre un link. Acá eso es común, así que los visitantes están contados de más.",
+  "panel.analitica.limite.bloqueadores":
+    "Un bloqueador de publicidad o el JavaScript apagado se comen páginas vistas. Las compras no: ésas las escribe el servidor.",
+  "panel.analitica.limite.bots":
+    "Los bots de los buscadores cuentan como visitas. No se los filtra porque para hacerlo habría que guardar datos del navegador, y esta analítica decidió no guardarlos.",
+  "panel.analitica.limite.rango":
+    "“Página de entrada” es la primera de este período, no la primera de siempre. Cambiar el período puede cambiarla.",
+
+  "panel.analitica.privacidad": "Qué se guarda",
+  "panel.analitica.privacidad.ayuda":
+    "Un número al azar por navegador, qué página vio, qué agregó al carrito y qué pedido hizo. No se guarda la dirección IP, ni de qué sitio vino, ni qué buscó, ni nada del equipo que usa. Nada de esto sale de tu servidor.",
 } as const satisfies Record<string, string>;
