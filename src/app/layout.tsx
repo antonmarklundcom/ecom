@@ -3,6 +3,7 @@ import type React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { TIENDA } from "@/config/tienda";
+import { Analytics } from "@/components/analytics";
 import { CartSheet } from "@/components/cart-sheet";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -60,6 +61,9 @@ export default function RootLayout({
         <CartSheet />
         <WhatsAppFab />
         <Toaster />
+        {/* Nada de terceros salvo que esta tienda configure medidores —
+            src/lib/analytics.ts. Sin variables, esto no renderiza nada. */}
+        <Analytics />
       </body>
     </html>
   );

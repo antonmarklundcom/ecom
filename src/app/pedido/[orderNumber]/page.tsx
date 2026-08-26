@@ -4,12 +4,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CopyField } from "@/components/copy-field";
+import { PurchaseEvent } from "@/components/purchase-event";
 import { GuardarDatosCta } from "@/components/cuenta/guardar-datos";
 import { ReceiptUpload } from "@/components/receipt-upload";
 import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import { t } from "@/i18n";
+import { analyticsActivo } from "@/lib/analytics";
 import { comercioWaLink, getDatosBancarios } from "@/lib/comercio";
 import { formatGs, formatGsPlain } from "@/lib/money";
 import { ORDER_STATUS_LABEL_COMPRADOR } from "@/lib/order-labels";
@@ -251,6 +253,11 @@ export default async function OrderPage({
           es idéntica a la de antes de la feature. */}
       <GuardarDatosCta orderNumber={order.orderNumber} />
 
+      {/* El evento de venta para GA4/Meta Pixel, una sola vez por navegador.
+          Sin medidores configurados no se renderiza — src/lib/analytics.ts. */}
+      {analyticsActivo() ? (
+        <PurchaseEvent orderNumber={order.orderNumber} totalPyg={order.totalPyg} />
+      ) : null}
     </main>
   );
 }

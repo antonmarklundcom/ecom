@@ -1,6 +1,7 @@
 import { getIronSession } from "iron-session";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { analyticsConfig } from "@/lib/analytics";
 import { USER_ROLES } from "@/lib/roles";
 import { sessionOptions, type AdminSession } from "@/lib/session";
 
@@ -74,23 +75,47 @@ function withSecurityHeaders(
 ): NextResponse {
   const dev = process.env.NODE_ENV !== "production";
 
+  // Los medidores (src/lib/analytics.ts) son los únicos terceros que el
+  // navegador puede tocar, y sólo si esta tienda los configuró: sin las
+  // variables, el CSP queda tan cerrado como siempre. Los hosts de script-src
+  // son para navegadores sin 'strict-dynamic'; en los modernos, la confianza
+  // la da el nonce del loader.
+  const { ga4Id, metaPixelId } = analyticsConfig();
+  const scriptHosts = [
+    ...(ga4Id ? [" https://www.googletagmanager.com"] : []),
+    ...(metaPixelId ? [" https://connect.facebook.net"] : []),
+  ].join("");
+  const imgHosts = [
+    // GA4 cae a un pixel <img> cuando sendBeacon no puede.
+    ...(ga4Id ? [" https://www.googletagmanager.com https://www.google-analytics.com"] : []),
+    ...(metaPixelId ? [" https://www.facebook.com"] : []),
+  ].join("");
+  const connectHosts = [
+    ...(ga4Id
+      ? [" https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com"]
+      : []),
+    ...(metaPixelId ? [" https://www.facebook.com https://connect.facebook.net"] : []),
+  ].join("");
+
   const csp = [
     "default-src 'self'",
     // 'strict-dynamic' hace que los scripts que carga un script con nonce
     // hereden la confianza: es lo que necesita el chunking de Next. En dev,
     // Fast Refresh evalúa código en runtime y exige 'unsafe-eval'.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${dev ? "'unsafe-eval'" : ""}`.trim(),
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${dev ? "'unsafe-eval'" : ""}`.trim() +
+      scriptHosts,
     // Tailwind y next/font inyectan <style> sin nonce. Un CSS inline no
     // ejecuta código; el riesgo real es la exfiltración por selectores, muy
     // por debajo de romper el estilo del sitio entero.
     "style-src 'self' 'unsafe-inline'",
     // Cloudinary sirve las fotos de producto; data: es para los blur
     // placeholders que guardamos en product_images.
-    "img-src 'self' data: blob: https://res.cloudinary.com",
+    `img-src 'self' data: blob: https://res.cloudinary.com${imgHosts}`,
     "font-src 'self' data:",
-    // El navegador sólo habla con este origen. Cloudinary se llama desde el
-    // servidor, nunca desde el cliente.
-    `connect-src 'self'${dev ? " ws: http://localhost:*" : ""}`,
+    // El navegador sólo habla con este origen (más los medidores de arriba,
+    // si están). Cloudinary se llama desde el servidor, nunca desde el
+    // cliente.
+    `connect-src 'self'${dev ? " ws: http://localhost:*" : ""}${connectHosts}`,
     "form-action 'self'",
     // Redundante con X-Frame-Options, pero es el que respetan los navegadores
     // modernos y además cubre los iframes anidados.
