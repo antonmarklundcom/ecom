@@ -55,6 +55,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm backfill:pagos-manuales` | completa la fila de `payments` de los pedidos cobrados por transferencia o contra entrega **antes** de que eso se registrara solo (ARCH.md §5.1). Ensayo por defecto: agregá `--apply` para escribir |
 | `pnpm backup` | copia comprimida de la base en `backups/` (`--retener N` para la limpieza por antigüedad). Se corre desde tu máquina, no desde Hostinger — DEPLOY.md §7 |
 | `pnpm nueva-tienda` | wizard de tienda nueva: marca, secretos, `.env.local` y el bloque de variables del hPanel. Idempotente; `--dry-run` no escribe nada — NEW-STORE.md §2 |
+| `pnpm importar:productos lista.csv` | el catálogo del comercio desde su planilla (formato del export del panel + columnas opcionales). Ensayo por defecto; `--aplicar` escribe, `--pisar-stock` pisa `on_hand` — NEW-STORE.md §4 |
 | `pnpm template:diff` | qué arreglos del template le faltan a esta tienda (`--marcar` para fijar el punto de partida) — NEW-STORE.md |
 | `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
 

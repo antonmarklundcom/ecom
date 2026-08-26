@@ -172,8 +172,19 @@ pnpm dev                 # tienda en / y panel en /admin
 Para una demo mostrable al cliente antes de tener productos reales:
 `pnpm demo` (catálogo + un pedido en cada estado).
 
-Los productos reales se cargan desde el panel (`/admin/productos`), o
-adaptando `scripts/seed.ts` si vienen de un CSV/planilla.
+Los productos reales entran por dos caminos:
+
+- **Pocos, o de a uno:** el panel, `/admin/productos`.
+- **El catálogo entero de una vez:** `pnpm importar:productos lista.csv`. El
+  comercio ya tiene su lista de precios en Excel; el formato es el mismo que
+  baja el export del panel (una fila por variante: SKU, Producto, Categoría,
+  Variante, Precio (₲), Stock) más columnas opcionales — Descripción, Marca,
+  IVA, Precio antes (₲), Slug. Separador `;` o `,`, como venga. Sin `--aplicar`
+  es un ensayo que sólo cuenta; los errores salen todos juntos con número de
+  línea. Idempotente: re-importar actualiza precios sin duplicar y **no pisa el
+  stock** de variantes existentes (`--pisar-stock` si de verdad querés eso).
+  Las categorías que no existan se crean al final del menú. Las fotos no van
+  por acá: se cargan después en `/admin/productos`.
 
 El seed deja un punto de partida que **se termina de ajustar desde el panel**,
 sin volver a tocar código:
