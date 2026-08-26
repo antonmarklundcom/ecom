@@ -44,6 +44,7 @@ terceros**, porque son cuentas de otro que nadie puede abrir por vos:
 | Pagopar | el comercio | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
 | Datos bancarios | `/admin/banco`, con la tienda arriba | a dónde transfieren (§4a) |
 | Fotos y favicon | el comercio | `src/app/favicon.ico` y `/admin/productos` |
+| Medición (opcional) | GA4 / Meta Business | `NEXT_PUBLIC_GA4_ID` y/o `NEXT_PUBLIC_META_PIXEL_ID` — con eso el sitio mide visitas y ventas (evento de compra incluido); vacíos, no carga ni un byte de terceros. Ver `.env.example` |
 
 El resto de este documento es el detalle de cada paso: leelo si algo no
 cuadra, o si querés saber por qué el wizard hace lo que hace.
