@@ -9,10 +9,18 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
 ---
 
-**Corré todo esto en tu máquina, en una terminal — no en un contenedor
-remoto.** Los pasos de la base de datos necesitan Docker Desktop corriendo de
-verdad; un contenedor de Claude Code en la nube no tiene daemon de Docker y
-esos pasos van a fallar.
+**Los pasos de la base de datos corrélos en tu máquina, en una terminal.**
+`docker compose up -d`, `db:push`, `db:seed` y `create-owner` necesitan Docker
+Desktop corriendo de verdad, y un contenedor de Claude Code en la nube no tiene
+daemon de Docker.
+
+Todo lo demás —el bootstrap, `pnpm nueva-tienda`, el rediseño, el catálogo—
+anda igual desde una sesión en la nube, que en la práctica es de donde salieron
+las primeras tiendas. `pnpm setup:doctor` reconoce solo ese entorno y degrada el
+control de Docker a advertencia en vez de bloquearte; si no lo detecta, forzalo
+con `pnpm setup:doctor --skip-docker`. Lo que queda pendiente en ese caso son
+los cuatro comandos de arriba, en una máquina con Docker, antes de que la tienda
+pueda levantar.
 
 ## El camino corto
 
@@ -25,13 +33,33 @@ docker compose up -d && pnpm db:push && pnpm db:seed && pnpm create-owner
 pnpm preflight
 ```
 
+Eso es si el repo salió de "Use this template" y está vacío. **Si el repo de la
+tienda ya existe y ya tiene algo adentro**, el primer paso es otro:
+`pnpm bootstrap:repo` — ver §1b.
+
 `pnpm setup:doctor` revisa la máquina, no la tienda: versión de Node contra
 `.nvmrc`, versión de pnpm contra `packageManager`, si el daemon de Docker
-responde, y si los remotos `origin` y `template` son alcanzables (esto último
-agarra el caso de una SSH key de GitHub que todavía no está cargada). Corré
-esto **antes** de `pnpm nueva-tienda`: los tres problemas que más tiempo
-hacen perder — Docker Desktop cerrado, SSH sin configurar, Node viejo — se
-ven todos juntos acá en vez de descubrirse uno por uno a mitad del wizard.
+responde, si los remotos `origin` y `template` son alcanzables (esto último
+agarra el caso de una SSH key de GitHub que todavía no está cargada) y si `main`
+se quedó atrás de trabajo que vive sin mergear en otras ramas. Corré esto
+**antes** de `pnpm nueva-tienda`: los tres problemas que más tiempo hacen
+perder — Docker Desktop cerrado, SSH sin configurar, Node viejo — se ven todos
+juntos acá en vez de descubrirse uno por uno a mitad del wizard.
+
+```bash
+pnpm setup:doctor                 # todo
+pnpm setup:doctor --skip-docker   # sé que acá no hay Docker; no me bloquees por eso
+```
+
+**El aviso de "main se quedó atrás"** sale de una tienda real: `main` tenía un
+ajuste de CI y nada más, mientras meses de trabajo ya mergeado en PRs —marca,
+catálogo, rediseño de la home, preparación del deploy— vivían en ramas que
+nadie bajó. Nada lo avisaba; se descubrió a mano con `git log` cuando ya
+molestaba, y para entonces media sesión se había ido en rehacer cosas que ya
+estaban hechas. El doctor mira ahora las ramas locales y las de `origin`, y
+avisa si hay dos o más sin mergear cuya punta es más nueva que la de `main` por
+más de dos semanas (o una sola con más de mes y medio). Es sólo una advertencia
+y nunca bloquea: una rama en vuelo es normal y no tiene que hacer ruido.
 
 Eso es todo lo que se puede automatizar. **Lo único que queda a mano es lo de
 terceros**, porque son cuentas de otro que nadie puede abrir por vos:
@@ -72,6 +100,70 @@ cuadra, o si querés saber por qué el wizard hace lo que hace.
 4. `pnpm setup:doctor` — confirma que Node, pnpm, Docker y los dos remotos están
    listos antes de seguir. Es la máquina, no la tienda; `pnpm preflight`
    (paso 6) es la otra mitad, la de si esta tienda ya puede cobrar.
+
+### 1b. Si el repo ya existe y ya tiene algo adentro
+
+El paso 1 supone el camino de GitHub: repo nuevo, vacío, creado con "Use this
+template". En la práctica pasa seguido lo contrario — las tres primeras tiendas
+(`productos`, `lenceria`, `mascota`) ya tenían repo propio, con historia,
+remoto y contenido, de antes de que este template existiera. Para ésas "Use this
+template" no sirve: crearía un repo distinto y habría que mudar todo.
+
+Para ese caso está `pnpm bootstrap:repo`, que copia el árbol del template
+adentro de un repo que ya existe:
+
+```bash
+# parado en el template
+cd ecom
+pnpm bootstrap:repo --destino ../lenceria --dry-run   # qué haría
+pnpm bootstrap:repo --destino ../lenceria             # hacerlo
+```
+
+**No lo hagas a mano.** Lo que sale natural es `cp -a ecom/. ../lenceria/`, y
+eso copia también el `.git` del template encima del `.git` del destino: al repo
+de la tienda le quedan la historia y el remoto del template. No falla, no avisa;
+se descubre al hacer `git push`. `.git` es la primera línea de la lista de
+exclusiones del script, y hay un test que lo fija.
+
+Lo que hace y lo que no:
+
+- **excluye** `.git`, `node_modules`, `.next`, `out`, `coverage`, `backups/`,
+  `.claude/` y todos los `.env*` menos `.env.example`. Tampoco copia
+  `.template-baseline`: ese archivo dice hasta dónde está al día **esa** tienda
+  (ver el final de este documento), así que lo escribe `pnpm nueva-tienda` en el
+  destino, no el template;
+- **no borra nada.** Lo que ya estaba en el destino y el template no conoce
+  queda donde está, y se lista al final para que lo mires. Típicamente es el
+  sitio viejo: sacalo a mano, o vas a terminar con dos apps mezcladas;
+- **se puede correr de nuevo.** No reescribe un archivo cuyo contenido ya es
+  idéntico, así que la segunda pasada sólo trae lo que cambió — sirve igual para
+  el primer bootstrap que para traer el template al día más adelante;
+- **no usa `rsync`**, que no está instalado en todos lados (entre otros, los
+  contenedores de Claude Code en la nube, que es justo desde donde se
+  bootstrapearon las tres primeras tiendas). Es Node puro;
+- **no toca git en el destino**: no commitea, no pushea, no cambia de rama.
+  Deja todo en el working tree, que es donde lo querés para mirarlo con
+  `git diff` antes de commitear.
+
+Por eso mismo pide que el destino esté limpio (`git status` sin cambios) y se
+niega si no lo está: con el working tree limpio, todo lo que escriba el script
+se deshace con un `git checkout .`. Si sabés lo que estás haciendo, `--forzar`.
+
+Después de la copia, el resto del camino es el mismo:
+
+```bash
+cd ../lenceria
+git status                 # mirá qué entró antes de commitear
+git remote add template git@github.com:antonmarklundcom/ecom.git
+pnpm install
+pnpm setup:doctor          # acá te va a avisar si `main` se quedó atrás
+pnpm nueva-tienda
+```
+
+Ese `pnpm setup:doctor` en un repo que ya tenía vida es el que más paga: es
+exactamente el escenario donde `main` puede estar meses atrás de lo que ya se
+mergeó en PRs, y bootstrapear encima de un `main` viejo es rehacer trabajo ya
+hecho.
 
 ### 2. Marca y secretos — `pnpm nueva-tienda`
 
@@ -320,6 +412,40 @@ dinero. No hay switcher para el visitante ni rutas por idioma — eso sería otr
 fase.
 
 ### 5. Diseño
+
+#### Del mockup al código
+
+El primer paso de un rediseño por tienda es un mockup de Claude Design: se ve
+antes de escribir nada, se corrige barato y evita el rediseño a ciegas. Lo que
+cuesta cada vez es lo de después — traducir ese mockup a archivos. Esta tabla es
+esa traducción, para no volver a deducirla en cada sesión:
+
+| Lo que ves en el mockup | Dónde vive en el código | Nota |
+|---|---|---|
+| Paleta: fondo, texto, color principal, bordes | `src/app/globals.css` → `:root` y `.dark` | Tokens de shadcn en **oklch**. Cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
+| Modo oscuro | mismo archivo, bloque `.dark` | Si sólo tocás `:root`, la tienda queda linda de día y rota de noche. Cambiá los dos o ninguno |
+| Redondeo de botones, cards, inputs | `--radius` en `globals.css` | Un solo número; `--radius-sm/md/lg/xl` salen de ahí |
+| Tipografía (títulos y cuerpo) | `src/app/layout.tsx` | Fuentes de `next/font/google`. Reemplazá `Geist`/`Geist_Mono` manteniendo las variables `--font-geist-sans` / `--font-geist-mono`, que es lo que `globals.css` mapea en `@theme inline` |
+| Barra de arriba: logo, buscador, carrito, menú de categorías | `src/components/site-header.tsx` | Libre. Lo único que no conviene sacar es `CartButton` |
+| Portada / hero de la home | `hero` en `src/config/tienda.ts`, y si no alcanza `src/components/home-hero.tsx` | Ver abajo: una portada de temporada no necesita tocar código |
+| Resto de la home: grilla de destacados, categorías, secciones nuevas | `src/app/page.tsx` | Es de la tienda entera |
+| Ficha de producto en la grilla | `src/components/product-card.tsx` | El precio "desde" y el badge de stock salen de `price-tag.tsx` y `stock-badge.tsx` |
+| Foto de producto y sus placeholders | `src/components/product-image.tsx`, `public/placeholders/` | Los placeholders sólo conocen las cuatro categorías del seed |
+| Pie: columnas, contacto, WhatsApp | `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
+| Botón flotante de WhatsApp | `src/components/whatsapp-fab.tsx` | El número sale del entorno (`src/lib/comercio.ts`) |
+| Nombre, título del navegador, tagline, meta description | `src/config/tienda.ts` | **Nunca** en un componente: `tests/unit/marca-centralizada.test.ts` lo bloquea |
+| Imagen que se ve al compartir el link | `src/app/opengraph-image.tsx` | Se dibuja sola con el nombre y el tagline. No hay que subir nada |
+| Favicon | `src/app/favicon.ico` | Ningún control lo verifica; se olvida siempre |
+
+Dos cosas que el mockup va a mostrar y **no** son piel: el checkout
+(`src/components/checkout-form.tsx` es markup con lógica de plata adentro — se
+repinta con cuidado, ver la tabla de abajo) y `/admin`, que se puede repintar
+pero no rediseñar en su lógica.
+
+Orden que funciona: tokens de `globals.css` → tipografía en `layout.tsx` →
+header y footer → home → `product-card`. Los dos primeros pasos ya mueven el
+80% de lo que se ve, y hacerlos antes evita retocar a mano colores que las
+variables iban a resolver solas.
 
 **La portada de la home** se cambia sin tocar código: `hero` en
 [`src/config/tienda.ts`](./src/config/tienda.ts) acepta una foto de Cloudinary,
