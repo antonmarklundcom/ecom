@@ -626,6 +626,8 @@ export const esPY = {
   "adminError.imagenInvalida": "Imagen inválida.",
   "adminError.filtros": "Revisá los filtros antes de bajar el archivo.",
   "adminError.sinCuentasClientes": "Esta tienda no tiene cuentas de cliente.",
+  "adminError.elegiArchivo": "Elegí un archivo CSV o Excel.",
+  "adminError.archivoGrande": "El archivo pesa demasiado (máximo 10 MB).",
 
   "adminError.login.generico": "Email o contraseña incorrectos.",
   "adminError.login.demasiados.uno": "Demasiados intentos. Esperá {n} minuto.",
@@ -1150,6 +1152,27 @@ export const esPY = {
   "panel.productos.enStock": "{n} en stock",
   "panel.productos.sinPublicar": " · sin publicar",
   "panel.productos.csvAyuda": "Una fila por variante, con los filtros puestos.",
+
+  "panel.productos.importar.titulo": "Cargar planilla",
+  "panel.productos.importar.ayuda":
+    "CSV o Excel, una fila por variante — el mismo formato que baja el botón de arriba. Primero se revisa; recién se escribe cuando confirmás.",
+  "panel.productos.importar.revisar": "Revisar",
+  "panel.productos.importar.confirmar": "Confirmar e importar",
+  "panel.productos.importar.aplicando": "Importando…",
+  "panel.productos.importar.pisarStock":
+    "Pisar el stock de las variantes que ya existen (si no, su stock actual no se toca)",
+  "panel.productos.importar.pisandoStock": "se va a pisar su stock",
+  "panel.productos.importar.stockIntacto": "su stock no se toca",
+  "panel.productos.importar.productosNuevos.uno": "{n} producto nuevo",
+  "panel.productos.importar.productosNuevos.varios": "{n} productos nuevos",
+  "panel.productos.importar.productosActualizar.uno": "{n} producto a actualizar",
+  "panel.productos.importar.productosActualizar.varios": "{n} productos a actualizar",
+  "panel.productos.importar.variantesNuevas.uno": "{n} variante nueva",
+  "panel.productos.importar.variantesNuevas.varios": "{n} variantes nuevas",
+  "panel.productos.importar.variantesActualizar.uno": "{n} variante a actualizar",
+  "panel.productos.importar.variantesActualizar.varios": "{n} variantes a actualizar",
+  "panel.productos.importar.categoriasNuevas": "Categorías a crear: {categorias}.",
+  "panel.productos.importar.listo": "Listo: {productos} productos, {variantes} variantes escritas.",
 
   "panel.clientes.meta": "Clientes",
   "panel.clientes.titulo": "Clientes",
