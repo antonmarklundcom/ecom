@@ -56,6 +56,8 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm backup` | copia comprimida de la base en `backups/` (`--retener N` para la limpieza por antigüedad). Se corre desde tu máquina, no desde Hostinger — DEPLOY.md §7 |
 | `pnpm nueva-tienda` | wizard de tienda nueva: marca, secretos, `.env.local` y el bloque de variables del hPanel. Idempotente; `--dry-run` no escribe nada — NEW-STORE.md §2 |
 | `pnpm importar:productos lista.csv` | el catálogo del comercio desde su planilla (formato del export del panel + columnas opcionales). Ensayo por defecto; `--aplicar` escribe, `--pisar-stock` pisa `on_hand` — NEW-STORE.md §4 |
+| `pnpm bootstrap:repo --destino ../tienda` | mete el template en un repo que **ya existe y ya tiene algo adentro** (excluye `.git`, no borra nada, se puede correr de nuevo). `--dry-run` primero — NEW-STORE.md §1b |
+| `pnpm setup:doctor` | ¿esta máquina puede correr `pnpm nueva-tienda`? Node, pnpm, Docker, los remotos, y si `main` se quedó atrás de otras ramas. `--skip-docker` en un contenedor o sesión en la nube — NEW-STORE.md §1 |
 | `pnpm template:diff` | qué arreglos del template le faltan a esta tienda (`--marcar` para fijar el punto de partida) — NEW-STORE.md |
 | `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
 

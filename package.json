@@ -25,7 +25,8 @@
     "preflight": "tsx scripts/preflight.ts",
     "backup": "tsx scripts/backup-db.ts",
     "template:diff": "tsx scripts/template-diff.ts",
-    "setup:doctor": "tsx scripts/doctor.ts"
+    "setup:doctor": "tsx scripts/doctor.ts",
+    "bootstrap:repo": "tsx scripts/bootstrap-into-repo.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

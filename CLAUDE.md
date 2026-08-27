@@ -6,6 +6,8 @@ leé:
 
 - **NEW-STORE.md** — el camino completo para levantar una tienda nueva:
   `pnpm nueva-tienda`, entorno, base de datos, catálogo, diseño, preflight.
+  §1b es el caso del repo que ya existe con algo adentro (`pnpm bootstrap:repo`);
+  §5 mapea qué archivo toca cada parte de un mockup.
 - **ARCH.md** — arquitectura: dominio, estados del pedido, plata, Pagopar.
 - **PLAN.md** / **TASKS.md** — qué falta y en qué fase está.
 - **DEPLOY.md** — el runbook de Hostinger.
