@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CatalogImportForm } from "@/components/admin/catalog-import";
 import { CsvDownloadButton } from "@/components/admin/csv-download";
 import { ProductFilters } from "@/components/admin/product-filters";
 import { ProductImage } from "@/components/product-image";
@@ -196,6 +197,15 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
           <p className="text-muted-foreground mt-1 text-xs">
             {t("panel.productos.csvAyuda")}
           </p>
+        </div>
+      ) : null}
+
+      {/* Carga masiva: la misma acción que `pnpm importar:productos`, con
+          ensayo primero. Owner y staff pueden dar de alta productos a mano
+          (capacidad "productos"), así que también pueden hacerlo por planilla. */}
+      {can(actor.role, "productos") ? (
+        <div className="mt-6">
+          <CatalogImportForm />
         </div>
       ) : null}
     </div>

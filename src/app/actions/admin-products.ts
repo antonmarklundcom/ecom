@@ -11,8 +11,16 @@ import {
   saveVariant,
   updateProduct,
 } from "@/domain/admin-products";
+import {
+  buildCatalogImportPlan,
+  ensureCatalogCategories,
+  type CatalogImportPlan,
+} from "@/domain/catalog-import-plan";
+import { type CatalogoProducto } from "@/domain/catalog-import";
 import { validateProductImage } from "@/domain/product-images";
 import { CLOUDINARY_PRODUCTS_FOLDER, cloudinary } from "@/lib/cloudinary";
+import { slugify } from "@/lib/slug";
+import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from "@/lib/spreadsheet";
 import {
   actorLabel,
   adminActionError,
@@ -20,6 +28,10 @@ import {
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { t } from "@/i18n";
+
+// Import directo del script de seed: mismo `upsertCatalogProducts` que usa
+// `pnpm importar:productos`, no una reimplementación para el panel.
+import { upsertCatalogProducts, type CatalogProductUpsert } from "../../../scripts/seed";
 
 /**
  * Alta y edición del catálogo (PLAN.md 4.6).
@@ -223,5 +235,135 @@ export async function removeProductImage(input: unknown): Promise<AdminActionRes
     return { ok: true };
   } catch (error) {
     return adminActionError("removeProductImage", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Carga masiva por planilla (CSV/Excel) — `pnpm importar:productos` desde el
+// panel.
+//
+// Dos acciones, no una: `previewCatalogImport` es el ensayo (cuenta y muestra
+// errores, no escribe nada — el default de la CLI sin `--aplicar`) y
+// `applyCatalogImport` recién escribe cuando el dueño confirma. El checkbox
+// "pisar stock" es el equivalente de `--pisar-stock`: apagado por defecto,
+// porque pisar en silencio el stock real de una variante que ya existe es
+// justo el tipo de sorpresa que una planilla de semanas no debería poder dar.
+// ---------------------------------------------------------------------------
+
+const MAX_CATALOG_FILE_BYTES = 10 * 1024 * 1024;
+
+export type CatalogImportSummary = {
+  productosNuevos: number;
+  productosActualizar: number;
+  variantesNuevas: number;
+  variantesActualizar: number;
+  categoriasNuevas: string[];
+  pisaStock: boolean;
+};
+
+export type CatalogImportPreviewResult =
+  | ({ ok: true } & CatalogImportSummary)
+  | { ok: false; errores: string[] };
+
+async function readCatalogFile(
+  formData: FormData,
+): Promise<{ ok: true; csvText: string } | { ok: false; errores: string[] }> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, errores: [t("adminError.elegiArchivo")] };
+  }
+  if (file.size > MAX_CATALOG_FILE_BYTES) {
+    return { ok: false, errores: [t("adminError.archivoGrande")] };
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  try {
+    return { ok: true, csvText: spreadsheetToCsvText(file.name, bytes) };
+  } catch (error) {
+    if (error instanceof UnsupportedSpreadsheetError) {
+      return { ok: false, errores: [error.message] };
+    }
+    throw error;
+  }
+}
+
+function planSummary(plan: CatalogImportPlan, pisaStock: boolean): CatalogImportSummary {
+  return {
+    productosNuevos: plan.productosNuevos,
+    productosActualizar: plan.productosActualizar,
+    variantesNuevas: plan.variantesNuevas,
+    variantesActualizar: plan.variantesActualizar,
+    categoriasNuevas: plan.categoriasNuevas,
+    pisaStock,
+  };
+}
+
+/**
+ * Ensayo: cuenta y muestra, no escribe nada. Es lo que se ve antes de
+ * habilitar el botón de confirmar.
+ */
+export async function previewCatalogImport(formData: FormData): Promise<CatalogImportPreviewResult> {
+  try {
+    await requireStaffSession();
+
+    const leido = await readCatalogFile(formData);
+    if (!leido.ok) return { ok: false, errores: leido.errores };
+
+    const pisaStock = formData.get("pisarStock") === "true";
+    const plan = await buildCatalogImportPlan(leido.csvText);
+    if (plan.errores.length > 0) return { ok: false, errores: plan.errores };
+
+    return { ok: true, ...planSummary(plan, pisaStock) };
+  } catch (error) {
+    const result = adminActionError("previewCatalogImport", error);
+    return { ok: false, errores: [result.error] };
+  }
+}
+
+export type CatalogImportApplyResult =
+  | ({ ok: true } & CatalogImportSummary & { variantesEscritas: number })
+  | { ok: false; errores: string[] };
+
+/**
+ * Escribe. Vuelve a parsear y a chequear conflictos de SKU contra la base
+ * **en este momento** — no reutiliza el plan del ensayo — porque entre la
+ * vista previa y la confirmación pudo haber pasado cualquier cosa (otra
+ * persona cargando productos, por ejemplo) y aplicar un plan viejo sería
+ * escribir sobre un estado que ya no es el real.
+ */
+export async function applyCatalogImport(formData: FormData): Promise<CatalogImportApplyResult> {
+  try {
+    await requireStaffSession();
+
+    const leido = await readCatalogFile(formData);
+    if (!leido.ok) return { ok: false, errores: leido.errores };
+
+    const pisaStock = formData.get("pisarStock") === "true";
+    const plan = await buildCatalogImportPlan(leido.csvText);
+    if (plan.errores.length > 0) return { ok: false, errores: plan.errores };
+
+    const categoriaPorSlug = await ensureCatalogCategories(plan);
+
+    const items: CatalogProductUpsert[] = plan.productos.map((producto: CatalogoProducto) => {
+      const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
+      if (!categoryId) throw new Error(`Categoría sin id: ${producto.categoryName}`);
+      return {
+        slug: producto.slug,
+        name: producto.name,
+        description: producto.description,
+        categoryId,
+        brand: producto.brand,
+        ivaRate: producto.ivaRate,
+        variants: producto.variants,
+      };
+    });
+
+    const variantesEscritas = await upsertCatalogProducts(items, { resetStock: pisaStock });
+
+    revalidatePath("/admin/productos");
+    return { ok: true, ...planSummary(plan, pisaStock), variantesEscritas };
+  } catch (error) {
+    const result = adminActionError("applyCatalogImport", error);
+    return { ok: false, errores: [result.error] };
   }
 }
