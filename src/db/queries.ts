@@ -482,10 +482,17 @@ export async function getRelatedProducts(
   // cuenta como misma marca, que es lo que uno quiere en un catálogo donde la
   // marca es opcional.
   const mismaMarca = sql`CASE WHEN ${products.brand} <=> ${input.brand} THEN 0 ELSE 1 END`;
+  /*
+    El CAST a SIGNED no es adorno: `price_pyg` es BIGINT UNSIGNED, y en MySQL
+    (y en MariaDB) restarle a un unsigned algo más grande no da un negativo, da
+    ER_DATA_OUT_OF_RANGE y **la consulta entera falla**. O sea: cualquier ficha
+    de producto que tuviera en su categoría algo más barato que él se caía con
+    error 500, que es casi cualquier ficha de un catálogo real.
+  */
   const cercaniaDePrecio =
     input.pricePyg === undefined
       ? sql`0`
-      : sql`ABS(${minPriceSql} - ${input.pricePyg})`;
+      : sql`ABS(CAST(${minPriceSql} AS SIGNED) - ${input.pricePyg})`;
 
   const rows = await tx
     .select({ ...PRODUCT_COLUMNS, minPrice: minPriceSql })

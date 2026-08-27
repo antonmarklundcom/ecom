@@ -24,6 +24,14 @@ En el hPanel, dentro del sitio:
    | Build command | `pnpm build` |
    | Start command | `pnpm start` |
 
+   **Los tres hay que escribirlos a mano.** Hostinger detecta el proyecto y
+   propone `npm install` / `npm run build` / `npm start`, y con eso el deploy
+   *parece* andar: npm ignora `pnpm-lock.yaml`, resuelve el árbol de nuevo por
+   su cuenta y te deja en producción versiones que nadie testeó — o directamente
+   se cae contra `pnpm-workspace.yaml`. Pisá los tres campos antes del primer
+   deploy y verificá que quedaron guardados: el panel a veces los vuelve a su
+   valor detectado si guardás la sección dos veces.
+
 3. **Environment variables**: cargá una por una las de `.env.example` que la
    tienda necesita — `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET`,
    `WHATSAPP_NUMBER`, `CLOUDINARY_*`, `NEXT_PUBLIC_SITE_URL`, `PAGOPAR_*` si va
@@ -48,6 +56,40 @@ En el hPanel, dentro del sitio:
 **Trampa:** el deploy automático por push también arrastra esto. Un push
 rebuildea, pero un cambio de variable sin push no dispara nada — si tocaste
 sólo variables, Redeploy es obligatorio.
+
+### Las `NEXT_PUBLIC_*` se hornean en el build, no se leen al arrancar
+
+`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_GA4_ID` y `NEXT_PUBLIC_META_PIXEL_ID` no
+son variables que el servidor lea cuando atiende un request: Next las
+**reemplaza por su valor dentro del JavaScript** mientras buildea. O sea que
+cambiarlas en el hPanel y reiniciar el proceso no cambia nada, ni siquiera
+después de un restart: hay que **rebuildear** (Redeploy), porque el valor viejo
+está escrito adentro de los archivos ya compilados.
+
+Se nota tarde y de formas raras: los links compartidos por WhatsApp siguen sin
+foto porque la URL de Open Graph quedó en `localhost`, o Analytics no mide
+porque el ID viejo sigue adentro del bundle. Si cambiaste una `NEXT_PUBLIC_*`,
+Redeploy, y recién después probá.
+
+### Deployar antes de que el dominio apunte
+
+No hace falta esperar al DNS para tener la tienda arriba. Cada sitio de
+Hostinger viene con una URL temporal del tipo
+`https://algo-algo-123456.hostingersite.com`, y sirve para el deploy completo:
+build, base, `/api/setup/init`, `create-owner` y la prueba de humo del §6.
+
+Lo único que hay que hacer bien es `NEXT_PUBLIC_SITE_URL`: **poné ahí la URL
+temporal mientras uses la URL temporal**. Con el dominio final cargado antes de
+tiempo, el sitio anda pero se sabotea solo — los links de Open Graph y el
+sitemap apuntan a un dominio que todavía no resuelve, y las cookies de sesión
+del panel se emiten para otro host. Con la URL temporal, en cambio, todo cierra
+y podés probar de verdad.
+
+Cuando el DNS del dominio real ya resuelve: cargá el dominio en el hPanel,
+cambiá `NEXT_PUBLIC_SITE_URL` al dominio final, **Redeploy** (es una
+`NEXT_PUBLIC_*`, ver arriba), y recién ahí registrá la URL de respuesta de
+Pagopar y el cron del §5 con el dominio definitivo. Correr `pnpm preflight`
+después del cambio confirma que no quedó nada apuntando a la URL vieja.
 
 ---
 

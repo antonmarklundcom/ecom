@@ -11,6 +11,7 @@ import { t } from "@/i18n";
 import { comercioWaLink } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { formatGs } from "@/lib/money";
+import { jsonLdScript } from "@/lib/seo";
 
 /**
  * Ficha de producto.
@@ -125,7 +126,7 @@ export default async function ProductPage({ params }: { params: Params }) {
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
 
       <nav className="text-muted-foreground text-sm">

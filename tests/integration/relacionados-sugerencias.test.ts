@@ -96,6 +96,35 @@ describe.skipIf(!hasTestDb)('también te puede interesar', () => {
     ]);
   });
 
+  it('un relacionado más barato no rompe la consulta', async () => {
+    /*
+      La regresión: `price_pyg` es BIGINT UNSIGNED y el orden por cercanía de
+      precio hacía `MIN(price_pyg) - <precio>`. Cuando el relacionado es más
+      barato eso da negativo, y un unsigned no puede: MySQL corta la consulta
+      con ER_DATA_OUT_OF_RANGE y la ficha entera se cae con un 500.
+
+      Todas las fichas de BASE son más caras que `el-que-miro`, así que el bug
+      pasaba por al lado de esta suite. En un catálogo real, en cambio, casi
+      todo producto tiene algo más barato en su categoría.
+    */
+    const ids = await catalogo('ropa', [
+      ...BASE,
+      { slug: 'mas-barato', name: 'Más barato', brand: 'Marca B', pricePyg: 20_000 },
+    ]);
+
+    const rows = await getRelatedProducts(
+      {
+        productId: ids.get('el-que-miro')!,
+        categorySlug: 'ropa',
+        brand: 'Marca A',
+        pricePyg: 100_000,
+      },
+      10,
+    );
+
+    expect(rows.map((row) => row.slug)).toContain('mas-barato');
+  });
+
   it('nunca se recomienda a sí mismo', async () => {
     const ids = await catalogo('ropa', BASE);
     const rows = await relacionadosDe(ids);
