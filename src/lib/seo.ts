@@ -46,6 +46,29 @@ export type SitemapInput = {
  * no hay sitemap: una URL relativa no le sirve a nadie y un dominio inventado
  * es peor que no publicar nada. El llamador devuelve la lista vacía y listo.
  */
+/**
+ * El JSON-LD listo para meter en un `<script type="application/ld+json">`.
+ *
+ * `JSON.stringify` a secas **no alcanza**: no escapa `/`, así que un nombre de
+ * producto que contenga `</script>` cierra la etiqueta antes de tiempo y lo
+ * que venga después lo parsea el navegador como HTML. El texto del catálogo lo
+ * escribe gente del panel, no un extraño, pero "sólo lo toca gente de
+ * confianza" es exactamente la suposición que convierte un typo en un XSS
+ * almacenado — y en la home y las categorías, que se cachean, el CSP ya no
+ * lleva nonce para atajarlo.
+ *
+ * Escapar `<` y `>` como `\u003c`/`\u003e` es válido en JSON y en JS: el
+ * consumidor lee exactamente el mismo string, y ninguna etiqueta puede
+ * cerrarse desde adentro. `&` va por el mismo camino para no dejar entidades a
+ * medio interpretar.
+ */
+export function jsonLdScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}
+
 export function buildSitemap(origin: URL, input: SitemapInput): SitemapEntry[] {
   const base = origin.origin;
 

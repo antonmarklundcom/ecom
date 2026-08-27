@@ -26,16 +26,52 @@ export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)"],
 };
 
+/**
+ * Las rutas cuyo HTML se cachea (ISR) en vez de renderizarse en cada request.
+ *
+ * **Tiene que coincidir con los `export const revalidate` de `src/app`**, y hay
+ * un test que lo verifica (`tests/unit/csp-isr.test.ts`): si alguien cachea una
+ * pantalla nueva y se olvida de agregarla acá, esa pantalla se queda sin
+ * JavaScript en producción, y no se nota hasta que un cliente no puede comprar.
+ */
+export const RUTAS_CACHEADAS = ["/", "/categoria"] as const;
+
+/** ¿El HTML de esta ruta sale de la caché de ISR? */
+export function esRutaCacheada(pathname: string): boolean {
+  return RUTAS_CACHEADAS.some(
+    (ruta) => pathname === ruta || (ruta !== "/" && pathname.startsWith(`${ruta}/`)),
+  );
+}
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  /*
+    El nonce existe sólo para las rutas que se renderizan en cada request.
+
+    Un nonce es un permiso de un solo uso: vale para el HTML de ese render y
+    para ninguno más. Una página de ISR, en cambio, se renderiza una vez y su
+    HTML —con el nonce ya escrito adentro— se sirve durante los 5 minutos
+    siguientes, mientras acá se le pone a cada respuesta un nonce nuevo. Desde
+    la segunda visita los dos no coinciden y el navegador bloquea **todos** los
+    scripts de esa pantalla: la home y las categorías se veían enteras y
+    muertas, sin carrito, sin buscador y sin lo que llega por streaming.
+
+    Por eso a las rutas cacheadas no se les manda `x-nonce`: Next escribe sus
+    <script> sin el atributo y el HTML cacheado sigue siendo válido dentro de un
+    mes. Su CSP se arma sin nonce, abajo.
+  */
+  const cacheada = esRutaCacheada(request.nextUrl.pathname);
+
   // `btoa`, no `Buffer`: esto corre en el runtime edge, donde las APIs de
   // Node no existen.
-  const nonce = btoa(crypto.randomUUID());
+  const nonce = cacheada ? null : btoa(crypto.randomUUID());
 
   // El nonce viaja en un header de request para que Next se lo ponga a sus
   // propios <script> al renderizar; sin eso, un CSP sin 'unsafe-inline' deja
   // la página sin hidratar.
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
+  if (nonce) requestHeaders.set("x-nonce", nonce);
+  // Que no se cuele uno de afuera: `x-nonce` lo pone este proxy y nadie más.
+  else requestHeaders.delete("x-nonce");
 
   const isAdmin = request.nextUrl.pathname.startsWith("/admin");
   const isLogin = request.nextUrl.pathname === "/admin/login";
@@ -70,7 +106,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  */
 function withSecurityHeaders(
   response: NextResponse,
-  nonce: string,
+  nonce: string | null,
   isAdmin = false,
 ): NextResponse {
   const dev = process.env.NODE_ENV !== "production";
@@ -99,11 +135,29 @@ function withSecurityHeaders(
 
   const csp = [
     "default-src 'self'",
-    // 'strict-dynamic' hace que los scripts que carga un script con nonce
-    // hereden la confianza: es lo que necesita el chunking de Next. En dev,
-    // Fast Refresh evalúa código en runtime y exige 'unsafe-eval'.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${dev ? "'unsafe-eval'" : ""}`.trim() +
-      scriptHosts,
+    /*
+      Con nonce —todo lo que se renderiza por request: panel, checkout, cuenta,
+      pedido, buscador, ficha de producto— 'strict-dynamic' hace que los
+      scripts que carga un script con nonce hereden la confianza, que es lo que
+      necesita el chunking de Next.
+
+      Sin nonce —la home y las categorías, que se cachean— hay que permitir el
+      inline: los <script> con los datos del render que Next mete en el HTML no
+      tienen un hash estable entre builds con el que firmarlos. 'strict-dynamic'
+      no va en ese caso: anularía el 'unsafe-inline' que necesitamos.
+
+      Es un CSP más flojo y por eso vale sólo en esas dos pantallas, que no
+      tienen sesión, ni plata, ni datos de nadie: catálogo público y nada más.
+      Todo lo que sí los tiene sigue con el nonce. El agujero que este permiso
+      abriría —texto del catálogo inyectado en el JSON-LD— se tapa aparte, en
+      `jsonLdScript()` (src/lib/seo.ts).
+
+      En dev, Fast Refresh evalúa código en runtime y exige 'unsafe-eval'.
+    */
+    (nonce
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${dev ? "'unsafe-eval'" : ""}`
+      : `script-src 'self' 'unsafe-inline' ${dev ? "'unsafe-eval'" : ""}`
+    ).trim() + scriptHosts,
     // Tailwind y next/font inyectan <style> sin nonce. Un CSS inline no
     // ejecuta código; el riesgo real es la exfiltración por selectores, muy
     // por debajo de romper el estilo del sitio entero.
@@ -126,7 +180,7 @@ function withSecurityHeaders(
   ].join("; ");
 
   response.headers.set("Content-Security-Policy", csp);
-  response.headers.set("x-nonce", nonce);
+  if (nonce) response.headers.set("x-nonce", nonce);
 
   // El panel nunca se cachea ni se indexa: sus páginas tienen datos de
   // clientes y montos, y un proxy intermedio no tiene por qué guardarlos.

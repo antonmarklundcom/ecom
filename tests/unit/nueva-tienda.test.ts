@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -29,7 +26,41 @@ import {
  * panel y deja al cron de Hostinger llamando con la llave vieja.
  */
 
-const TIENDA_REAL = readFileSync(path.join('src', 'config', 'tienda.ts'), 'utf8');
+/**
+ * El `tienda.ts` **del template**, tal como sale de "Use this template".
+ *
+ * Es una copia y no el archivo real a propósito. Lo que se prueba acá es el
+ * lector y el reescritor —que sepan sacar un string partido por prettier, y
+ * que `nombre: MARCA_PLACEHOLDER` no se lea como un valor—, no cómo se llama
+ * esta tienda. Leyendo `src/config/tienda.ts` de verdad, estos tres tests
+ * pasaban sólo mientras nadie corriera `pnpm nueva-tienda`: la primera tienda
+ * que se pone su marca los rompe, y el bug estaría en el test, no en el
+ * wizard.
+ */
+const TIENDA_TEMPLATE = `export type Tienda = {
+  nombre: string;
+  titulo: string;
+};
+
+export const MARCA_PLACEHOLDER = "TiendaPY";
+
+export const TIENDA: Tienda = {
+  nombre: MARCA_PLACEHOLDER,
+  titulo: "TiendaPY — Comprá online en Paraguay",
+  descripcion:
+    "Tienda online paraguaya. Precios en guaraníes, IVA incluido, envíos a todo el país " +
+    "y atención por WhatsApp.",
+  tagline: "Precios en guaraníes, IVA incluido. Enviamos a todo el país.",
+  lang: "es-PY",
+  ogLocale: "es_PY",
+  cuentasClientes: false,
+  hero: null,
+};
+
+export function cuentasClientesHabilitadas(): boolean {
+  return TIENDA.cuentasClientes;
+}
+`;
 
 const DATOS: DatosTienda = {
   nombre: 'Lencería Guaraní',
@@ -42,8 +73,8 @@ const DATOS: DatosTienda = {
 
 describe('leer la marca de tienda.ts', () => {
   it('lee los campos que son strings', () => {
-    expect(leerCampoTienda(TIENDA_REAL, 'titulo')).toContain('TiendaPY');
-    expect(leerCampoTienda(TIENDA_REAL, 'tagline')).toBe(
+    expect(leerCampoTienda(TIENDA_TEMPLATE, 'titulo')).toContain('TiendaPY');
+    expect(leerCampoTienda(TIENDA_TEMPLATE, 'tagline')).toBe(
       'Precios en guaraníes, IVA incluido. Enviamos a todo el país.',
     );
   });
@@ -51,7 +82,7 @@ describe('leer la marca de tienda.ts', () => {
   it('lee una descripción partida en varias líneas por prettier', () => {
     // El archivo real la tiene partida: si el lector se quedara con el primer
     // pedazo, la segunda corrida del wizard propondría media meta description.
-    expect(leerCampoTienda(TIENDA_REAL, 'descripcion')).toBe(
+    expect(leerCampoTienda(TIENDA_TEMPLATE, 'descripcion')).toBe(
       'Tienda online paraguaya. Precios en guaraníes, IVA incluido, envíos a todo el país y atención por WhatsApp.',
     );
   });
@@ -59,13 +90,13 @@ describe('leer la marca de tienda.ts', () => {
   it('el nombre del template no se lee como un valor: es una constante', () => {
     // `nombre: MARCA_PLACEHOLDER`. Devolver "TiendaPY" haría imposible
     // distinguir "todavía no lo renombraron" de "la tienda se llama TiendaPY".
-    expect(leerCampoTienda(TIENDA_REAL, 'nombre')).toBeNull();
+    expect(leerCampoTienda(TIENDA_TEMPLATE, 'nombre')).toBeNull();
   });
 });
 
 describe('reescribir tienda.ts', () => {
   it('cambia los cuatro campos y deja el resto del archivo intacto', () => {
-    const salida = reescribirTienda(TIENDA_REAL, DATOS);
+    const salida = reescribirTienda(TIENDA_TEMPLATE, DATOS);
 
     expect(leerCampoTienda(salida, 'nombre')).toBe(DATOS.nombre);
     expect(leerCampoTienda(salida, 'titulo')).toBe(DATOS.titulo);
@@ -81,12 +112,12 @@ describe('reescribir tienda.ts', () => {
   });
 
   it('es idempotente: reescribir lo ya escrito no cambia nada', () => {
-    const una = reescribirTienda(TIENDA_REAL, DATOS);
+    const una = reescribirTienda(TIENDA_TEMPLATE, DATOS);
     expect(reescribirTienda(una, DATOS)).toBe(una);
   });
 
   it('escapa las comillas en vez de romper el archivo', () => {
-    const salida = reescribirTienda(TIENDA_REAL, { ...DATOS, tagline: 'La tienda "de barrio"' });
+    const salida = reescribirTienda(TIENDA_TEMPLATE, { ...DATOS, tagline: 'La tienda "de barrio"' });
     expect(salida).toContain('\\"de barrio\\"');
     expect(leerCampoTienda(salida, 'tagline')).toBe('La tienda "de barrio"');
   });

@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { RUTAS_CACHEADAS } from '../../src/proxy';
 import { safeNextPath } from '../../src/lib/safe-redirect';
 import { listSourceFiles, readCode } from '../helpers/source';
 
@@ -94,7 +95,7 @@ describe('cabeceras de seguridad', () => {
     expect(config).toMatch(/poweredByHeader:\s*false/);
   });
 
-  it('el proxy arma un CSP con nonce y sin `unsafe-inline` en los scripts', async () => {
+  it('el proxy arma el CSP con las directivas duras', async () => {
     const proxy = await readCode(path.join('src', 'proxy.ts'));
 
     expect(proxy).toContain('Content-Security-Policy');
@@ -102,12 +103,43 @@ describe('cabeceras de seguridad', () => {
     expect(proxy).toContain("frame-ancestors 'none'");
     expect(proxy).toContain("object-src 'none'");
     expect(proxy).toContain("base-uri 'self'");
+  });
 
-    // El nonce es lo que permite prohibir 'unsafe-inline' en script-src sin
-    // romper la hidratación de Next.
-    const scriptSrc = /script-src[^`;]*/.exec(proxy)?.[0] ?? '';
-    expect(scriptSrc).toContain('nonce-');
-    expect(scriptSrc).not.toContain("'unsafe-inline'");
+  it('la rama con nonce nunca permite inline', async () => {
+    const proxy = await readCode(path.join('src', 'proxy.ts'));
+
+    // Hay dos script-src: el de las rutas que se renderizan por request (con
+    // nonce) y el de las cacheadas (sin). Éste es el primero, y es el que cubre
+    // todo lo que tiene sesión, plata o datos de alguien.
+    const conNonce = /script-src 'self' 'nonce-[^`]*/.exec(proxy)?.[0] ?? '';
+
+    expect(conNonce).toContain('nonce-');
+    expect(conNonce).toContain("'strict-dynamic'");
+    expect(conNonce).not.toContain("'unsafe-inline'");
+  });
+
+  it("la rama sin nonce sólo cubre catálogo público, y sin 'strict-dynamic'", async () => {
+    const proxy = await readCode(path.join('src', 'proxy.ts'));
+
+    /*
+      Las páginas cacheadas no pueden llevar nonce —el HTML se sirve muchas
+      veces y el nonce vale para un render— así que su CSP permite inline. Es
+      el punto más flojo de todo el archivo y por eso se fija acá:
+
+      1. 'strict-dynamic' no puede aparecer en esa rama: anularía el
+         'unsafe-inline' y volvería a dejar la home sin JavaScript.
+      2. La lista de rutas cacheadas no puede crecer hacia nada que tenga
+         sesión, plata o datos de una persona. Si alguien quiere cachear
+         /checkout o /cuenta, este test lo frena.
+    */
+    const sinNonce = /script-src 'self' 'unsafe-inline'[^`]*/.exec(proxy)?.[0] ?? '';
+
+    expect(sinNonce).toContain("'unsafe-inline'");
+    expect(sinNonce).not.toContain("'strict-dynamic'");
+
+    for (const privada of ['/admin', '/checkout', '/cuenta', '/pedido', '/api']) {
+      expect(RUTAS_CACHEADAS, `${privada} no puede servirse cacheada`).not.toContain(privada);
+    }
   });
 
   it('el panel se sirve con no-store y noindex', async () => {

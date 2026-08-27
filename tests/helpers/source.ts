@@ -13,8 +13,113 @@ export async function readCode(relativePath: string): Promise<string> {
   return stripComments(content);
 }
 
+/**
+ * Saca los comentarios **sin** tocar lo que hay adentro de un string.
+ *
+ * Escanea de a un carácter en vez de usar dos regex, y no es prolijidad: en
+ * `src/proxy.ts` hay una URL de medidores que dice
+ * `https://*.google-analytics.com`. Para una regex, ese `/*` abre un comentario
+ * — y el primer `*​/` que aparezca más abajo lo cierra, borrando de un saque
+ * todas las directivas del CSP que hay en el medio.
+ *
+ * Lo grave es para qué lado falla. Un test que exige que algo **esté** se cae
+ * ruidosamente y alguien lo mira. Pero `expect(csp).not.toContain('unsafe-inline')`
+ * pasa feliz cuando el CSP entero desapareció: el test queda en verde
+ * justamente porque ya no está mirando nada.
+ */
 export function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  let salida = '';
+  let i = 0;
+  // El último carácter que no es espacio y que no vino de un comentario. Es
+  // lo único que distingue una división de una expresión regular.
+  let anterior = '';
+
+  const guardar = (texto: string) => {
+    salida += texto;
+    const limpio = texto.trimEnd();
+    if (limpio !== '') anterior = limpio[limpio.length - 1]!;
+  };
+
+  while (i < source.length) {
+    const dos = source.slice(i, i + 2);
+
+    if (dos === '//') {
+      while (i < source.length && source[i] !== '\n') i += 1;
+      continue;
+    }
+
+    if (dos === '/*') {
+      i += 2;
+      while (i < source.length && source.slice(i, i + 2) !== '*/') i += 1;
+      i += 2;
+      continue;
+    }
+
+    const char = source[i]!;
+
+    // Un string se copia entero, comillas incluidas: adentro no hay comentarios.
+    if (char === '"' || char === "'" || char === '`') {
+      const cierre = char;
+      let texto = char;
+      i += 1;
+      while (i < source.length && source[i] !== cierre) {
+        // Una barra invertida se lleva puesto al carácter que sigue, así que
+        // `"\""` no termina el string.
+        if (source[i] === '\\') {
+          texto += source.slice(i, i + 2);
+          i += 2;
+          continue;
+        }
+        texto += source[i];
+        i += 1;
+      }
+      texto += source[i] ?? '';
+      i += 1;
+      guardar(texto);
+      continue;
+    }
+
+    /*
+      Una expresión regular también se copia entera. Sin esto, el `"` de
+      /"([^"]*)"/ abre un string que nunca cierra donde debería, y de ahí en
+      adelante el archivo se lee mal: los comentarios que vengan después dejan
+      de reconocerse. Pasó de verdad — `scripts/nueva-tienda.ts` tiene ese
+      regex, y con él el nombre del template aparecía "en el código" cuando en
+      realidad estaba en un comentario.
+
+      Para saber si `/` abre un regex o es una división miramos el carácter
+      anterior: después de un identificador, un número, `)` o `]` sólo puede
+      ser una división.
+    */
+    if (char === '/' && !/[\w$)\]]/.test(anterior)) {
+      let texto = '/';
+      i += 1;
+      let enClase = false;
+      while (i < source.length) {
+        const actual = source[i]!;
+        if (actual === '\\') {
+          texto += source.slice(i, i + 2);
+          i += 2;
+          continue;
+        }
+        if (actual === '[') enClase = true;
+        else if (actual === ']') enClase = false;
+        else if (actual === '/' && !enClase) break;
+        else if (actual === '\n') break;
+        texto += actual;
+        i += 1;
+      }
+      texto += source[i] ?? '';
+      i += 1;
+      guardar(texto);
+      continue;
+    }
+
+    guardar(char);
+    i += 1;
+  }
+
+  return salida;
 }
 
 export async function listSourceFiles(roots: readonly string[]): Promise<string[]> {
