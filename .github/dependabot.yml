@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # Repos creados con "Use this template" no reciben commits posteriores del
+  # template (ver NEW-STORE.md), así que un parche de seguridad acá no llega
+  # solo a las tiendas ya creadas. Esto al menos mantiene al día el template,
+  # que es de donde salen las tiendas nuevas y de donde se cherry-pickean los
+  # arreglos con `pnpm template:diff`.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
