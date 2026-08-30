@@ -20,17 +20,38 @@ En el hPanel, dentro del sitio:
 
    | Campo | Valor |
    |---|---|
-   | Install command | `pnpm install --frozen-lockfile` |
-   | Build command | `pnpm build` |
-   | Start command | `pnpm start` |
+   | Install command | `npm install` |
+   | Build command | `npm run build` |
+   | Start command | `npm start` |
 
-   **Los tres hay que escribirlos a mano.** Hostinger detecta el proyecto y
-   propone `npm install` / `npm run build` / `npm start`, y con eso el deploy
-   *parece* andar: npm ignora `pnpm-lock.yaml`, resuelve el árbol de nuevo por
-   su cuenta y te deja en producción versiones que nadie testeó — o directamente
-   se cae contra `pnpm-workspace.yaml`. Pisá los tres campos antes del primer
-   deploy y verificá que quedaron guardados: el panel a veces los vuelve a su
-   valor detectado si guardás la sección dos veces.
+   **Con `npm`, no con `pnpm` — a pesar de que el repo entero desarrolla y
+   corre CI en pnpm.** Esto no es lo que hubiéramos elegido de entrada; es lo
+   que quedó después de que el primer deploy real (ver §2.1) tardó cuatro PRs
+   en salir. La versión corta: pnpm 11 en el hosting compartido de Hostinger
+   lanza un subproceso anidado que no encuentra su propio binario en el PATH
+   y el deploy se cae con `ENOENT` aunque el install ya había terminado bien;
+   ningún pin de versión lo arregla porque Corepack ahí siempre corre la
+   versión que Hostinger ya trae instalada. La mitigación que sí funciona es
+   instalar con npm, usando el `package-lock.json` que este repo versiona
+   junto a `pnpm-lock.yaml` — **no** dejar que Hostinger "detecte" el proyecto
+   solo, que resuelve el árbol de cero sin ese lockfile y te deja en
+   producción versiones que nadie testeó.
+
+   Pisá los tres campos antes del primer deploy y verificá que quedaron
+   guardados: el panel a veces los vuelve a su valor detectado si guardás la
+   sección dos veces.
+
+   `package-lock.json` se regenera con `npm install` (nunca a mano) cada vez
+   que cambia `pnpm-lock.yaml`, y el build tiene que pasar con **los dos**
+   lockfiles antes de mergear — la segunda línea de abajo reproduce
+   exactamente lo que corre Hostinger, variable de entorno incluida, y es la
+   única forma de agarrar el bug de `NODE_ENV=production` de §2.1 antes de
+   que lo agarre el deploy:
+
+   ```bash
+   pnpm install && pnpm typecheck && pnpm lint && pnpm test && pnpm build
+   rm -rf node_modules && NODE_ENV=production npm install && NODE_ENV=production npm run build
+   ```
 
 3. **Environment variables**: cargá una por una las de `.env.example` que la
    tienda necesita — `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET`,
@@ -144,6 +165,111 @@ buildea. Editar ahí no cambia nada de lo que sirve el sitio, y correr un script
 ahí puede correrlo contra un `.env` que no es el que usa la app. Si necesitás
 tocar la base, hacelo desde tu máquina con la URL remota, o mejor: usá la ruta
 de setup.
+
+---
+
+## 2.1 La saga pnpm → npm (por qué el primer deploy real tardó 4 PRs)
+
+Esto pasó de verdad la primera vez que una tienda de este template salió a
+Hostinger, en orden, y cada intento parecía la solución hasta el siguiente
+commit. Va completo acá para que la próxima tienda no vuelva a pisar los
+mismos cuatro escalones — y para que quede claro por qué §1 pide `npm` en
+Hostinger cuando todo el resto del repo (CI incluido) usa pnpm.
+
+1. **Corepack bloqueaba el build**: `packageManager` en `package.json` pedía
+   una versión de pnpm distinta a la que Hostinger ya tiene provista en su
+   imagen. Corepack no las concilia: si no coinciden, no arranca.
+2. **Alinear la versión (pnpm 11) destapó otro bug**: pnpm 11 agrega
+   `verify-deps-before-run`, que antes de correr un script (`pnpm run build`)
+   re-verifica `node_modules` contra el lockfile y, ante cualquier duda,
+   lanza un **`pnpm install` anidado como subproceso**. Ese subproceso no
+   encuentra `pnpm` en el PATH del hosting compartido y tira `ENOENT` — el
+   deploy se reporta roto aunque el install real, corrido segundos antes,
+   ya había terminado bien.
+3. **Pinnear pnpm a una versión vieja no sirve**: el build de Hostinger no
+   deja que Corepack cambie de versión por proyecto. Siempre corre la que
+   trae instalada, y esa misma pnpm 11 se niega a arrancar en cuanto ve que
+   `packageManager` pide otra. El pin queda comido por el propio problema
+   que intentaba evitar.
+4. **La causa real se apaga con `.npmrc`**: `verify-deps-before-run=warn`
+   (ver el archivo en la raíz de este template) mantiene el aviso de un
+   lockfile desalineado sin lanzar el subproceso que rompe todo. Esto
+   arregla pnpm **si Hostinger pudiera correr pnpm de forma estable** — pero
+   en la práctica no pudo, ni con esto puesto.
+5. **Mitigación final: instalar con npm en Hostinger.** `pnpm-lock.yaml`
+   sigue siendo la fuente de verdad para CI y desarrollo local; el hosting
+   usa `package-lock.json` (versionado en este template, regenerado con
+   `npm install` cada vez que cambia el otro lockfile — nunca a mano).
+6. **npm destapó un quinto bug**: con `NODE_ENV=production` puesto en las
+   Environment variables del sitio (§1), `npm install` **omite
+   devDependencies por completo**. `tailwindcss`, `@tailwindcss/postcss`,
+   `cloudinary` y `dotenv` estaban clasificados como devDependencies aunque
+   el build/runtime de producción los necesita de verdad (el compilador de
+   Tailwind v4 corre dentro de `next build`; `cloudinary` y `dotenv` entran
+   al bundle del servidor vía rutas reales, no scripts). El deploy sólo
+   instaló una fracción de los paquetes y el build tiró `Cannot find
+   module`. Ya están reclasificados en este template — la trampa es para
+   cuando una tienda agregue una dependencia nueva.
+
+**La regla que queda de esto, para toda tienda salida de este template:**
+cualquier paquete que un archivo bajo `src/app`, `src/lib`, `src/domain` o
+`src/db` importe — directa o transitivamente — tiene que estar en
+`dependencies`, nunca en `devDependencies`, sin importar que "sea una
+herramienta de build". La forma de probarlo antes de mergear es la segunda
+línea del bloque de comandos en §1, no `pnpm build` solo: `pnpm` nunca
+reproduce el recorte de `NODE_ENV=production` que hace `npm install`.
+
+---
+
+## 2.2 El límite de procesos de una cuenta de Hostinger: qué lo gasta y qué no
+
+Los planes de hosting compartido de Hostinger ponen un techo de procesos
+(threads incluidos, vía cgroups) **por cuenta entera**, no por sitio: si la
+cuenta aloja varias tiendas de este template, todas comparten el mismo pool.
+
+**Lo que casi no lo toca: la tienda sirviendo tráfico.** `next start` corre
+como un proceso Node con un puñado de threads del propio runtime (libuv,
+threadpool) — del orden de una decena, estable, sin importar cuántos
+visitantes entren. Con `images.unoptimized: true` (Cloudinary hace la
+optimización, ver `next.config.ts`) tampoco hay un pool de workers de
+`sharp` sumándose acá. Una tienda de este tamaño en régimen normal no es la
+que agota el límite.
+
+**Lo que sí lo gasta, y en ráfaga, es el build/install:**
+
+- El binario Go de `esbuild` (`tsx`, `drizzle-kit`) abre un thread por CPU
+  visible (`GOMAXPROCS`) — el mismo `newosproc` de más arriba.
+- El resolver de pnpm usa worker threads en paralelo al instalar.
+- Cada subproceso anidado que la saga de §2.1 describe (el `pnpm install`
+  fantasma de `verify-deps-before-run`, los `postinstall` de dependencias
+  nativas) suma al mismo pool mientras dura, sin límite propio.
+
+Nada de esto es grande para **una** tienda corriendo sola, pero se acumula
+con cualquier otra cosa activa en la misma cuenta al mismo tiempo: otro
+sitio buildeando, un cron corriendo, una sesión SSH con procesos colgados de
+un intento anterior (reintentar sin limpiar empeora esto, como ya avisa la
+sección de arriba). Cuando el proceso de la app no puede arrancar o se cae
+por tocar el techo, lo que ve el visitante no es un error de Next: hPanel
+sirve una pantalla de espera o de verificación mientras no hay proceso
+respondiendo detrás — fácil de confundir con un problema de Cloudflare o
+SSL, pero este template no usa Cloudflare (DNS directo en Hostinger).
+
+**Con varias tiendas en la misma cuenta**, el lever real no es achicar una
+tienda — cada una sola ya pesa poco en régimen normal — sino no hacerlas
+buildear todas juntas: escalonar los redeploys y fijar `GOMAXPROCS=1` en las
+variables de entorno del sitio (no sólo en una sesión SSH manual) baja el
+pico de la ráfaga de instalación, que es donde de verdad se gasta el pool.
+
+**Si pasa "el sitio no carga" después de un deploy** y no está claro por
+qué, antes de asumir "es el límite de procesos": entrá por SSH y contá lo
+que hay vivo en la cuenta —
+
+```bash
+ps -u $USER | wc -l
+ulimit -u
+```
+
+— así queda un número, no una corazonada, para la próxima vez.
 
 ---
 
