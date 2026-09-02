@@ -144,8 +144,12 @@ const BODY = z.object({
       // `.trim()` antes de validar: el email suele venir de un copy-paste al
       // curl y un espacio al final no es un error del que valga la pena
       // hablar. La contraseña NO se toca — ahí un espacio es un carácter.
-      email: z.string().trim().pipe(z.email('el email del dueño no tiene forma de email')),
-      password: z.string(),
+      email: z
+        .string()
+        .trim()
+        .max(200)
+        .pipe(z.email('el email del dueño no tiene forma de email')),
+      password: z.string().max(200),
       name: z.string().max(160).optional(),
     })
     .optional(),
