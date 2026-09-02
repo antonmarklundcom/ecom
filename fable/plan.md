@@ -380,10 +380,54 @@ es de Anton) y §6.2 — `@types/node` ya quedó en una versión más nueva de
 resuelve todo el árbol); S4 decide si fija `^22` como pide el plan o si con
 "latest" alcanza, y de paso corre `pnpm outdated` para ver qué más se movió.
 
+### 2026-09-02 · S4 — dependencias, CI y docs
+
+Fase S4, branch `phase/s4` desde `main` (S3 ya mergeada, PR #77).
+
+**Qué existe ahora.** `@types/node` fijo en `^22` (F4); `@types/bcryptjs` afuera (F5) —
+`bcryptjs@3` trae sus propios `.d.ts` y `pnpm typecheck` sigue verde. `pnpm update` movió lo
+que `pnpm outdated` permitía sin salir de major: `@hookform/resolvers`, `lucide-react`,
+`mysql2`, `react-hook-form`, `sonner`, `zod`, `zustand` y varios `devDependencies`; además
+`next` y `eslint-config-next` (pineados exactos, no por rango) subieron a mano de `16.3.0` a
+`16.3.4` porque el propio plan los nombra como parte de "los rangos ya declarados". `xlsx` no
+se tocó — sigue bloqueado, ver `KNOWN-ISSUES.md`. `pnpm-al-dia` vive ahora en
+`.github/workflows/pnpm-al-dia.yml` (`schedule: "0 9 * * 1"` + `workflow_dispatch`), con su
+comentario explicativo mudado entero; `ci.yml` quedó sólo con `checks` y `e2e`.
+
+**Desvío que no estaba en el plan (bono, no F4–F7).** `pnpm audit` sumó un high nuevo que no
+existía en S3: `nanoid` (GHSA-2v37-7h3g-55p8) vía `vite`→`postcss`, arrastrado por el toolchain
+de tests (`vitest`/`@vitejs/plugin-react`) al pisar sus propias devDependencies con
+`pnpm update`. Es dev-only y no toca runtime, pero como el plan pide "sin highs propios" y acá
+sí había arreglo (nanoid ya tiene parche, sólo que `vite` todavía fija una versión vieja de
+`postcss`), se resolvió con `overrides: { nanoid: "^3.3.18" }` en `pnpm-workspace.yaml` (no en
+`package.json` — pnpm 11 dejó de leer el campo `"pnpm"` ahí, ver el warning si alguien lo
+reintenta). Quedan sólo los dos `xlsx` (bloqueados, de Anton) y el `esbuild` de `drizzle-kit`
+(dev-only, sin parche todavía) — anotado en §10.
+
+**Docs.** README §"Documentos" ganó la fila `fable/plan.md`; `PLAN.md` gana una línea arriba de
+todo apuntando a `fable/plan.md` como plan activo. `CLAUDE.md` ya tenía el puntero (lo agregó
+la sesión que escribió este plan) — no se tocó. `KNOWN-ISSUES.md` sigue con la entrada de
+`xlsx` (F1, de Anton) y no se borró.
+
+**Cierre.** `pnpm template:diff` corrido a mano contra el propio repo (remote `template` →
+`origin`, un `.template-baseline` viejo de prueba, todo descartado después sin commitear):
+clasificó bien los 19 commits de diferencia con `*` en los siete que tocan maquinaria. No
+explotó.
+
+**Verde acá:** `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test` (102 archivos, 1110
+tests, 1 skip) y `pnpm test:e2e` (6/6), todos contra MariaDB 10.11 local (mismo setup sin
+Docker que usó S3: `apt install mariadb-server`, credenciales de `docker-compose.yml`).
+`pnpm db:generate` sin drift. `pnpm audit`: 2 highs de `xlsx` (bloqueados) + 1 moderate de
+`esbuild` (dev). `pnpm outdated`: sólo majors (`@types/node`, `eslint`, `iron-session`,
+`typescript`).
+
+**Fin de las cuatro fases — STOP.** Ver reporte de cierre a Anton después del merge de este PR.
+
 ## 10. Backlog
 
-- Vulnerabilidades transitivas de `pnpm audit`: `nanoid` vía `next`/`postcss` (esperar el
-  bump de Next), `esbuild` vía `drizzle-kit` (sólo dev).
+- Vulnerabilidad transitiva de `pnpm audit`: `esbuild` vía `drizzle-kit` (sólo dev, no hay
+  versión de `drizzle-kit` que la arregle todavía). `nanoid` (S4, vía `vite`/`postcss` del
+  toolchain de tests) se resolvió con un `overrides` en `pnpm-workspace.yaml`.
 - Notificaciones salientes a la compradora (pedido confirmado / enviado) por WhatsApp Cloud
   — `PLAN.md:241`; O2 deja el sender listo para eso.
 - Render tests de las páginas de `/admin` (hoy sólo `home-hero.test.tsx` renderiza React).

@@ -18,6 +18,7 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
+| [fable/plan.md](./fable/plan.md) | Plan de endurecimiento activo (revisión en `fable/REVIEW.md`, fases en `fable/prompts/`); queda como historial una vez mergeadas las cuatro fases |
 
 ## Estado
 
