@@ -10,6 +10,8 @@ leé:
   §5 mapea qué archivo toca cada parte de un mockup.
 - **ARCH.md** — arquitectura: dominio, estados del pedido, plata, Pagopar.
 - **PLAN.md** / **TASKS.md** — qué falta y en qué fase está.
+- **fable/plan.md** — el plan activo de endurecimiento (revisión en `fable/REVIEW.md`,
+  fases en `fable/prompts/`). `fable/PROMPT.md` es el prompt que lo generó.
 - **DEPLOY.md** — el runbook de Hostinger.
 
 ## La regla que más importa: maquinaria vs. piel
