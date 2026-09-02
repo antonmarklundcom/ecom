@@ -1,70 +1,78 @@
-# Fable: ¿hace falta propagar el endurecimiento de `ecom` a las tiendas hijas?
+# Fable: ¿hace falta propagar el endurecimiento de `ecom` a lenceria/productos/mascota?
 
-Prompt para una sesión de **Fable 5.1 (medium)** que Anton abre él mismo. Pegalo tal cual.
+Prompt para una sesión **nueva** de **Fable 5.1 (low effort)** que Anton abre él mismo, sin
+contexto de ninguna conversación anterior. Pegalo tal cual.
 
 ---
 
-You are Fable 5.1 (medium effort) in a session Anton opened himself. This is an
-**investigation + estimate**, not a build — do not implement anything except a trivial fix
-(a typo, under 5 minutes). Load skill `fable-cost-guardrail` first: this session never spawns
-itself as a subagent, workflow agent, or child session, and never proposes a plan where Fable
-executes a phase — only Opus/Sonnet execute, same as `fable/plan.md` already does.
+You are Fable 5.1 (**low** effort) in a brand-new session Anton opened himself — you have no
+memory of any prior conversation. Load skill `fable-cost-guardrail` first and follow it to the
+letter: it says you never execute a phase, subagent, workflow, or scheduled job yourself, and
+you never spawn yourself. Your own job here is small on purpose — **decide, then delegate to
+Sonnet (or Opus only if genuinely warranted) to do the actual work**, so total Claude usage on
+this stays minimal. Stay at low effort throughout; this does not need deep reasoning, it needs
+a correct read of four small repos and a clear decision.
 
-## Contexto
+## The four repos
 
-`antonmarklundcom/ecom` is the store template. Four hardening phases (O1 xlsx/Zod edge cases,
-O2 WhatsApp "new order" notification, S3 Playwright in CI, S4 deps/CI/docs) just closed —
-`fable/plan.md` has the full history, `fable/REVIEW.md` the original audit that spawned it.
+Attach all four (`add_repo` if they aren't already available in this session):
 
-At least three repos are live stores cloned from this template: `antonmarklundcom/lenceria`,
-`antonmarklundcom/productos`, `antonmarklundcom/mascota`. There may be more — check
-`list_repos` / `search_repositories` for other repos that look like they came from this
-template (same stack, same `NEW-STORE.md`/`ARCH.md`/`fable/` layout, or a `template` git
-remote pointing at `antonmarklundcom/ecom`) rather than assuming these three are the whole set.
+- `antonmarklundcom/ecom` — the store template. It just closed four hardening phases: O1
+  (xlsx/Zod edge-case fixes), O2 (WhatsApp "new order" notification to the merchant), S3
+  (Playwright added to CI), S4 (dependency bumps, CI split, doc pointers) — PRs #75, #76, #77,
+  #79, all merged into `main`. Full history: `fable/plan.md` §9 (build log) and
+  `fable/REVIEW.md` (the audit that started it). Read those before anything else.
+- `antonmarklundcom/lenceria`, `antonmarklundcom/productos`, `antonmarklundcom/mascota` — three
+  live stores cloned from `ecom`. Each may or may not have a `template` git remote pointing at
+  `ecom` and a `.template-baseline` file (see `ecom`'s `NEW-STORE.md` §"Ya tengo una tienda" and
+  `scripts/template-diff.ts`) — that's the template's own built-in mechanism for exactly this
+  question: it diffs a store against the template's commit history and marks with `*` the
+  commits that touch **maquinaria** (`src/domain/**`, `src/lib/**`, checkout, `/admin` logic —
+  the do-not-redesign zone `ecom`'s `CLAUDE.md` defines). Machinery commits are meant to be
+  cherry-picked into stores as-is; "piel" (skin — header/footer/home/product-card/copy) never
+  is, because each store already redesigned it.
 
-The template already has a built-in mechanism for exactly this: `pnpm template:diff` (see
-`scripts/template-diff.ts` and `NEW-STORE.md` §"Ya tengo una tienda") diffs a store against
-the template's commit history and marks with `*` the commits that touch **maquinaria**
-(`src/domain/**`, `src/lib/**`, checkout, `/admin` logic — the do-not-redesign zone in
-`CLAUDE.md`). Machinery commits are meant to be cherry-picked into stores as-is; "piel"
-(skin — header/footer/home/product-card/copy) is never cherry-picked because each store has
-redesigned it.
+Don't go looking for other stores beyond these three — Anton named exactly these four repos.
 
-## What to answer
+## Step 1 — find out what's actually missing (per store)
 
-For each store repo found:
+For each of the three stores: if it has the `template` remote already, run `pnpm template:diff`
+for real. If not, add the remote yourself and run it, or reconstruct the same comparison by
+hand (`git log` range between the store's last-known template SHA and `ecom`'s `main`). Get a
+real answer, not a guess, for each store:
 
-1. Clone it (or read via GitHub) and run `pnpm template:diff` against `template` remote
-   pointing at `antonmarklundcom/ecom`, or reconstruct the same commit-range comparison by
-   hand if the store hasn't set up the `template` remote / `.template-baseline` yet.
-2. Of the four phases' commits (O1/O2/S3/S4, PRs #75/#76/#77/#79 in `ecom`), which are
-   marked machinery (`*`) and therefore apply as-is, and which are skin the store already
-   diverged on?
-3. For each store, is a plain cherry-pick realistic, or did the store's own history touch the
-   same files enough that it'll conflict? Give a real effort estimate per store — "clean
-   cherry-pick, ~10 min" vs "conflicts in X, needs a real session" — not a guess.
-4. Is there a way to do this **once** instead of three-to-N times — e.g. a Sonnet phase whose
-   job is exactly "cherry-pick these N commits into these repos and open a PR each, stop at
-   the first real conflict" — and is that worth it given how small each individual diff is,
-   versus Anton just running `template:diff` + cherry-pick by hand per store (which
-   `NEW-STORE.md` already documents as a few commands)?
+- Which of the four phases' commits (O1/O2/S3/S4) are machinery it's missing, vs. skin it
+  correctly never took.
+- Would a cherry-pick of the missing machinery commits actually apply cleanly, or has the
+  store's own history touched the same files enough to conflict? Look, don't estimate blind.
+
+## Step 2 — decide
+
+You decide whether this is worth fixing at all. It might not be — three stores each missing a
+handful of small commits (a Zod tweak, one sender wire-up, a CI workflow file, some dep bumps)
+could be cheaper for Anton to cherry-pick by hand in ten minutes each than to spin up sessions
+for. Be blunt. If you decide it's not worth it, say why and stop — that's a complete answer,
+don't manufacture work.
+
+## Step 3 — if it IS worth fixing, delegate it, don't do it
+
+If real conflict-free (or nearly so) work exists across the three stores:
+
+- **Do not implement the cherry-picks yourself.** Spawn one Sonnet session per store (Opus only
+  for a store where the conflict genuinely needs architectural judgment — money/auth/schema —
+  which is unlikely for a dependency-and-doc-pointer set of commits). Use `create_session`,
+  same pattern as `ecom/fable/plan.md` §4.9: that store's repo as source, permission mode that
+  doesn't block on approval (never `plan`), a self-contained prompt naming the exact commits/PR
+  numbers to cherry-pick from `ecom`, the target branch, and concrete exit criteria (CI green,
+  `pnpm template:diff` shows those commits no longer missing, PR opened).
+- Keep each spawned session's task as narrow as the actual diff — don't let "bring the store up
+  to date" balloon into a broader audit of that store.
+- After spawning, you're done — you are not the one watching those sessions to completion.
+  Report back to Anton with what you spawned and where to check on them (session IDs / a
+  `list_sessions` pointer), not a promise to babysit them yourself.
 
 ## Deliverable
 
-A short report (no `fable/plan.md`/`fable/prompts/` machinery needed unless you find real
-conflict work that justifies a full Sonnet phase) that gives Anton, in order:
-
-1. The actual list of stores that need this and which ones are already caught up.
-2. Per store: which of the four phases' commits are missing, machinery vs skin, and the
-   real effort to bring it current.
-3. Your recommendation — direct cherry-pick per store (by Anton, or by a spawned Sonnet
-   session per store if the volume justifies it — never Fable) vs. skip because it's cheap
-   enough to do by hand — with the actual reasoning, not a hedge.
-4. If you recommend spawning Sonnet sessions, don't spawn them yourself in this
-   investigation — write the one-line prompt(s) Anton would use to kick each off
-   (`create_session`, same pattern as `fable/plan.md` §4.9: model Sonnet, permission mode
-   not `plan`, prompt naming the store repo and the exact commits/PRs to cherry-pick and the
-   exit criteria — CI green, no `template:diff` conflicts against `main`).
-
-Be blunt about whether this is worth automating at all — three stores with a few small
-commits each may just not be worth more than doing it by hand once.
+One message to Anton: the per-store finding from Step 1, your decision from Step 2 with the
+real reasoning, and — only if you spawned anything — exactly what you spawned and how to check
+on it. No `fable/plan.md` / `fable/prompts/` phase machinery needed for something this small.
