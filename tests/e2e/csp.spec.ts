@@ -16,9 +16,16 @@ import { expect, test, type Page } from "@playwright/test";
  * Las fotos igual cargan porque el `<img>` sale renderizado del servidor.
  * Cualquier otra violación —dos en la misma pantalla, o en home/categoría
  * donde no debería haber ninguna— es un bug real.
+ *
+ * El texto exacto del mensaje **no** es estable entre versiones de Chromium
+ * — local (`Refused to load the script '…' because it violates…`) contra CI
+ * (`Loading the script '…' violates… The action has been blocked.`), mismo
+ * chunk, mismo bug, dos redacciones distintas. El patrón agarra la parte que
+ * sí es estable: un script bloqueado por CSP cuya URL es un chunk suelto de
+ * `_next/static/chunks/`.
  */
 const CHUNK_SIN_NONCE =
-  /refused to load the script '[^']*\/_next\/static\/chunks\/[^/]+\.js'.*content security policy/i;
+  /_next\/static\/chunks\/[^'"\s]+\.js[^]*content security policy/i;
 
 function violacionesReales(mensajes: string[]): string[] {
   return mensajes.filter(
