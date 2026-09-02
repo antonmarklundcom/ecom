@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { CheckoutError, TotalChangedError, createOrder } from "@/domain/create-order";
+import { notifyOwnerNewOrder } from "@/domain/order-notifications";
 import { orderUrl } from "@/domain/order-access";
 import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config";
 import { startPagoparCheckout } from "@/domain/pagopar/checkout";
@@ -113,6 +114,23 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       shipBarrio: parsed.data.shipBarrio || null,
       shipReference: parsed.data.shipReference || null,
       giftNote: parsed.data.giftNote || null,
+    });
+
+    /*
+      El aviso al comercio (fable/plan.md §5.2).
+
+      Va acá, después del commit de `createOrder` y **sin await**: la compradora
+      ya tiene su pedido guardado y su link, así que nada de lo que pase con
+      Meta puede quitárselos. `notifyOwnerNewOrder` no tira nunca —atrapa todo
+      adentro y lo anota en `order_events`—, pero el `.catch()` queda igual: un
+      rechazo sin manejar en una promesa suelta tumba el proceso de Node, que es
+      el único slot de la tienda.
+
+      También para tarjeta, y a propósito: al dueño le sirve saber que entró un
+      pedido aunque todavía no esté pagado, y el método viaja en el texto.
+    */
+    void notifyOwnerNewOrder(order.orderId).catch((error) => {
+      console.error("notifyOwnerNewOrder rechazó", error);
     });
 
     if (parsed.data.paymentMethod === "tarjeta") {

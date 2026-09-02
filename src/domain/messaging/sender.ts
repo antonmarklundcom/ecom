@@ -18,6 +18,20 @@ export type OutgoingMessage = {
   /** `+595XXXXXXXXX`, ya normalizado. */
   to: string;
   body: string;
+  /**
+   * Plantilla de Meta a usar, cuando no es la de siempre.
+   *
+   * Existe porque hay **dos** mensajes con dueños distintos: el código de login
+   * que recibe la compradora y el aviso de pedido nuevo que recibe el comercio.
+   * Meta aprueba plantillas de a una, así que son dos nombres distintos y cada
+   * uno se pide por separado. Sin esto, el aviso al dueño saldría con la
+   * plantilla del login y Meta lo rechazaría —o peor, lo mandaría con el texto
+   * equivocado.
+   *
+   * Vacío = la plantilla por defecto del sender (`WHATSAPP_CLOUD_TEMPLATE_NAME`).
+   * Los senders que no usan plantillas (la consola) lo ignoran.
+   */
+  templateName?: string;
 };
 
 export interface MessageSender {

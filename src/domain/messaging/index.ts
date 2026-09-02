@@ -3,7 +3,7 @@ import { createWhatsappCloudSender, whatsappCloudConfig } from './whatsapp-cloud
 
 export type { MessageChannel, MessageSender, OutgoingMessage } from './sender';
 export { MessageSendError } from './sender';
-export { whatsappCloudConfig } from './whatsapp-cloud';
+export { whatsappCloudConfig, whatsappOwnerTemplate } from './whatsapp-cloud';
 
 /**
  * El sender de dev: imprime el mensaje en la consola del servidor.

@@ -501,6 +501,16 @@ export const esPY = {
   "wa.recuperar.subiComprobante": "Cuando pagues, subí el comprobante acá: {url}",
 
   // -------------------------------------------------------------------------
+  // Aviso al comercio: pedido nuevo (fable/plan.md §5.2)
+  //
+  // Este lo lee el dueño, no la compradora, así que sí lleva el total y el
+  // método de pago — pero tampoco los ítems: el detalle está en el panel, a un
+  // toque de distancia, y el mensaje llega a la pantalla de bloqueo igual.
+  // -------------------------------------------------------------------------
+  "wa.aviso.pedidoNuevo": "Pedido nuevo {numero} — {total} ({metodo}). Compró {nombre}.",
+  "wa.aviso.pedidoNuevo.url": "Miralo en el panel: {url}",
+
+  // -------------------------------------------------------------------------
   // Errores del panel (PR R) — los lee el dueño, no la compradora
   // -------------------------------------------------------------------------
   "adminError.sesionCerrada": "Se cerró tu sesión. Volvé a entrar.",

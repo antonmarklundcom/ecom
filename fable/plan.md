@@ -292,6 +292,35 @@ Pagopar).
 **Dónde mirar primero en O2:** `KNOWN-ISSUES.md` (F1 sigue abierto y O1 no está cerrada del
 todo), después `src/domain/messaging/` y `src/app/actions/checkout.ts`.
 
+### 2026-09-02 · O2 — aviso de pedido nuevo al comercio
+
+Fase O2, misma branch fija del entorno (`claude/fable-repo-audit-prompts-cjurpf`, re-creada
+desde `main` después de mergear O1); no se usó `phase/o2`.
+
+**Qué existe ahora.** `src/domain/order-notifications.ts`: `notifyOwnerNewOrder(orderId)` arma
+el texto (número, total en Gs, método, quién compró, link absoluto a `/admin/pedidos/<id>`),
+lo manda por el `MessageSender` de siempre y deja fila en `order_events`
+(`actor: "sistema"`, `aviso_dueno_enviado` / `aviso_dueno_fallido: <motivo>`). **No tira
+nunca**: el checkout la llama con `void … .catch()` después del commit, también para tarjeta.
+Timeout propio de 10 s. Apagado sin `WHATSAPP_NUMBER`, sin sender, o —en Cloud— sin
+`WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO`, la variable nueva.
+
+**Decisiones que la próxima sesión no debería reabrir.** (1) `OutgoingMessage` ganó
+`templateName?`: Meta aprueba una plantilla por mensaje y el aviso no puede salir con la del
+código de login. (2) Se creó `src/domain/order-events.ts` (`recordOrderEvent`) porque el plan
+pedía "el helper del dominio" y no existía: eran dos `insert` sueltos. `create-order.ts` ya lo
+usa; `transitionOrder()` sigue escribiendo el suyo adentro de su transacción y **no se tocó**.
+(3) El aviso sale al **crear** el pedido, no al cobrarlo, con el método de pago en el texto.
+(4) Preflight suma `aviso_pedido_nuevo` como advertencia, nunca bloqueo. Sin schema nuevo.
+
+**Verde acá:** typecheck, lint, build, y `pnpm test` con `TEST_DATABASE_URL` contra MariaDB
+10.11 — 102 archivos, 1110 tests, 1 skip. Además se corrió el camino de dev a mano: con
+`NODE_ENV=development` y `WHATSAPP_NUMBER`, el aviso se imprime en consola y queda el evento
+`aviso_dueno_enviado`.
+
+**Dónde mirar primero en S3:** `KNOWN-ISSUES.md` (F1, el swap de `xlsx`, sigue abierto y es
+de Anton), y los límites duros de §4.7 — S3 no toca dominio, lib, db, actions, api ni proxy.
+
 ## 10. Backlog
 
 - Vulnerabilidades transitivas de `pnpm audit`: `nanoid` vía `next`/`postcss` (esperar el

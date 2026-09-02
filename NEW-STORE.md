@@ -383,6 +383,20 @@ Efecto secundario que vale la pena: entrar con un código **verifica el
 teléfono**, y ahí `/cuenta` empieza a mostrar los pedidos que esa persona hizo
 como invitada con ese número (ver la limitación del §4b).
 
+**La segunda plantilla: el aviso de pedido nuevo al comercio.** Con las mismas
+credenciales de Cloud, la tienda puede avisarle al dueño por WhatsApp cada vez
+que entra un pedido, en vez de depender de que la compradora toque el botón.
+Meta aprueba las plantillas de a una, así que hay que pedirle **otra**, también
+con un parámetro en el cuerpo (el texto del aviso), y ponerle el nombre en
+`WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO`. El destino es `WHATSAPP_NUMBER`, el
+número del comercio que ya estaba configurado.
+
+Sin esa variable el aviso queda apagado y la tienda no cambia en nada:
+`pnpm preflight` lo dice como advertencia. En dev, sin credenciales, el aviso se
+imprime en la consola del servidor igual que el código de login. El envío nunca
+puede demorar ni hacer fallar un pedido: sale después de que el pedido está
+guardado, y salga o falle queda anotado en la historia del pedido.
+
 ### 4d. ¿En qué idioma habla esta tienda?
 
 Por defecto `es-PY`, y las URLs quedan en español siempre (son parte del

@@ -49,6 +49,19 @@ export function whatsappCloudConfig(): WhatsappCloudConfig | null {
   };
 }
 
+/**
+ * La plantilla del aviso de pedido nuevo al comercio, o `null` si esta tienda
+ * no la pidió todavía.
+ *
+ * Es una variable aparte de `WHATSAPP_CLOUD_TEMPLATE_NAME` porque Meta aprueba
+ * una plantilla por mensaje: la del login ya está aprobada en las tiendas que
+ * usan login sin contraseña, y ésta hay que pedirla de nuevo. Sin ella, el
+ * aviso queda apagado y el resto de la tienda no cambia en nada.
+ */
+export function whatsappOwnerTemplate(): string | null {
+  return process.env.WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO?.trim() || null;
+}
+
 export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageSender {
   return {
     channel: 'whatsapp',
@@ -65,7 +78,9 @@ export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageS
         to: message.to.replace(/^\+/, ''),
         type: 'template',
         template: {
-          name: config.templateName,
+          // Cada mensaje con la suya: el aviso al dueño no puede salir con la
+          // plantilla del código de login (ver `OutgoingMessage.templateName`).
+          name: message.templateName?.trim() || config.templateName,
           language: { code: WHATSAPP_TEMPLATE_LANGUAGE },
           components: [{ type: 'body', parameters: [{ type: 'text', text: message.body }] }],
         },
