@@ -74,6 +74,7 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkPagoparCredentials(env),
     checkCloudinary(env),
     checkWhatsApp(env),
+    checkAvisoPedidoNuevo(env),
     checkDatabaseUrl(env),
     checkSiteUrl(env),
   ];
@@ -513,6 +514,45 @@ function checkWhatsApp(env: PreflightEnv): PreflightCheck {
   }
 
   return { id: "whatsapp", severity: "ok", title: "WhatsApp del comercio", detail: "configurado" };
+}
+
+/**
+ * El aviso de pedido nuevo al comercio (fable/plan.md §5.2).
+ *
+ * Advierte, no bloquea: una tienda puede vender igual mirando el panel. Pero
+ * mirarlo es una disciplina, y un pedido por transferencia que nadie ve en 24
+ * horas es una venta perdida, así que conviene que salga escrito en el deploy.
+ */
+function checkAvisoPedidoNuevo(env: PreflightEnv): PreflightCheck {
+  const template = value(env, "WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO");
+  const cloudListo =
+    value(env, "WHATSAPP_CLOUD_PHONE_NUMBER_ID") !== "" &&
+    value(env, "WHATSAPP_CLOUD_ACCESS_TOKEN") !== "";
+  const destino = value(env, "WHATSAPP_NUMBER");
+
+  const faltan = [
+    ...(cloudListo ? [] : ["las credenciales de WhatsApp Cloud"]),
+    ...(template === "" ? ["WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO"] : []),
+    ...(destino === "" ? ["WHATSAPP_NUMBER"] : []),
+  ];
+
+  if (faltan.length > 0) {
+    return {
+      id: "aviso_pedido_nuevo",
+      severity: "advierte",
+      title: "Aviso de pedido nuevo",
+      detail:
+        `el comercio no recibe aviso de pedidos nuevos: falta ${faltan.join(", ")}. ` +
+        "Se entera sólo si mira el panel o si la compradora toca el botón de WhatsApp",
+    };
+  }
+
+  return {
+    id: "aviso_pedido_nuevo",
+    severity: "ok",
+    title: "Aviso de pedido nuevo",
+    detail: "configurado",
+  };
 }
 
 /** Una base local en el servidor real es una tienda sin datos. */

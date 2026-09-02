@@ -625,6 +625,25 @@ refund, and pretending the order is alive would be worse than saying nothing.
 
 **Contra entrega (COD)** uses the same states, minus the receipt: the owner confirms on delivery. Worth having on day one — cash on delivery is still a large share of PY e-commerce.
 
+### 5.2 The owner hears about the order from the server, not from the buyer
+
+Step 4 above is the buyer's choice: a `wa.me` link she may or may not tap. That
+made the shop's only reliable notification a human habit — a paid transfer could
+sit unseen for a day. So the server also sends its own message
+(`src/domain/order-notifications.ts`), through the same `MessageSender` as the
+login code, to the shop's `WHATSAPP_NUMBER`, with a second Meta template
+(`WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO`).
+
+Three properties, in order of importance. **It cannot fail or delay a
+checkout**: it is fired after the order is committed, without `await`, with its
+own timeout, and `notifyOwnerNewOrder` never throws — the buyer's order can
+never be lost because Meta is down. **Missing variables switch it off**, like
+every other integration here. And **it always leaves a trail**: sent or failed,
+a row lands in `order_events` (`actor: "sistema"`, `from_status NULL`, reason
+`aviso_dueno_enviado` / `aviso_dueno_fallido: …`), because a notification that
+disappears silently is worse than none — the owner would read "no messages" as
+"no orders".
+
 ### 5.1 A manual payment is still a payment
 
 For a while `payments` only ever held Pagopar rows, because Pagopar was the

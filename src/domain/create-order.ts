@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
-  orderEvents,
   orderItems,
   orders,
   type DocType,
@@ -15,6 +14,7 @@ import { normalizePhonePY, validateDoc } from "@/lib/py";
 
 import type { CartInput } from "./cart";
 import { lockCouponForUse, type CouponRejection } from "./coupons";
+import { recordOrderEvent } from "./order-events";
 import { nextOrderNumber } from "./order-number";
 import { computeOrderTotals } from "./order-totals";
 import { RESERVATION_TTL_MINUTES, reserveStock } from "./stock";
@@ -314,13 +314,15 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
 
     // 6. Primera fila del log. No es una transición (no hubo cambio de
     //    estado), así que no pasa por transitionOrder.
-    await tx.insert(orderEvents).values({
-      orderId,
-      fromStatus: null,
-      toStatus: "pendiente_pago",
-      actor: "buyer",
-      reason: `pedido creado (${input.paymentMethod})`,
-    });
+    await recordOrderEvent(
+      {
+        orderId,
+        status: "pendiente_pago",
+        actor: "buyer",
+        reason: `pedido creado (${input.paymentMethod})`,
+      },
+      { executor: tx },
+    );
 
     return {
       orderId,
