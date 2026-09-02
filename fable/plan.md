@@ -321,6 +321,65 @@ usa; `transitionOrder()` sigue escribiendo el suyo adentro de su transacción y 
 **Dónde mirar primero en S3:** `KNOWN-ISSUES.md` (F1, el swap de `xlsx`, sigue abierto y es
 de Anton), y los límites duros de §4.7 — S3 no toca dominio, lib, db, actions, api ni proxy.
 
+### 2026-09-02 · S3 — Playwright en CI
+
+Fase S3, misma branch fija del entorno (`claude/sonnet-3-e2e-playwright-k8u7t1`,
+ya existía desde `main` con O1+O2 mergeadas); no se usó `phase/s3`.
+
+**Qué existe ahora.** `playwright.config.ts` (Chromium solamente, `baseURL`
+`http://127.0.0.1:3000`, `webServer` que corre `pnpm start` sobre un build ya
+hecho). `tests/e2e/helpers.ts` con `realizarCompra(page)` — home → categoría →
+producto → carrito → checkout con transferencia — reutilizado por los dos
+specs que necesitan un pedido, para no depender del orden de ejecución. Tres
+specs: `compra.spec.ts` (invitado, transferencia, aterriza en `/pedido/PY-…?t=…`
+y ve el aviso de "sin datos bancarios" — CI no configura `BANCO_*`);
+`panel.spec.ts` (`/admin/pedidos` sin cookie → login, entra con el owner de
+CI, el pedido queda visible filtrando por número); `csp.spec.ts` (cuatro
+tests: home+categoría sin ninguna violación, producto+admin/login y
+checkout-con-carrito con **sólo** la violación documentada del chunk de
+`next/image` — filtrada por patrón `_next/static/chunks/*.js`, medida a mano
+contra un build real antes de escribir el spec —, y el buscador del header
+responde). `pnpm test:e2e` = `next build && playwright test`; en CI, el job
+`e2e` hace su propio `pnpm build` y corre `playwright test` directo (evita
+buildear dos veces).
+
+**Verificación del guardarraíl (§6.1, obligatoria antes de mergear).** Se
+sacó a mano `'unsafe-inline'` del `script-src` sin nonce en `src/proxy.ts`,
+corrió `csp.spec.ts` (rojo, como tenía que ponerse — la home se queda sin JS)
+y se revirtió (`git diff` vacío después).
+
+**Decisión de seed (§6.1 daba a elegir).** `pnpm db:push && pnpm db:seed &&
+pnpm create-owner` con `OWNER_EMAIL`/`OWNER_PASSWORD` de entorno, no
+`POST /api/setup/init`: es el mismo camino que ya usan los tests de
+integración y no depende de que el server ya esté arriba para sembrar.
+
+**Selectores.** Por `id` (`#customerName`, `#customerPhone`, etc.) y no por
+`getByLabel` en el formulario de checkout: el WhatsApp flotante
+(`whatsapp-fab.tsx`) y el checkbox de novedades también matchean "WhatsApp"
+como texto y rompen el accessible-name lookup con "strict mode violation".
+
+**Entorno de esta sesión (sin Docker).** No había `docker` corriendo ni MySQL
+— se instaló `mariadb-server` por `apt` (10.11, misma versión que O1/O2) y se
+arrancó a mano (`service mariadb start`), con las mismas credenciales de
+`docker-compose.yml` (`ecom`/`ecom`, bases `ecom` y `ecom_test`). Los
+navegadors de Playwright ya venían pre-instalados en
+`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`; sólo hizo falta
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium` (el build "full",
+no el `headless_shell` que trae por default esta versión de Playwright y que
+no estaba pre-instalado) para correr en local — es justo el escape hatch que
+pide §6.1, ya en `playwright.config.ts`. El job de CI usa
+`playwright install --with-deps chromium`, no depende de esto.
+
+**Verde acá:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (102 archivos, 1110
+tests, 1 skip) y `pnpm test:e2e` (6/6) contra MariaDB 10.11 local. `pnpm
+db:generate` sin drift.
+
+**Dónde mirar primero en S4:** `KNOWN-ISSUES.md` (F1, `xlsx`, sigue abierto y
+es de Anton) y §6.2 — `@types/node` ya quedó en una versión más nueva de
+"latest" como efecto lateral de instalar `@playwright/test` (`pnpm add -D`
+resuelve todo el árbol); S4 decide si fija `^22` como pide el plan o si con
+"latest" alcanza, y de paso corre `pnpm outdated` para ver qué más se movió.
+
 ## 10. Backlog
 
 - Vulnerabilidades transitivas de `pnpm audit`: `nanoid` vía `next`/`postcss` (esperar el
