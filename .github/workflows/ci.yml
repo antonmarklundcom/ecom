@@ -44,7 +44,7 @@ jobs:
       NEXT_PUBLIC_SITE_URL: https://ci.example.py
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Sin `version:` a propósito: sale de "packageManager" en package.json,
       # y declarar las dos hace fallar la action.
@@ -128,7 +128,7 @@ jobs:
       OWNER_NAME: "Dueño CI"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
