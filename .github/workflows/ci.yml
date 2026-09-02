@@ -89,6 +89,79 @@ jobs:
 
       - run: pnpm build
 
+  # Playwright contra un build de verdad (fable/plan.md §6.1): lo que ve la
+  # compradora en un navegador, no lo que asume un test unitario. Corre
+  # después de `checks` — sin typecheck/lint/unitarios verdes no vale la pena
+  # pagar el minuto extra de un navegador.
+  e2e:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ecom
+          MYSQL_USER: ecom
+          MYSQL_PASSWORD: ecom
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/ecom
+      SESSION_SECRET: ci-session-secret-de-al-menos-32-caracteres
+      NEXT_PUBLIC_SITE_URL: https://ci.example.py
+      CRON_SECRET: ci-cron-secret-de-16-caracteres
+      WHATSAPP_NUMBER: "+595981123456"
+      # `compra.spec.ts` no necesita tarjeta ni credenciales de Cloud: el
+      # checkout de invitado con transferencia alcanza. `panel.spec.ts` sí
+      # necesita loguearse, por eso el dueño se crea con estas dos.
+      OWNER_EMAIL: owner@ci.example.py
+      OWNER_PASSWORD: "Contrasena-Segura-Para-CI-123"
+      OWNER_NAME: "Dueño CI"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `db:push`, no migraciones: acá no hay nada previo que preservar y es
+      # el mismo camino que ya usa `checks` (implícito, al correr los tests
+      # de integración) — más simple que armar el POST a `/api/setup/init`
+      # contra un server que todavía no arrancó (fable/plan.md §6.1 deja
+      # elegir entre las dos).
+      - run: pnpm db:push
+      - run: pnpm db:seed
+      - run: pnpm create-owner
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm build
+
+      - run: pnpm exec playwright test
+        timeout-minutes: 10
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   # El pin de "packageManager" es lo que hace reproducible el install, acá y en
   # el contenedor de build de Hostinger. El problema del pin es que envejece
   # callado: el día que Hostinger levanta su Corepack a la major siguiente, el
