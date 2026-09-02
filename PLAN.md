@@ -1,5 +1,7 @@
 # PLAN.md — Tienda PY · FASE 2
 
+**Plan activo:** [fable/plan.md](./fable/plan.md) — este archivo queda como historial de la FASE 2, ya cerrada.
+
 **Stack (locked):** Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js slot** + Cloudinary.
 No Supabase, no Vercel, no Cloudflare. Deploy mechanics live in `DEPLOY.md` and the `nextjs-deploy-hostinger` skill.
 

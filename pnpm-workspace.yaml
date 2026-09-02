@@ -24,3 +24,10 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - unrs-resolver
+
+# GHSA-2v37-7h3g-55p8: `nanoid` <3.3.18 vía vite → postcss, sólo en el
+# toolchain de tests (vitest/@vitejs/plugin-react). No lo trae ninguna
+# dependencia de runtime. Forzar el parche acá hasta que vite suba su propio
+# pin de postcss.
+overrides:
+  nanoid: "^3.3.18"
