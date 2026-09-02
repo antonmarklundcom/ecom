@@ -258,7 +258,39 @@ CI verde completo; PR mergeado. **STOP — reporte final a Anton (ver prompt).**
 
 ## 9. Build log & handoff
 
-*(vacío — cada fase agrega su entrada antes de mergear)*
+### 2026-09-02 · O1 — bordes de Zod y test de `proxy()`; `xlsx` **bloqueado**
+
+Fase O1, branch `claude/fable-repo-audit-prompts-cjurpf` (el entorno de esta sesión fija la
+branch; no se usó `phase/o1`).
+
+**Qué existe ahora.** Bloque B hecho: `.max()` a la medida de la columna en `customerEmail`
+(200), `shipMapsUrl` (500), `images[].cloudinaryId` (255) de `src/lib/schemas.ts`, el `reason`
+del ajuste de stock (300) en `admin-products.ts`, cada ciudad de una zona de envío (120, el
+largo de `orders.ship_city`) en `admin-shipping.ts`, y el email/password del dueño (200) en
+`POST /api/setup/init`. Los demás `z.string()` sin `.max()` que quedan (`q`, `desde`, `hasta`,
+`next`, el código OTP) no terminan en ninguna columna: se dejaron. Bloque C hecho:
+`tests/unit/proxy.test.ts` ejecuta `proxy()` de verdad (11 casos) y `src/proxy.ts` **no se
+tocó** — no apareció ningún bug. Dos detalles para la próxima sesión: el redirect al login es
+**307** (`NextResponse.redirect`), no 302 como decía §5.1 C; y la aserción del CSP mira la
+directiva `script-src` sola, porque `style-src` también lleva `'unsafe-inline'`. Se verificó a
+mano que el test es una red real: vaciando `RUTAS_CACHEADAS`, tres casos se ponen rojos.
+También existe `tests/unit/spreadsheet.test.ts`, que pasa un `.xlsx` armado en el test por
+`spreadsheetToCsvText` (era el único camino sin test con bytes reales).
+
+**Desvío que importa (bloque A, F1).** El swap de `xlsx` al tarball oficial de SheetJS **no se
+pudo hacer**: el proxy de egreso de este entorno niega `cdn.sheetjs.com` con un 403 de
+política, así que ni `pnpm install` lo baja ni se lo puede vendorizar (no hay forma de traer
+los bytes). npm no tiene versión parcheada. Queda `"xlsx": "^0.18.5"` y `pnpm audit` sigue
+listando los dos GHSA. Detalle y las dos salidas posibles en `KNOWN-ISSUES.md`; necesita una
+decisión de Anton (habilitar el host en la política de red del entorno, o correr ese cambio
+desde otra máquina).
+
+**Verde acá:** `pnpm typecheck`, `pnpm lint`, `pnpm build`, y `pnpm test` con
+`TEST_DATABASE_URL` contra MariaDB 10.11 local — 99 archivos, 1091 tests, 1 skip (sandbox
+Pagopar).
+
+**Dónde mirar primero en O2:** `KNOWN-ISSUES.md` (F1 sigue abierto y O1 no está cerrada del
+todo), después `src/domain/messaging/` y `src/app/actions/checkout.ts`.
 
 ## 10. Backlog
 

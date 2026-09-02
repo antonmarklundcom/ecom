@@ -136,7 +136,7 @@ const AdjustSchema = z.object({
   delta: z.number().int().refine((value) => value !== 0, t("adminForm.ajusteCero")),
   // El motivo es obligatorio acá y otra vez en el dominio: este mensaje es
   // para el formulario, el del dominio es la regla real.
-  reason: z.string().trim().min(4, t("adminForm.motivoAjuste")),
+  reason: z.string().trim().min(4, t("adminForm.motivoAjuste")).max(300),
   productId: z.number().int().positive().optional(),
 });
 

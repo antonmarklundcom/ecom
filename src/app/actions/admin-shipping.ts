@@ -34,7 +34,9 @@ import { t } from "@/i18n";
  * precio de flete adentro.
  */
 
-const CitiesSchema = z.array(z.string()).max(400);
+// El largo por ciudad es el de `orders.ship_city` (varchar 120): contra esa columna
+// se comparan después, así que una ciudad más larga nunca podría coincidir.
+const CitiesSchema = z.array(z.string().max(120)).max(400);
 
 const ZoneDataSchema = z.object({
   name: z.string().trim().min(1, t("adminForm.nombreZona")).max(160),

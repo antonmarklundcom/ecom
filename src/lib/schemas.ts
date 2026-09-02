@@ -31,7 +31,9 @@ export const CheckoutInputSchema = z
     items: z.array(CartItemSchema).min(1),
     customerName: z.string().trim().min(1).max(120),
     customerPhone: z.string().regex(/^\+5959\d{8}$/, "Formato +5959XXXXXXXX"),
-    customerEmail: z.email().nullable().optional(),
+    // `.max()` a la medida de la columna (`customer_email varchar(200)`): sin él un
+    // email largo pasa Zod y revienta en el INSERT — 500 en vez de error de validación.
+    customerEmail: z.email().max(200).nullable().optional(),
     docType: DocTypeSchema,
     docNumber: z.string().trim().min(1).max(20),
     isConsumidorFinal: z.boolean(),
@@ -39,7 +41,7 @@ export const CheckoutInputSchema = z
     shipBarrio: z.string().trim().min(1).max(120),
     shipAddress: z.string().trim().min(1).max(255),
     shipReference: z.string().trim().max(255).nullable().optional(),
-    shipMapsUrl: z.url().nullable().optional(),
+    shipMapsUrl: z.url().max(500).nullable().optional(),
     paymentMethod: PaymentMethodSchema,
   })
   .refine(
@@ -67,7 +69,7 @@ export const AdminProductInput = z.object({
   images: z
     .array(
       z.object({
-        cloudinaryId: z.string().trim().min(1),
+        cloudinaryId: z.string().trim().min(1).max(255),
         sortOrder: z.number().int().nonnegative(),
       })
     )
