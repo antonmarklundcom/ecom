@@ -42,6 +42,30 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const PAYMENT_METHODS = ['transferencia', 'contra_entrega', 'tarjeta'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+/**
+ * Cómo llega el pedido a destino (PLAN.md FASE 3, métodos de envío).
+ *
+ * No es cosmética: cada valor tiene una regla distinta en el dominio. Un
+ * `courier` nacional cobra por zona y no está en la puerta para cobrar en
+ * efectivo; una moto `local` sí lo está, y es la única forma honesta de
+ * ofrecer contra entrega en las ciudades donde el comercio realmente reparte;
+ * `retiro` no viaja a ningún lado, así que ignora las zonas y cuesta ₲0
+ * siempre.
+ */
+export const SHIPPING_METHOD_KINDS = ['courier', 'local', 'retiro'] as const;
+export type ShippingMethodKind = (typeof SHIPPING_METHOD_KINDS)[number];
+
+/**
+ * De dónde sale el precio del envío de un método.
+ *
+ * `zona` reusa `shipping_zones` tal cual —incluido su umbral de envío
+ * gratis—, que es lo que ya venía funcionando. `fijo` cobra
+ * `fixed_price_pyg` cualquiera sea la ciudad: es la tarifa plana que cobra
+ * una moto del barrio, y no tiene umbral porque no depende de la distancia.
+ */
+export const SHIPPING_METHOD_PRICINGS = ['zona', 'fijo'] as const;
+export type ShippingMethodPricing = (typeof SHIPPING_METHOD_PRICINGS)[number];
+
 export const PAYMENT_PROVIDERS = ['spi', 'cod', 'pagopar'] as const;
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number];
 
@@ -183,6 +207,22 @@ export const orders = mysqlTable(
     shipReference: varchar('ship_reference', { length: 255 }),
     shipMapsUrl: varchar('ship_maps_url', { length: 500 }),
     shippingZoneId: int('shipping_zone_id'),
+    /**
+     * El método de envío elegido (FASE 3). **Nullable para siempre**, y por
+     * dos motivos distintos: los pedidos anteriores a la tabla no tienen
+     * ninguno, y una tienda que nunca configuró métodos sigue comprando por
+     * el camino implícito de siempre (ver `quoteShippingMethods`).
+     *
+     * Columna suelta con la FK en los extras, igual que `coupon_id`:
+     * `shipping_methods` se declara después en este archivo.
+     */
+    shippingMethodId: int('shipping_method_id'),
+    /**
+     * El nombre del método tal como estaba al comprar. Snapshot, igual que
+     * `coupon_code`: el dueño puede renombrar "Moto Asunción" o borrarlo, y
+     * este pedido tiene que seguir diciendo cómo se entregó.
+     */
+    shippingMethodName: varchar('shipping_method_name', { length: 160 }),
 
     subtotalPyg: pyg('subtotal_pyg').notNull().default(0),
     shippingPyg: pyg('shipping_pyg').notNull().default(0),
@@ -264,6 +304,7 @@ export const orders = mysqlTable(
     unique('orders_number_uq').on(t.orderNumber),
     index('orders_customer_idx').on(t.customerId),
     index('orders_coupon_idx').on(t.couponId),
+    index('orders_shipping_method_idx').on(t.shippingMethodId),
     unique('orders_access_token_uq').on(t.accessToken),
     index('orders_status_created_idx').on(t.status, t.createdAt),
     index('orders_phone_idx').on(t.customerPhone),
@@ -673,6 +714,50 @@ export const shippingZones = mysqlTable(
     position: int('position').notNull().default(0),
   },
   (t) => [unique('shipping_zones_slug_uq').on(t.slug)],
+);
+
+/**
+ * Métodos de envío (FASE 3).
+ *
+ * Antes de esta tabla el envío era **una sola cosa**: la zona de la ciudad.
+ * Un comercio paraguayo típico ofrece a la vez un courier nacional, una moto
+ * propia que cobra al entregar y, a veces, retiro en el local — y "contra
+ * entrega" quedaba habilitado para ciudades donde nadie iba a ir a cobrar en
+ * la puerta. Acá cada forma de entregar es una fila, con **qué medios de pago
+ * habilita**, que es lo que faltaba para que esa promesa no se hiciera sola.
+ *
+ * Tabla vacía = la tienda de siempre: `quoteShippingMethods` devuelve un
+ * único método implícito con el precio de la zona y los tres medios de pago.
+ * Ninguna tienda ya clonada cambia de comportamiento por actualizar.
+ */
+export const shippingMethods = mysqlTable(
+  'shipping_methods',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    slug: varchar('slug', { length: 120 }).notNull(),
+    name: varchar('name', { length: 160 }).notNull(),
+    kind: mysqlEnum('kind', SHIPPING_METHOD_KINDS).notNull().default('courier'),
+    pricing: mysqlEnum('pricing', SHIPPING_METHOD_PRICINGS).notNull().default('zona'),
+    /** Sólo se usa con `pricing = 'fijo'`. NULL con `zona`, que manda la zona. */
+    fixedPricePyg: pyg('fixed_price_pyg'),
+    /**
+     * A qué zonas de `shipping_zones` aplica este método. **Lista vacía =
+     * todas las zonas activas**, que es el default y el caso más común: el
+     * courier nacional llega a todos lados. `retiro` la ignora entera.
+     */
+    zoneIds: json('zone_ids').$type<number[]>().notNull(),
+    /**
+     * Qué medios de pago habilita, subconjunto de `PAYMENT_METHODS`. **Nunca
+     * vacía**: un método que no acepta ninguna forma de pago no se puede
+     * elegir, y una fila así apagaría el checkout sin decir por qué.
+     */
+    allowedPaymentMethods: json('allowed_payment_methods').$type<PaymentMethod[]>().notNull(),
+    /** Una línea para el checkout: "Llega en 24-48 h a todo el país". */
+    description: varchar('description', { length: 200 }),
+    isActive: boolean('is_active').notNull().default(true),
+    position: int('position').notNull().default(0),
+  },
+  (t) => [unique('shipping_methods_slug_uq').on(t.slug)],
 );
 
 /**

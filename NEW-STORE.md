@@ -286,9 +286,10 @@ sin volver a tocar código:
 |---|---|---|
 | Categorías del menú | `/admin/categorias` | Desactivar una **le saca de la vidriera también a sus productos**; la pantalla te dice cuántos antes de confirmar. Cambiar el slug rompe las URLs viejas: no hay redirección. |
 | Zonas de envío | `/admin/envios` | Las del seed son las de Gran Asunción. Una ciudad va en **una sola** zona. La ciudad que no esté en ninguna lista se cobra como la zona activa más cara — conviene tener una zona *Interior* sin ciudades y cara, que haga de comodín. |
+| Formas de entrega | `/admin/envios` (abajo) | Courier, moto propia, retiro en el local — y con cuáles se puede pagar. **Vacío está bien**: sin ninguna, el checkout ofrece "Envío a domicilio" con el precio de la zona y los tres medios de pago, que es cómo funcionó siempre. Ver §4e. |
 | Datos bancarios | `/admin/banco` | A dónde transfieren. Vacío, la página del pedido avisa en vez de inventar una cuenta. Ver §4a. |
 
-Las tres pantallas son owner-only.
+Todas esas pantallas son owner-only.
 
 ### 4a. Los datos bancarios se cargan desde el navegador
 
@@ -424,6 +425,49 @@ entero.
 (`src/lib/money.ts`): cambiar de moneda no es traducir, es tocar el camino del
 dinero. No hay switcher para el visitante ni rutas por idioma — eso sería otra
 fase.
+
+### 4e. Formas de entrega (courier, moto, retiro)
+
+**Esto es opcional y se puede dejar para después.** Una tienda recién clonada
+no tiene ninguna forma de entrega cargada, y así el checkout se comporta
+exactamente como venía: una sola opción implícita, *Envío a domicilio*, con el
+precio de la zona y los tres medios de pago. Todo lo de acá es para el comercio
+que entrega de más de una manera.
+
+Se cargan en `/admin/envios`, debajo de las zonas. Cada forma de entrega tiene:
+
+| Campo | Qué hace |
+|---|---|
+| **Tipo** | `Courier` (empresa que lleva), `Reparto propio` (tu moto) o `Retiro en el local`. Retiro no viaja: no cobra flete ni usa zonas, pongas lo que pongas. |
+| **Cómo se cobra** | *Con el precio de la zona* (y conserva el envío gratis desde el umbral de esa zona) o *Tarifa plana* (lo mismo siempre, sin umbral). |
+| **Zonas donde aplica** | Sin ninguna tildada, aplica a **todas** las zonas activas — el caso del courier nacional. Tildá zonas sólo si esa forma de entrega llega nada más que ahí. |
+| **Medios de pago habilitados** | Al menos uno. Es lo que ve quien compra después de elegir esta entrega. |
+| **Descripción** | Una línea para el checkout: "Llega en 24-48 h a todo el país". |
+
+**El campo que justifica toda la pantalla es el de los medios de pago.** Contra
+entrega sólo tiene sentido donde alguien tuyo va a estar en la puerta para
+cobrar: dejalo tildado en la moto propia y destildalo en el courier. El checkout
+filtra solo, y el servidor rechaza el pedido si alguien fuerza la combinación.
+
+Una configuración típica de un comercio de Asunción que también manda al
+interior:
+
+| Nombre | Tipo | Cómo se cobra | Zonas | Se paga con |
+|---|---|---|---|---|
+| Moto Asunción | Reparto propio | Tarifa plana ₲15.000 | Asunción, Gran Asunción | Transferencia, contra entrega |
+| Courier nacional | Courier | Precio de la zona | (ninguna: todas) | Transferencia, tarjeta |
+| Retiro en el local | Retiro | — | — | Transferencia, contra entrega |
+
+El orden importa: es el que ve quien compra, y el primero es el que se usa si
+el navegador no eligió ninguno. Se cambia con las flechas.
+
+Dos cosas que conviene saber antes de tocar nada:
+
+- **Cambiar o borrar una forma de entrega no toca los pedidos ya hechos.** El
+  flete quedó copiado en el pedido, y también el nombre con el que se entregó.
+- **`pnpm preflight` avisa** si dejaste una forma de entrega prendida cuyas
+  zonas están todas apagadas: está activa, se ve activa, y no le aparece a
+  nadie en el checkout.
 
 ### 5. Diseño
 

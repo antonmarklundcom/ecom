@@ -41,6 +41,8 @@ const TABLES = [
   'products',
   'categories',
   'shipping_zones',
+  // Después de `orders`, que la referencia con FK (shipping_method_id).
+  'shipping_methods',
   // Antes que `users`, que la referencia con FK (updated_by).
   'bank_details',
   'users',

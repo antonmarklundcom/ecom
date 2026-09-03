@@ -8,7 +8,14 @@ import {
   type CouponSnapshot,
 } from "./coupons";
 import type { Executor } from "./executor";
-import { SHIPPING_IVA_RATE, quoteShipping, type ShippingQuote } from "./shipping";
+import {
+  SHIPPING_IVA_RATE,
+  quoteShippingMethods,
+  selectShippingMethod,
+  type ShippingMethodOption,
+  type ShippingMethodRejection,
+  type ShippingQuote,
+} from "./shipping";
 
 /**
  * La cuenta del pedido, en un solo lugar.
@@ -35,6 +42,19 @@ export type AppliedCoupon = {
 export type OrderTotals = {
   cart: PricedCart;
   shipping: ShippingQuote;
+  /**
+   * Los métodos de envío válidos para esta ciudad, ya cotizados (FASE 3). En
+   * una tienda sin métodos configurados es uno solo, el implícito.
+   */
+  shippingMethods: ShippingMethodOption[];
+  /** El elegido, del que sale `shippingPyg`. `null` sólo si hubo rechazo. */
+  shippingMethod: ShippingMethodOption | null;
+  /**
+   * Por qué **no** se pudo usar el método pedido. `createOrder` lo convierte
+   * en un error del dominio antes de cobrar nada; la cotización pública lo
+   * muestra en pantalla.
+   */
+  shippingMethodRejection: ShippingMethodRejection | null;
   subtotalPyg: number;
   /** Lo que descuenta el cupón. 0 cuando no hay ninguno — el caso normal. */
   discountPyg: number;
@@ -64,6 +84,12 @@ export async function computeOrderTotals(
     /** Para `solo_clientes` y para el tope de usos por persona. */
     customerId?: number | null;
     customerPhone?: string | null;
+    /**
+     * El **id** del método de envío que eligió, nunca su precio (FASE 3). Sin
+     * id se toma el primero válido, que en una tienda sin métodos
+     * configurados es el implícito de siempre.
+     */
+    shippingMethodId?: number | null;
   } = {}
 ): Promise<OrderTotals> {
   // 1. Precio, IVA y stock salen de la DB; el navegador sólo dijo qué y cuánto.
@@ -107,8 +133,27 @@ export async function computeOrderTotals(
   //    bajara el subtotal por debajo del umbral, un cupón le sacaría el envío
   //    gratis que la compradora ya tenía en pantalla. Un cupón nunca puede
   //    empeorar el total.
-  const shipping = await quoteShipping(shipCity, subtotalPyg, options.executor);
-  const shippingPyg = assertGs(shipping.shippingPyg, "shipping_pyg");
+  //
+  //    Desde la FASE 3 el número final lo decide el **método** elegido: una
+  //    moto con tarifa plana cobra lo suyo aunque la zona diga otra cosa, y el
+  //    retiro en local cuesta ₲0. Con `shipping_methods` vacía —el estado de
+  //    toda tienda ya clonada— la única opción es el método implícito, que
+  //    cobra exactamente la zona: la cuenta de siempre, sin cambiar una línea.
+  const { zone: shipping, methods: shippingMethods } = await quoteShippingMethods(
+    shipCity,
+    subtotalPyg,
+    options.executor,
+  );
+  const selection = selectShippingMethod(shippingMethods, options.shippingMethodId ?? null);
+  const shippingMethod = selection.ok ? selection.method : null;
+  const shippingMethodRejection = selection.ok ? null : selection.reason;
+
+  // Con rechazo no hay precio que afirmar: se deja el de la zona **sólo para
+  // dibujar** y `createOrder` tira antes de escribir nada (ver más abajo).
+  const shippingPyg = assertGs(
+    shippingMethod ? shippingMethod.shippingPyg : shipping.shippingPyg,
+    "shipping_pyg",
+  );
 
   const totalPyg = assertGs(subtotalPyg - discountPyg + shippingPyg, "total_pyg");
 
@@ -132,6 +177,9 @@ export async function computeOrderTotals(
   return {
     cart,
     shipping,
+    shippingMethods,
+    shippingMethod,
+    shippingMethodRejection,
     subtotalPyg,
     discountPyg,
     shippingPyg,

@@ -27,6 +27,18 @@ export const COMPRADOR = {
 export async function realizarCompra(
   page: Page
 ): Promise<{ orderNumber: string; url: string }> {
+  await completarCheckout(page);
+  return confirmarPedido(page);
+}
+
+/**
+ * Home → categoría → producto → carrito → checkout, con los datos de la
+ * compradora ya cargados y el total en pantalla. Separado de `realizarCompra`
+ * porque hay specs que necesitan tocar algo **antes** de confirmar —elegir una
+ * forma de entrega, por ejemplo— y repetir estos veinte pasos en cada uno los
+ * deja desincronizados a la primera que alguien renombre un campo.
+ */
+export async function completarCheckout(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByRole("link", { name: "Electrónica" }).first().click();
   await expect(page).toHaveURL(/\/categoria\/electronica/);
@@ -55,8 +67,15 @@ export async function realizarCompra(
   await expect(page.getByText("Total", { exact: true })).toBeVisible({
     timeout: 5000,
   });
+}
 
-  // Transferencia ya viene marcada por defecto — no hace falta tocarla.
+/**
+ * Apretar "Confirmar pedido" y esperar la página del pedido. Devuelve el
+ * número y la URL tal como quedan después del `router.push`.
+ */
+export async function confirmarPedido(
+  page: Page
+): Promise<{ orderNumber: string; url: string }> {
   await page.getByRole("button", { name: "Confirmar pedido" }).click();
 
   await page.waitForURL(/\/pedido\/PY-[^/?]+\?t=/, { timeout: 15_000 });

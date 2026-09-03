@@ -423,6 +423,62 @@ Docker que usó S3: `apt install mariadb-server`, credenciales de `docker-compos
 
 **Fin de las cuatro fases — STOP.** Ver reporte de cierre a Anton después del merge de este PR.
 
+### 2026-09-03 · Métodos de envío — courier, local y retiro
+
+Fase fuera de las cuatro del plan (pedido posterior de Anton), branch `phase/shipping-methods`
+desde `main` con S4 ya mergeada (PR #79).
+
+**Qué existe ahora.** Tabla `shipping_methods` (`kind` `courier|local|retiro`, `pricing`
+`zona|fijo` + `fixed_price_pyg`, `zone_ids` JSON, `allowed_payment_methods` JSON,
+`description`, `is_active`, `position`) y dos columnas nuevas en `orders`:
+`shipping_method_id` (nullable, FK `ON DELETE SET NULL` aplicada en `src/db/extras.ts` como
+las de cupón y cliente) y `shipping_method_name` como snapshot. Migración
+`drizzle/0011_amazing_domino.sql`, generada y commiteada.
+
+En el dominio, `src/domain/shipping.ts` gana `resolveShippingMethods()` —**pura**, sin DB, que
+es donde viven las reglas— más `quoteShippingMethods()` y `selectShippingMethod()`.
+`computeOrderTotals` acepta `shippingMethodId` y devuelve la lista de métodos válidos, el
+elegido y el rechazo si lo hubo; `createOrder` lo re-valida adentro de su transacción y
+re-cotiza el precio, con dos errores de dominio nuevos (`ShippingMethodRejectedError`,
+`PaymentMethodNotAllowedError`) en vez de un 500. ABM en
+`src/domain/admin-shipping-methods.ts` + cuatro acciones owner-only en
+`src/app/actions/admin-shipping.ts`, dibujadas por `ShippingMethodsManager` en la mitad de
+abajo de `/admin/envios`. El checkout muestra los métodos como radio después de la ciudad y
+filtra los medios de pago al elegir uno. El método sale además en el aviso de pedido nuevo al
+comercio y en la ficha de `/admin/pedidos/[id]`.
+
+**Decisiones que la próxima sesión no debería reabrir.** (1) **La tabla vacía es el estado de
+toda tienda ya clonada**, no un caso borde: sin filas hay un único método implícito
+(`id: null`, "Envío a domicilio") con el precio de la zona y los tres medios de pago, y el
+checkout ni siquiera dibuja la pregunta nueva. Es lo que hace que actualizar no cambie nada en
+una tienda que ya vende. (2) Un método con zonas declaradas aplica sólo si la ciudad matcheó
+**exacto**: la que cae en "la más cara" por descarte no está en ninguna lista, y ofrecerle
+contra entrega ahí es prometer una visita que nadie va a hacer. (3) Sin método elegido se toma
+**el primero por `position`**, nunca "el que acepte el medio de pago que mandó": el precio del
+envío no puede depender de cómo se paga. (4) `retiro` se normaliza en el ABM (₲0, sin zonas,
+sin tarifa) en vez de pedirle coherencia al formulario. (5) **No hay** regla de "el último
+activo" como en zonas: quedarse sin métodos vuelve al implícito y no regala flete. (6)
+`pnpm preflight` sigue siendo env-only en el reporte que decide el código de salida; el control
+de métodos huérfanos se imprime **aparte, después**, es el único que lee la base y nunca
+bloquea.
+
+**Tests.** `tests/unit/shipping-methods.test.ts` (26 casos, sin DB: precio por tipo,
+aplicabilidad por zona, medios de pago, selección y el aviso de preflight),
+`tests/integration/shipping-methods.test.ts` (20 casos contra MySQL: tienda sin métodos,
+tarifa plana, retiro en ₲0, método inválido, pago no permitido, precio manipulado —que sale
+como `TotalChangedError`—, y el ABM) y un caso Playwright en `tests/e2e/compra.spec.ts` que
+elige la moto local y verifica que transferencia desaparece y contra entrega queda marcada
+sola. `tests/e2e/helpers.ts` se partió en `completarCheckout` + `confirmarPedido` para eso.
+
+**Verde acá:** `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test` (104 archivos, 1156
+tests, 1 skip) y `pnpm exec playwright test` (7/7), todos contra MariaDB 10.11 local — mismo
+setup sin Docker que usaron S3 y S4, con `PLAYWRIGHT_CHROMIUM_EXECUTABLE` apuntando al
+Chromium del entorno. `pnpm db:generate` sin drift.
+
+**Para adoptarlo en una tienda ya clonada:** `pnpm template:diff`, cherry-pick de este commit
+(es maquinaria: dominio + schema + migración) y después configurar las formas de entrega desde
+`/admin/envios`. Sin configurar nada, la tienda se comporta exactamente como antes.
+
 ## 10. Backlog
 
 - Vulnerabilidad transitiva de `pnpm audit`: `esbuild` vía `drizzle-kit` (sólo dev, no hay

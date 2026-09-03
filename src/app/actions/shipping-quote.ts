@@ -6,7 +6,11 @@ import { z } from "zod";
 import { freeShippingForZone, type FreeShippingProgress } from "@/domain/free-shipping";
 import type { CouponRejection } from "@/domain/coupons";
 import { computeOrderTotals } from "@/domain/order-totals";
-import type { ShippingQuote } from "@/domain/shipping";
+import type {
+  ShippingMethodOption,
+  ShippingMethodRejection,
+  ShippingQuote,
+} from "@/domain/shipping";
 import type { CartIssue } from "@/lib/cart-issues";
 import { currentCustomer } from "@/lib/customer-session";
 import { QUOTE_LIMIT, QUOTE_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-limit";
@@ -51,6 +55,11 @@ const QuoteInputSchema = z.object({
    * aritmética de dinero (ver el punto 2 de arriba).
    */
   couponCode: z.string().trim().max(40).optional(),
+  /**
+   * El método de envío que tiene marcado, si ya marcó alguno. Es el id, no el
+   * precio: el precio lo resuelve el servidor contra `shipping_methods`.
+   */
+  shippingMethodId: z.number().int().positive().optional(),
 });
 
 export type ShippingQuoteView = {
@@ -59,6 +68,16 @@ export type ShippingQuoteView = {
   isFree: boolean;
   /** Ver `ShippingQuote.match`: la pantalla dice algo distinto en cada caso. */
   match: ShippingQuote["match"];
+};
+
+/** Un método de envío tal como lo dibuja el checkout. */
+export type ShippingMethodView = {
+  id: number | null;
+  name: string;
+  description: string | null;
+  shippingPyg: number;
+  isFree: boolean;
+  allowedPaymentMethods: ShippingMethodOption["allowedPaymentMethods"];
 };
 
 export type CartQuote = {
@@ -76,6 +95,16 @@ export type CartQuote = {
   couponRejection: CouponRejection | null;
   /** El mínimo del cupón, para poder decir cuánto le falta. */
   couponMinOrderPyg: number | null;
+  /**
+   * Los métodos de envío válidos para esta ciudad, con el precio ya resuelto
+   * (FASE 3). En una tienda sin métodos configurados viene uno solo, con
+   * `id: null`: es el implícito, y el checkout no dibuja nada nuevo.
+   */
+  methods: ShippingMethodView[];
+  /** El que quedó elegido —el pedido, o el primero válido—, para marcarlo. */
+  shippingMethodId: number | null;
+  /** Por qué el que mandó no sirve. La pantalla lo traduce a una frase. */
+  shippingMethodRejection: ShippingMethodRejection | null;
 };
 
 const EMPTY_QUOTE: CartQuote = {
@@ -88,6 +117,9 @@ const EMPTY_QUOTE: CartQuote = {
   couponCode: null,
   couponRejection: null,
   couponMinOrderPyg: null,
+  methods: [],
+  shippingMethodId: null,
+  shippingMethodRejection: null,
 };
 
 export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
@@ -114,6 +146,7 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
   const customer = await currentCustomer();
 
   const totals = await computeOrderTotals(parsed.data.items, city, {
+    shippingMethodId: parsed.data.shippingMethodId ?? null,
     couponCode: parsed.data.couponCode || null,
     customerId: customer?.customerId ?? null,
     customerPhone: customer?.phone ?? null,
@@ -125,7 +158,10 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
     shipping: {
       zoneName: totals.shipping.zoneName,
       shippingPyg: totals.shippingPyg,
-      isFree: totals.shipping.isFree,
+      // Del **método**, no de la zona: con retiro en local o una tarifa plana
+      // de ₲0 el envío es gratis aunque la zona cobre, y la línea del total
+      // tiene que decir lo mismo que el número que está al lado.
+      isFree: totals.shippingMethod?.isFree ?? totals.shipping.isFree,
       match: totals.shipping.match,
     },
     freeShipping: freeShippingForZone(totals.shipping, totals.subtotalPyg),
@@ -134,5 +170,15 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
     couponCode: totals.coupon?.coupon.code ?? null,
     couponRejection: totals.couponRejection,
     couponMinOrderPyg: totals.couponMinOrderPyg,
+    methods: totals.shippingMethods.map((method) => ({
+      id: method.id,
+      name: method.name,
+      description: method.description,
+      shippingPyg: method.shippingPyg,
+      isFree: method.isFree,
+      allowedPaymentMethods: method.allowedPaymentMethods,
+    })),
+    shippingMethodId: totals.shippingMethod?.id ?? null,
+    shippingMethodRejection: totals.shippingMethodRejection,
   };
 }

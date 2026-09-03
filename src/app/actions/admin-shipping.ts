@@ -11,6 +11,18 @@ import {
   updateShippingZone,
 } from "@/domain/admin-shipping";
 import {
+  AdminShippingMethodError,
+  createShippingMethod,
+  moveShippingMethod,
+  setShippingMethodActive,
+  updateShippingMethod,
+} from "@/domain/admin-shipping-methods";
+import {
+  PAYMENT_METHODS,
+  SHIPPING_METHOD_KINDS,
+  SHIPPING_METHOD_PRICINGS,
+} from "@/db/schema";
+import {
   adminActionError,
   requireOwnerSession,
   type AdminActionResult,
@@ -152,5 +164,145 @@ export async function moverZonaEnvio(input: unknown): Promise<AdminActionResult>
   } catch (error) {
     if (error instanceof AdminShippingError) return { ok: false, error: error.message };
     return adminActionError("moverZonaEnvio", error);
+  }
+}
+
+/**
+ * ABM de **métodos de envío** (FASE 3). Misma pantalla, mismo guard, mismo
+ * motivo: courier, moto propia y retiro son formas de entregar, y cada una
+ * decide con qué se puede pagar. Equivocarse acá no rompe nada visible —
+ * habilita contra entrega donde nadie va a ir a cobrar, o cobra la tarifa
+ * equivocada— así que es owner, como las zonas.
+ *
+ * Los bordes de largo van a la medida de la columna; el resto de las reglas
+ * (retiro sin zonas ni precio, precio fijo obligatorio, medios de pago no
+ * vacíos, zonas existentes) vive en `src/domain/admin-shipping-methods.ts`,
+ * adentro de la transacción.
+ */
+const MethodDataSchema = z.object({
+  name: z.string().trim().min(1, t("adminForm.nombreMetodo")).max(160),
+  slug: z.string().trim().max(120).optional(),
+  kind: z.enum(SHIPPING_METHOD_KINDS),
+  pricing: z.enum(SHIPPING_METHOD_PRICINGS),
+  /** `null` = este método no cobra tarifa plana (la cobra la zona). */
+  fixedPricePyg: z.number().int(t("adminForm.precioEntero")).min(0).nullable(),
+  /** Vacío = todas las zonas activas. El largo es un tope defensivo. */
+  zoneIds: z.array(z.number().int().positive()).max(200),
+  allowedPaymentMethods: z.array(z.enum(PAYMENT_METHODS)).min(1, t("adminForm.pagosMetodo")),
+  // El largo de `shipping_methods.description`.
+  description: z.string().trim().max(200).optional(),
+});
+
+export async function crearMetodoEnvio(input: unknown): Promise<AdminActionResult<{ id: number }>> {
+  try {
+    await requireOwnerSession();
+
+    const parsed = MethodDataSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
+    }
+
+    const created = await createShippingMethod({
+      name: parsed.data.name,
+      slug: parsed.data.slug || null,
+      kind: parsed.data.kind,
+      pricing: parsed.data.pricing,
+      fixedPricePyg: parsed.data.fixedPricePyg,
+      zoneIds: parsed.data.zoneIds,
+      allowedPaymentMethods: parsed.data.allowedPaymentMethods,
+      description: parsed.data.description || null,
+    });
+
+    revalidatePath("/admin/envios");
+    return { ok: true, id: created.id };
+  } catch (error) {
+    if (error instanceof AdminShippingMethodError) return { ok: false, error: error.message };
+    return adminActionError("crearMetodoEnvio", error);
+  }
+}
+
+const UpdateMethodSchema = z.object({
+  methodId: z.number().int().positive(),
+  data: MethodDataSchema,
+});
+
+export async function editarMetodoEnvio(input: unknown): Promise<AdminActionResult> {
+  try {
+    await requireOwnerSession();
+
+    const parsed = UpdateMethodSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
+    }
+
+    await updateShippingMethod({
+      methodId: parsed.data.methodId,
+      data: {
+        name: parsed.data.data.name,
+        slug: parsed.data.data.slug || null,
+        kind: parsed.data.data.kind,
+        pricing: parsed.data.data.pricing,
+        fixedPricePyg: parsed.data.data.fixedPricePyg,
+        zoneIds: parsed.data.data.zoneIds,
+        allowedPaymentMethods: parsed.data.data.allowedPaymentMethods,
+        description: parsed.data.data.description || null,
+      },
+    });
+
+    revalidatePath("/admin/envios");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AdminShippingMethodError) return { ok: false, error: error.message };
+    return adminActionError("editarMetodoEnvio", error);
+  }
+}
+
+const ActiveMethodSchema = z.object({
+  methodId: z.number().int().positive(),
+  isActive: z.boolean(),
+});
+
+export async function cambiarEstadoMetodoEnvio(input: unknown): Promise<AdminActionResult> {
+  try {
+    await requireOwnerSession();
+
+    const parsed = ActiveMethodSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.metodo") };
+
+    await setShippingMethodActive({
+      methodId: parsed.data.methodId,
+      isActive: parsed.data.isActive,
+    });
+
+    revalidatePath("/admin/envios");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AdminShippingMethodError) return { ok: false, error: error.message };
+    return adminActionError("cambiarEstadoMetodoEnvio", error);
+  }
+}
+
+const MoveMethodSchema = z.object({
+  methodId: z.number().int().positive(),
+  direction: z.enum(["up", "down"]),
+});
+
+export async function moverMetodoEnvio(input: unknown): Promise<AdminActionResult> {
+  try {
+    await requireOwnerSession();
+
+    const parsed = MoveMethodSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.mover") };
+
+    await moveShippingMethod({
+      methodId: parsed.data.methodId,
+      direction: parsed.data.direction,
+    });
+
+    revalidatePath("/admin/envios");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AdminShippingMethodError) return { ok: false, error: error.message };
+    return adminActionError("moverMetodoEnvio", error);
   }
 }

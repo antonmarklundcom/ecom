@@ -9,6 +9,7 @@ import {
   type DocType,
   type PaymentMethod,
 } from "@/db/schema";
+import { t } from "@/i18n";
 import { formatGs } from "@/lib/money";
 import { normalizePhonePY, validateDoc } from "@/lib/py";
 
@@ -17,6 +18,7 @@ import { lockCouponForUse, type CouponRejection } from "./coupons";
 import { recordOrderEvent } from "./order-events";
 import { nextOrderNumber } from "./order-number";
 import { computeOrderTotals } from "./order-totals";
+import type { ShippingMethodRejection } from "./shipping";
 import { RESERVATION_TTL_MINUTES, reserveStock } from "./stock";
 import type { MessageKey, Params } from "@/i18n";
 import type { CartIssue } from "@/lib/cart-issues";
@@ -49,6 +51,16 @@ export type CreateOrderInput = {
   shipReference?: string | null;
   shipMapsUrl?: string | null;
   paymentMethod: PaymentMethod;
+  /**
+   * El **id** del método de envío que eligió (FASE 3). Nunca su precio: acá
+   * se re-cotiza contra la DB adentro de la transacción, igual que el resto
+   * de la plata.
+   *
+   * `undefined`/`null` = el navegador no eligió ninguno (un checkout viejo, o
+   * una tienda sin métodos configurados): se toma el primero válido, que en
+   * esa tienda es el implícito de siempre.
+   */
+  shippingMethodId?: number | null;
   /**
    * La cuenta que hizo el pedido, si había sesión de cliente abierta (PR E).
    *
@@ -147,6 +159,50 @@ export class CouponRejectedError extends CheckoutError {
   }
 }
 
+/**
+ * El método de envío que eligió no se puede usar.
+ *
+ * Se venció el rato que estuvo en pantalla y el dueño lo desactivó, cambió las
+ * zonas a las que aplica, o directamente la ciudad que terminó poniendo no
+ * tiene ninguna forma de entrega configurada. En todos los casos el pedido
+ * **no** se crea: cobrarle un flete que no corresponde al modo en que se le va
+ * a entregar es peor que hacerle elegir de nuevo.
+ *
+ * No es un 500: es una decisión del dominio con su mensaje, igual que el cupón
+ * caído.
+ */
+export class ShippingMethodRejectedError extends CheckoutError {
+  constructor(readonly reason: ShippingMethodRejection) {
+    super(
+      reason === "sin_metodos"
+        ? "error.checkout.sinMetodoEnvio"
+        : "error.checkout.metodoEnvioCaido",
+    );
+    this.name = "ShippingMethodRejectedError";
+  }
+}
+
+/**
+ * El método de envío elegido no acepta ese medio de pago.
+ *
+ * Es la regla que da sentido a toda la tabla: "contra entrega" sólo existe
+ * donde alguien del comercio va a estar en la puerta para cobrar. El checkout
+ * ya filtra los medios de pago al elegir el método, así que llegar acá
+ * significa un POST armado a mano o una configuración que cambió mientras
+ * completaba el formulario — y las dos terminan igual, sin pedido.
+ */
+export class PaymentMethodNotAllowedError extends CheckoutError {
+  constructor(
+    readonly methodName: string,
+    readonly paymentMethod: PaymentMethod,
+  ) {
+    super("error.checkout.pagoNoPermitido", {
+      params: { envio: methodName, pago: t(`metodo.${paymentMethod}`) },
+    });
+    this.name = "PaymentMethodNotAllowedError";
+  }
+}
+
 /** 32 bytes de aleatoriedad: el link de WhatsApp es la única llave del pedido. */
 function mintAccessToken(): string {
   return randomBytes(32).toString("hex");
@@ -178,6 +234,8 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
     const {
       cart,
       shipping,
+      shippingMethod,
+      shippingMethodRejection,
       subtotalPyg,
       discountPyg,
       shippingPyg,
@@ -188,6 +246,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       couponRejection,
     } = await computeOrderTotals(input.items, input.shipCity, {
       executor: tx,
+      shippingMethodId: input.shippingMethodId ?? null,
       couponCode: input.couponCode ?? null,
       customerId: input.customerId ?? null,
       customerPhone: phone,
@@ -198,6 +257,19 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
     // vuelve a confirmar, igual que con un cambio de total.
     if (couponRejection) {
       throw new CouponRejectedError(couponRejection);
+    }
+
+    // 1.b. El método de envío, re-validado acá adentro y no en el formulario
+    //      (FASE 3). Lo que llegó del navegador es un **id**; que ese id siga
+    //      activo, que aplique a la ciudad que finalmente puso y que acepte el
+    //      medio de pago que eligió se decide contra la DB, en esta
+    //      transacción. El precio ya salió de la misma consulta: el número que
+    //      la compradora tenía en pantalla no participa del cobro.
+    if (shippingMethodRejection !== null || shippingMethod === null) {
+      throw new ShippingMethodRejectedError(shippingMethodRejection ?? "sin_metodos");
+    }
+    if (!shippingMethod.allowedPaymentMethods.includes(input.paymentMethod)) {
+      throw new PaymentMethodNotAllowedError(shippingMethod.name, input.paymentMethod);
     }
 
     const blocking = cart.issues.filter((issue) => issue.type !== "precio_cambio");
@@ -257,6 +329,11 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       shipReference: input.shipReference?.trim() || null,
       shipMapsUrl: input.shipMapsUrl?.trim() || null,
       shippingZoneId: shipping.zoneId,
+      shippingMethodId: shippingMethod.id,
+      // Snapshot del nombre, como el código del cupón: si mañana el dueño
+      // borra "Moto Asunción", este pedido tiene que seguir diciendo cómo se
+      // entregó.
+      shippingMethodName: shippingMethod.name,
       subtotalPyg,
       shippingPyg,
       totalPyg,
@@ -319,7 +396,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
         orderId,
         status: "pendiente_pago",
         actor: "buyer",
-        reason: `pedido creado (${input.paymentMethod})`,
+        reason: `pedido creado (${input.paymentMethod}, ${shippingMethod.name})`,
       },
       { executor: tx },
     );
