@@ -48,4 +48,8 @@ NEW-STORE.md §5 y `src/lib/testids.ts`.
 
 Corré `pnpm template:diff` de vez en cuando para ver qué arreglos de
 `antonmarklundcom/ecom` le faltan a esta tienda (requiere el remoto
-`template`, ver NEW-STORE.md). No cherry-pickees piel que ya rediseñaste.
+`template`, ver NEW-STORE.md). Para traerlos, `pnpm template:sync` —en una
+rama, nunca en `main`— automatiza el cherry-pick de la maquinaria y los
+conflictos de siempre (`fable/`, el lockfile, los workflows de CI); para en
+seco ante cualquier otro conflicto. Ver NEW-STORE.md § "Arreglos que aparecen
+después". No cherry-pickees piel que ya rediseñaste.
