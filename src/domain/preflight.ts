@@ -75,6 +75,9 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkCloudinary(env),
     checkWhatsApp(env),
     checkAvisoPedidoNuevo(env),
+    checkAvisoCliente(env, "confirmado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO"),
+    checkAvisoCliente(env, "pagado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO"),
+    checkAvisoCliente(env, "enviado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"),
     checkDatabaseUrl(env),
     checkSiteUrl(env),
   ];
@@ -551,6 +554,56 @@ function checkAvisoPedidoNuevo(env: PreflightEnv): PreflightCheck {
     id: "aviso_pedido_nuevo",
     severity: "ok",
     title: "Aviso de pedido nuevo",
+    detail: "configurado",
+  };
+}
+
+/**
+ * Los tres avisos a la COMPRADORA (fase O3): confirmado, pagado, enviado.
+ *
+ * Advierte, no bloquea — igual que el aviso al comercio: cada uno es una
+ * decisión aparte de la tienda, y no tenerlos configurados no le impide
+ * vender. A diferencia del aviso al comercio, acá no hay `WHATSAPP_NUMBER`
+ * que chequear: el destino es el WhatsApp de cada compradora, que ya está en
+ * su pedido.
+ */
+function checkAvisoCliente(
+  env: PreflightEnv,
+  id: "confirmado" | "pagado" | "enviado",
+  templateVar: string,
+): PreflightCheck {
+  const template = value(env, templateVar);
+  const cloudListo =
+    value(env, "WHATSAPP_CLOUD_PHONE_NUMBER_ID") !== "" &&
+    value(env, "WHATSAPP_CLOUD_ACCESS_TOKEN") !== "";
+
+  const titulo = `Aviso a la compradora: ${id}`;
+
+  if (template === "") {
+    return {
+      id: `aviso_cliente_${id}`,
+      severity: "advierte",
+      title: titulo,
+      detail: `${templateVar} vacío: la compradora no recibe este aviso. Sin plantilla no sale ` +
+        "ni por la consola de dev — es una decisión de esta tienda, no un default",
+    };
+  }
+
+  if (!cloudListo) {
+    return {
+      id: `aviso_cliente_${id}`,
+      severity: "advierte",
+      title: titulo,
+      detail:
+        `${templateVar} está cargado pero faltan las credenciales de WhatsApp Cloud: fuera de ` +
+        "producción sale por la consola del servidor, en producción no sale",
+    };
+  }
+
+  return {
+    id: `aviso_cliente_${id}`,
+    severity: "ok",
+    title: titulo,
     detail: "configurado",
   };
 }

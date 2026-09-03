@@ -8,6 +8,7 @@ import { formatGs } from "@/lib/money";
 import { siteOrigin } from "@/lib/site-url";
 
 import { resolveMessageSender, whatsappOwnerTemplate, type MessageSender } from "./messaging";
+import { motivoDeAviso, withTimeout } from "./notify-timing";
 import { recordOrderEvent } from "./order-events";
 
 /**
@@ -119,21 +120,6 @@ export function newOrderNoticeBody(notice: NewOrderNotice): string {
   return lineas.join("\n");
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`el envío pasó de ${ms} ms`)), ms).unref?.(),
-    ),
-  ]);
-}
-
-/** Motivo corto para `order_events.reason`: sin stack, sin número de nadie. */
-function motivo(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  return raw.replace(/\s+/g, " ").trim().slice(0, 120);
-}
-
 /**
  * Le avisa al comercio del pedido `orderId`. **No tira nunca.**
  *
@@ -192,7 +178,7 @@ export async function notifyOwnerNewOrder(
         orderId,
         status: order.status,
         actor: "sistema",
-        reason: `aviso_dueno_fallido: ${motivo(error)}`.slice(0, 500),
+        reason: `aviso_dueno_fallido: ${motivoDeAviso(error)}`.slice(0, 500),
       });
     }
   } catch (error) {
