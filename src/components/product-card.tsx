@@ -5,6 +5,7 @@ import { ProductImage } from "@/components/product-image";
 import { StockBadge } from "@/components/stock-badge";
 import type { CatalogProduct } from "@/db/queries";
 import { t } from "@/i18n";
+import { TESTIDS } from "@/lib/testids";
 
 export function ProductCard({
   product,
@@ -26,6 +27,8 @@ export function ProductCard({
   return (
     <Link
       href={`/producto/${product.slug}`}
+      data-testid={TESTIDS.productCard}
+      data-slug={product.slug}
       className="group border-border hover:border-foreground/20 focus-visible:ring-ring flex flex-col rounded-xl border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none"
     >
       <ProductImage

@@ -16,6 +16,7 @@ import { comercioWaLink, getDatosBancarios } from "@/lib/comercio";
 import { formatGs, formatGsPlain } from "@/lib/money";
 import { ORDER_STATUS_LABEL_COMPRADOR } from "@/lib/order-labels";
 import { formatDateTimePY } from "@/lib/py";
+import { TESTIDS } from "@/lib/testids";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,12 @@ export default async function OrderPage({
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
       <p className="text-muted-foreground text-sm">{t("pedido.etiqueta")}</p>
-      <h1 className="text-2xl font-semibold tracking-tight">{order.orderNumber}</h1>
+      <h1
+        className="text-2xl font-semibold tracking-tight"
+        data-testid={TESTIDS.orderConfirmationNumber}
+      >
+        {order.orderNumber}
+      </h1>
       <p className="mt-1 text-sm">
         {t("pedido.estado")} <strong>{ORDER_STATUS_LABEL_COMPRADOR[order.status]}</strong>
       </p>

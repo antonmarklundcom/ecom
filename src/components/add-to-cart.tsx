@@ -9,6 +9,7 @@ import { PriceTag } from "@/components/price-tag";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-store";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
+import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
 import type { CatalogProductDetail } from "@/db/queries";
 import { t } from "@/i18n";
@@ -103,6 +104,7 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
         <Button
           size="lg"
           disabled={!canAdd}
+          data-testid={TESTIDS.productAddToCart}
           onClick={() => {
             if (!selected) return;
             rememberVariant(product.slug, selected.id);

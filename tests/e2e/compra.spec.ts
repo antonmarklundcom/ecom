@@ -5,7 +5,14 @@ import "../../src/lib/load-env";
 import { closePool, getDb } from "../../src/db";
 import { orders, shippingMethods, shippingZones } from "../../src/db/schema";
 
-import { completarCheckout, confirmarPedido, realizarCompra } from "./helpers";
+import {
+  completarCheckout,
+  confirmarPedido,
+  paymentMethodRadio,
+  realizarCompra,
+  shippingMethodRadio,
+} from "./helpers";
+import { TESTIDS } from "./testids";
 
 /**
  * El camino completo de una compradora: home → categoría → producto →
@@ -23,7 +30,7 @@ test("compra de invitado con transferencia llega a la página del pedido", async
   expect(orderNumber).toMatch(/^PY-/);
   await expect(page).toHaveURL(url);
 
-  await expect(page.getByRole("heading", { name: orderNumber })).toBeVisible();
+  await expect(page.getByTestId(TESTIDS.orderConfirmationNumber)).toHaveText(orderNumber);
   await expect(page.getByText("Pagá por transferencia o QR")).toBeVisible();
 
   const datosBancarios = page.getByText("Banco", { exact: true });
@@ -114,14 +121,14 @@ test.describe("con formas de entrega configuradas", () => {
 
     // El courier viene preseleccionado (es el primero) y sólo ofrece
     // transferencia.
-    await expect(page.getByRole("radio", { name: /Transferencia/ })).toBeVisible();
+    await expect(paymentMethodRadio(page, "transferencia")).toBeVisible();
 
-    await page.getByRole("radio", { name: /Moto del barrio E2E/ }).check();
+    await shippingMethodRadio(page, SLUGS_E2E[1]!).check();
 
     // Al elegir la moto, transferencia deja de existir y contra entrega queda
     // marcada sola: es el filtrado que da sentido a toda la tabla.
-    await expect(page.getByRole("radio", { name: /Contra entrega/ })).toBeChecked();
-    await expect(page.getByRole("radio", { name: /Transferencia/ })).toHaveCount(0);
+    await expect(paymentMethodRadio(page, "contra_entrega")).toBeChecked();
+    await expect(paymentMethodRadio(page, "transferencia")).toHaveCount(0);
 
     // Y el flete pasa a ser la tarifa plana de la moto, no el de la zona.
     await expect(page.getByText("₲ 15.000").first()).toBeVisible({ timeout: 5000 });
@@ -129,7 +136,7 @@ test.describe("con formas de entrega configuradas", () => {
     const { orderNumber } = await confirmarPedido(page);
     expect(orderNumber).toMatch(/^PY-/);
 
-    await expect(page.getByRole("heading", { name: orderNumber })).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.orderConfirmationNumber)).toHaveText(orderNumber);
     // Contra entrega no muestra el bloque de transferencia: se paga al recibir.
     await expect(page.getByText("Pagá por transferencia o QR")).toHaveCount(0);
   });

@@ -479,6 +479,79 @@ Chromium del entorno. `pnpm db:generate` sin drift.
 (es maquinaria: dominio + schema + migración) y después configurar las formas de entrega desde
 `/admin/envios`. Sin configurar nada, la tienda se comporta exactamente como antes.
 
+### 2026-09-03 · E2E tolerantes a la piel — contrato de `data-testid`
+
+Fase fuera de las cuatro del plan (pedido posterior de Anton, S3/ecom#77), branch
+`phase/e2e-testids` desde `main` con S4 y "Métodos de envío" ya mergeadas.
+
+**El problema.** Los specs de S3 localizaban por texto y markup del seed —nombre de categoría
+("Electrónica"), slug de producto demo ("auriculares-bluetooth-tws"), botones por accessible
+name—, así que al sincronizar la maquinaria una tienda que ya rediseñó su piel rompe los tests
+(pasó en `antonmarklundcom/lenceria` PR #29: 4 tests rojos por selectores del catálogo demo).
+Cada tienda termina parcheando los tests localmente, lo que genera conflictos en la siguiente
+sincronización.
+
+**Qué existe ahora.** `src/lib/testids.ts` —un objeto `TESTIDS` con ~20 constantes, documentado
+inline— es la única fuente de verdad del contrato; `tests/e2e/testids.ts` lo re-exporta para que
+los specs lo importen corto. Los ids cubren exactamente lo que los tres specs de S3 tocan:
+navegación (`header-category-link`, `product-card` con `data-slug`, `header-cart-link`,
+`product-add-to-cart`, `cart-checkout-link`), checkout (`checkout-name/phone/doc-type/doc-number/
+city/address`, `checkout-shipping-method` con `data-slug` del método, `checkout-payment-method`
+con `data-value` del enum de dominio, `checkout-total`, `checkout-submit`), confirmación
+(`order-confirmation-number`) y admin (`admin-login-email/password/submit`, `admin-nav-orders`,
+`admin-orders-search-input/submit`). Se pusieron donde correspondía sin tocar lógica —Button/Input
+ya reenvían `...props`, así que es un atributo más— salvo `ShippingMethodView` (`src/app/actions/
+shipping-quote.ts`), que ganó el campo `slug` para que el checkout pueda ponerlo en el radio (ya
+vivía en `ShippingMethodOption`, sólo faltaba threadearlo al tipo que ve el navegador).
+
+**Los tres specs, reescritos.** `helpers.ts` ya no asume "Electrónica" ni ningún slug: entra a la
+home, clickea el primer `header-category-link`, el primer `product-card`, agrega al carrito
+(que abre el carrito solo — `cart-store.ts`, `add()` deja `isOpen: true`) y sigue por
+`cart-checkout-link` en vez de un `page.goto("/checkout")` a mano, para ejercitar el carrito de
+verdad. Ganó dos locators de un solo uso, `shippingMethodRadio(page, slug)` y
+`paymentMethodRadio(page, value)`, que arman el selector `[data-testid="…"][data-slug/data-value="…"]`
+— así el spec de formas de entrega (Fase 3) deja de matchear por el nombre que tipeó el spec
+("Moto del barrio E2E") y matchea por el slug, que es lo estable. `csp.spec.ts` tenía los dos
+hardcodeos peores —`/categoria/electronica` y `/producto/auriculares-bluetooth-tws` en `page.goto`
+directo, más `"auriculares"` como término de búsqueda— y ahora resuelve la primera categoría y el
+primer producto activos contra la base en un `beforeAll` (mismo patrón que ya usaba
+`compra.spec.ts` para las formas de entrega), y busca por el nombre real del producto encontrado.
+
+**Guardarraíl nuevo, `tests/unit/testids-contrato.test.ts`.** Dos cosas, mismo patrón que
+`marca-centralizada.test.ts` (lee el código fuente, no confía en una lista a mano): (1) cada id de
+`TESTIDS` tiene que aparecer referenciado en `src/` fuera de su propia definición —un id que nadie
+consulta es un hook fantasma que se puede borrar sin que ningún test se entere—, y ningún
+`data-testid`/`getByTestId` de un spec apunta a un string fuera del contrato; (2) ningún spec de
+`tests/e2e/**` contiene, como literal, un nombre o slug de `scripts/seed-data.ts` —leído del
+módulo de verdad, no copiado a mano, así que un producto nuevo en el seed entra solo al control—.
+La regla es más ancha que "sólo adentro de `getByText`/`getByRole`": un slug hardcodeado en un
+`page.goto(...)` rompe exactamente igual, y era justo el caso de `csp.spec.ts`.
+
+**Verificado que el contrato aguanta un rediseño.** Con la tienda local ya sembrada, se renombró
+a mano la primera categoría y el primer producto en MySQL (nombre y slug, sin tocar el seed) y se
+corrió `playwright test` de nuevo sin cambiar una línea de código: los 7 casos siguen en verde
+—la única falla que apareció fue un artefacto del propio experimento (el home cacheado por ISR
+seguía linkeando al slug viejo hasta la revalidación), no algo que un spec real fuera a pisar—.
+Se revirtió el cambio a mano después de verificar.
+
+**Docs.** `NEW-STORE.md` §5 gana una subsección ("La única excepción: los `data-testid`") que
+dice la regla completa: rediseñar es libre, sacarle el atributo a un elemento que ya lo tiene no.
+`CLAUDE.md` apunta ahí en una línea, bajo la tabla de maquinaria vs. piel.
+
+**Verde acá:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (105 archivos, 1159 tests, 1 skip) y
+`pnpm exec playwright test` (7/7), contra MariaDB 10.11 local instalada a mano (mismo camino sin
+Docker que S3/S4/"Métodos de envío"), con `PLAYWRIGHT_CHROMIUM_EXECUTABLE` apuntando al Chromium
+`1194` pre-instalado (el `chromium_headless_shell` que `@playwright/test` pide por versión no
+estaba, mismo escape hatch que documentó S3). `pnpm db:generate` sin drift — este PR no toca
+`schema.ts`.
+
+**Para una tienda ya clonada:** nada que migrar. Es sólo `src/lib/testids.ts` nuevo, atributos
+`data-testid` agregados a markup existente (no cambia nada visible ni de comportamiento) y specs
+de e2e reescritos. Al sincronizar, la única regla nueva es la de NEW-STORE.md §5: no borrar un
+`data-testid` del contrato al repintar. Si una tienda ya tiene sus propios specs de e2e parchados
+a mano contra el catálogo viejo, éste es el momento de migrarlos al contrato en vez de seguir
+parchando.
+
 ## 10. Backlog
 
 - Vulnerabilidad transitiva de `pnpm audit`: `esbuild` vía `drizzle-kit` (sólo dev, no hay

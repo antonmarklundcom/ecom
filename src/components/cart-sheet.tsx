@@ -21,6 +21,7 @@ import { t } from "@/i18n";
 import { describeIssue } from "@/lib/cart-issues";
 import { cartSubtotal, useCart, type CartLine } from "@/lib/cart-store";
 import { formatGs } from "@/lib/money";
+import { TESTIDS } from "@/lib/testids";
 
 /**
  * Carrito slide-over.
@@ -111,7 +112,7 @@ export function CartSheet() {
               {t("carrito.envioEnCheckout")}
             </p>
             <Button asChild size="lg">
-              <Link href="/checkout" onClick={close}>
+              <Link href="/checkout" onClick={close} data-testid={TESTIDS.cartCheckoutLink}>
                 {t("carrito.irAlCheckout")}
               </Link>
             </Button>

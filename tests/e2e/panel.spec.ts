@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { realizarCompra } from "./helpers";
+import { TESTIDS } from "./testids";
 
 /**
  * La puerta de `/admin` y el flujo de quien despacha (fable/plan.md §6.1,
@@ -29,17 +30,19 @@ test("la puerta de /admin redirige, el login entra y el pedido aparece en el pan
   await page.goto("/admin/pedidos");
   await page.waitForURL(/\/admin\/login\?next=%2Fadmin%2Fpedidos/);
 
-  await page.getByLabel("Email").fill(ownerEmail);
-  await page.getByLabel("Contraseña").fill(ownerPassword);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByTestId(TESTIDS.adminLoginEmail).fill(ownerEmail);
+  await page.getByTestId(TESTIDS.adminLoginPassword).fill(ownerPassword);
+  await page.getByTestId(TESTIDS.adminLoginSubmit).click();
 
   await page.waitForURL(/\/admin\/pedidos$/);
-  await expect(page.getByRole("heading", { name: "Pedidos" })).toBeVisible();
+  // Antes que el listado: el nav es lo que confirma que el panel entero
+  // renderizó con sesión, no sólo esta pantalla.
+  await expect(page.getByTestId(TESTIDS.adminNavOrders)).toBeVisible();
 
   // Filtra por el número de pedido: la lista sin filtro pagina y el pedido
   // recién creado puede no estar en la primera página.
-  await page.getByLabel("Buscar pedido").fill(orderNumber);
-  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await page.getByTestId(TESTIDS.adminOrdersSearchInput).fill(orderNumber);
+  await page.getByTestId(TESTIDS.adminOrdersSearchSubmit).click();
 
   await expect(page.getByText(orderNumber)).toBeVisible();
 });

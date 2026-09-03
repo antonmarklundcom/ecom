@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
+import { TESTIDS } from "@/lib/testids";
 
 export function LoginForm({ next }: { next: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function LoginForm({ next }: { next: string }) {
           id="email"
           name="email"
           type="email"
+          data-testid={TESTIDS.adminLoginEmail}
           required
           autoComplete="username"
           autoCapitalize="none"
@@ -57,12 +59,13 @@ export function LoginForm({ next }: { next: string }) {
           id="password"
           name="password"
           type="password"
+          data-testid={TESTIDS.adminLoginPassword}
           required
           autoComplete="current-password"
         />
       </div>
 
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" data-testid={TESTIDS.adminLoginSubmit} disabled={isPending}>
         {isPending ? t("panel.login.entrando") : t("panel.login.entrar")}
       </Button>
     </form>

@@ -26,6 +26,9 @@ leé:
 Regla práctica: si el archivo toca plata, stock o estados de pedido, no se
 toca por tienda. Si sólo dibuja, es libre. Ver NEW-STORE.md §5 para el
 detalle completo y las excepciones (`checkout-form.tsx`, `src/app/admin`).
+Al rediseñar piel, no le saques el `data-testid` a un elemento que ya lo
+tiene — es el contrato que usan los specs de `tests/e2e/**`, ver
+NEW-STORE.md §5 y `src/lib/testids.ts`.
 
 ## Antes de cualquier cambio
 
