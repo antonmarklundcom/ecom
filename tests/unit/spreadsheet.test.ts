@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 
 import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from '@/lib/spreadsheet';
@@ -8,26 +8,26 @@ import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from '@/lib/spreads
  * entiende CSV.
  *
  * Hasta acá ningún test le pasaba bytes de verdad: se probaba `parseCatalogo`
- * con texto ya armado a mano. Un cambio de versión de `xlsx` —el paquete se
- * actualiza a mano desde el CDN de SheetJS, no lo mueve Dependabot— podía
- * romper el separador o el orden de las hojas sin que nada se pusiera rojo.
+ * con texto ya armado a mano. Un cambio de versión de `exceljs` podía romper
+ * el separador o el orden de las hojas sin que nada se pusiera rojo.
  */
 
-function libroDePrueba(filas: unknown[][], nombreHoja = 'Catálogo'): Buffer {
-  const book = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(filas), nombreHoja);
-  return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+async function libroDePrueba(filas: unknown[][], nombreHoja = 'Catálogo'): Promise<Buffer> {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet(nombreHoja);
+  sheet.addRows(filas);
+  return Buffer.from(await book.xlsx.writeBuffer());
 }
 
 describe('spreadsheetToCsvText', () => {
-  it('convierte un .xlsx real a CSV con `;` como separador', () => {
-    const bytes = libroDePrueba([
+  it('convierte un .xlsx real a CSV con `;` como separador', async () => {
+    const bytes = await libroDePrueba([
       ['sku', 'nombre', 'precio'],
       ['REM-001', 'Remera negra', 120000],
       ['REM-002', 'Remera blanca', 135000],
     ]);
 
-    const csv = spreadsheetToCsvText('catalogo.xlsx', bytes);
+    const csv = await spreadsheetToCsvText('catalogo.xlsx', bytes);
 
     expect(csv.split('\n')[0]).toBe('sku;nombre;precio');
     expect(csv).toContain('REM-001;Remera negra;120000');
@@ -35,40 +35,49 @@ describe('spreadsheetToCsvText', () => {
     expect(csv).not.toMatch(/120\.000|120000\.0/);
   });
 
-  it('toma la primera hoja y no las demás', () => {
-    const book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['sku'], ['PRIMERA']]), 'Uno');
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['sku'], ['SEGUNDA']]), 'Dos');
-    const bytes = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  it('toma la primera hoja y no las demás', async () => {
+    const book = new ExcelJS.Workbook();
+    book.addWorksheet('Uno').addRows([['sku'], ['PRIMERA']]);
+    book.addWorksheet('Dos').addRows([['sku'], ['SEGUNDA']]);
+    const bytes = Buffer.from(await book.xlsx.writeBuffer());
 
-    const csv = spreadsheetToCsvText('catalogo.xlsx', bytes);
+    const csv = await spreadsheetToCsvText('catalogo.xlsx', bytes);
 
     expect(csv).toContain('PRIMERA');
     expect(csv).not.toContain('SEGUNDA');
   });
 
-  it('respeta el texto con acentos y con `;` adentro', () => {
-    const bytes = libroDePrueba([
+  it('respeta el texto con acentos y con `;` adentro', async () => {
+    const bytes = await libroDePrueba([
       ['nombre', 'descripcion'],
       ['Ñandutí', 'blanco; hecho a mano'],
     ]);
 
-    const csv = spreadsheetToCsvText('catalogo.xlsx', bytes);
+    const csv = await spreadsheetToCsvText('catalogo.xlsx', bytes);
 
     expect(csv).toContain('Ñandutí');
     // El `;` del texto va entre comillas o el CSV se parte en una columna de más.
     expect(csv).toContain('"blanco; hecho a mano"');
   });
 
-  it('devuelve el texto tal cual para .csv y .txt', () => {
+  it('devuelve el texto tal cual para .csv y .txt', async () => {
     const texto = 'sku;nombre\nREM-001;Remera negra';
 
-    expect(spreadsheetToCsvText('catalogo.csv', Buffer.from(texto, 'utf8'))).toBe(texto);
-    expect(spreadsheetToCsvText('catalogo.TXT', Buffer.from(texto, 'utf8'))).toBe(texto);
+    expect(await spreadsheetToCsvText('catalogo.csv', Buffer.from(texto, 'utf8'))).toBe(texto);
+    expect(await spreadsheetToCsvText('catalogo.TXT', Buffer.from(texto, 'utf8'))).toBe(texto);
   });
 
-  it('rechaza una extensión que no sabe leer', () => {
-    expect(() => spreadsheetToCsvText('catalogo.pdf', Buffer.from('%PDF-1.7'))).toThrow(
+  it('rechaza una extensión que no sabe leer', async () => {
+    await expect(spreadsheetToCsvText('catalogo.pdf', Buffer.from('%PDF-1.7'))).rejects.toThrow(
+      UnsupportedSpreadsheetError,
+    );
+  });
+
+  // Un `.xls` (Excel 97-2003, formato binario) ya no se soporta: `exceljs`
+  // sólo lee el formato `.xlsx` (zip + XML). Cae en el mismo mensaje que
+  // cualquier extensión desconocida — está documentado en KNOWN-ISSUES.md.
+  it('rechaza un .xls (formato binario viejo)', async () => {
+    await expect(spreadsheetToCsvText('catalogo.xls', Buffer.from('cualquier cosa'))).rejects.toThrow(
       UnsupportedSpreadsheetError,
     );
   });
@@ -77,11 +86,11 @@ describe('spreadsheetToCsvText', () => {
   // `UnsupportedSpreadsheetError`: el panel lo muestra como error genérico en
   // vez de "el archivo está dañado". Está anotado en KNOWN-ISSUES.md; lo que
   // este test cuida es que nunca devuelva un CSV inventado.
-  it('no devuelve CSV cuando el .xlsx está corrupto', () => {
+  it('no devuelve CSV cuando el .xlsx está corrupto', async () => {
     const zipRoto = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
 
-    expect(() => spreadsheetToCsvText('catalogo.xlsx', zipRoto)).toThrow();
-    expect(() => spreadsheetToCsvText('catalogo.xlsx', zipRoto)).not.toThrow(
+    await expect(spreadsheetToCsvText('catalogo.xlsx', zipRoto)).rejects.toThrow();
+    await expect(spreadsheetToCsvText('catalogo.xlsx', zipRoto)).rejects.not.toThrow(
       UnsupportedSpreadsheetError,
     );
   });
