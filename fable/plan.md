@@ -622,6 +622,83 @@ de e2e reescritos. Al sincronizar, la única regla nueva es la de NEW-STORE.md �
 a mano contra el catálogo viejo, éste es el momento de migrarlos al contrato en vez de seguir
 parchando.
 
+### 2026-09-03 · `pnpm template:sync` — traer la maquinaria del template con un comando
+
+Fase fuera de las cuatro del plan (pedido posterior de Anton), branch `phase/template-sync`
+desde `main` con `E2E tolerantes a la piel` ya mergeada.
+
+**El problema.** `pnpm template:diff` (§ arriba, PR #29/#39/#40) dice qué commits de maquinaria
+le faltan a una tienda, pero traerlos seguía siendo cherry-pick manual, commit por commit.
+Sincronizar tres tiendas (lenceria #29, productos #9, mascota #9) costó tres sesiones de IA, y
+los conflictos fueron siempre los mismos y aburridos: `fable/**` (las tiendas no lo tienen),
+`pnpm-lock.yaml`, y `.github/workflows/ci.yml`. Cero conflictos reales en `src/`.
+
+**Qué existe ahora.** `scripts/template-shared.ts` — extraído de `template-diff.ts` sin
+duplicar nada — con `MAQUINARIA`/`MIXTOS`, `BASELINE_FILE`, el parseo de `git log` y de
+`.template-baseline`, y un `gitEn(cwd, args)`/`commitsClasificados(cwd, baseline, ref)`
+parametrizados por directorio (antes `template-diff.ts` asumía siempre `process.cwd()`).
+`template-diff.ts` ahora importa de ahí y re-exporta los mismos nombres — el test existente
+(`tests/unit/template-diff.test.ts`) no se tocó.
+
+`scripts/template-sync.ts` (`pnpm template:sync`) hace el trabajo: toma la lista de
+`commitsClasificados`, se queda sólo con los `*` de maquinaria en orden cronológico, y por cada
+uno corre `git cherry-pick -x`. El `-x` dejó el trailer `(cherry picked from commit …)` que hace
+al comando reanudable sin guardar estado propio — cada corrida vuelve a leer el log de la rama
+actual y descarta lo que ya tiene ese trailer, así que cortar en un conflicto y volver a correr
+`pnpm template:sync` retoma justo donde quedó. Precondiciones antes de tocar nada: rama actual
+≠ `main`, working tree limpio (con un mensaje aparte si lo sucio es un cherry-pick sin terminar),
+remoto `template` (lo agrega si falta) y `.template-baseline` presentes.
+
+Conflicto, tres casos se resuelven solos y cualquier otro para en seco:
+`fable/**` se descarta del lado del template (`git rm`); `pnpm-lock.yaml` nunca se toca a
+mano, se regenera con `pnpm install --lockfile-only`; los workflows de
+`.github/workflows/*.yml` toman la versión del template (`git checkout --theirs`). Si esos son
+los únicos archivos en conflicto, el commit sigue con `--continue` — o con `--skip` si
+resolverlos deja el commit vacío (pasa con un `fable/`-only: al descartar el lado del template
+no queda ningún cambio real que commitear, y ahí `--continue` se niega con "nothing to commit";
+se detectó corriendo el escenario a mano antes de escribir el test). Cualquier archivo fuera de
+esos tres —típicamente `src/`, porque la tienda y el template tocaron la misma línea— corta la
+corrida ahí: deja todo lo anterior ya aplicado, no toca el baseline, e imprime el commit, el
+archivo y los tres pasos para terminarlo a mano y retomar.
+
+Al final, si algún commit tocó `package.json` corre `pnpm install`; después, salvo
+`--sin-tests`, `pnpm typecheck && pnpm lint && pnpm test`. Si algo falla ahí, los commits
+quedan aplicados pero `.template-baseline` **no** se mueve — nada que reintentar se pierde. Si
+todo pasa, escribe `.template-baseline` (al HEAD del template, o al `--hasta` si se usó) y
+commitea "Sincronizar maquinaria del template hasta `<sha>`". Flags: `--dry-run`, `--hasta
+<sha>`, `--sin-tests`.
+
+**Tests.** `tests/unit/template-sync.test.ts` — puro, sin git ni red: `parseArgs`,
+`ordenarParaAplicar` (filtra maquinaria y da vuelta el orden de `git log`), `shasYaAplicados`
+(lee los trailers de `cherry-pick -x` de un log fixture), `commitsPendientes`, `cortarHasta`
+(incluye el prefijo corto y el "no está en la lista" de un sha ya aplicado o inexistente),
+`clasificarConflicto` (los tres casos automáticos + "cualquier otra cosa es manual") y
+`necesitaInstall`. `tests/integration/template-sync.test.ts` arma dos repos git temporales sin
+historia compartida (mismo supuesto que un template y una tienda de verdad), con un `stock.ts`
+de tres líneas donde la del medio nunca cambia — le da a los merges de 3 vías el contexto para
+separar limpio la customización de la tienda (línea 1) del cambio de maquinaria (línea 3) en un
+commit, y de paso deja la línea 1 libre para que un commit posterior choque de verdad ahí. Tres
+casos: (1) trae sólo la maquinaria — el commit de piel (README) nunca se intenta y el conflicto
+de `fable/` se resuelve solo sin perder el resto del commit; para en el conflicto real de `src/`
+sin tocar el baseline; (2) correr de nuevo con el cherry-pick a medio resolver avisa
+`cherry-pick --continue`, no reintenta a ciegas; (3) resuelto a mano y continuado, la corrida
+siguiente ve los tres trailers y no repite nada.
+
+**Docs.** `NEW-STORE.md` § "Arreglos que aparecen después" pasa a recomendar `template:sync`
+como el camino por defecto (rama → sync → `template:diff` para lo que quedó marcado con `~` →
+PR), con `template:diff` + cherry-pick manual como alternativa si se prefiere ir commit por
+commit. `CLAUDE.md` menciona el comando en la sección "Si este repo es una tienda".
+
+**Verde acá:** `pnpm typecheck`, `pnpm lint`, y `pnpm test` — 64 archivos, 640 tests (43
+archivos/546 tests de integración contra MySQL se saltan solos: no había `TEST_DATABASE_URL` en
+este entorno). Los 44 tests nuevos de `template-sync` (unitarios + integración con git real) no
+dependen de la base y corrieron completos. CI (`.github/workflows/ci.yml`) sí trae MySQL como
+servicio, así que ahí corre la suite completa.
+
+**Para una tienda ya clonada:** nada que migrar — es un script nuevo más. La próxima vez que
+haga falta traer maquinaria del template, `pnpm template:sync` en una rama reemplaza al
+cherry-pick manual de siempre.
+
 ## 10. Backlog
 
 - Vulnerabilidad transitiva de `pnpm audit`: `esbuild` vía `drizzle-kit` (sólo dev, no hay
