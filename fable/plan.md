@@ -29,6 +29,10 @@ Fable no aparece en esta tabla y no va a aparecer: ver §4.8.
    (`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, o la 0.20.x más nueva que exista
    al momento). No se cambia de librería ni se saca el soporte de `.xlsx`/`.xls`.
    (REVIEW P1 — si Anton contesta otra cosa antes de arrancar O1, manda lo que diga él.)
+   **Superado:** O1 quedó bloqueada (el CDN de SheetJS no es alcanzable desde el proxy del
+   entorno) y Anton después contestó otra cosa — reemplazar por `exceljs`, que sí resuelve
+   los dos CVEs. Se hizo así, con la baja de `.xls` que implica (`exceljs` no lee el binario
+   viejo). Ver fase "exceljs" en §9.
 4. El aviso de pedido nuevo al comercio va por el `MessageSender` existente
    (`src/domain/messaging/`), con WhatsApp Cloud. Sin credenciales o sin plantilla,
    **apagado**. Nunca falla ni demora el pedido. (REVIEW P2.)
@@ -478,6 +482,72 @@ Chromium del entorno. `pnpm db:generate` sin drift.
 **Para adoptarlo en una tienda ya clonada:** `pnpm template:diff`, cherry-pick de este commit
 (es maquinaria: dominio + schema + migración) y después configurar las formas de entrega desde
 `/admin/envios`. Sin configurar nada, la tienda se comporta exactamente como antes.
+
+### 2026-09-03 · `xlsx` → `exceljs` — cierra los dos CVEs (F1, por fin)
+
+Fase fuera de las cuatro del plan (pedido posterior de Anton, revierte la decisión de §1.3),
+branch `phase/exceljs` desde `main` con `phase/shipping-methods` ya mergeada. Anton contestó
+lo que §1.3 dejaba previsto: en vez de esperar a que se destrabe el CDN de SheetJS
+(`KNOWN-ISSUES.md`, bloqueado desde O1), cambiar de librería.
+
+**Qué cambió.** `src/lib/spreadsheet.ts` reimplementado con `exceljs` en vez de `xlsx`:
+`new ExcelJS.Workbook()` + `workbook.xlsx.load(bytes)` en vez de `XLSX.read`, y un
+`sheetToCsv()` propio (recorre `worksheet.eachRow`/`getCell`, arma el CSV con `;` y comillas
+como lo hacía `XLSX.utils.sheet_to_csv`) porque `exceljs` no trae un helper de CSV. `pnpm
+remove xlsx && pnpm add exceljs`, lockfile regenerado con `pnpm install`.
+
+**Diferencias de comportamiento (documentadas, no bugs).**
+1. **`spreadsheetToCsvText` ahora es `async`** (devuelve `Promise<string>`, antes `string`).
+   `exceljs` no tiene una API síncrona para leer bytes — no había forma de mantener la firma
+   síncrona sin volver a depender de una librería con los mismos CVEs. El único llamador
+   (`readCatalogFile` en `src/app/actions/admin-products.ts`) ya era `async` y ya hacía
+   `await` sobre el resultado del `readCatalogFile`; el cambio fue agregar el `await` en la
+   línea que llama a `spreadsheetToCsvText`.
+2. **Se cae el soporte de `.xls`** (Excel 97-2003, formato binario OLE). `exceljs` sólo lee
+   `.xlsx` (zip + XML) — es la razón por la que §1.3 había descartado el swap en O1. Un
+   `.xls` ahora cae en el mismo `UnsupportedSpreadsheetError` que cualquier extensión
+   desconocida ("Formato ... no soportado. Subí un archivo .csv o .xlsx."), en vez de
+   convertirse. Se sacó `.xls` del `accept` del input en
+   `src/components/admin/catalog-import.tsx`. No se evaluó ninguna librería que lea `.xls`
+   sin CVEs y mantenida en npm — las que existen (`node-xlrd` y similares) están abandonadas;
+   cambiar de formato binario legacy por una superficie sin parches habría sido peor que la
+   pérdida de soporte. Mitigación: Excel exporta `.xlsx` desde 2007, así que en la práctica es
+   pedirle al comercio que reexporte.
+3. Mensaje de `.xlsx` corrupto: antes `Unsupported ZIP file` (de `xlsx`), ahora
+   `Corrupted zip: can't find end of central directory` (de `exceljs`/`jszip`). Sigue siendo
+   el error crudo de la librería, no `UnsupportedSpreadsheetError` — el bug ya anotado en
+   `KNOWN-ISSUES.md` sigue igual de abierto, sólo cambió el texto exacto.
+4. Fechas: si algún día una celda trae un `Date` (hoy no hay fixture ni caso real que lo
+   ejercite), sale como ISO 8601 (`toISOString()`) en vez de lo que hiciera `xlsx`. No hay
+   test que lo cubra porque no hay caso de uso hoy — se documenta para cuando aparezca.
+
+**Bug de tipado de `exceljs`, no nuestro.** `Xlsx.load()` está tipado en el `.d.ts` que trae
+el propio paquete con un `Buffer` local (`declare interface Buffer extends ArrayBuffer {}`,
+sombra el `Buffer` global de Node dentro de ese archivo), incompatible con las propiedades
+nuevas de `ArrayBuffer` en TS/`lib.esnext` (`resizable`, `maxByteLength`, ...). En runtime
+`load()` le pasa el buffer tal cual a `JSZip.loadAsync`, que acepta `Buffer` sin problema —
+sólo el tipado está mal. Cast puntual en `spreadsheetToCsvText` (`as unknown as
+Parameters<typeof workbook.xlsx.load>[0]`), comentado en el código.
+
+**`pnpm audit`.** Los dos highs de `xlsx` (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
+desaparecen. `exceljs` trae `uuid@^8.3.0` sin actualizar, con un moderate propio
+(GHSA-w5hq-g745-h8pq) — mismo patrón que el `nanoid` de S4: `overrides: { uuid: "^11.1.1" }`
+en `pnpm-workspace.yaml` (API de `v4()` estable entre 8 y 11, exceljs sólo usa eso). Queda
+sólo el `esbuild` de `drizzle-kit` (dev-only, ya en el backlog de S4).
+
+**Tests.** `tests/unit/spreadsheet.test.ts` se mantiene con los mismos seis casos (ahora
+`async`, y el helper `libroDePrueba` arma los `.xlsx` de prueba con `exceljs` en vez de
+`xlsx`) más uno nuevo que fija el punto 2: un `.xls` rechazado con
+`UnsupportedSpreadsheetError`. Ninguna expectativa de las que ya existían cambió.
+
+**Verde acá:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (104 archivos, 1158 tests, 546
+skip — sin `TEST_DATABASE_URL`, no había MySQL disponible en este entorno; nada de lo tocado
+depende de la base) y `pnpm build`. `pnpm audit`: 1 moderate (`esbuild`, dev, preexistente).
+
+**Para adoptarlo en una tienda ya clonada:** `pnpm template:diff`, cherry-pick de este commit
+(toca `src/lib/spreadsheet.ts`, que es maquinaria — mueve plata de proveedor no, pero es el
+único camino de import de catálogo) y avisar al comercio que a partir de ahora sólo `.xlsx`
+(no `.xls`).
 
 ### 2026-09-03 · E2E tolerantes a la piel — contrato de `data-testid`
 

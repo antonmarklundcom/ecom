@@ -278,7 +278,7 @@ async function readCatalogFile(
 
   const bytes = Buffer.from(await file.arrayBuffer());
   try {
-    return { ok: true, csvText: spreadsheetToCsvText(file.name, bytes) };
+    return { ok: true, csvText: await spreadsheetToCsvText(file.name, bytes) };
   } catch (error) {
     if (error instanceof UnsupportedSpreadsheetError) {
       return { ok: false, errores: [error.message] };
