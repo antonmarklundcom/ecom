@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 /**
  * El puente entre "el comercio manda un `.xlsx`" y `parseCatalogo`, que sólo
@@ -16,9 +16,51 @@ export class UnsupportedSpreadsheetError extends Error {
 }
 
 const EXTENSIONES_TEXTO = new Set(["csv", "txt"]);
-const EXTENSIONES_EXCEL = new Set(["xlsx", "xls"]);
+const EXTENSIONES_EXCEL = new Set(["xlsx"]);
 
-export function spreadsheetToCsvText(filename: string, bytes: Buffer): string {
+function celdaATexto(value: ExcelJS.CellValue): string {
+  if (value === null || value === undefined) return "";
+
+  if (value instanceof Date) return value.toISOString();
+
+  if (typeof value === "object") {
+    // Fórmula: usamos el resultado ya calculado, no la fórmula en sí.
+    if ("result" in value) return celdaATexto(value.result as ExcelJS.CellValue);
+    // Texto enriquecido (`richText`): se concatena el texto plano.
+    if ("richText" in value) {
+      return (value.richText as { text: string }[]).map((parte) => parte.text).join("");
+    }
+    // Hipervínculo: el texto visible, no la URL.
+    if ("text" in value) return String((value as { text: unknown }).text);
+    return String(value);
+  }
+
+  return String(value);
+}
+
+function campoCsv(texto: string): string {
+  if (texto.includes(";") || texto.includes("\n") || texto.includes("\r") || texto.includes('"')) {
+    return `"${texto.replace(/"/g, '""')}"`;
+  }
+  return texto;
+}
+
+function sheetToCsv(sheet: ExcelJS.Worksheet): string {
+  const columnas = sheet.actualColumnCount || sheet.columnCount;
+  const filas: string[] = [];
+
+  sheet.eachRow({ includeEmpty: true }, (row) => {
+    const celdas: string[] = [];
+    for (let col = 1; col <= columnas; col += 1) {
+      celdas.push(campoCsv(celdaATexto(row.getCell(col).value)));
+    }
+    filas.push(celdas.join(";"));
+  });
+
+  return filas.join("\n");
+}
+
+export async function spreadsheetToCsvText(filename: string, bytes: Buffer): Promise<string> {
   const extension = filename.toLowerCase().split(".").pop() ?? "";
 
   if (EXTENSIONES_TEXTO.has(extension)) {
@@ -26,13 +68,17 @@ export function spreadsheetToCsvText(filename: string, bytes: Buffer): string {
   }
 
   if (EXTENSIONES_EXCEL.has(extension)) {
-    const workbook = XLSX.read(bytes, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
+    const workbook = new ExcelJS.Workbook();
+    // `exceljs` tipa `load()` con un `Buffer` local a su propio `.d.ts` (no el
+    // `Buffer` global de Node), incompatible con la definición de ArrayBuffer
+    // de TS moderno: en runtime acepta un `Buffer` de Node sin problema
+    // (termina en `JSZip.loadAsync`), sólo el tipado está mal.
+    await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const sheet = workbook.worksheets[0];
     if (!sheet) {
       throw new UnsupportedSpreadsheetError("El archivo Excel no tiene ninguna hoja con datos.");
     }
-    return XLSX.utils.sheet_to_csv(sheet, { FS: ";" });
+    return sheetToCsv(sheet);
   }
 
   throw new UnsupportedSpreadsheetError(

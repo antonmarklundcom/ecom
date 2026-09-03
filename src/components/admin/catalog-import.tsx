@@ -92,7 +92,7 @@ export function CatalogImportForm() {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,.xlsx,.xls,text/csv"
+          accept=".csv,.xlsx,text/csv"
           aria-label={t("panel.productos.importar.titulo")}
           onChange={(event) => {
             setFileName(event.target.files?.[0]?.name ?? null);
