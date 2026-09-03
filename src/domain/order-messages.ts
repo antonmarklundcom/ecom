@@ -39,7 +39,7 @@ export function buyerOrderUrl(order: Pick<OrderContact, "orderNumber" | "accessT
   return origin ? new URL(path, origin).toString() : path;
 }
 
-function firstName(fullName: string): string {
+export function firstName(fullName: string): string {
   return fullName.trim().split(" ")[0] ?? "";
 }
 

@@ -12,6 +12,7 @@ import {
 
 import type { Executor, Tx } from './executor';
 import { recordManualPayment } from './manual-payments';
+import { notifyCustomerOrderEvent, type CustomerNoticeKind } from './order-customer-notifications';
 
 /**
  * Máquina de estados del pedido (ARCH.md §3).
@@ -53,6 +54,19 @@ export const PRE_PAYMENT_STATUSES: readonly OrderStatus[] = [
 const CONSUMES_STOCK: readonly OrderStatus[] = ['pagado'];
 /** Al entrar acá las reservas se sueltan. */
 const RELEASES_STOCK: readonly OrderStatus[] = ['vencido', 'cancelado'];
+
+/**
+ * A qué destino le corresponde avisarle a la compradora (fase O3).
+ *
+ * Entrar a `pagado` cubre los tres caminos por los que llega la plata
+ * (transferencia aprobada, Pagopar, contra entrega confirmada): los tres
+ * pasan por acá, así que un solo mapeo alcanza para los tres sin tocar cada
+ * llamador. `enviado` sólo se entra desde el panel (`advanceOrder`).
+ */
+const CUSTOMER_NOTICE_FOR_STATUS: Partial<Record<OrderStatus, CustomerNoticeKind>> = {
+  pagado: 'pagado',
+  enviado: 'enviado',
+};
 
 export class OrderNotFoundError extends Error {
   constructor(readonly orderId: number) {
@@ -211,7 +225,30 @@ export async function transitionOrder(
     return { orderId, from, to, changed: true };
   };
 
-  return options.executor ? run(options.executor) : getDb().transaction(run);
+  const result = await (options.executor ? run(options.executor) : getDb().transaction(run));
+
+  // Aviso a la compradora (fase O3), sin `await` y después de que la
+  // transición ya corrió: nunca puede demorar ni hacer fallar la transición
+  // que la dispara. `notifyCustomerOrderEvent` no tira nunca — atrapa todo
+  // adentro y lo anota en `order_events` (ver order-customer-notifications.ts).
+  //
+  // Con `options.executor` (llamado adentro de la transacción de quien
+  // llama, p. ej. `reviewReceipt`, `retryOrderRevival`, el webhook de
+  // Pagopar), esto puede correr una fracción de segundo antes de que esa
+  // transacción externa haga commit: `notifyCustomerOrderEvent` usa su propia
+  // conexión (nunca `tx`) y lee `orders` de nuevo, así que en el peor caso
+  // sólo espera el lock de fila hasta que el commit libera la fila — no hay
+  // riesgo de tocar la conexión que está por cerrar esa transacción.
+  const kind = result.changed ? CUSTOMER_NOTICE_FOR_STATUS[to] : undefined;
+  if (kind) {
+    void notifyCustomerOrderEvent(orderId, kind, {
+      note: kind === 'enviado' ? (reason ?? null) : null,
+    }).catch((error) => {
+      console.error('notifyCustomerOrderEvent rechazó', error);
+    });
+  }
+
+  return result;
 }
 
 /**

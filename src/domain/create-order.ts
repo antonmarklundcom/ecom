@@ -15,6 +15,7 @@ import { normalizePhonePY, validateDoc } from "@/lib/py";
 
 import type { CartInput } from "./cart";
 import { lockCouponForUse, type CouponRejection } from "./coupons";
+import { notifyCustomerOrderEvent } from "./order-customer-notifications";
 import { recordOrderEvent } from "./order-events";
 import { nextOrderNumber } from "./order-number";
 import { computeOrderTotals } from "./order-totals";
@@ -226,7 +227,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
     throw new CheckoutError("error.checkout.carritoVacio");
   }
 
-  return getDb().transaction(async (tx) => {
+  const created = await getDb().transaction(async (tx) => {
     // 1 y 2. Re-precio y envío, con el executor de **esta** transacción. Es la
     //    misma función que usa la cotización pública (`computeOrderTotals`),
     //    corrida de nuevo acá: lo que la compradora vio en pantalla no viaja
@@ -413,4 +414,16 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       reservedUntil,
     };
   });
+
+  // Aviso "confirmado" a la compradora (fase O3), sin `await` y ya con el
+  // commit hecho: nada de lo que pase con Meta puede tocar el pedido que
+  // ella acaba de conseguir. Va acá y no en la server action del checkout
+  // (`submitCheckout`) a propósito — createOrder es el único lugar por el
+  // que pasa TODO pedido nuevo, y así queda un solo punto que mantener en
+  // vez de uno por cada forma de llegar a un pedido.
+  void notifyCustomerOrderEvent(created.orderId, "confirmado").catch((error) => {
+    console.error("notifyCustomerOrderEvent rechazó", error);
+  });
+
+  return created;
 }

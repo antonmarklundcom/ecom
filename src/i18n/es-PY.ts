@@ -525,6 +525,22 @@ export const esPY = {
   "wa.aviso.pedidoNuevo.url": "Miralo en el panel: {url}",
 
   // -------------------------------------------------------------------------
+  // Avisos a la COMPRADORA por WhatsApp: confirmado, pagado, enviado (O3).
+  //
+  // Los manda el servidor solo, sin que ella tenga que tocar nada — misma
+  // filosofía que el aviso al comercio: nunca frenan ni demoran una
+  // transición, y si faltan las variables el aviso queda apagado. Cada uno
+  // termina con el link a `/pedido/[numero]` para que pueda seguirlo.
+  // -------------------------------------------------------------------------
+  "wa.cliente.confirmado": "Hola {nombre}! Tu pedido {numero} en {tienda} quedó confirmado. Total: {total}.",
+  "wa.cliente.confirmado.envio": "Entrega: {metodo}.",
+  "wa.cliente.pagado": "Hola {nombre}! Recibimos el pago de tu pedido {numero} ({total}). ¡Gracias por tu compra!",
+  "wa.cliente.enviado": "Hola {nombre}! Tu pedido {numero} ya salió.",
+  "wa.cliente.enviado.envio": "Entrega: {metodo}.",
+  "wa.cliente.enviado.nota": "Nota: {nota}",
+  "wa.cliente.verPedido": "Seguilo acá: {url}",
+
+  // -------------------------------------------------------------------------
   // Errores del panel (PR R) — los lee el dueño, no la compradora
   // -------------------------------------------------------------------------
   "adminError.sesionCerrada": "Se cerró tu sesión. Volvé a entrar.",

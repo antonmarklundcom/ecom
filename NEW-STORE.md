@@ -398,6 +398,29 @@ imprime en la consola del servidor igual que el código de login. El envío nunc
 puede demorar ni hacer fallar un pedido: sale después de que el pedido está
 guardado, y salga o falle queda anotado en la historia del pedido.
 
+**Tres plantillas más: los avisos a la COMPRADORA.** Además del aviso al
+comercio, la tienda le puede avisar a quien compró en cada uno de tres
+momentos — que su pedido quedó **confirmado**, que se **pagó** y que **salió**
+— sin que ella tenga que tocar nada. Son tres plantillas nuevas, una decisión
+por evento (podés prender sólo la de pago, por ejemplo), con la misma regla
+de siempre: un parámetro en el cuerpo, aprobada por Meta:
+
+| Momento | Variable |
+|---|---|
+| Pedido registrado (justo después de crearse) | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO` |
+| Pago registrado (transferencia aprobada, Pagopar acreditado o contra entrega confirmada) | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO` |
+| Pedido enviado | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO` |
+
+El destino de los tres es el WhatsApp que dejó cada compradora en su pedido —
+no hace falta ninguna variable de número. Y a diferencia del aviso al
+comercio, acá **cada plantilla vacía apaga sólo ese aviso, ni siquiera por la
+consola de dev**: cuál de los tres manda esta tienda es una decisión suya, no
+un default que conviene probar sin haberla tomado. `pnpm preflight` avisa por
+separado de cada una que falte, siempre como advertencia. Mismas garantías que
+el resto de esta familia: nunca frenan ni demoran una transición, un fallo de
+envío no hace nada más que quedar anotado en la historia del pedido, y no se
+manda el mismo aviso dos veces para el mismo pedido.
+
 ### 4d. ¿En qué idioma habla esta tienda?
 
 Por defecto `es-PY`, y las URLs quedan en español siempre (son parte del

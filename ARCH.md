@@ -725,6 +725,47 @@ a row lands in `order_events` (`actor: "sistema"`, `from_status NULL`, reason
 disappears silently is worse than none — the owner would read "no messages" as
 "no orders".
 
+#### 5.2.1 The buyer hears back too (`order-customer-notifications.ts`)
+
+O2 only told the merchant. The buyer never got anything from the server —
+only the `wa.me` links she could choose to tap. `notifyCustomerOrderEvent`
+closes that gap with three notices, one per moment she actually cares about:
+**confirmado** (right after the order is written — same moment `createOrder`
+commits, so it fires from `createOrder` itself, not from `submitCheckout`),
+**pagado** (entering `pagado`, whichever of the three ways money arrives:
+approved transfer, Pagopar, or COD), and **enviado** (entering `enviado`).
+Same rules as the owner's aviso — never blocks or delays the write that
+triggers it, missing template switches that one notice off, every attempt
+leaves an `order_events` row (`aviso_cliente_<kind>` / `aviso_cliente_<kind>_fallido: …`)
+— plus one more: **each of the three templates is required even for the dev
+console sender.** The owner's aviso is foundational (any channel is fine, so
+dev can see it print with nothing but `WHATSAPP_NUMBER` configured); these
+three are independent per-store decisions ("do I want a WhatsApp when I
+confirm? when I get paid?"), so a store that configured none of them has to
+behave exactly like a store that predates this feature, in dev too — nothing
+printed to the console, nothing written to `order_events`.
+
+**Where the hook lives.** `pagado` and `enviado` are entered through
+`transitionOrder()` from several unrelated callers (the admin panel, receipt
+approval, Pagopar's webhook, the late-payment recovery flow) — hooking each
+caller individually is exactly the kind of thing a fifth caller forgets, so
+the notice fires once, centrally, right after `transitionOrder`'s own write
+resolves. When `transitionOrder` runs nested inside a caller's own
+transaction (`options.executor`), that moment is a hair before the caller's
+transaction actually commits; `notifyCustomerOrderEvent` never touches that
+transaction's connection (it opens its own), so the only consequence is that
+its `SELECT` on `orders` blocks on the row lock until the enclosing
+transaction resolves — it cannot corrupt or race the write. `confirmado` has
+no transition to hook (the order is born in `pendiente_pago`), so it fires
+from `createOrder()` once its own transaction has actually returned —
+after the real commit, no caveat needed.
+
+**Idempotency.** A given order can only ever enter `pagado` once and
+`enviado` once — the state machine (§3) has no edge back into either — so in
+practice each notice fires at most once per order already. `notifyCustomerOrderEvent`
+still checks for an existing `aviso_cliente_<kind>` success row before
+sending, as a second, cheap guard against firing the same hook twice.
+
 ### 5.1 A manual payment is still a payment
 
 For a while `payments` only ever held Pagopar rows, because Pagopar was the

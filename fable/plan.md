@@ -622,12 +622,69 @@ de e2e reescritos. Al sincronizar, la única regla nueva es la de NEW-STORE.md �
 a mano contra el catálogo viejo, éste es el momento de migrarlos al contrato en vez de seguir
 parchando.
 
+### 2026-09-03 · O3 — Avisos por WhatsApp al cliente: confirmado, pagado, enviado
+
+Fase fuera de las cuatro del plan (pedido posterior de Anton, ecom#76 → O3), branch
+`phase/customer-whatsapp` desde `main` con #80/#84/#85 ya mergeadas. Maquinaria.
+
+**Qué existe ahora.** `src/domain/order-customer-notifications.ts`: `notifyCustomerOrderEvent(orderId,
+kind)` con `kind: "confirmado" | "pagado" | "enviado"`. Arma el texto (`customerNoticeBody`, sin red,
+testeable aparte — nombre de pila, número, total en Gs, nombre de la tienda en "confirmado", método
+de envío cuando existe, la nota del admin como número de seguimiento en "enviado", siempre el link
+tokenizado al pedido), lo manda por el `MessageSender` de siempre y deja fila en `order_events`
+(`actor: "sistema"`, `aviso_cliente_<kind>` / `aviso_cliente_<kind>_fallido: <motivo>`). **No tira
+nunca** — mismo `withTimeout`/recorte de motivo que el aviso al comercio, ahora en
+`src/domain/notify-timing.ts` para no repetirlo entre los dos archivos.
+
+**Dónde se dispara — la decisión que importa de esta fase.** No en las server actions: "confirmado"
+sale de `createOrder()` mismo, después de que su transacción commiteó; "pagado" y "enviado" salen de
+un hook al final de `transitionOrder()` (`orders.ts`), disparado sólo cuando `result.changed` y el
+`to` es uno de esos dos estados. `pagado` se entra por cuatro caminos sin relación entre sí (panel,
+comprobante aprobado, webhook de Pagopar, recuperación de pago tardío) y engancharlos uno por uno es
+justo el tipo de cosa que un quinto camino olvida — centralizarlo en `transitionOrder` cubre los
+cuatro gratis. El caso nested (`transitionOrder` llamado con `options.executor`, adentro de la
+transacción de quien llama) se resuelve sin tocar esa conexión: `notifyCustomerOrderEvent` abre la
+suya propia y relee `orders`, así que en el peor caso su `SELECT` espera el lock de fila hasta que el
+commit externo lo libera — no hay forma de que toque la transacción que se está por cerrar. Detalle
+completo en ARCH.md §5.2.1.
+
+**Decisión que la próxima sesión no debería reabrir: el interruptor de cada aviso.** El aviso al
+comercio (O2) sale por la consola de dev con sólo `WHATSAPP_NUMBER` puesto, sin plantilla. Acá se
+decidió lo contrario a propósito: `resolveCustomerNotifier` exige la plantilla de ESE aviso incluso
+para el sender de consola. Los tres son decisiones independientes de cada tienda ("¿aviso cuando
+confirmo? ¿cuando pago?"), no un default que conviene ver andar sin haberlo pedido — y de yapa, esto
+es lo que mantiene inertes (cero red, cero fila nueva) los ~100 tests de integración existentes que
+crean y transicionan pedidos sin stubear ninguna `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_*`.
+
+**Idempotencia.** El estado del pedido ya garantiza que `pagado` y `enviado` se entran una sola vez
+cada uno (§3, sin arista de vuelta), así que en la práctica cada aviso sale como máximo una vez. Igual
+`notifyCustomerOrderEvent` chequea si ya existe la fila `aviso_cliente_<kind>` de éxito para ese
+pedido antes de mandar, como segunda guarda barata.
+
+**Variables nuevas en `.env.example`:** `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO`,
+`WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO`, `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO`. Sin destino
+propio — usan el WhatsApp que dejó cada compradora en su pedido. Preflight suma tres controles
+(`aviso_cliente_confirmado/pagado/enviado`), los tres advertencia, nunca bloqueo. Sin schema nuevo.
+Admin: los avisos aparecen solos en el historial de `/admin/pedidos/[id]` (la misma lista que ya
+mostraba `aviso_dueno_enviado`/`_fallido`) — no hizo falta markup nuevo.
+
+**Verde acá:** typecheck, lint, build, y `pnpm test` con `TEST_DATABASE_URL` contra MariaDB 10.11 —
+109 archivos, 1188 tests, 1 skip (subieron 4 archivos y ~29 tests desde la fase anterior). `pnpm
+db:generate` sin drift.
+
+**Las tres plantillas, para cargar en Meta** (un parámetro en el cuerpo, igual que las anteriores):
+
+- CONFIRMADO: `Hola {nombre}! Tu pedido {numero} en {tienda} quedó confirmado. Total: {total}.` (+
+  `Entrega: {metodo}.` si hay método de envío) + `Seguilo acá: {url}`.
+- PAGADO: `Hola {nombre}! Recibimos el pago de tu pedido {numero} ({total}). ¡Gracias por tu compra!`
+  + `Seguilo acá: {url}`.
+- ENVIADO: `Hola {nombre}! Tu pedido {numero} ya salió.` (+ `Entrega: {metodo}.` si hay método, +
+  `Nota: {nota}` si el admin dejó un número de seguimiento) + `Seguilo acá: {url}`.
+
 ## 10. Backlog
 
 - Vulnerabilidad transitiva de `pnpm audit`: `esbuild` vía `drizzle-kit` (sólo dev, no hay
   versión de `drizzle-kit` que la arregle todavía). `nanoid` (S4, vía `vite`/`postcss` del
   toolchain de tests) se resolvió con un `overrides` en `pnpm-workspace.yaml`.
-- Notificaciones salientes a la compradora (pedido confirmado / enviado) por WhatsApp Cloud
-  — `PLAN.md:241`; O2 deja el sender listo para eso.
 - Render tests de las páginas de `/admin` (hoy sólo `home-hero.test.tsx` renderiza React).
 - Rate limit compartido (DB) el día que haya más de un proceso.
