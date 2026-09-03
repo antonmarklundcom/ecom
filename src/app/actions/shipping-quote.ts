@@ -73,6 +73,8 @@ export type ShippingQuoteView = {
 /** Un método de envío tal como lo dibuja el checkout. */
 export type ShippingMethodView = {
   id: number | null;
+  /** Estable entre redibujados: es lo que usan los specs de e2e para ubicar el radio. */
+  slug: string;
   name: string;
   description: string | null;
   shippingPyg: number;
@@ -172,6 +174,7 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
     couponMinOrderPyg: totals.couponMinOrderPyg,
     methods: totals.shippingMethods.map((method) => ({
       id: method.id,
+      slug: method.slug,
       name: method.name,
       description: method.description,
       shippingPyg: method.shippingPyg,

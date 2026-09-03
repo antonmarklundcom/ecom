@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
+import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 type Defaults = { estado: string; metodo: string; desde: string; hasta: string; q: string };
@@ -49,12 +50,15 @@ export function OrderFiltersForm({ defaults }: { defaults: Defaults }) {
       <div className="flex gap-2">
         <Input
           name="q"
+          data-testid={TESTIDS.adminOrdersSearchInput}
           defaultValue={defaults.q}
           placeholder={t("panel.filtros.buscarPedido")}
           aria-label={t("panel.filtros.buscarPedido.label")}
           inputMode="search"
         />
-        <Button type="submit">{t("panel.filtros.buscar")}</Button>
+        <Button type="submit" data-testid={TESTIDS.adminOrdersSearchSubmit}>
+          {t("panel.filtros.buscar")}
+        </Button>
       </div>
 
       <button

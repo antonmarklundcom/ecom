@@ -1,11 +1,41 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
+
+import { TESTIDS } from "./testids";
+
+/**
+ * El radio de una forma de entrega, ubicado por `data-slug` y no por el
+ * nombre que se ve en pantalla (`checkout-form.tsx`): el nombre es el que
+ * cargó el comercio, y dos formas de entrega bien pueden compartir texto
+ * parcial ("Moto" y "Moto express").
+ */
+export function shippingMethodRadio(page: Page, slug: string): Locator {
+  return page.locator(
+    `[data-testid="${TESTIDS.checkoutShippingMethod}"][data-slug="${slug}"]`
+  );
+}
+
+/**
+ * El radio de un medio de pago, ubicado por `data-value` — el enum del
+ * dominio (`transferencia` | `contra_entrega` | `tarjeta`), nunca por la
+ * etiqueta traducida.
+ */
+export function paymentMethodRadio(page: Page, value: string): Locator {
+  return page.locator(
+    `[data-testid="${TESTIDS.checkoutPaymentMethod}"][data-value="${value}"]`
+  );
+}
 
 /**
  * Datos de una compra válida, iguales a los que pide el plan (fable/plan.md
  * §6.1): teléfono `+5959…`, documento CI, ciudad de una zona sembrada
  * (`scripts/seed-data.ts`) y transferencia — el único medio de pago que esta
  * tienda ofrece sin credenciales de Pagopar.
+ *
+ * La ciudad **sí** sigue hardcodeada: no es catálogo, es una zona de envío, y
+ * cualquier tienda clonada necesita al menos una para vender. Lo que este
+ * archivo ya no asume es la categoría o el producto — esos salen de lo que la
+ * tienda tenga cargado en el momento del test.
  */
 export const COMPRADOR = {
   name: "Compradora E2E",
@@ -37,34 +67,41 @@ export async function realizarCompra(
  * porque hay specs que necesitan tocar algo **antes** de confirmar —elegir una
  * forma de entrega, por ejemplo— y repetir estos veinte pasos en cada uno los
  * deja desincronizados a la primera que alguien renombre un campo.
+ *
+ * Ubica todo por `data-testid` (ver `src/lib/testids.ts`) y nunca por texto o
+ * slug del seed: la primera categoría y el primer producto que existan, sean
+ * los que sean. Un spec que conociera el catálogo de la tienda se rompería en
+ * cada tienda clonada — que es exactamente el bug que este contrato existe
+ * para no repetir (NEW-STORE.md §5).
  */
 export async function completarCheckout(page: Page): Promise<void> {
   await page.goto("/");
-  await page.getByRole("link", { name: "Electrónica" }).first().click();
-  await expect(page).toHaveURL(/\/categoria\/electronica/);
+  await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
+  await expect(page).toHaveURL(/\/categoria\//);
 
-  await page.locator('a[href^="/producto/"]').first().click();
+  await page.getByTestId(TESTIDS.productCard).first().click();
   await expect(page).toHaveURL(/\/producto\//);
 
-  await page.getByRole("button", { name: "Agregar al carrito" }).click();
+  // Agregar abre el carrito solo (`cart-store.ts`: `add()` deja `isOpen:
+  // true`) — no hace falta un click aparte en `header-cart-link` para verlo.
+  await page.getByTestId(TESTIDS.productAddToCart).click();
 
-  await page.goto("/checkout");
-  // Por `id` y no por accessible name: el WhatsApp flotante
-  // (`whatsapp-fab.tsx`) y el checkbox de novedades también matchean
-  // "WhatsApp" como texto, y `getByLabel` no alcanza a distinguirlos.
-  await page.locator("#customerName").fill(COMPRADOR.name);
-  await page.locator("#customerPhone").fill(COMPRADOR.phone);
+  await page.getByTestId(TESTIDS.cartCheckoutLink).click();
+  await expect(page).toHaveURL(/\/checkout/);
 
-  await page.locator("#docType").selectOption("CI");
-  await page.locator("#docNumber").fill(COMPRADOR.docNumber);
+  await page.getByTestId(TESTIDS.checkoutName).fill(COMPRADOR.name);
+  await page.getByTestId(TESTIDS.checkoutPhone).fill(COMPRADOR.phone);
 
-  await page.locator("#shipCity").fill(COMPRADOR.city);
-  await page.locator("#shipAddress").fill(COMPRADOR.address);
+  await page.getByTestId(TESTIDS.checkoutDocType).selectOption("CI");
+  await page.getByTestId(TESTIDS.checkoutDocNumber).fill(COMPRADOR.docNumber);
 
-  // La cotización de envío se dispara con un debounce (400ms); esperarla deja
-  // el total visible en pantalla antes de confirmar, igual que haría una
-  // persona.
-  await expect(page.getByText("Total", { exact: true })).toBeVisible({
+  await page.getByTestId(TESTIDS.checkoutCity).fill(COMPRADOR.city);
+  await page.getByTestId(TESTIDS.checkoutAddress).fill(COMPRADOR.address);
+
+  // La cotización de envío se dispara con un debounce (400ms); esperar la
+  // línea de total deja el número visible en pantalla antes de confirmar,
+  // igual que haría una persona.
+  await expect(page.getByTestId(TESTIDS.checkoutTotal)).toBeVisible({
     timeout: 5000,
   });
 }
@@ -76,7 +113,7 @@ export async function completarCheckout(page: Page): Promise<void> {
 export async function confirmarPedido(
   page: Page
 ): Promise<{ orderNumber: string; url: string }> {
-  await page.getByRole("button", { name: "Confirmar pedido" }).click();
+  await page.getByTestId(TESTIDS.checkoutSubmit).click();
 
   await page.waitForURL(/\/pedido\/PY-[^/?]+\?t=/, { timeout: 15_000 });
 

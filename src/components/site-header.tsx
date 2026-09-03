@@ -7,6 +7,7 @@ import { CuentaHeaderEntry } from "@/components/cuenta/header-entry";
 import { SearchBox } from "@/components/search-box";
 import { getCategories } from "@/db/queries";
 import { t } from "@/i18n";
+import { TESTIDS } from "@/lib/testids";
 
 export async function SiteHeader() {
   let categories: Awaited<ReturnType<typeof getCategories>> = [];
@@ -43,6 +44,8 @@ export async function SiteHeader() {
             <Link
               key={category.id}
               href={`/categoria/${category.slug}`}
+              data-testid={TESTIDS.headerCategoryLink}
+              data-slug={category.slug}
               className="text-muted-foreground hover:text-foreground shrink-0 transition-colors"
             >
               {category.name}

@@ -528,6 +528,21 @@ Qué se puede redibujar libremente y qué no:
 Regla práctica: si el archivo toca plata, stock o estados de pedido, no se
 toca por tienda. Si sólo dibuja, es libre.
 
+#### La única excepción: los `data-testid`
+
+Los specs de `tests/e2e/**` (compra, panel de admin, CSP) localizan los
+elementos por `data-testid`, nunca por texto ni por markup — es lo que les
+permite correr contra el catálogo real de cualquier tienda, no sólo el del
+seed. El contrato completo, con qué elemento lleva cada id, vive en
+[`src/lib/testids.ts`](./src/lib/testids.ts).
+
+Rediseñar es libre —cambiar clases, mover el elemento, reescribir el texto
+que lleva adentro—, con una sola regla: **no le saques el atributo
+`data-testid` a un elemento que ya lo tiene.** Agregarle uno a un elemento
+nuevo no rompe nada; sacarle el que ya tenía rompe el spec que lo busca, en
+esta tienda y en la próxima sincronización. `tests/unit/testids-contrato.test.ts`
+avisa si alguno de la lista deja de aparecer en `src/`.
+
 ### 6. Antes de cobrar de verdad
 
 ```bash

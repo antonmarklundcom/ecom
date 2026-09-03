@@ -6,6 +6,7 @@ import { LogoutButton } from "@/components/admin/logout-button";
 import { can } from "@/lib/permissions";
 import { UnauthorizedError, getSession, requireAdmin, type AdminActor } from "@/lib/session";
 import { t } from "@/i18n";
+import { TESTIDS } from "@/lib/testids";
 
 /**
  * Puerta del panel. Todo lo que cuelga de este layout exige sesión de admin.
@@ -44,7 +45,9 @@ export default async function PanelLayout({ children }: { children: React.ReactN
           */}
           <nav className="flex flex-1 items-center gap-1 overflow-x-auto text-sm">
             {can(actor.role, "dashboard") ? <NavLink href="/admin">{t("panel.nav.resumen")}</NavLink> : null}
-            <NavLink href="/admin/pedidos">{t("panel.nav.pedidos")}</NavLink>
+            <NavLink href="/admin/pedidos" testId={TESTIDS.adminNavOrders}>
+              {t("panel.nav.pedidos")}
+            </NavLink>
             {can(actor.role, "productos") ? (
               <NavLink href="/admin/productos">{t("panel.nav.productos")}</NavLink>
             ) : null}
@@ -78,9 +81,21 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   );
 }
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+function NavLink({
+  href,
+  children,
+  testId,
+}: {
+  href: string;
+  children: React.ReactNode;
+  testId?: string;
+}) {
   return (
-    <Link href={href} className="hover:bg-muted shrink-0 rounded-lg px-3 py-1.5 whitespace-nowrap">
+    <Link
+      href={href}
+      data-testid={testId}
+      className="hover:bg-muted shrink-0 rounded-lg px-3 py-1.5 whitespace-nowrap"
+    >
       {children}
     </Link>
   );

@@ -6,6 +6,7 @@ import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import { cartCount, useCart } from "@/lib/cart-store";
+import { TESTIDS } from "@/lib/testids";
 
 export function CartButton() {
   const open = useCart((state) => state.open);
@@ -24,6 +25,7 @@ export function CartButton() {
       variant="outline"
       size="sm"
       onClick={open}
+      data-testid={TESTIDS.headerCartLink}
       className="relative"
       aria-label={count > 0 ? t("carrito.abrirCon", { n: count }) : t("carrito.abrir")}
     >

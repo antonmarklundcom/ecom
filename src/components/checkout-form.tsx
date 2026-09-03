@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { describeIssue } from "@/lib/cart-issues";
 import { cartSubtotal, useCart } from "@/lib/cart-store";
 import { formatGs } from "@/lib/money";
+import { TESTIDS } from "@/lib/testids";
 
 /**
  * Los medios de pago, en el orden en que se ofrecen.
@@ -300,6 +301,7 @@ export function CheckoutForm({
           <Input
             id="customerName"
             name="customerName"
+            data-testid={TESTIDS.checkoutName}
             required
             minLength={3}
             defaultValue={prefill?.name ?? ""}
@@ -311,6 +313,7 @@ export function CheckoutForm({
           <Input
             id="customerPhone"
             name="customerPhone"
+            data-testid={TESTIDS.checkoutPhone}
             required
             defaultValue={prefill?.phone ?? ""}
             placeholder={t("checkout.whatsapp.placeholder")}
@@ -343,6 +346,7 @@ export function CheckoutForm({
           <select
             id="docType"
             name="docType"
+            data-testid={TESTIDS.checkoutDocType}
             value={docType}
             onChange={(event) => setDocType(event.target.value as typeof docType)}
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
@@ -357,7 +361,13 @@ export function CheckoutForm({
             <Label htmlFor="docNumber">
               {docType === "RUC" ? t("checkout.documento.rucLabel") : t("checkout.documento.ciLabel")}
             </Label>
-            <Input id="docNumber" name="docNumber" required inputMode="numeric" />
+            <Input
+              id="docNumber"
+              name="docNumber"
+              data-testid={TESTIDS.checkoutDocNumber}
+              required
+              inputMode="numeric"
+            />
           </div>
         ) : null}
       </div>
@@ -368,6 +378,7 @@ export function CheckoutForm({
           <Input
             id="shipCity"
             name="shipCity"
+            data-testid={TESTIDS.checkoutCity}
             required
             list="ciudades"
             autoComplete="address-level2"
@@ -394,7 +405,14 @@ export function CheckoutForm({
 
       <div className="grid gap-1.5">
         <Label htmlFor="shipAddress">{t("checkout.direccion")}</Label>
-        <Input id="shipAddress" name="shipAddress" required minLength={5} autoComplete="street-address" />
+        <Input
+          id="shipAddress"
+          name="shipAddress"
+          data-testid={TESTIDS.checkoutAddress}
+          required
+          minLength={5}
+          autoComplete="street-address"
+        />
       </div>
 
       <div className="grid gap-1.5">
@@ -418,6 +436,8 @@ export function CheckoutForm({
               <input
                 type="radio"
                 name="shippingMethodId"
+                data-testid={TESTIDS.checkoutShippingMethod}
+                data-slug={method.slug}
                 value={String(method.id ?? "")}
                 checked={shippingMethodId === method.id}
                 onChange={() => {
@@ -473,6 +493,8 @@ export function CheckoutForm({
               <input
                 type="radio"
                 name="paymentMethod"
+                data-testid={TESTIDS.checkoutPaymentMethod}
+                data-value={value}
                 value={value}
                 checked={paymentMethod === value}
                 onChange={() => setPaymentMethod(value)}
@@ -664,7 +686,10 @@ export function CheckoutForm({
                   : formatGs(currentQuote.shipping.shippingPyg)}
               </span>
             </div>
-            <div className="flex items-center justify-between pt-1">
+            <div
+              className="flex items-center justify-between pt-1"
+              data-testid={TESTIDS.checkoutTotal}
+            >
               <span className="font-medium">{t("checkout.total")}</span>
               <span className="text-base font-semibold tabular-nums">
                 {formatGs(currentQuote.totalPyg ?? 0)}
@@ -698,6 +723,7 @@ export function CheckoutForm({
       <Button
         type="submit"
         size="lg"
+        data-testid={TESTIDS.checkoutSubmit}
         disabled={isPending || pagosVisibles.length === 0 || currentQuote?.methods.length === 0}
       >
         {isPending ? t("checkout.confirmando") : t("checkout.confirmar")}

@@ -1,4 +1,11 @@
+import { asc, eq } from "drizzle-orm";
 import { expect, test, type Page } from "@playwright/test";
+
+import "../../src/lib/load-env";
+import { closePool, getDb } from "../../src/db";
+import { categories, products } from "../../src/db/schema";
+
+import { TESTIDS } from "./testids";
 
 /**
  * El CSP de verdad, en un navegador de verdad (fable/plan.md §6.1, spec 3).
@@ -41,6 +48,46 @@ async function collectConsole(page: Page): Promise<string[]> {
   return mensajes;
 }
 
+/**
+ * Una categoría y un producto de verdad, resueltos contra la base en vez de
+ * hardcodeados: este spec no puede conocer el catálogo de la tienda (una
+ * categoría real reemplaza a las cuatro del seed en cuanto el comercio carga
+ * la suya). Sólo hace falta que exista **alguno** de cada uno.
+ */
+let categoriaSlug = "";
+let productoSlug = "";
+let productoNombre = "";
+
+test.beforeAll(async () => {
+  const db = getDb();
+  const [categoria] = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.isActive, true))
+    .orderBy(asc(categories.position))
+    .limit(1);
+  const [producto] = await db
+    .select()
+    .from(products)
+    .where(eq(products.isActive, true))
+    .orderBy(asc(products.id))
+    .limit(1);
+
+  if (!categoria || !producto) {
+    throw new Error(
+      "csp.spec.ts necesita al menos una categoría y un producto activos — ¿corriste `pnpm db:seed`?"
+    );
+  }
+
+  categoriaSlug = categoria.slug;
+  productoSlug = producto.slug;
+  productoNombre = producto.name;
+});
+
+test.afterAll(async () => {
+  await closePool();
+});
+
 test("home y categoría (cacheadas): CSP sin ninguna violación", async ({
   page,
 }) => {
@@ -48,7 +95,7 @@ test("home y categoría (cacheadas): CSP sin ninguna violación", async ({
 
   await page.goto("/");
   await page.waitForLoadState("networkidle");
-  await page.goto("/categoria/electronica");
+  await page.goto(`/categoria/${categoriaSlug}`);
   await page.waitForLoadState("networkidle");
 
   expect(violacionesReales(mensajes), mensajes.join("\n")).toEqual([]);
@@ -59,7 +106,7 @@ test("producto y admin/login (con nonce): sólo la violación documentada del ch
 }) => {
   const mensajes = await collectConsole(page);
 
-  await page.goto("/producto/auriculares-bluetooth-tws");
+  await page.goto(`/producto/${productoSlug}`);
   await page.waitForLoadState("networkidle");
   await page.goto("/admin/login");
   await page.waitForLoadState("networkidle");
@@ -70,15 +117,15 @@ test("producto y admin/login (con nonce): sólo la violación documentada del ch
 test("checkout con carrito (con nonce): sólo la violación documentada del chunk de next/image", async ({
   page,
 }) => {
-  await page.goto("/producto/auriculares-bluetooth-tws");
-  await page.getByRole("button", { name: "Agregar al carrito" }).click();
+  await page.goto(`/producto/${productoSlug}`);
+  await page.getByTestId(TESTIDS.productAddToCart).click();
 
   const mensajes = await collectConsole(page);
   await page.goto("/checkout");
   await page.waitForLoadState("networkidle");
 
   expect(violacionesReales(mensajes), mensajes.join("\n")).toEqual([]);
-  await expect(page.locator("#customerName")).toBeVisible();
+  await expect(page.getByTestId(TESTIDS.checkoutName)).toBeVisible();
 });
 
 test("el buscador del header responde (hay JS vivo en la home)", async ({
@@ -88,7 +135,7 @@ test("el buscador del header responde (hay JS vivo en la home)", async ({
   // Dos `<SearchBox>` conviven en el DOM (uno para `sm:` y arriba, otro para
   // el celular, abajo): sólo uno es visible en el viewport de Chromium.
   const buscador = page.getByLabel("Buscar productos").first();
-  await buscador.fill("auriculares");
+  await buscador.fill(productoNombre);
 
   await expect(
     page.getByRole("listbox", { name: "Sugerencias" })
