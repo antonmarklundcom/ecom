@@ -85,9 +85,10 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 | Cupones (ABM) | ✅ | ❌ | ❌ |
 | Categorías (ABM) | ✅ | ❌ | ❌ |
 | Zonas de envío (ABM) | ✅ | ❌ | ❌ |
+| Formas de entrega (ABM) | ✅ | ❌ | ❌ |
 | Datos bancarios de la tienda | ✅ | ❌ | ❌ |
 
-Lo que el `owner` no delega tiene siempre el mismo motivo: **el error no se ve y no se puede deshacer**. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs que se sumaron en la FASE 2 son de la misma familia: un cupón mal puesto se descubre cuando ya lo usaron cien personas, apagar una categoría le saca de la vidriera a todos sus productos de una vez, y una zona de envío con el precio viejo cobra de menos en cada pedido sin romper nada, sin dejar log y sin que nadie se entere hasta cerrar el mes. Los datos bancarios (FASE 2, PR T) son el caso más puro de la familia: quien puede cambiar el número de cuenta al que transfieren las compradoras desvía la facturación entera a otra cuenta sin generar un solo pedido raro — la tienda sigue andando igual y el dueño se entera cuando mira su banco.
+Lo que el `owner` no delega tiene siempre el mismo motivo: **el error no se ve y no se puede deshacer**. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs que se sumaron en la FASE 2 son de la misma familia: un cupón mal puesto se descubre cuando ya lo usaron cien personas, apagar una categoría le saca de la vidriera a todos sus productos de una vez, y una zona de envío con el precio viejo cobra de menos en cada pedido sin romper nada, sin dejar log y sin que nadie se entere hasta cerrar el mes. Las formas de entrega (FASE 3) entran en la misma familia y por partida doble: además del flete, deciden **con qué se puede pagar**, así que un método mal configurado habilita contra entrega en ciudades donde nadie del comercio va a ir a cobrar — y eso se descubre con el repartidor en la puerta, no en una pantalla. Los datos bancarios (FASE 2, PR T) son el caso más puro de la familia: quien puede cambiar el número de cuenta al que transfieren las compradoras desvía la facturación entera a otra cuenta sin generar un solo pedido raro — la tienda sigue andando igual y el dueño se entera cuando mira su banco.
 
 Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado.
 
@@ -257,8 +258,26 @@ MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaran�
 └────────────────────────────┘           ┌────────────────────────────┐
                                          │       shipping_zones       │
                                          │ id, name, cities JSON,     │
-                                         │ price_pyg BIGINT           │
+                                         │ price_pyg BIGINT,          │
+                                         │ free_threshold_pyg NULL    │
+                                         └─────────────┬──────────────┘
+                                                       │ referenciada por id
+                                                       │ (zone_ids JSON)
+                                         ┌─────────────┴──────────────┐
+                                         │      shipping_methods      │
+                                         │ id, slug UQ, name          │
+                                         │ kind: courier|local|retiro │
+                                         │ pricing: zona|fijo         │
+                                         │ fixed_price_pyg NULL       │
+                                         │ zone_ids JSON ([] = todas) │
+                                         │ allowed_payment_methods    │
+                                         │      JSON (nunca vacío)    │
+                                         │ description, is_active,    │
+                                         │ position                   │
                                          └────────────────────────────┘
+                                   orders.shipping_method_id → este id
+                                   (nullable, ON DELETE SET NULL), y
+                                   orders.shipping_method_name (snapshot)
 ```
 
 ### Cupones y descuentos (FASE 2, PR G)
@@ -359,6 +378,67 @@ sin enterarse:
 Editar una zona **no toca los pedidos en vuelo**: el flete quedó copiado en
 `orders.shipping_pyg` cuando se creó cada pedido.
 
+### Métodos de envío: cómo se entrega decide con qué se paga (FASE 3)
+
+`shipping_zones` contesta *cuánto sale llegar a esa ciudad*. Le faltaba la otra
+mitad: **de qué formas se entrega**. Hasta acá el medio de pago era un enum
+suelto del pedido, sin relación con la entrega, así que "contra entrega" quedaba
+ofrecido en todo el país — incluido el interior, donde nadie del comercio va a
+estar en la puerta para cobrar. Y un comercio que tiene courier nacional *y*
+moto propia *y* retiro en el local no podía modelar ninguna de las tres.
+
+`shipping_methods` es una fila por forma de entregar:
+
+| Columna | Qué decide |
+|---|---|
+| `kind` (`courier` \| `local` \| `retiro`) | La regla del dominio. `retiro` no viaja: ignora zonas y cuesta ₲0 siempre. |
+| `pricing` (`zona` \| `fijo`) + `fixed_price_pyg` | De dónde sale el precio. `zona` reusa `shipping_zones` **con su umbral de envío gratis**; `fijo` cobra su tarifa plana, sin umbral (una tarifa de barrio no depende del monto de la compra). |
+| `zone_ids` JSON | A qué zonas aplica. **Vacío = todas las zonas activas**, que es el default. |
+| `allowed_payment_methods` JSON | El subconjunto de `PAYMENT_METHODS` que habilita. **Nunca vacío.** |
+
+**La tabla vacía no es un caso borde: es el estado de toda tienda ya clonada.**
+Sin filas, `quoteShippingMethods` devuelve un único método implícito
+(`id: null`, "Envío a domicilio") con el precio de la zona y los tres medios de
+pago — o sea el checkout exacto de antes. Nadie tiene que configurar nada para
+seguir vendiendo igual, y el checkout ni siquiera dibuja la pregunta nueva
+mientras la única opción sea la implícita.
+
+Tres reglas que valen la pena:
+
+- **Una ciudad cotizada "por descarte" no habilita la moto del barrio.** Un
+  método con `zone_ids` declarados aplica sólo si la ciudad cayó en una de esas
+  zonas **de forma exacta**. Cuando la ciudad no está en ninguna lista se cobra
+  la tarifa más cara (`ShippingQuote.match = "mas_cara"`), y eso no la convierte
+  en una ciudad donde el comercio reparte: ofrecerle contra entrega ahí es
+  prometer una visita que nadie va a hacer.
+- **El precio del envío no depende de cómo se paga.** Si el navegador no eligió
+  método, `selectShippingMethod` toma **el primero por `position`**, no "el que
+  acepte el medio de pago que mandó". Si ese primero no acepta ese pago, el
+  pedido no se crea y se dice por qué — mucho mejor que cobrar un flete distinto
+  en silencio.
+- **Quedarse sin métodos activos es legítimo**, al revés que con las zonas. Sin
+  ninguno se vuelve al implícito, que cobra la zona: no se regala nada. Por eso
+  no hay regla de "el último activo".
+
+`createOrder` re-valida el método **adentro de su transacción** (activo, aplica
+a la ciudad, acepta el `payment_method` elegido) y re-cotiza el precio del lado
+del servidor. Lo que viaja del navegador es un **id**, nunca un monto; lo que se
+cobra sale de `computeOrderTotals`, la misma función que corrió la cotización
+(§1 regla 1). Un método inválido es un error del dominio
+(`ShippingMethodRejectedError`, `PaymentMethodNotAllowedError`), no un 500.
+
+El pedido guarda `shipping_method_id` (nullable, `ON DELETE SET NULL`) **y**
+`shipping_method_name` como snapshot, con el mismo criterio que `coupon_code`:
+si el dueño renombra o borra "Moto Asunción", ese pedido tiene que seguir
+diciendo cómo se entregó. El precio sigue viviendo donde siempre,
+`orders.shipping_pyg`, y editar un método **no toca los pedidos en vuelo**.
+
+Se configura desde `/admin/envios` (owner-only, misma pantalla que las zonas) y
+sale en el aviso de pedido nuevo al comercio y en la ficha de `/admin/pedidos`.
+`pnpm preflight` avisa —sin bloquear, y es el único de sus controles que lee la
+base— si hay métodos activos cuyas zonas están todas apagadas: están prendidos,
+se ven prendidos, y no le aparecen a nadie.
+
 ### Datos bancarios: dos fuentes con precedencia (FASE 2, PR T)
 
 A dónde transfieren las compradoras vivía sólo en `BANCO_*` del entorno, y eso
@@ -405,9 +485,10 @@ y aparece cuando no hay datos en ninguna de las dos fuentes.
 
 ### La cotización de envío no cobra
 
-`computeOrderTotals(items, ciudad, { executor })` es **la** cuenta del pedido:
-subtotal re-preciado, flete por zona, IVA incluido del flete, total. La usan
-dos caminos y a propósito no hay un tercero:
+`computeOrderTotals(items, ciudad, { executor, shippingMethodId })` es **la**
+cuenta del pedido: subtotal re-preciado, flete del método de envío elegido —que
+por default sale de la zona—, IVA incluido del flete, total. La usan dos caminos
+y a propósito no hay un tercero:
 
 1. `quoteCartShipping` — server action pública, sólo lectura. No crea pedido,
    no reserva stock, no toca `on_hand`. Es lo que ve la compradora antes de

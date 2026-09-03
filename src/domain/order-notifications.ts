@@ -77,6 +77,12 @@ export type NewOrderNotice = {
   customerName: string;
   totalPyg: number;
   paymentMethod: PaymentMethod;
+  /**
+   * Cómo hay que entregarlo (FASE 3). `null` en los pedidos anteriores a
+   * `shipping_methods` y en las tiendas que no configuraron métodos: ahí la
+   * línea no sale, en vez de salir vacía.
+   */
+  shippingMethodName?: string | null;
 };
 
 /**
@@ -94,11 +100,23 @@ export function newOrderNoticeBody(notice: NewOrderNotice): string {
     nombre: notice.customerName.trim(),
   });
 
-  const origin = siteOrigin();
-  if (!origin) return linea;
+  // Cómo se entrega es la primera decisión del comercio al leer el aviso: si
+  // es retiro no hay nada que despachar, y si es la moto propia hay que
+  // salir. Sin método (pedido viejo, tienda sin configurar) no se inventa
+  // ninguna línea.
+  const envio = notice.shippingMethodName?.trim();
+  const lineas = [
+    linea,
+    ...(envio ? [t("wa.aviso.pedidoNuevo.envio", { metodo: envio })] : []),
+  ];
 
-  const url = new URL(`/admin/pedidos/${notice.orderId}`, origin).toString();
-  return `${linea}\n${t("wa.aviso.pedidoNuevo.url", { url })}`;
+  const origin = siteOrigin();
+  if (origin) {
+    const url = new URL(`/admin/pedidos/${notice.orderId}`, origin).toString();
+    lineas.push(t("wa.aviso.pedidoNuevo.url", { url }));
+  }
+
+  return lineas.join("\n");
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -137,6 +155,7 @@ export async function notifyOwnerNewOrder(
         customerName: orders.customerName,
         totalPyg: orders.totalPyg,
         paymentMethod: orders.paymentMethod,
+        shippingMethodName: orders.shippingMethodName,
         status: orders.status,
       })
       .from(orders)
@@ -153,6 +172,7 @@ export async function notifyOwnerNewOrder(
       customerName: order.customerName,
       totalPyg: order.totalPyg,
       paymentMethod: order.paymentMethod,
+      shippingMethodName: order.shippingMethodName,
     });
 
     try {

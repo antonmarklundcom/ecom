@@ -238,6 +238,13 @@ export const esPY = {
   "checkout.pago.tarjeta": "Tarjeta / Pagopar",
   "checkout.pago.tarjeta.ayuda":
     "Pagás online, ahora, con tarjeta u otros medios de Pagopar.",
+  "checkout.pago.sinOpciones":
+    "Esa forma de entrega no tiene ningún medio de pago habilitado. Elegí otra.",
+
+  "checkout.envio.pregunta": "¿Cómo querés recibirlo?",
+  "checkout.envio.sinMetodos":
+    "No tenemos ninguna forma de entrega para esa ciudad. Escribinos por WhatsApp y lo resolvemos.",
+  "envio.metodo.implicito": "Envío a domicilio",
 
   "checkout.regalo": "Es un regalo",
   "checkout.regalo.ayuda": "Lo preparamos para regalar y, si querés, le sumamos un mensaje.",
@@ -441,6 +448,12 @@ export const esPY = {
     "El total cambió de {antes} a {despues} mientras completabas los datos. Revisalo y confirmá de nuevo.",
   "error.checkout.cuponCaido":
     "El código de descuento ya no se puede usar. Revisá el total y confirmá de nuevo.",
+  "error.checkout.sinMetodoEnvio":
+    "No tenemos ninguna forma de entrega para esa ciudad. Escribinos por WhatsApp y lo resolvemos.",
+  "error.checkout.metodoEnvioCaido":
+    "La forma de entrega que elegiste ya no está disponible. Elegí otra y confirmá de nuevo.",
+  "error.checkout.pagoNoPermitido":
+    "{envio} no acepta {pago}. Elegí otro medio de pago o cambiá la forma de entrega.",
   "error.checkout.demasiadosIntentos":
     "Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.",
   "error.checkout.revisaDatos": "Revisá los datos del formulario.",
@@ -508,6 +521,7 @@ export const esPY = {
   // toque de distancia, y el mensaje llega a la pantalla de bloqueo igual.
   // -------------------------------------------------------------------------
   "wa.aviso.pedidoNuevo": "Pedido nuevo {numero} — {total} ({metodo}). Compró {nombre}.",
+  "wa.aviso.pedidoNuevo.envio": "Entrega: {metodo}.",
   "wa.aviso.pedidoNuevo.url": "Miralo en el panel: {url}",
 
   // -------------------------------------------------------------------------
@@ -546,6 +560,29 @@ export const esPY = {
   "adminError.envio.noExiste": "Esa zona no existe.",
   "adminError.envio.ultimaActiva":
     "Es la última zona activa: sin ninguna, la tienda pasa a cobrar ₲0 de envío a todo el país sin avisar en ninguna pantalla. Si querés dejar de cobrar el flete, poné el precio de esta zona en ₲0.",
+
+  "adminError.metodo.nombreCorto": "El nombre necesita al menos 2 caracteres.",
+  "adminError.metodo.nombreLargo": "El nombre no puede pasar los 160 caracteres.",
+  "adminError.metodo.sinSlug":
+    "De ese nombre no sale ningún identificador. Escribí el slug a mano.",
+  "adminError.metodo.slugLargo": "El slug no puede pasar los 120 caracteres.",
+  "adminError.metodo.descripcionLarga":
+    "La descripción no puede pasar los 200 caracteres: es una línea para el checkout.",
+  "adminError.metodo.noEsNumero": "{campo} tiene que ser un número.",
+  "adminError.metodo.noEsEntero": "{campo} va en guaraníes enteros, sin centavos.",
+  "adminError.metodo.precioLabel": "La tarifa plana",
+  "adminError.metodo.precioNegativo": "La tarifa plana no puede ser negativa.",
+  "adminError.metodo.faltaPrecioFijo":
+    "Elegiste tarifa plana: poné cuánto cobra. Si el precio sale de las zonas, cambiá \"cómo se cobra\".",
+  "adminError.metodo.sinPagos":
+    "Elegí al menos un medio de pago: un método que no acepta ninguno no se puede elegir en el checkout.",
+  "adminError.metodo.demasiadasZonas": "Son demasiadas zonas para un solo método.",
+  "adminError.metodo.zonaInexistente":
+    "Alguna de las zonas elegidas ya no existe (ids: {ids}). Recargá la página y probá de nuevo.",
+  "adminError.metodo.slugRepetido": "Ya hay un método con el identificador \"{slug}\".",
+  "adminError.metodo.slugRepetidoOtro": "Ya hay otro método con el identificador \"{slug}\".",
+  "adminError.metodo.noPude": "No pude crear el método.",
+  "adminError.metodo.noExiste": "Ese método no existe.",
 
   // Datos bancarios (PR T). No son plata —no entran en ningún total— pero son
   // a dónde va la plata de otra persona, así que el RUC se verifica de verdad.
@@ -626,6 +663,7 @@ export const esPY = {
   "adminError.noEntendi.devolucion": "Faltan datos para registrar la devolución.",
   "adminError.noEntendi.categoria": "No entendí qué categoría cambiar.",
   "adminError.noEntendi.zona": "No entendí qué zona cambiar.",
+  "adminError.noEntendi.metodo": "No entendí qué método de envío cambiar.",
   "adminError.noEntendi.cupon": "No entendí qué cupón cambiar.",
   "adminError.noEntendi.usuario": "No entendí qué usuario cambiar.",
   "adminError.noEntendi.rol": "No entendí qué rol poner.",
@@ -652,6 +690,8 @@ export const esPY = {
   "adminForm.motivoAjuste": "Escribí el motivo del ajuste",
   "adminForm.nombreCategoria": "Poné el nombre de la categoría",
   "adminForm.nombreZona": "Poné el nombre de la zona",
+  "adminForm.nombreMetodo": "Poné el nombre del método de envío",
+  "adminForm.pagosMetodo": "Elegí al menos un medio de pago",
   "adminForm.banco.banco": "Poné el nombre del banco",
   "adminForm.banco.titular": "Poné el titular de la cuenta",
   "adminForm.banco.ruc": "Poné el RUC del titular",
@@ -959,6 +999,54 @@ export const esPY = {
   "panel.zona.identificadorAyuda":
     "Interno: no sale en ninguna URL. Sirve para distinguir dos zonas que se llamen parecido.",
 
+  "panel.metodo.titulo": "Formas de entrega",
+  "panel.metodo.bajada":
+    "Courier, moto propia o retiro en el local. Cada forma decide con qué se puede pagar: contra entrega sólo tiene sentido donde alguien tuyo va a estar en la puerta para cobrar.",
+  "panel.metodo.crear": "Agregar forma de entrega",
+  "panel.metodo.vacio":
+    "Todavía no hay ninguna. Sin métodos, el checkout ofrece \"Envío a domicilio\" con el precio de la zona y los tres medios de pago — exactamente como venía funcionando.",
+  "panel.metodo.nueva": "Forma de entrega nueva",
+  "panel.metodo.editarTitulo": "Editar {nombre}",
+  "panel.metodo.desactivado": " · desactivado",
+  "panel.metodo.creado": "Forma de entrega creada.",
+  "panel.metodo.actualizado": "Forma de entrega actualizada.",
+  "panel.metodo.activadoOk": "Forma de entrega activada.",
+  "panel.metodo.desactivadoOk": "Forma de entrega desactivada.",
+  "panel.metodo.kind.courier": "Courier",
+  "panel.metodo.kind.local": "Reparto propio",
+  "panel.metodo.kind.retiro": "Retiro en el local",
+  "panel.metodo.precioPorZona": "Precio de la zona",
+  "panel.metodo.gratis": "Gratis",
+  "panel.metodo.zonasTodas": "Todas las zonas activas",
+  "panel.metodo.zonasLista": "Zonas: {lista}",
+  "panel.metodo.pagosLista": "Se paga con: {lista}",
+  "panel.metodo.sinZonaActiva":
+    "Ninguna de sus zonas está activa: hoy este método no le aparece a nadie en el checkout.",
+  "panel.metodo.nombre": "Nombre",
+  "panel.metodo.nombreAyuda":
+    "Lo que lee quien compra: \"Courier AEX\", \"Moto Asunción\", \"Retiro en el local\".",
+  "panel.metodo.tipo": "Tipo",
+  "panel.metodo.tipoAyuda":
+    "Retiro no viaja: no cobra flete ni usa zonas, cualquiera sea lo que pongas abajo.",
+  "panel.metodo.pricing": "Cómo se cobra",
+  "panel.metodo.pricing.zona": "Con el precio de la zona",
+  "panel.metodo.pricing.fijo": "Tarifa plana",
+  "panel.metodo.pricingAyuda":
+    "Por zona conserva el envío gratis desde el umbral de la zona. La tarifa plana cobra lo mismo siempre.",
+  "panel.metodo.precioFijo": "Tarifa plana",
+  "panel.metodo.precioFijoAyuda": "En guaraníes enteros. Sólo se usa con tarifa plana.",
+  "panel.metodo.zonas": "Zonas donde aplica",
+  "panel.metodo.zonasAyuda":
+    "Sin ninguna tildada aplica a todas las zonas activas. Tildá sólo las ciudades a las que este método llega de verdad.",
+  "panel.metodo.pagos": "Medios de pago habilitados",
+  "panel.metodo.pagosAyuda":
+    "Al menos uno. Es lo que decide qué ve quien compra después de elegir esta forma de entrega.",
+  "panel.metodo.descripcion": "Descripción",
+  "panel.metodo.descripcionAyuda": "Una línea para el checkout: \"Llega en 24-48 h a todo el país\".",
+  "panel.metodo.identificador": "Identificador",
+  "panel.metodo.identificadorAyuda":
+    "Interno: no sale en ninguna URL. Sirve para distinguir dos métodos que se llamen parecido.",
+
   "panel.rol.owner": "Dueño",
   "panel.rol.staff": "Encargado",
   "panel.rol.vendedor": "Vendedor",
@@ -1247,6 +1335,7 @@ export const esPY = {
   "panel.pedido.descuento": "Descuento",
   "panel.pedido.descuentoCon": "Descuento — {codigo}",
   "panel.pedido.envio": "Envío",
+  "panel.pedido.metodoEnvio": "Forma de entrega",
   "panel.pedido.total": "Total",
   "panel.pedido.ivaIncluido": "IVA incluido en el total",
   "panel.pedido.iva10": "IVA 10%",

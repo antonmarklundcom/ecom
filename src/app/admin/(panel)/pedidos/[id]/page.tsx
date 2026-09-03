@@ -265,6 +265,17 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               </dd>
             </div>
           ) : null}
+          {/* Cómo hay que entregarlo, antes de la dirección: si es retiro en
+              el local no hay nada que despachar, y si es la moto propia sale
+              alguien. Snapshot del momento de la compra: cambiarle el nombre
+              al método hoy no reescribe este pedido. Los pedidos anteriores a
+              `shipping_methods` no tienen ninguno y no muestran la fila. */}
+          {order.shippingMethodName ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">{t("panel.pedido.metodoEnvio")}</dt>
+              <dd className="text-right">{order.shippingMethodName}</dd>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">{t("panel.pedido.envio")}</dt>
             <dd className="max-w-[60%] text-right">

@@ -52,6 +52,10 @@ const CheckoutActionSchema = z.object({
   shipAddress: z.string().trim().min(5, "Falta la dirección").max(255),
   shipReference: z.string().trim().max(255).optional().or(z.literal("")),
   paymentMethod: z.enum(PAYMENT_METHODS),
+  // El **id** del método de envío elegido, nunca su precio: `createOrder` lo
+  // re-valida y lo re-cotiza contra la DB adentro de su transacción. Ausente
+  // = no eligió (una tienda sin métodos configurados, o un checkout viejo).
+  shippingMethodId: z.number().int().positive().optional(),
   // Ausente = no se preguntó (un POST viejo, o el formulario sin la casilla).
   // No se completa con `false`: ver `orders.marketing_opt_in`.
   /** El código tipeado. El descuento lo calcula el servidor (PR G). */
