@@ -581,33 +581,70 @@ registrar la URL de respuesta de Pagopar.
 
 ---
 
-## Arreglos que aparecen después
+## Arreglos que aparecen después — ya tengo una tienda
 
 Los repos creados desde un template **no reciben** los commits posteriores del
 template. Si arreglás un bug de checkout acá, las tiendas ya creadas no se
 enteran.
 
-`pnpm template:diff` te dice cuáles le faltan a **esta** tienda:
+`pnpm template:diff` te dice qué le falta a **esta** tienda; `pnpm
+template:sync` lo trae. El flujo completo:
 
 ```bash
-git remote add template git@github.com:antonmarklundcom/ecom.git
+git remote add template git@github.com:antonmarklundcom/ecom.git   # una vez
+git checkout -b poner-al-dia-template   # nunca sobre main
+pnpm template:sync                      # trae la maquinaria, commit por commit
+pnpm template:diff                      # ¿queda algo marcado con ~? revisalo a mano
+git push -u origin poner-al-dia-template && gh pr create   # o el flujo de PR que uses
+```
+
+`template:sync` cherry-pickea, del más viejo al más nuevo, **sólo** los
+commits marcados como maquinaria (ver `template:diff` abajo) — nunca toca
+`main` directamente. Resuelve solo los tres conflictos que se repiten en toda
+sincronización real: descarta `fable/` del lado del template (las tiendas no
+tienen el plan de endurecimiento), regenera `pnpm-lock.yaml` con `pnpm install
+--lockfile-only` en vez de tocarlo a mano, y en los workflows de
+`.github/workflows/*.yml` se queda con la versión del template. Con cualquier
+otro conflicto —en `src/`, casi siempre porque vos y el template tocaron la
+misma línea— **para en seco**, deja todo lo demás ya aplicado y te dice qué
+commit, qué archivo y cómo seguir (`git cherry-pick --continue` y volver a
+correr `pnpm template:sync`, que retoma solo desde ahí). Al final corre
+`pnpm typecheck && pnpm lint && pnpm test`: si algo falla, los commits quedan
+aplicados pero `.template-baseline` no se mueve, para que puedas arreglar y
+reintentar sin perder lo ya traído.
+
+```bash
+pnpm template:sync --dry-run        # qué traería, sin tocar nada
+pnpm template:sync --hasta <sha>    # parar en un commit dado
+pnpm template:sync --sin-tests      # no correr typecheck/lint/test al final
+```
+
+Si preferís el camino manual (o `template:sync` te frenó en un conflicto y
+querés ver el resto antes de reintentar), `pnpm template:diff` sigue
+sirviendo solo:
+
+```bash
 pnpm template:diff              # qué commits del template no están acá
-git cherry-pick <sha> <sha>     # los que quieras traer
+git cherry-pick <sha> <sha>     # los que quieras traer a mano
 pnpm template:diff --marcar     # "ya me puse al día"
 ```
 
 Marca con `*` los que tocan la maquinaria (`src/domain`, `src/lib`, `src/db`,
-`src/app/api`, `src/app/actions`, `scripts`, `drizzle`): ésos los quiere toda
-tienda. El resto suele ser piel que vos reescribiste, y cherry-pickearlo te pisa
-el rediseño. Con `~` marca `src/components/checkout-form.tsx` y `src/app/admin`:
-markup tuyo con lógica compartida adentro, así que ahí leé el diff en vez de
-cherry-pickear. Las *actions* de admin sí van con `*` — ahí está la plata.
+`src/app/api`, `src/app/actions`, `scripts`, `drizzle`, `.github/workflows`):
+ésos los quiere toda tienda, y son los que trae `template:sync`. El resto
+suele ser piel que vos reescribiste, y cherry-pickearlo te pisa el rediseño.
+Con `~` marca `src/components/checkout-form.tsx` y `src/app/admin`: markup
+tuyo con lógica compartida adentro, así que ahí leé el diff en vez de
+cherry-pickear — ni `template:diff` ni `template:sync` lo tocan solos. Las
+*actions* de admin sí van con `*` — ahí está la plata.
 
 **Trampa:** un repo hecho con "Use this template" **no comparte historia** con
 el original, así que `git log HEAD..template/main` lista todo y no sirve. Por
-eso el comando guarda un punto de partida en `.template-baseline` —commitealo—
-y `--marcar` es el que lo mueve. Si te olvidás de marcar, los mismos commits
-te vuelven a aparecer para siempre.
+eso ambos comandos se apoyan en un punto de partida guardado en
+`.template-baseline` —commitealo—, que `template:diff --marcar` (o el commit
+final de `template:sync`) es lo que mueve. Si no hay `.template-baseline`
+todavía, corré `pnpm template:diff --marcar` una vez en un commit conocido
+antes de tocar `template:sync`.
 
 Si algún día son muchas tiendas, recién ahí conviene sacar `src/domain` y
 `src/lib` a un paquete compartido. Antes de eso es complejidad sin pagar.
