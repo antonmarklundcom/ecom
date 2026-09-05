@@ -78,6 +78,7 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkAvisoCliente(env, "confirmado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO"),
     checkAvisoCliente(env, "pagado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO"),
     checkAvisoCliente(env, "enviado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"),
+    checkResumenDiario(env),
     checkDatabaseUrl(env),
     checkSiteUrl(env),
   ];
@@ -555,6 +556,53 @@ function checkAvisoPedidoNuevo(env: PreflightEnv): PreflightCheck {
     severity: "ok",
     title: "Aviso de pedido nuevo",
     detail: "configurado",
+  };
+}
+
+/**
+ * El resumen diario al dueño (O6).
+ *
+ * Advierte y no bloquea, como el resto de los avisos: no tenerlo no le impide
+ * vender a nadie. Pero se chequea aparte y con su propio texto porque lo que
+ * se pierde sin él es concreto y no se nota: los comprobantes sin revisar y
+ * los pedidos sin pagar se quedan quietos hasta que alguien abre el panel, y
+ * el motivo por el que este mensaje existe es que **nadie abre el panel a las
+ * ocho de la mañana**.
+ *
+ * `WHATSAPP_CLOUD_TEMPLATE_STOCK_DISPONIBLE` no se chequea acá: "avisame
+ * cuando haya stock" es opcional de verdad — sin ella, el formulario no
+ * aparece y no se pierde nada que la tienda estuviera esperando.
+ */
+function checkResumenDiario(env: PreflightEnv): PreflightCheck {
+  const template = value(env, "WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO");
+  const cloudListo =
+    value(env, "WHATSAPP_CLOUD_PHONE_NUMBER_ID") !== "" &&
+    value(env, "WHATSAPP_CLOUD_ACCESS_TOKEN") !== "";
+  const destino = value(env, "WHATSAPP_NUMBER");
+
+  const faltan = [
+    ...(cloudListo ? [] : ["las credenciales de WhatsApp Cloud"]),
+    ...(template === "" ? ["WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO"] : []),
+    ...(destino === "" ? ["WHATSAPP_NUMBER"] : []),
+  ];
+
+  if (faltan.length > 0) {
+    return {
+      id: "resumen_diario",
+      severity: "advierte",
+      title: "Resumen diario",
+      detail:
+        `el dueño no recibe el resumen diario: falta ${faltan.join(", ")}. ` +
+        "Los comprobantes por revisar y los pedidos sin pagar se quedan quietos hasta que " +
+        "alguien abra el panel",
+    };
+  }
+
+  return {
+    id: "resumen_diario",
+    severity: "ok",
+    title: "Resumen diario",
+    detail: "configurado (acordate de la entrada de cron diaria del hPanel, DEPLOY.md)",
   };
 }
 

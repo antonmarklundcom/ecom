@@ -209,3 +209,20 @@ export const CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
  */
 export const QUOTE_LIMIT = 60;
 export const QUOTE_WINDOW_MS = 60 * 1000;
+
+/**
+ * "Avisame cuando haya stock" (O6). Dos límites, y son por cosas distintas.
+ *
+ * Por **IP**: el formulario es público y sin captcha, así que un script puede
+ * anotar mil números en un minuto — y cada uno de esos números va a recibir un
+ * WhatsApp cuando vuelva el stock, pagado por el comercio.
+ *
+ * Por **teléfono**, y más apretado: es el mismo razonamiento que el OTP. El
+ * daño no se le hace a la tienda sino a la persona del número, que no pidió
+ * nada. Tres por día alcanza de sobra para anotarse en las variantes que uno
+ * realmente espera.
+ */
+export const STOCK_ALERT_IP_LIMIT = 5;
+export const STOCK_ALERT_IP_WINDOW_MS = 15 * 60 * 1000;
+export const STOCK_ALERT_PHONE_LIMIT = 3;
+export const STOCK_ALERT_PHONE_WINDOW_MS = 24 * 60 * 60 * 1000;

@@ -17,6 +17,7 @@ import {
   type CatalogImportPlan,
 } from "@/domain/catalog-import-plan";
 import { type CatalogoProducto } from "@/domain/catalog-import";
+import { sweepBackInStock } from "@/domain/stock-alerts";
 import { validateProductImage } from "@/domain/product-images";
 import { CLOUDINARY_PRODUCTS_FOLDER, cloudinary } from "@/lib/cloudinary";
 import { slugify } from "@/lib/slug";
@@ -104,6 +105,13 @@ const VariantSchema = z.object({
   pricePyg: z.number().int(t("adminForm.precioEntero")).nonnegative(),
   compareAtPyg: z.number().int().nonnegative().nullable().optional(),
   isActive: z.boolean(),
+  /**
+   * Punto de reposición por variante (O6). Vacío = `null` = el umbral global.
+   * El techo de 100.000 no es un número mágico: es lo que hace que un dedo
+   * pesado sobre el teclado no deje una variante marcada como "stock bajo"
+   * para siempre — el campo lo dibuja S10.
+   */
+  reorderPoint: z.number().int().nonnegative().max(100_000).nullable().optional(),
 });
 
 export async function saveProductVariant(input: unknown): Promise<AdminActionResult> {
@@ -122,6 +130,7 @@ export async function saveProductVariant(input: unknown): Promise<AdminActionRes
       pricePyg: parsed.data.pricePyg,
       compareAtPyg: parsed.data.compareAtPyg ?? null,
       isActive: parsed.data.isActive,
+      reorderPoint: parsed.data.reorderPoint ?? null,
     });
 
     revalidatePath(`/admin/productos/${parsed.data.productId}`);
@@ -359,6 +368,20 @@ export async function applyCatalogImport(formData: FormData): Promise<CatalogImp
     });
 
     const variantesEscritas = await upsertCatalogProducts(items, { resetStock: pisaStock });
+
+    // "Avisame cuando haya stock" (O6): una importación con `pisarStock` es la
+    // otra forma en que `on_hand` sube sin pasar por `adjustStock`. Se dispara
+    // el barrido —que ya sabe qué variantes tienen suscripciones pendientes y
+    // disponibilidad— y no un aviso por variante: la planilla puede traer
+    // doscientas filas y sólo un puñado interesa a alguien.
+    //
+    // Después del commit, sin `await` que demore y sin poder fallar: quien
+    // acaba de importar el catálogo no espera por Meta.
+    if (pisaStock) {
+      void sweepBackInStock().catch((error) => {
+        console.error("sweepBackInStock rechazó", error);
+      });
+    }
 
     revalidatePath("/admin/productos");
     return { ok: true, ...planSummary(plan, pisaStock), variantesEscritas };

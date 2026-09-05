@@ -177,9 +177,9 @@ describe('rate limiting', () => {
   it('el login, la búsqueda de pedidos y el cron tienen límite', async () => {
     const login = await readCode(path.join('src', 'app', 'actions', 'admin-auth.ts'));
     const lookup = await readCode(path.join('src', 'app', 'actions', 'order-lookup.ts'));
-    const cron = await readCode(
-      path.join('src', 'app', 'api', 'cron', 'vencer-pedidos', 'route.ts'),
-    );
+    // El límite del cron vive en la puerta compartida desde O6, no en cada
+    // ruta: ahí es donde tiene que estar, porque es la que corren las tres.
+    const cron = await readCode(path.join('src', 'lib', 'cron-auth.ts'));
 
     for (const [name, code] of Object.entries({ login, lookup, cron })) {
       expect(code, `${name} debería llamar a rateLimit()`).toMatch(/rateLimit\s*\(/);
@@ -221,14 +221,41 @@ describe('logs', () => {
   });
 
   it('el cron responde sin distinguir "falta el header" de "el secreto está mal"', async () => {
-    const cron = await readCode(
-      path.join('src', 'app', 'api', 'cron', 'vencer-pedidos', 'route.ts'),
-    );
+    // La puerta vive en `src/lib/cron-auth.ts` desde O6: la compartían las dos
+    // rutas de cron y `/api/version`, y una copia por ruta a la que le falte
+    // una de las cuatro decisiones convierte al endpoint nuevo en el más
+    // débil. Este control mira el archivo compartido; el de más abajo verifica
+    // que **todas** las rutas efectivamente lo usen.
+    const auth = await readCode(path.join('src', 'lib', 'cron-auth.ts'));
 
     // Un solo 401 genérico, y comparación en tiempo constante.
-    expect(cron).toContain('timingSafeEqual');
-    const unauthorized = [...cron.matchAll(/["']unauthorized["']/g)];
+    expect(auth).toContain('timingSafeEqual');
+    const unauthorized = [...auth.matchAll(/["']unauthorized["']/g)];
     expect(unauthorized.length).toBe(1);
+    // Y el 503 sin secreto configurado: una ruta "abierta hasta que la
+    // configuren" es una ruta abierta.
+    expect(auth).toContain("'not_configured'");
+  });
+
+  it('ninguna ruta de cron se arma su propia puerta', async () => {
+    // El riesgo real de haber extraído la puerta: que alguien agregue la
+    // cuarta ruta de cron copiando y pegando media verificación.
+    const CRON = path.join('src', 'app', 'api', 'cron');
+    const routes = (await listSourceFiles([CRON])).filter((file) => file.endsWith('route.ts'));
+    expect(routes.length).toBeGreaterThan(0);
+
+    const offenders: string[] = [];
+    for (const file of routes) {
+      const code = await readCode(file);
+      if (!/requireCronSecret\s*\(/.test(code)) offenders.push(`${file}: no usa requireCronSecret`);
+      // Comparar el secreto a mano adentro de una ruta es exactamente lo que
+      // la extracción vino a evitar.
+      if (/timingSafeEqual|process\.env\.CRON_SECRET/.test(code)) {
+        offenders.push(`${file}: se arma su propia verificación`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 });
 
@@ -289,9 +316,13 @@ describe('cobertura de la revisión', () => {
     for (const file of routes) {
       if (SIN_GUARD.has(file)) continue;
       const code = await readCode(file);
-      // Firma, secreto o sesión: alguna de las tres. Una ruta pública que
+      // Firma, secreto o sesión: alguna de las cuatro. Una ruta pública que
       // mueve pedidos y no compara nada es exactamente lo que se busca.
-      if (!/timingSafeEqual|requireAdmin|tokensMatch/.test(code)) offenders.push(file);
+      // `requireCronSecret` es la puerta compartida de los crons (O6): hace
+      // las mismas comparaciones, en un solo archivo.
+      if (!/timingSafeEqual|requireCronSecret|requireAdmin|tokensMatch/.test(code)) {
+        offenders.push(file);
+      }
     }
 
     expect(offenders).toEqual([]);

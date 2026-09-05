@@ -799,6 +799,28 @@ practice each notice fires at most once per order already. `notifyCustomerOrderE
 still checks for an existing `aviso_cliente_<kind>` success row before
 sending, as a second, cheap guard against firing the same hook twice.
 
+#### 5.2.2 Los dos avisos programados de O6
+
+Además de los que cuelgan de un evento del pedido, hay dos que los dispara el
+reloj o el inventario. Comparten todas las reglas de arriba (post-commit, con
+timeout, la plantilla es el interruptor, nunca hacen fallar lo que los
+disparó) y agregan una propia: **son idempotentes contra un cron que puede
+correr dos veces**.
+
+| Aviso | Quién lo dispara | Qué lo hace idempotente |
+|---|---|---|
+| **Resumen diario** al dueño (`daily-digest.ts`) | `/api/cron/resumen-diario` | `claimJob('resumen_diario', { onceEvery: 'dia' })`: una corrida exitosa por día calendario de **Asunción**, decidida con `SELECT … FOR UPDATE`. Se mira `last_ok_at` y no `finished_at`, para que un intento fallido a las 8:00 pueda reintentarse a las 8:15. |
+| **"Volvió a haber stock"** a la compradora (`stock-alerts.ts`) | `adjustStock` post-commit cuando la disponibilidad cruza de 0 a >0, la importación con `pisarStock`, y el barrido del cron | `notified_at` se marca **antes** de mandar (`UPDATE … WHERE notified_at IS NULL` + lectura de confirmación, el patrón de `login-tokens.ts`). Un envío que falla deja la fila marcada igual: se pierde un aviso, y eso es preferible a un reintento que le manda diez mensajes a la misma persona. |
+
+El barrido del cron existe por un caso que el disparo post-ajuste no puede
+cubrir: la disponibilidad que libera una **reserva vencida** no tiene ninguna
+escritura detrás de la cual colgarse.
+
+`job_runs` es la tabla que sostiene las dos formas de "no ahora" (una por día,
+y el lock con expiración que usa el backup de O8). El lock **vence**: un
+proceso que muere no llama a `finishJob`, y un lock eterno deja el trabajo
+apagado sin que nadie se entere.
+
 ### 5.1 A manual payment is still a payment
 
 For a while `payments` only ever held Pagopar rows, because Pagopar was the

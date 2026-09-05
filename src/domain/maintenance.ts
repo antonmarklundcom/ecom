@@ -5,6 +5,7 @@ import { orders, stockReservations } from "@/db/schema";
 
 import type { Executor } from "./executor";
 import { InvalidTransitionError, transitionOrder } from "./orders";
+import { purgeNotifiedStockAlerts } from "./stock-alerts";
 
 /**
  * Tareas del cron (PLAN.md 4.8).
@@ -28,6 +29,8 @@ export type ExpiryReport = {
   /** Pedidos que se saltearon porque alguien los movió en el medio. */
   skipped: number;
   reservationsDeleted: number;
+  /** Suscripciones de aviso de stock ya avisadas y vencidas (O6). */
+  stockAlertsPurged: number;
 };
 
 /**
@@ -140,6 +143,10 @@ export async function runMaintenance(now: Date = new Date()): Promise<ExpiryRepo
   const { expired, skipped } = await expireOverdueOrders(now);
   await releaseOrphanReservations();
   const reservationsDeleted = await collectStaleReservations(now);
+  // Suscripciones de "avisame cuando haya stock" ya avisadas hace más de 90
+  // días (O6). Sólo las avisadas: una sin avisar sigue siendo una promesa
+  // pendiente, por vieja que sea.
+  const stockAlertsPurged = await purgeNotifiedStockAlerts(now);
 
-  return { expired, skipped, reservationsDeleted };
+  return { expired, skipped, reservationsDeleted, stockAlertsPurged };
 }

@@ -421,6 +421,24 @@ el resto de esta familia: nunca frenan ni demoran una transición, un fallo de
 envío no hace nada más que quedar anotado en la historia del pedido, y no se
 manda el mismo aviso dos veces para el mismo pedido.
 
+**Dos plantillas más (O6): el resumen diario y "avisame cuando haya stock".**
+Misma regla de siempre — un parámetro en el cuerpo, aprobada por Meta, vacía =
+apagada:
+
+| Para qué | Variable | Destino |
+|---|---|---|
+| El resumen de la mañana al dueño: comprobantes por revisar, pedidos sin pagar hace más de un día, stock bajo, ventas de ayer | `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO` | `WHATSAPP_NUMBER` |
+| "Volvió a haber stock de X": lo recibe quien se anotó en una variante agotada | `WHATSAPP_CLOUD_TEMPLATE_STOCK_DISPONIBLE` | el teléfono que dejó cada compradora |
+
+El resumen **necesita además la entrada de cron diaria del hPanel** (DEPLOY.md
+§5): sin ella la plantilla está cargada y no se manda nada. `pnpm preflight`
+avisa si falta la plantilla; de la entrada de cron no puede saber nada.
+
+La de stock es opcional de verdad y su interruptor apaga **la feature entera**:
+sin ella el formulario "avisame" no se dibuja y el alta se rechaza. Es a
+propósito — guardar suscripciones que después nadie va a poder avisar sería
+prometerle algo a una compradora que la tienda no puede cumplir.
+
 ### 4d. ¿En qué idioma habla esta tienda?
 
 Por defecto `es-PY`, y las URLs quedan en español siempre (son parte del
