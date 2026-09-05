@@ -32,10 +32,10 @@ Reglas de la fase:
 - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e` antes del PR.
 - Re-ejecutable; menores → `KNOWN-ISSUES.md`; parar sólo por §4.4.
 
-Salida: plan §5.1 "Salida O5", ítem por ítem; PR abierto con CI verde completo; entrada de O5
+Salida: plan §5.1 "Salida O5", ítem por ítem; PR con CI verde completo; entrada de O5
 en `fable/plan-operacion.md` §9 dentro del PR.
 
 ## Después de esta fase
-No spawneás nada y **no mergeás**. Auditoría pre-cierre (§4.11), después el reporte de cierre
+No spawneás nada. Si esta sesión es la ventana encadenada (`opus-todo.md` / `sonnet-todo.md`), mergeás con CI verde completo y seguís como dice ese prompt; si es una ventana suelta de recuperación (§11), **no mergeás**: dejás el PR abierto y verde. Auditoría pre-cierre (§4.11), después el reporte de cierre
 (§4.10) en el chat. Anton mergea y abre la ventana siguiente con
 `fable/prompts/opus-6-resumen-diario-stock.md` (Opus).

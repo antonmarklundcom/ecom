@@ -32,9 +32,9 @@ Reglas de la fase:
   tiene que mostrar los tres jobs (`checks`, `e2e`, `lighthouse`).
 - Re-ejecutable; menores → `KNOWN-ISSUES.md`; parar sólo por §4.4.
 
-Salida: plan §6.4 "Salida S12", ítem por ítem; PR abierto con CI verde completo; entrada de
+Salida: plan §6.4 "Salida S12", ítem por ítem; PR con CI verde completo; entrada de
 S12 en §9 con los valores medidos.
 
 ## Después de esta fase
-No spawneás nada y **no mergeás**. Auditoría pre-cierre (§4.11), reporte de cierre (§4.10).
+No spawneás nada. Si esta sesión es la ventana encadenada (`opus-todo.md` / `sonnet-todo.md`), mergeás con CI verde completo y seguís como dice ese prompt; si es una ventana suelta de recuperación (§11), **no mergeás**: dejás el PR abierto y verde. Auditoría pre-cierre (§4.11), reporte de cierre (§4.10).
 Anton mergea y abre la última ventana con `fable/prompts/sonnet-13-template-docs.md` (Sonnet).

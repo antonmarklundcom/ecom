@@ -33,11 +33,11 @@ Reglas de la fase:
 - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e` antes del PR.
 - Re-ejecutable; menores → `KNOWN-ISSUES.md`; parar sólo por §4.4.
 
-Salida: plan §5.4 "Salida O8", ítem por ítem; PR abierto con CI verde completo; entrada de O8
+Salida: plan §5.4 "Salida O8", ítem por ítem; PR con CI verde completo; entrada de O8
 en §9 dentro del PR.
 
 ## Después de esta fase — fin de Opus
-No spawneás nada y **no mergeás**. Auditoría pre-cierre (§4.11), reporte de cierre (§4.10).
+No spawneás nada. Si esta sesión es la ventana encadenada (`opus-todo.md` / `sonnet-todo.md`), mergeás con CI verde completo y seguís como dice ese prompt; si es una ventana suelta de recuperación (§11), **no mergeás**: dejás el PR abierto y verde. Auditoría pre-cierre (§4.11), reporte de cierre (§4.10).
 Decile a Anton explícitamente: con O8 mergeada puede abrir **tres ventanas Sonnet a la vez**
 (`sonnet-9-panel-pedidos.md`, `sonnet-10-panel-productos.md`, `sonnet-11-vidriera.md`) o una
 por una, en cualquier orden.

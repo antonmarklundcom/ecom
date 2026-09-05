@@ -12,9 +12,10 @@ Cuando las nueve fases estén mergeadas, este archivo pasa a ser historial tambi
 
 **Stack (locked):** Next.js 16 + Drizzle + Hostinger MySQL + Hostinger Node.js + Cloudinary.
 
-**Cómo se corre:** una ventana por PR, la abre Anton, en orden. Cada prompt de
-`fable/prompts/` se pega en una sesión nueva del modelo que dice la tabla. Ninguna fase
-spawnea a la siguiente: termina, reporta y **para**. Ver §11.
+**Cómo se corre:** **dos ventanas** (§11). Una de Opus que encadena O5→O8 y una de Sonnet
+que encadena S9→S13, un PR por fase, mergeando cada uno con CI verde antes de arrancar el
+siguiente. Los prompts por fase de `fable/prompts/` siguen existiendo: son lo que la ventana
+encadenada lee en cada paso, y el plan B si una sesión se corta a mitad de camino.
 
 | Fase | Modelo | Prompt | Branch | Secciones | Depende de |
 |---|---|---|---|---|---|
@@ -204,11 +205,12 @@ DEPLOY, `.env.example`) · reporte final.
 
 1. Trabajá hasta que **todos** los criterios de salida de la fase pasen. No pidas permiso
    para trabajo que está en el plan.
-2. **Un PR por fase.** Branch `phase/<id>` desde `main` actualizado. Abrí el PR con el
-   template del repo si lo hay, mirá el CI, arreglá lo rojo. **No mergeás vos:** Anton
-   mergea cuando está verde. Terminá la sesión con el PR abierto, verde, y el reporte de
-   cierre (§4.10). Si al arrancar ves que la fase anterior de la tabla tiene el PR abierto
-   y sin mergear, **pará y decilo**: no se apila sobre una fase sin mergear.
+2. **Un PR por fase.** Branch `phase/<id>` desde `main` actualizado. Abrí el PR, mirá el
+   CI (`checks` + `e2e`, y `lighthouse` desde S12), arreglá lo rojo. Con CI verde
+   **completo**, **mergeá vos** (squash, con la herramienta de GitHub de la sesión) y
+   seguí con la fase siguiente de tu ventana. Nunca mergeás con algo rojo ni con un job
+   todavía corriendo: esperá. Si al arrancar ves que la fase anterior de la tabla tiene el
+   PR abierto y sin mergear, **pará y decilo**: no se apila sobre una fase sin mergear.
 3. Problemas menores que no bloquean → `KNOWN-ISSUES.md`, y seguí.
 4. **Pará y preguntá sólo por**: una credencial que falta y no tiene fallback, o una
    decisión de cimientos (schema fuera de §2, auth, plata, transiciones) donde adivinar mal
@@ -229,10 +231,11 @@ DEPLOY, `.env.example`) · reporte final.
    ("Owns"). Fuera de eso: sólo el bloque propio al final de `src/i18n/es-PY.ts` y de
    `src/lib/testids.ts`, la entrada propia de §9, `KNOWN-ISSUES.md` y `.env.example`. En un
    conflicto al traer `main`: `main` gana, re-aplicás lo tuyo encima, volvés a correr todo.
-10. **Reporte de cierre** (última cosa de la sesión, en el chat): (a) link al PR y estado
-    del CI, (b) qué existe ahora en 5–10 líneas, (c) decisiones y desvíos, (d) qué mirar
-    primero en la fase siguiente, (e) preguntas para Anton, si hay. Lo mismo, condensado,
-    va como entrada fechada en §9 **dentro del PR**.
+10. **Reporte de cierre de fase** (en el chat, corto, antes de pasar a la siguiente): (a)
+    link al PR mergeado, (b) qué existe ahora en 5–10 líneas, (c) decisiones y desvíos,
+    (d) preguntas para Anton, si hay. Lo mismo, condensado, va como entrada fechada en §9
+    **dentro del PR**. Al terminar la última fase de la ventana, un reporte de cierre de la
+    ventana: tabla de fases con PR, lo abierto en `KNOWN-ISSUES.md` y §10, pasos manuales.
 11. **Auditoría pre-cierre**: antes del reporte, volvé a correr `pnpm typecheck && pnpm lint
     && pnpm test` sobre tu branch con `main` ya traído, y releé tu propio diff como
     adversario una vez. Arreglá lo que aparezca en un commit. Una sola vuelta: el resto va
@@ -675,23 +678,30 @@ Branch `phase/s12`. Owns: `.github/workflows/**`, `playwright.config.ts`, `tests
 Lighthouse corre y advierte; capturas en el artifact de cada PR; tres render tests;
 CI verde completo; PR abierto verde; §9.
 
-### 6.5 · S13 — Ciclo de vida del template, docs y reporte final
+### 6.5 · S13 — Distribución a las tiendas, docs y reporte final
 
 Branch `phase/s13`. Owns: `.github/workflows/template-al-dia.yml` (nuevo), `scripts/**`,
 `README.md`, `NEW-STORE.md`, `ARCH.md`, `DEPLOY.md`, `CLAUDE.md`, `PLAN.md`,
 `KNOWN-ISSUES.md`, `.env.example` (revisión de consistencia, no variables nuevas),
 `fable/plan-operacion.md`.
 
-- **Tiendas hijas al día.** `template-al-dia.yml`: `schedule` semanal (lunes 09:00 UTC) +
-  `workflow_dispatch`; **se salta a sí mismo** si `github.repository ==
-  'antonmarklundcom/ecom'`; agrega el remoto `template` (`https://github.com/antonmarklundcom/ecom`,
-  público: sin token), corre `pnpm template:diff` en modo máquina (agregar `--json` al
-  script si no lo tiene: `scripts/template-diff.ts` es de S13 por Owns) y, si hay commits
-  de maquinaria pendientes, abre o actualiza **un issue** titulado "Template: N arreglos
-  de maquinaria pendientes" con la lista (hash, título, archivos), usando `gh issue`
-  (disponible en Actions) o `actions/github-script`. No abre PR: `template:sync` para en
-  seco ante conflictos y eso lo tiene que mirar una persona. Test unitario del modo
-  `--json` (extender `tests/unit/template-diff.test.ts`).
+- **Distribución desde el template (§12).** `.github/workflows/distribuir.yml` en **este**
+  repo: se dispara en cada push a `main` (y por `workflow_dispatch`), lee la lista de
+  tiendas de `tiendas.json` (raíz; `[{ "repo": "antonmarklundcom/<tienda>" }, …]`; vacío
+  en el template = no hace nada) y, por cada una en una `matrix`, clona la tienda con un
+  PAT (`secrets.TIENDAS_TOKEN`, permisos `contents:write` + `pull-requests:write` sobre
+  esas repos), agrega el remoto `template`, corre `pnpm template:sync --sin-tests` en una
+  branch `template/<fecha>-<sha corto>`; si termina limpio, pushea y abre (o actualiza) un
+  PR en la tienda con la lista de commits traídos; si `template:sync` para en un
+  conflicto, pushea lo aplicado hasta ahí y abre el PR igual, **en draft**, con el
+  conflicto en el cuerpo (commit, archivo, cómo seguir). El CI de cada tienda es el que
+  decide si se mergea. Sin `TIENDAS_TOKEN` el workflow se salta con un aviso en el log.
+  `template:sync` gana `--json` (resumen máquina para el cuerpo del PR) y
+  `--rama-destino <nombre>`; test unitario del `--json` (extender
+  `tests/unit/template-sync.test.ts`). `template-diff` **no** cambia.
+- **Lo que sigue siendo a mano.** Los commits mixtos (`~`: maquinaria + piel en el mismo
+  commit) y los de piel pura no viajan: NEW-STORE.md lo dice ya y S13 lo repite en §12
+  con el criterio de este plan (S9–S11 son piel: cada tienda decide si los quiere).
 - **Docs.** NEW-STORE.md: secciones nuevas (tracking y remito; resumen diario y sus
   plantillas; avisame; backups y restore; destacados y categorías; el workflow semanal).
   ARCH.md: ERD con las tablas nuevas, §5 con los tres avisos nuevos, §6 con el presupuesto
@@ -709,9 +719,11 @@ Branch `phase/s13`. Owns: `.github/workflows/template-al-dia.yml` (nuevo), `scri
   `pnpm template:sync` en cada tienda hija con la migración `0012`, verificar que el plan
   de Cloudinary aguanta los backups).
 
-**Salida S13:** workflow semanal testeado con `workflow_dispatch` en este repo (tiene que
-saltarse a sí mismo y decirlo en el log); docs sin referencias rotas (grep de cada ruta y
-comando nombrado); CI verde; PR abierto verde; §9; reporte final en el chat. **STOP.**
+**Salida S13:** `distribuir.yml` probado con `workflow_dispatch` y `tiendas.json` vacío
+(se salta y lo dice) y, si Anton cargó el token y una tienda antes de esta fase, con una
+tienda real (abre el PR en la tienda; anotar el link en §9); docs sin referencias rotas
+(grep de cada ruta y comando nombrado); CI verde; PR mergeado; §9; reporte final en el
+chat. **STOP.**
 
 ## 7. Inputs humanos
 
@@ -722,7 +734,8 @@ comando nombrado); CI verde; PR abierto verde; §9; reporte final en el chat. **
 | Dos entradas de cron nuevas en el hPanel por tienda (resumen diario, backup) | Anton | Post-merge de O6 y O8 |
 | Plan de Cloudinary con espacio para 14 días de backups | Anton | Post-merge de O8 |
 | `ERROR_REPORT_URL` (webhook) si se quiere | Anton | Opcional, post-merge de O8 |
-| Merge de cada PR cuando está verde | Anton | Cada fase |
+| Un PAT de GitHub (`TIENDAS_TOKEN`) con `contents:write` + `pull-requests:write` sobre las tiendas, cargado como secret de este repo, y `tiendas.json` con las tiendas reales | Anton | S13 (opcional para desarrollar; necesario para que distribuya de verdad) |
+| Merge del PR de cada tienda cuando su CI está verde | Anton | Después de cada distribución |
 
 ## 8. Preguntas de negocio (aparcadas)
 
@@ -749,26 +762,73 @@ en la fase siguiente, valores medidos si los hay.)*
 - Editar un pedido antes del pago (cantidad, dirección): fuera de este plan, requiere
   re-precio + re-reserva; se anota para un plan siguiente.
 
-## 11. Cómo correrlo — una ventana por PR
+## 11. Cómo correrlo — dos ventanas
 
-Orden y modelo. Cada ventana: sesión **nueva**, modelo de la tabla, modo de permisos con
-auto-aceptación de edits (las fases no piden permiso para trabajo del plan), y pegar la
-línea de la derecha. La fase termina con el PR abierto y verde; Anton mergea y abre la
-ventana siguiente. **Nunca** se abre la siguiente con el PR anterior sin mergear.
+Dos sesiones nuevas, en orden, con modo de permisos que auto-acepte edits y con la
+herramienta de GitHub disponible (la sesión abre y mergea sus PRs). Cada ventana encadena
+sus fases: branch → PR → CI verde → merge → siguiente. Anton no hace nada entre fases;
+mira el reporte de cierre de la ventana al final.
 
 | # | Ventana | Modelo | Pegar |
 |---|---|---|---|
-| 1 | O5 | Opus | `Read fable/prompts/opus-5-schema-tracking-notas.md in this repo and execute it.` |
-| 2 | O6 | Opus | `Read fable/prompts/opus-6-resumen-diario-stock.md in this repo and execute it.` |
-| 3 | O7 | Opus | `Read fable/prompts/opus-7-plata-catalogo.md in this repo and execute it.` |
-| 4 | O8 | Opus | `Read fable/prompts/opus-8-backups-observabilidad.md in this repo and execute it.` |
-| 5 | S9 | Sonnet | `Read fable/prompts/sonnet-9-panel-pedidos.md in this repo and execute it.` |
-| 6 | S10 | Sonnet | `Read fable/prompts/sonnet-10-panel-productos.md in this repo and execute it.` |
-| 7 | S11 | Sonnet | `Read fable/prompts/sonnet-11-vidriera.md in this repo and execute it.` |
-| 8 | S12 | Sonnet | `Read fable/prompts/sonnet-12-ci-calidad.md in this repo and execute it.` |
-| 9 | S13 | Sonnet | `Read fable/prompts/sonnet-13-template-docs.md in this repo and execute it.` |
+| 1 | Opus: O5 → O6 → O7 → O8 | Opus | `Read fable/prompts/opus-todo.md in this repo and execute it.` |
+| 2 | Sonnet: S9 → S10 → S11 → S12 → S13 | Sonnet | `Read fable/prompts/sonnet-todo.md in this repo and execute it.` |
 
-Las ventanas 5, 6 y 7 pueden abrirse **a la vez** una vez mergeada O8; mergearlas en
-cualquier orden (cada una trae `main` antes de abrir el PR y resuelve `es-PY.ts`/`testids.ts`
-conservando ambos bloques). La 8 espera a las tres. Si una sesión se corta, volver a pegar
-la misma línea en una ventana nueva: cada prompt es re-ejecutable (§4.6).
+La ventana 2 se abre **sólo** con O8 mergeada (la 1 lo dice en su reporte final).
+
+**Por qué no una sola ventana:** cambia el modelo (Opus para lo que decide plata, schema y
+auth; Sonnet para lo que dibuja), y ocho fases seguidas superan el contexto y el límite de
+horas de una sesión. Dos ventanas es el mínimo que respeta las dos cosas.
+
+**Si una ventana se corta** (límite de sesión, contexto, error): no se retoma la ventana.
+Se abre una nueva con el prompt **de la fase** en la que estaba (`fable/prompts/opus-N-….md`
+o `sonnet-N-….md`, tabla de arriba de todo), que es re-ejecutable y sigue desde el primer
+criterio de salida que no se cumpla; cuando esa fase queda mergeada, se vuelve a pegar el
+prompt encadenado (`opus-todo.md` / `sonnet-todo.md`), que detecta por §9 y por los PRs
+mergeados qué fases ya están y arranca en la siguiente.
+
+**Dentro de la ventana Sonnet**, S9, S10 y S11 son archivos disjuntos: la sesión puede
+hacerlas como tres subagentes Sonnet en paralelo (`fable-directs-sonnet-builds`, patrón
+fan-out) sobre tres branches, y después abrir y mergear los tres PRs en orden. Es
+opcional; en serie también funciona.
+
+## 12. Tiendas que ya existen — cómo les llega esto
+
+Hoy hay dos o tres tiendas creadas desde este template con "Use this template". Un repo
+así **no recibe** commits posteriores del template; el mecanismo que ya existe es
+`pnpm template:diff` (qué le falta) + `pnpm template:sync` (cherry-pick de la maquinaria
+en una branch, para en seco ante conflictos en `src/`). NEW-STORE.md § "Arreglos que
+aparecen después" lo explica.
+
+**Para este plan, en cada tienda:**
+
+1. Después de mergear la ventana Opus (O5–O8): en la tienda, `git checkout -b
+   poner-al-dia-template && pnpm template:sync`. Son commits de maquinaria y deberían
+   entrar limpios; la migración `0012` viaja en el commit de O5 y se aplica en el deploy
+   como siempre (`pnpm db:push` / `POST /api/setup/init`, DEPLOY.md). Cargar en el hPanel
+   las variables nuevas que la tienda quiera (plantillas, `ERROR_REPORT_URL`) y las dos
+   entradas de cron. Sin variables, la tienda es idéntica a antes: eso es lo que
+   `flags-apagados` garantiza.
+2. Después de la ventana Sonnet: S12 y S13 son maquinaria (CI, scripts, docs) y viajan
+   con `template:sync`. **S9, S10 y S11 son piel** (`src/app/admin/(panel)/**` markup,
+   home, producto, categoría, componentes) y `template:sync` no las trae: si la tienda
+   **no** rediseñó esas pantallas, `git cherry-pick` de esos commits entra limpio y vale
+   la pena; si las rediseñó, se re-aplica a mano lo que quiera (la maquinaria de abajo ya
+   está: los botones son lo único que falta). Por eso cada fase Sonnet es un commit
+   prolijo por PR: para que la tienda pueda elegir de a uno.
+3. Con S13 mergeada, el paso 1 deja de ser manual: `distribuir.yml` abre el PR en cada
+   tienda de `tiendas.json` en cada push a `main` del template. Anton sólo mergea.
+
+**Después de este plan — construir una vez, que llegue a todas.** Tres caminos, del más
+barato al más profundo; el plan recomienda el primero ahora y el segundo como fase
+siguiente si las tiendas pasan de cinco:
+
+| Camino | Qué es | Qué resuelve | Qué cuesta |
+|---|---|---|---|
+| **A. Distribución por cherry-pick (S13)** | Lo de arriba: el template empuja PRs a cada tienda. | Maquinaria llega sola; cada tienda decide su piel. | Cero cambio en las tiendas. Un PR por tienda por push; conflictos en piel se resuelven en la tienda. |
+| **B. Paquete `@antonmarklund/ecom-core`** | `src/domain`, `src/lib`, `src/db`, `src/app/actions`, `src/app/api` y los componentes del panel salen a un paquete (GitHub Packages o `git+https` con tag). La tienda es un Next app finito: `tienda.ts`, piel, y páginas de tres líneas que re-exportan las del paquete. Actualizar = subir la versión. NEW-STORE.md ya lo anticipa ("¿cuándo salen a un paquete compartido?"). | Una build del core, N tiendas con `pnpm up`. Las migraciones viajan en el paquete. | Una fase Opus de extracción + adaptar cada tienda una vez. `transpilePackages` en Next para los `"use server"`. |
+| **C. Multi-tenant** | Una sola app y una sola base con `tenant_id`; los dominios apuntan al mismo slot; la piel es un tema por tienda. PLAN.md FASE 3 §4 lo lista ("agregar `tenant_id` antes, no después"). | Deploy una vez, todas las tiendas. | El cambio más grande: cada consulta y cada guard aprende `tenant_id`; una caída afecta a todas; la piel deja de ser "libre" y pasa a ser un tema. Sólo si las tiendas son muchas y parecidas. |
+
+A es lo que S13 construye. B es la fase que sigue si el cherry-pick empieza a doler (más
+de cinco tiendas, o conflictos frecuentes en la frontera piel/maquinaria). C no se arranca
+sin decisión explícita.

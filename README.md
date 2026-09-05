@@ -18,7 +18,7 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
-| [fable/plan-operacion.md](./fable/plan-operacion.md) | Plan activo: la tienda después del lanzamiento (tracking, notas, remito, resumen diario, backups, acciones masivas, vidriera, CI). Nueve fases O5–S13, una ventana por PR (§11), prompts en `fable/prompts/` |
+| [fable/plan-operacion.md](./fable/plan-operacion.md) | Plan activo: la tienda después del lanzamiento (tracking, notas, remito, resumen diario, backups, acciones masivas, vidriera, CI). Nueve fases O5–S13 en dos ventanas encadenadas (§11), prompts en `fable/prompts/`; §12: cómo llega a las tiendas ya creadas |
 | [fable/plan.md](./fable/plan.md) | Plan de endurecimiento anterior (revisión en `fable/REVIEW.md`), mergeado completo — historial |
 
 ## Estado
