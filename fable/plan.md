@@ -1,5 +1,8 @@
 # fable/plan.md — Endurecimiento del template · plan para Opus y Sonnet
 
+> **Historial.** Las fases de este plan están todas mergeadas. El plan activo es
+> [`fable/plan-operacion.md`](./plan-operacion.md) (2026-09-05).
+
 **Origen:** `fable/REVIEW.md` (revisión de Fable 5.1, 2026-09-02). Este plan **no reemplaza**
 `PLAN.md` (FASE 2, cerrada) ni `TASKS.md` (historial + bloqueos de terceros): los deja como
 registro y agrega lo que la revisión encontró. Cuando las cuatro fases estén mergeadas, este
