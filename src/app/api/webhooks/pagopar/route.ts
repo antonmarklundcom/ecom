@@ -18,6 +18,7 @@ import {
   PAGOPAR_WEBHOOK_WINDOW_MS,
   rateLimit,
 } from "@/lib/rate-limit";
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Aviso de pago de Pagopar (PLAN.md 5.2, ARCH.md §4).
@@ -53,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!privateKey) {
     // Sin clave no se puede verificar nada, y una ruta de pagos que acepta
     // cualquier cosa "hasta que la configuren" es una ruta abierta.
-    console.error("pagopar: falta la configuración; el webhook queda cerrado");
+    log.error('pagopar: falta la configuración; el webhook queda cerrado');
     return json(webhookErrorBody("not_configured"), 503);
   }
 
@@ -73,14 +74,14 @@ export async function POST(request: Request): Promise<Response> {
     event = parseWebhookEvent(await request.json());
   } catch {
     // El cuerpo no se loguea: trae datos del comprador.
-    console.warn("pagopar: aviso con un cuerpo que no pude interpretar");
+    log.warn('pagopar: aviso con un cuerpo que no pude interpretar');
     return json(webhookErrorBody("invalid_payload"), 400);
   }
 
   if (!guardMatches(request, privateKey, event.hashPedido)) {
     // Un solo mensaje: distinguir "falta el token" de "el token está mal" ya
     // es información gratis. No se loguea ni el valor recibido ni el esperado.
-    console.warn("pagopar: aviso con firma inválida, descartado");
+    log.warn('pagopar: aviso con firma inválida, descartado');
     return json(webhookErrorBody("unauthorized"), 401);
   }
 
@@ -89,33 +90,35 @@ export async function POST(request: Request): Promise<Response> {
 
     switch (outcome.kind) {
       case "aplicado":
-        console.info(
-          `pagopar: pedido ${outcome.orderNumber} ${outcome.changed ? "marcado pagado" : "ya estaba pagado"}`
-        );
+        log.info("pagopar: pago acreditado", {
+          pedido: outcome.orderNumber,
+          cambio: outcome.changed,
+        });
         break;
       case "repetido":
-        console.info("pagopar: aviso repetido, sin cambios");
+        log.info('pagopar: aviso repetido, sin cambios');
         break;
       case "no_pagado":
-        console.info(`pagopar: aviso de pago no acreditado para ${outcome.orderNumber}`);
+        log.info("pagopar: aviso de pago no acreditado", { pedido: outcome.orderNumber });
         break;
       case "sin_stock":
         // El peor caso que el sistema puede manejar solo: cobrado, sin
         // mercadería. Se contesta 200 porque reintentar no cambia nada; lo que
         // sigue es una devolución, y el panel ya lo lista en "pagos sin pedido
         // vivo" (ARCH.md §4.1).
-        console.error(
-          `pagopar: pago tardío de ${outcome.orderNumber} sin stock para recuperarlo — ` +
-            `queda cobrado y el pedido en "${outcome.status}": hay que devolver`
-        );
+        log.error("pagopar: pago tardío sin stock — queda cobrado, hay que devolver", {
+          pedido: outcome.orderNumber,
+          estado: outcome.status,
+        });
         break;
       case "estado_final":
         // Puede ser inofensivo (`enviado`: ya se había cobrado) o grave
         // (`cancelado`: entró plata de un pedido que no existe más). El dueño
         // necesita verlo, y el número de pedido no es un secreto.
-        console.error(
-          `pagopar: aviso de pago para ${outcome.orderNumber}, que está en "${outcome.status}" — revisar a mano`
-        );
+        log.error("pagopar: aviso de pago sobre un pedido que no lo espera — revisar a mano", {
+          pedido: outcome.orderNumber,
+          estado: outcome.status,
+        });
         break;
     }
 
@@ -124,20 +127,22 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof UnknownPagoparOrderError) {
       // Puede ser una carrera con `iniciar-transaccion`: 404 para que Pagopar
       // reintente cuando la fila de payments ya esté.
-      console.warn("pagopar: aviso de un pedido que no reconozco");
+      log.warn('pagopar: aviso de un pedido que no reconozco');
       return json(webhookErrorBody("unknown_order"), 404);
     }
 
     if (error instanceof PagoparAmountMismatchError) {
       // No se transiciona nada. Los montos van al log porque son la única
       // forma de entender el descuadre; no son secretos.
-      console.error(
-        `pagopar: monto distinto en ${error.orderNumber} — esperaba ${error.expectedPyg}, llegó ${error.receivedPyg}`
-      );
+      log.error("pagopar: monto distinto al del pedido", {
+        pedido: error.orderNumber,
+        esperado: error.expectedPyg,
+        recibido: error.receivedPyg,
+      });
       return json(webhookErrorBody("amount_mismatch"), 409);
     }
 
-    console.error("pagopar: falló el procesamiento del aviso", error);
+    log.error('pagopar: falló el procesamiento del aviso', { error: mensajeDe(error) });
     return json(webhookErrorBody("internal_error"), 500);
   }
 }

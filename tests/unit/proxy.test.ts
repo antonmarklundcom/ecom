@@ -25,8 +25,8 @@ beforeAll(async () => {
   ({ SESSION_COOKIE } = await import('@/lib/session'));
 });
 
-function pedido(pathname: string, cookie?: string): NextRequest {
-  const headers = new Headers();
+function pedido(pathname: string, cookie?: string, extra?: Record<string, string>): NextRequest {
+  const headers = new Headers(extra);
   if (cookie) headers.set('cookie', cookie);
   return new NextRequest(new URL(pathname, 'https://tienda.test'), { headers });
 }
@@ -142,5 +142,55 @@ describe('proxy() — CSP con y sin nonce', () => {
     const response = await proxy(pedido('/admin/pedidos'));
 
     expect(csp(response)).toContain("default-src 'self'");
+  });
+});
+
+describe('proxy() — el id del request (O8)', () => {
+  it('genera uno y lo devuelve en la respuesta', async () => {
+    // Es lo que hace que "me dio error" de una compradora se pueda cruzar
+    // contra una línea concreta del log.
+    const response = await proxy(pedido('/'));
+    const id = response.headers.get('x-request-id');
+
+    expect(id).toBeTruthy();
+    expect(id).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+  });
+
+  it('respeta el que viene de afuera', async () => {
+    // Si mañana hay un proxy o un balanceador adelante, sus logs y los
+    // nuestros tienen que poder cruzarse por el mismo id.
+    const response = await proxy(pedido('/', undefined, { 'x-request-id': 'del-borde-123' }));
+    expect(response.headers.get('x-request-id')).toBe('del-borde-123');
+  });
+
+  it('descarta uno con saltos de línea: inyectaría líneas falsas en el log', async () => {
+    const response = await proxy(
+      pedido('/', undefined, { 'x-request-id': 'a'.repeat(200) }),
+    );
+    expect(response.headers.get('x-request-id')).not.toBe('a'.repeat(200));
+    expect(response.headers.get('x-request-id')).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+  });
+
+  it('también en el redirect al login', async () => {
+    const response = await proxy(pedido('/admin/pedidos'));
+    expect(response.status).toBe(307);
+    expect(response.headers.get('x-request-id')).toBeTruthy();
+  });
+});
+
+describe('idDeRequest', () => {
+  it('acepta lo razonable y rechaza el resto', async () => {
+    const { idDeRequest } = await import('@/proxy');
+
+    expect(idDeRequest('abc12345')).toBe('abc12345');
+    expect(idDeRequest('req-ABC_123')).toBe('req-ABC_123');
+
+    // Cortos, con espacios, con saltos de línea o larguísimos: se descartan y
+    // se genera uno. Un `x-request-id` con `\n` inyecta líneas falsas en el
+    // log del comercio.
+    for (const malo of ['', '   ', 'corto', 'con espacio', 'con\nsalto', 'x'.repeat(200)]) {
+      expect(idDeRequest(malo)).not.toBe(malo);
+      expect(idDeRequest(malo)).toMatch(/^[0-9a-f-]{36}$/);
+    }
   });
 });

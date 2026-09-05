@@ -79,6 +79,7 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkAvisoCliente(env, "pagado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO"),
     checkAvisoCliente(env, "enviado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"),
     checkResumenDiario(env),
+    checkBackups(env),
     checkDatabaseUrl(env),
     checkSiteUrl(env),
   ];
@@ -556,6 +557,43 @@ function checkAvisoPedidoNuevo(env: PreflightEnv): PreflightCheck {
     severity: "ok",
     title: "Aviso de pedido nuevo",
     detail: "configurado",
+  };
+}
+
+/**
+ * Copias de seguridad automáticas (O8).
+ *
+ * Advierte, no bloquea: una tienda puede cobrar perfectamente sin backups
+ * automáticos, y `pnpm backup` desde la máquina de Anton sigue existiendo.
+ * Pero es la advertencia que más caro sale ignorar de todo este archivo — con
+ * una tienda es un encogerse de hombros, con cuatro andando es lo que termina
+ * con el negocio.
+ *
+ * De lo que este control **no** puede saber nada es de la entrada de cron del
+ * hPanel: con Cloudinary configurado y sin la entrada, la ruta existe y nadie
+ * la llama nunca. Eso está en DEPLOY.md §5 y hay que mirarlo a mano.
+ */
+function checkBackups(env: PreflightEnv): PreflightCheck {
+  const faltan = ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"].filter(
+    (name) => value(env, name) === "",
+  );
+
+  if (faltan.length > 0) {
+    return {
+      id: "backups",
+      severity: "advierte",
+      title: "Copias de seguridad automáticas",
+      detail:
+        `sin Cloudinary (falta ${faltan.join(", ")}) no hay dónde guardar la copia diaria: ` +
+        "/api/cron/backup se saltea sola. Queda `pnpm backup` a mano desde tu máquina",
+    };
+  }
+
+  return {
+    id: "backups",
+    severity: "ok",
+    title: "Copias de seguridad automáticas",
+    detail: "Cloudinary configurado (falta verificar la entrada de cron del hPanel, DEPLOY.md §5)",
   };
 }
 

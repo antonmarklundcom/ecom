@@ -69,6 +69,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // propios <script> al renderizar; sin eso, un CSP sin 'unsafe-inline' deja
   // la página sin hidratar.
   const requestHeaders = new Headers(request.headers);
+  // El id del request (O8). Se **respeta** el que venga de afuera: si mañana
+  // hay un proxy o un balanceador adelante, sus logs y los nuestros tienen que
+  // poder cruzarse por el mismo id. Sólo se genera uno cuando no vino ninguno.
+  //
+  // Va en las tres partes: en los headers del request (para que el servidor lo
+  // lea), en la respuesta (para que quien reporta un problema pueda pegarlo) y
+  // —eso lo hace `instrumentation.ts`— en cada línea de log.
+  const reqId = idDeRequest(request.headers.get(REQUEST_ID_HEADER));
+  requestHeaders.set(REQUEST_ID_HEADER, reqId);
+
   if (nonce) requestHeaders.set("x-nonce", nonce);
   // Que no se cuele uno de afuera: `x-nonce` lo pone este proxy y nadie más.
   else requestHeaders.delete("x-nonce");
@@ -90,12 +100,29 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       // Sólo el path: `next` se vuelve a validar en la acción de login antes
       // de usarse como destino (ver safeNextPath).
       login.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
-      return withSecurityHeaders(NextResponse.redirect(login), nonce);
+      return withSecurityHeaders(NextResponse.redirect(login), nonce, false, reqId);
     }
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
-  return withSecurityHeaders(response, nonce, isAdmin);
+  return withSecurityHeaders(response, nonce, isAdmin, reqId);
+}
+
+/** El header estándar de facto. Un solo lugar, para que no se escriba mal. */
+export const REQUEST_ID_HEADER = "x-request-id";
+
+/**
+ * Acepta el id que vino, o genera uno.
+ *
+ * Se valida el de afuera antes de repetirlo: es un valor que llega de
+ * internet y termina en un header de respuesta y en cada línea de log. Sin
+ * este filtro, un `x-request-id` con saltos de línea inyecta líneas falsas en
+ * el log del comercio, y con mil caracteres lo llena de basura.
+ */
+export function idDeRequest(recibido: string | null): string {
+  const limpio = (recibido ?? "").trim();
+  if (/^[A-Za-z0-9_-]{8,64}$/.test(limpio)) return limpio;
+  return crypto.randomUUID();
 }
 
 /**
@@ -108,7 +135,11 @@ function withSecurityHeaders(
   response: NextResponse,
   nonce: string | null,
   isAdmin = false,
+  reqId?: string,
 ): NextResponse {
+  // El id viaja también de vuelta: es lo que hace que "me dio error" de una
+  // compradora se pueda cruzar contra una línea concreta del log.
+  if (reqId) response.headers.set(REQUEST_ID_HEADER, reqId);
   const dev = process.env.NODE_ENV !== "production";
 
   // Los medidores (src/lib/analytics.ts) son los únicos terceros que el

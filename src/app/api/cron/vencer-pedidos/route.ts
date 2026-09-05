@@ -1,5 +1,6 @@
 import { runMaintenance } from "@/domain/maintenance";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Cron de Hostinger (PLAN.md 4.8).
@@ -36,10 +37,12 @@ async function handle(request: Request): Promise<Response> {
     const report = await runMaintenance();
     // Sólo cantidades. Los ids de pedido son datos del negocio y los logs de
     // Hostinger los ve cualquiera con acceso al hPanel.
-    console.info(
-      `cron: ${report.expired.length} vencidos, ${report.skipped} salteados, ` +
-        `${report.reservationsDeleted} reservas borradas`,
-    );
+    log.info("cron: vencimiento de pedidos", {
+      vencidos: report.expired.length,
+      salteados: report.skipped,
+      reservasBorradas: report.reservationsDeleted,
+      avisosStockPurgados: report.stockAlertsPurged,
+    });
 
     return cronJson({
       ok: true,
@@ -48,7 +51,7 @@ async function handle(request: Request): Promise<Response> {
       reservationsDeleted: report.reservationsDeleted,
     });
   } catch (error) {
-    console.error("cron: falló la corrida", error);
+    log.error('cron: falló la corrida', { error: mensajeDe(error) });
     return cronJson({ error: "internal_error" }, 500);
   }
 }

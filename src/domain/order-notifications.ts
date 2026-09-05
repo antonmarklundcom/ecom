@@ -10,6 +10,7 @@ import { siteOrigin } from "@/lib/site-url";
 import { resolveMessageSender, whatsappOwnerTemplate, type MessageSender } from "./messaging";
 import { motivoDeAviso, withTimeout } from "./notify-timing";
 import { recordOrderEvent } from "./order-events";
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * El aviso de pedido nuevo al comercio (fable/plan.md §5.2, F2 de la revisión).
@@ -173,7 +174,7 @@ export async function notifyOwnerNewOrder(
         reason: "aviso_dueno_enviado",
       });
     } catch (error) {
-      console.error("notifyOwnerNewOrder: no se pudo avisar del pedido", error);
+      log.error('notifyOwnerNewOrder: no se pudo avisar del pedido', { error: mensajeDe(error) });
       await recordOrderEvent({
         orderId,
         status: order.status,
@@ -184,6 +185,6 @@ export async function notifyOwnerNewOrder(
   } catch (error) {
     // Último cinturón: si hasta el registro del fallo falla (la base se cayó
     // entre el commit y esto), el checkout **igual** no se entera.
-    console.error("notifyOwnerNewOrder falló entero", error);
+    log.error('notifyOwnerNewOrder falló entero', { error: mensajeDe(error) });
   }
 }

@@ -913,6 +913,60 @@ suite and never on the merchant's server.
 
 ---
 
+## 5.3 Observabilidad y copias de seguridad (O8)
+
+**Sin Sentry ni ningún SDK de terceros** (plan-operacion §1.3). Un SDK de
+observabilidad es una dependencia de runtime con acceso a todo lo que pasa por
+el servidor, que manda datos afuera por defecto y que hay que auditar en cada
+actualización. Lo que el comercio necesita cabe en tres piezas propias:
+
+| Pieza | Qué hace | Qué **no** hace |
+|---|---|---|
+| `src/lib/log.ts` | Una línea JSON por evento, con `reqId`. Redacta por **nombre de campo** (`phone`, `token`, `secret`, `password`, …) antes de serializar. | No manda nada a ningún lado. |
+| `src/proxy.ts` | Genera o respeta el `x-request-id`, lo pone en la respuesta y en un `AsyncLocalStorage` para que el logger lo lea sin pasarlo a mano. | No confía en el valor de afuera: lo valida antes de repetirlo (un id con saltos de línea inyecta líneas falsas en el log). |
+| `src/instrumentation.ts` | `onRequestError`: siempre una línea de log; **sólo con `ERROR_REPORT_URL`** (https), además un POST con `{message, stack, path, method, reqId, sha}`, con timeout y tope de 10/min. | Sin la variable, **nada sale de la máquina**. Nunca viajan teléfonos, nombres, tokens de pedido, cookies ni variables de entorno. |
+
+La redacción por nombre y no por vigilancia de cada llamador es la decisión que
+importa: un log en un hosting compartido lo lee cualquiera con acceso al
+hPanel, y el teléfono de una compradora ahí es una filtración aunque nadie la
+mire. Un test greppea que no queden `console.*` sueltos en `src/domain` ni en
+`src/app/api`, con una sola excepción documentada (el sender de consola de dev,
+cuyo trabajo *es* imprimir por consola).
+
+### El backup
+
+`pnpm backup` (mysqldump desde la máquina de Anton) era el único camino y
+dependía de que alguien se acordara. `/api/cron/backup` es el que corre solo.
+
+El entorno manda: **no hay `mysqldump` en el slot de Hostinger** y **hay poca
+RAM**, así que el dump es JavaScript — `SELECT *` paginado **por clave
+primaria** (con `OFFSET`, una fila insertada a mitad del dump corre el resto y
+una fila se salta o se duplica), escrito como JSON Lines a un gzip en
+streaming. La lista de tablas es explícita (`BACKUP_TABLES` en `schema.ts`) y
+ordenada por dependencia: restaurar en ese orden nunca choca contra una FK, y
+una tabla nueva que nadie decidió incluir hace fallar un test en vez de quedar
+afuera en silencio.
+
+Sube a Cloudinary como `raw` + **`authenticated`**: un backup en una carpeta
+pública es la base de datos entera del comercio servida por CDN a quien adivine
+la URL. Retención de 14 días, porque una cuenta llena deja de aceptar la copia
+de hoy. Si falla, el dueño recibe un WhatsApp — un backup que falla en silencio
+da la tranquilidad sin dar la copia.
+
+`scripts/restore-backup.ts` **sólo corre contra una base cuyo nombre contenga
+`restore` o `test`**, el mismo candado que `TEST_DATABASE_URL`, y sin flag para
+saltearlo: un `pnpm restore` con el `.env` de producción cargado por accidente
+borraría la tienda en vez de recuperarla. Hay un test de round-trip (dump →
+restore → mismas filas), porque un backup que no restaura es un archivo, no una
+copia de seguridad.
+
+### `/api/version`
+
+Contesta "¿tomó el redeploy?" con `{sha, builtAt, node}`, **detrás del mismo
+`CRON_SECRET`**. El SHA del build es información de reconocimiento: con el repo
+público, le dice a cualquiera qué commit exacto está corriendo. `/api/health`
+sigue siendo el endpoint abierto y sigue sin decir ni una versión.
+
 ## 6. Images & performance on PY mobile networks
 
 - **Cloudinary** for everything. Product images public with `f_auto,q_auto` transformations; receipts in a **private/authenticated** folder, admin views them via signed URLs.

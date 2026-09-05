@@ -13,6 +13,7 @@ import {
 import type { Executor, Tx } from './executor';
 import { recordManualPayment } from './manual-payments';
 import { notifyCustomerOrderEvent, type CustomerNoticeKind } from './order-customer-notifications';
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Máquina de estados del pedido (ARCH.md §3).
@@ -309,7 +310,7 @@ export async function transitionOrder(
     void notifyCustomerOrderEvent(orderId, kind, {
       note: kind === 'enviado' ? (reason ?? null) : null,
     }).catch((error) => {
-      console.error('notifyCustomerOrderEvent rechazó', error);
+      log.error('notifyCustomerOrderEvent rechazó', { error: mensajeDe(error) });
     });
   }
 

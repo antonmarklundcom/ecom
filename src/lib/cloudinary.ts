@@ -91,6 +91,29 @@ export const CLOUDINARY_PRODUCTS_FOLDER = `${folderPrefix()}productos`;
 export const CLOUDINARY_CATEGORIES_FOLDER = `${folderPrefix()}categorias`;
 
 /**
+ * Carpeta **privada** de las copias de seguridad (O8).
+ *
+ * Las copias se suben con `resource_type: 'raw'` y `type: 'authenticated'`: sin
+ * firma no se descargan. Un backup en una carpeta pública es la base de datos
+ * entera del comercio servida por CDN a quien adivine la URL — con los
+ * teléfonos, las direcciones y los comprobantes de todas las compradoras.
+ */
+export const CLOUDINARY_BACKUPS_FOLDER = `${folderPrefix()}backups`;
+
+/**
+ * ¿Hay credenciales de Cloudinary?
+ *
+ * Sin llamar a `configure()`, que tira: esto es una pregunta, no un uso. La
+ * usa el backup para apagarse solo (no hay dónde guardar la copia) y
+ * `pnpm preflight` para avisarlo.
+ */
+export function cloudinaryConfigured(): boolean {
+  return ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"].every(
+    (name) => (process.env[name] ?? "").trim() !== "",
+  );
+}
+
+/**
  * Carpeta **pública** del QR SPI del comercio (PLAN.md FASE 2, PR T).
  *
  * Pública y separada de `comprobantes/` a propósito: ese folder es

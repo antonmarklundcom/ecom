@@ -12,6 +12,7 @@ import { preflight } from '@/domain/preflight';
 import { createUser, normalizeEmail } from '@/lib/auth';
 import { hashPassword, passwordStrengthMessage, validatePasswordStrength } from '@/lib/password';
 import { SETUP_LIMIT, SETUP_WINDOW_MS, clientIp, rateLimit } from '@/lib/rate-limit';
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Inicialización de una tienda recién deployada (DEPLOY.md §4).
@@ -80,7 +81,7 @@ export async function POST(request: Request): Promise<Response> {
   // deseado: terminado el setup, se saca SETUP_SECRET del hPanel y esto vuelve
   // a 503 para siempre (DEPLOY.md §4).
   if (!secret || secret.length < MIN_SECRET_LENGTH) {
-    console.error('SETUP_SECRET no está configurado (o es demasiado corto)');
+    log.error('SETUP_SECRET no está configurado (o es demasiado corto)');
     return json({ error: 'not_configured' }, 503);
   }
 
@@ -100,7 +101,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!presentedSecretMatches(request, secret)) {
     // Sin detalle y sin loguear nada de lo que llegó, igual que el cron.
-    console.warn('setup: intento rechazado');
+    log.warn('setup: intento rechazado');
     return json({ error: 'unauthorized' }, 401);
   }
 
@@ -129,7 +130,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     return await run(input);
   } catch (error) {
-    console.error('setup: falló la corrida', error);
+    log.error('setup: falló la corrida', { error: mensajeDe(error) });
     return json({ error: 'internal_error' }, 500);
   }
 }
