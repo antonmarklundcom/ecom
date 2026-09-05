@@ -825,7 +825,14 @@ días en `runMaintenance`.
   devuelve en `result[0]`), así que borraba bien y reportaba 0.
 - `security-review.test.ts` se actualizó para seguir a la extracción, y de
   paso ganó un control nuevo: ninguna ruta de cron se arma su propia puerta.
-- Nada nuevo en `KNOWN-ISSUES.md`.
+- **Tercer bug, y éste lo encontró CI y no la suite local:** el `ORDER BY` de
+  `lowStockVariants` restaba dos columnas `INT UNSIGNED`, así que reventaba
+  (`ER_DATA_OUT_OF_RANGE`) en el MySQL 8 del job en cuanto `on_hand <
+  reorder_point` — o sea, en todas las filas que la consulta busca. La MariaDB
+  local devolvía la vuelta al revés en silencio y la suite pasaba verde.
+  Arreglado con `CAST(... AS SIGNED)` en los dos lados, con su test de orden.
+- `KNOWN-ISSUES.md` gana una entrada por eso mismo: **la trampa sigue puesta
+  para el resto del repo** y el verde local no la ve.
 
 **Dónde mirar primero en O7.** `src/domain/payment-recovery.ts` (`refundPayment`
 y qué hace hoy con `transitionOrder` para el reembolso total, que hay que

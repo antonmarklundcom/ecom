@@ -578,7 +578,18 @@ export async function lowStockVariants(
     .where(and(eq(variants.isActive, true), eq(products.isActive, true)))
     // Por "cuánto le falta para su propio umbral", no por stock crudo: con
     // umbrales distintos, la variante con menos unidades no es la más urgente.
-    .orderBy(asc(sql`${variants.onHand} - COALESCE(${variants.reorderPoint}, ${threshold})`))
+    //
+    // Los dos `CAST(... AS SIGNED)` no son decorativos: `on_hand` y
+    // `reorder_point` son **INT UNSIGNED**, y la resta se hace en aritmética
+    // sin signo. MySQL 8 tira `ER_DATA_OUT_OF_RANGE` en cuanto `on_hand <
+    // reorder_point` —que es exactamente el caso que esta consulta busca— y
+    // MariaDB, peor, devuelve la vuelta al revés sin decir nada. Es el mismo
+    // motivo del `GREATEST(..., 0)` de `consumeReservations`.
+    .orderBy(
+      asc(
+        sql`CAST(${variants.onHand} AS SIGNED) - CAST(COALESCE(${variants.reorderPoint}, ${threshold}) AS SIGNED)`,
+      ),
+    )
     // Se traen de más porque el filtro real es sobre la disponibilidad, que se
     // calcula recién después de restar las reservas.
     .limit(limit * 5);

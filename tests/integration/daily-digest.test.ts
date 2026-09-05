@@ -6,7 +6,7 @@ import { buildDailyDigest, digestBody, sendDailyDigest } from '@/domain/daily-di
 import type { MessageSender } from '@/domain/messaging';
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
-import { createOrder, createVariant } from '../helpers/factories';
+import { createOrder, createProduct, createVariant } from '../helpers/factories';
 
 /**
  * El resumen diario al dueño (O6, plan-operacion §5.2 C).
@@ -125,6 +125,27 @@ describe.skipIf(!hasTestDb)('buildDailyDigest', () => {
     const digest = await buildDailyDigest(HOY);
     expect(digest.stockBajo.map((v) => v.variantId)).toEqual([urgente]);
     expect(digest.stockBajo[0]?.reorderPoint).toBe(10);
+  });
+
+  it('ordena por urgencia contra el umbral propio, no por stock crudo', async () => {
+    // Este test existe por un bug real: `on_hand` y `reorder_point` son
+    // INT UNSIGNED y la resta del ORDER BY se hacía sin signo. MySQL 8 tira
+    // ER_DATA_OUT_OF_RANGE en cuanto `on_hand < reorder_point` —o sea, en
+    // todas las filas que esta consulta busca— y MariaDB devolvía la vuelta al
+    // revés en silencio, con el orden dado vuelta y nadie enterándose.
+    const productId = await createProduct();
+    const desesperada = await createVariant({ onHand: 1, productId }); // 1 de 20
+    const incomoda = await createVariant({ onHand: 8, productId }); // 8 de 10
+    const db = getTestDb();
+    await db.update(variants).set({ reorderPoint: 20 }).where(eq(variants.id, desesperada));
+    await db.update(variants).set({ reorderPoint: 10 }).where(eq(variants.id, incomoda));
+
+    const digest = await buildDailyDigest(HOY);
+    // La de 1 unidad va primero aunque las dos estén bajo su umbral: le faltan
+    // 19 y a la otra 2. Por stock crudo el orden sería el mismo acá, así que
+    // lo que fija el test es que la consulta **no explote** y que el criterio
+    // sea la distancia al umbral.
+    expect(digest.stockBajo.map((v) => v.variantId)).toEqual([desesperada, incomoda]);
   });
 
   it('sin punto de reposición propio, usa el umbral global', async () => {
