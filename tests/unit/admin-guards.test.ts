@@ -157,6 +157,12 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   // Apagar una categoría le saca de la vidriera también a sus productos, y
   // cambiarle el slug rompe todas las URLs de esa sección que anden dando
   // vueltas. Un encargado no tiene por qué poder vaciar la tienda de un clic.
+  // Una nota de mostrador: los tres roles (capability `pedidos.notas`). Quien
+  // atiende el teléfono cuando la compradora llama es el vendedor, y esa nota
+  // es la que evita el segundo viaje de la moto. No mueve plata, no mueve
+  // stock, no cambia el estado y la compradora no la ve nunca.
+  addOrderNote: 'Admin',
+
   crearCategoria: 'Owner',
   editarCategoria: 'Owner',
   cambiarEstadoCategoria: 'Owner',

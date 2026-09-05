@@ -74,6 +74,6 @@ CREATE INDEX `products_featured_idx` ON `products` (`is_featured`,`published_at`
 -- Sin esto, las invariantes de `pnpm reconcile` sobre el ledger de
 -- devoluciones nacen rojas en toda tienda con una devolución anterior a
 -- esta migración. Idempotente: correrlo de nuevo no encuentra nada.
-UPDATE `payments` SET `refunded_pyg` = `amount_pyg` WHERE `status` = 'refunded' AND `refunded_pyg` = 0 AND `amount_pyg` > 0;
+UPDATE `payments` SET `refunded_pyg` = `amount_pyg`, `updated_at` = `updated_at` WHERE `status` = 'refunded' AND `refunded_pyg` = 0 AND `amount_pyg` > 0;
 --> statement-breakpoint
 INSERT INTO `refunds` (`payment_id`, `amount_pyg`, `reason`, `actor`, `actor_user_id`, `created_at`) SELECT `p`.`id`, `p`.`amount_pyg`, 'devolución registrada antes del ledger', 'migracion', NULL, `p`.`updated_at` FROM `payments` `p` LEFT JOIN `refunds` `r` ON `r`.`payment_id` = `p`.`id` WHERE `p`.`status` = 'refunded' AND `p`.`amount_pyg` > 0 AND `r`.`id` IS NULL;

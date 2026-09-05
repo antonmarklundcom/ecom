@@ -72,6 +72,7 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 |---|:---:|:---:|:---:|
 | Ver pedidos y su ficha | ✅ | ✅ | ✅ |
 | Preparar / despachar / entregar | ✅ | ✅ | ✅ |
+| Escribir notas internas en un pedido | ✅ | ✅ | ✅ |
 | Dar por cobrado, cancelar, vencer, rechazar | ✅ | ✅ | ❌ |
 | Ver montos (totales, IVA, precios) | ✅ | ✅ | ❌ |
 | Comprobantes: ver, aprobar, rechazar | ✅ | ✅ | ❌ |
@@ -90,7 +91,7 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 
 Lo que el `owner` no delega tiene siempre el mismo motivo: **el error no se ve y no se puede deshacer**. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs que se sumaron en la FASE 2 son de la misma familia: un cupón mal puesto se descubre cuando ya lo usaron cien personas, apagar una categoría le saca de la vidriera a todos sus productos de una vez, y una zona de envío con el precio viejo cobra de menos en cada pedido sin romper nada, sin dejar log y sin que nadie se entere hasta cerrar el mes. Las formas de entrega (FASE 3) entran en la misma familia y por partida doble: además del flete, deciden **con qué se puede pagar**, así que un método mal configurado habilita contra entrega en ciudades donde nadie del comercio va a ir a cobrar — y eso se descubre con el repartidor en la puerta, no en una pantalla. Los datos bancarios (FASE 2, PR T) son el caso más puro de la familia: quien puede cambiar el número de cuenta al que transfieren las compradoras desvía la facturación entera a otra cuenta sin generar un solo pedido raro — la tienda sigue andando igual y el dueño se entera cuando mira su banco.
 
-Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado.
+Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado — y, desde O5, dejar la nota de lo que le dijeron por teléfono (`pedidos.notas`). Una nota no mueve plata, no mueve stock, no cambia el estado y la compradora no la ve nunca; quien atiende cuando la compradora llama es justamente el vendedor, y esa nota es la que evita el segundo viaje de la moto.
 
 **Cómo se implementa** (la tabla de arriba es la especificación, no la defensa):
 
@@ -335,6 +336,27 @@ en el mismo formulario:
 |---|---|
 | `marketing_opt_in` **nullable** | Tres estados, no dos: `NULL` = no se preguntó, `false` = dijo que no, `true` = aceptó. Un `NOT NULL DEFAULT false` mezcla el primero con el segundo, y el consentimiento es lo único que no se puede completar retroactivamente. `marketing_opt_in_at` guarda cuándo contestó. **El MVP no manda nada**: no hay proveedor de mensajería en el stack. |
 | `is_gift` **NOT NULL** | Acá `false` y "no contestó" sí son lo mismo: un pedido que nadie marcó no es un regalo. `gift_note` sólo se escribe si `is_gift`, para que destildar la casilla no deje un mensaje viejo colgado. |
+| `tracking_carrier` / `tracking_code` / `tracking_url` **nullables** (O5) | El seguimiento del envío. Se escriben **adentro de la transacción de `transitionOrder`** y sólo con destino `enviado`; cualquier otro destino con tracking tira `TrackingNotAllowedError`. Partirlo en un `UPDATE` aparte crearía el estado imposible de un pedido despachado sin guía —o con la guía del envío anterior— cuando la segunda escritura falla. Los tres pueden faltar por separado: una moto propia no tiene número de guía y un courier chico no da link. La cadena vacía entra como `NULL`, para que ningún lector tenga que acordarse de tratarla como ausente. |
+
+#### `order_notes` — lo que el mostrador anota (O5)
+
+Tabla propia, append-only, **nunca visible para la compradora**: "llamó, pasa a
+retirar el jueves", "el timbre no anda". Hoy eso vive en el grupo de WhatsApp
+del local y se pierde.
+
+Tabla y no un `order_events` con `from = to`, porque **una nota no es una
+transición**: meterla ahí obligaría a que todo lo que lee la historia de
+estados —`pnpm reconcile`, la máquina de estados de §3, el timeline del
+comprador— aprendiera a ignorar filas que no son cambios de estado, y bastaría
+con que uno se olvidara para que una nota apareciera como un movimiento del
+pedido. Donde sí se mezclan es en `/admin/actividad`, que las suma como tercer
+origen del `UNION ALL` (`nota`) con el mismo desempate por `id`.
+
+Cuerpo 1..1000 trimmed, `actor` + `actor_user_id` como el resto de la
+auditoría, `ON DELETE CASCADE` contra el pedido. El dominio
+(`src/domain/order-notes.ts`) re-lee que el usuario siga activo aunque el
+guard ya lo haya hecho: la cookie firmada sigue siendo válida hasta que expira,
+así que a quien le cortaron el acceso hace un minuto todavía le anda la sesión.
 
 ### Qué se ve en la vidriera (FASE 2, PR J)
 
@@ -573,9 +595,20 @@ Every transition goes through **one** function, `transitionOrder(orderId, to, ac
 2. rejects any edge not in the allow-list (so a duplicate or late webhook can never drag `enviado` back to `pagado`),
 3. on `→ pagado`: marks reservations `consumed` and decrements `variants.on_hand` in the same transaction,
 4. on `→ vencido | cancelado`: marks reservations `released`,
-5. writes an `order_events` row.
+5. on `→ enviado`: escribe el seguimiento del envío (`tracking_carrier`,
+   `tracking_code`, `tracking_url`) en el **mismo** `UPDATE` que el estado,
+6. writes an `order_events` row.
 
 No UI or route ever runs a raw `UPDATE orders SET status = …`.
+
+**La arista a `enviado` es la única que acepta `options.tracking`** (O5).
+Cualquier otro destino con tracking puesto tira `TrackingNotAllowedError` antes
+de abrir la transacción: cargar una guía al cancelar un pedido no es una
+operación con sentido, y aceptarla en silencio deja el dato escrito donde nadie
+lo va a mirar hasta que aparezca en el lugar equivocado. El aviso ENVIADO a la
+compradora (`order-customer-notifications.ts`) lee esas tres columnas de la
+fila ya commiteada y suma courier, guía y link cuando existen; sin ninguno de
+los tres, el texto es exactamente el de antes de O5.
 
 ---
 

@@ -40,7 +40,15 @@
 export const REFUNDS_LEDGER_BACKFILL: readonly string[] = [
   // Primero el acumulado. `refunded_pyg = 0` es el guardarraíl de
   // idempotencia: una segunda corrida no encuentra nada que actualizar.
-  'UPDATE `payments` SET `refunded_pyg` = `amount_pyg` ' +
+  //
+  // El `updated_at` = `updated_at` no es ruido: la columna es
+  // `ON UPDATE CURRENT_TIMESTAMP`, así que sin asignarla explícitamente este
+  // UPDATE le pondría la fecha de la migración a **todos** los pagos
+  // devueltos de la historia de la tienda — y con ella se iría el único dato
+  // que dice cuándo se devolvió esa plata, que es justo el que la sentencia
+  // siguiente copia al ledger. Asignar una columna a sí misma es lo que MySQL
+  // entiende como "no la toques".
+  'UPDATE `payments` SET `refunded_pyg` = `amount_pyg`, `updated_at` = `updated_at` ' +
     "WHERE `status` = 'refunded' AND `refunded_pyg` = 0 AND `amount_pyg` > 0",
   // Después la fila del ledger, sólo para los pagos devueltos que todavía no
   // tienen ninguna. El `LEFT JOIN … IS NULL` es lo que la hace repetible.

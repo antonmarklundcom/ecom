@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { eq } from 'drizzle-orm';
 
-import { orderEvents, stockAdjustments, users } from '@/db/schema';
+import { orderEvents, orderNotes, stockAdjustments, users } from '@/db/schema';
 import { actividadActores, listActivity, type ActivityRow } from '@/domain/admin-activity';
 import { createUser } from '@/lib/auth';
 
@@ -209,6 +209,133 @@ describe.skipIf(!hasTestDb)('feed unificado y su paginación', () => {
     const page = await listActivity({ perPage: 2, page: 99 });
     expect(page.page).toBe(3);
     expect(page.rows).toHaveLength(2);
+  });
+
+  /**
+   * Lo mismo que arriba pero con las **tres** tablas (O5). Las notas entran al
+   * `UNION ALL` como tercer origen, y todo lo que ya valía para dos tiene que
+   * seguir valiendo para tres: el orden único, el total, y sobre todo que el
+   * origen minoritario no se pierda entre páginas.
+   */
+  async function nueveMovimientos() {
+    const db = getTestDb();
+    const orderId = await createOrder({ status: 'pagado' });
+    const variantId = await createVariant({ onHand: 10 });
+    const userId = await unUsuario('carla@tienda.py', 'Carla');
+
+    for (const n of [1, 4, 7]) {
+      await db.insert(orderEvents).values({
+        orderId,
+        fromStatus: 'pagado',
+        toStatus: 'preparando',
+        actor: 'admin:due@tienda.py',
+        reason: `evento ${n}`,
+        createdAt: minuto(n),
+      });
+    }
+    for (const n of [2, 5, 8]) {
+      await db.insert(stockAdjustments).values({
+        variantId,
+        delta: n,
+        previousOnHand: 10,
+        newOnHand: 10 + n,
+        reason: `ajuste ${n}`,
+        actor: 'admin:due@tienda.py',
+        createdAt: minuto(n),
+      });
+    }
+    for (const n of [3, 6, 9]) {
+      await db.insert(orderNotes).values({
+        orderId,
+        body: `nota ${n}`,
+        actor: 'admin:carla@tienda.py',
+        actorUserId: userId,
+        createdAt: minuto(n),
+      });
+    }
+
+    return { orderId, variantId, userId };
+  }
+
+  it('mezcla las tres tablas en un solo orden cronológico', async () => {
+    await nueveMovimientos();
+
+    const page = await listActivity({ perPage: 20 });
+    expect(page.total).toBe(9);
+    expect(motivos(page)).toEqual([
+      'nota 9',
+      'ajuste 8',
+      'evento 7',
+      'nota 6',
+      'ajuste 5',
+      'evento 4',
+      'nota 3',
+      'ajuste 2',
+      'evento 1',
+    ]);
+  });
+
+  it('con tres orígenes, la paginación no repite ni saltea', async () => {
+    await nueveMovimientos();
+
+    const paginas = await Promise.all(
+      [1, 2, 3].map((page) => listActivity({ perPage: 3, page })),
+    );
+    const vistos = paginas.flatMap(motivos);
+
+    expect(vistos).toHaveLength(9);
+    expect(new Set(vistos).size).toBe(9);
+    expect(paginas[0]?.totalPages).toBe(3);
+  });
+
+  it('con 300 eventos y 3 notas, las notas no se pierden', async () => {
+    // El mismo caso que ya se probaba con dos tablas, ahora contra el origen
+    // que menos filas escribe: las notas son tres en un mar de eventos y
+    // tienen que aparecer exactamente donde les toca por fecha, no
+    // desaparecer detrás de la primera página de eventos.
+    const db = getTestDb();
+    const orderId = await createOrder({ status: 'pagado' });
+    const userId = await unUsuario('carla@tienda.py', 'Carla');
+
+    for (const n of [1, 2, 3]) {
+      await db.insert(orderNotes).values({
+        orderId,
+        body: `nota vieja ${n}`,
+        actor: 'admin:carla@tienda.py',
+        actorUserId: userId,
+        createdAt: minuto(n),
+      });
+    }
+    for (let n = 10; n < 310; n += 1) {
+      await db.insert(orderEvents).values({
+        orderId,
+        fromStatus: 'pagado',
+        toStatus: 'preparando',
+        actor: 'admin:due@tienda.py',
+        reason: `evento ${n}`,
+        createdAt: minuto(n),
+      });
+    }
+
+    const page = await listActivity({ perPage: 30 });
+    expect(page.total).toBe(303);
+    expect(page.totalPages).toBe(11);
+
+    const ultima = await listActivity({ perPage: 30, page: 11 });
+    expect(motivos(ultima).slice(-3)).toEqual(['nota vieja 3', 'nota vieja 2', 'nota vieja 1']);
+  });
+
+  it('filtrar por nota trae sólo notas, con su cuerpo y su pedido', async () => {
+    const { orderId } = await nueveMovimientos();
+
+    const page = await listActivity({ kind: 'nota' });
+    expect(page.total).toBe(3);
+    expect(page.rows.every((row) => row.kind === 'nota')).toBe(true);
+    expect(motivos(page)).toEqual(['nota 9', 'nota 6', 'nota 3']);
+
+    const primera = page.rows[0];
+    expect(primera?.kind === 'nota' && primera.orderId).toBe(orderId);
+    expect(primera?.actorName).toBe('Carla');
   });
 });
 

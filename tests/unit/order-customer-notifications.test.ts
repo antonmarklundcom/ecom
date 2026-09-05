@@ -89,6 +89,71 @@ describe("customerNoticeBody · enviado", () => {
     const body = customerNoticeBody("enviado", order, { note: "" });
     expect(body).not.toContain("Nota:");
   });
+
+  // == O5 · seguimiento del envío ==
+  //
+  // El texto de este aviso es lo único que la compradora recibe cuando su
+  // pedido sale. Sin tracking tiene que quedar **exactamente** como estaba
+  // antes de O5: una tienda que reparte en moto propia no cargó nada nuevo y
+  // no puede empezar a recibir líneas vacías ni un "Guía: " sin número.
+
+  it("con courier y guía, los pone en una sola línea", () => {
+    const body = customerNoticeBody("enviado", {
+      ...order,
+      trackingCarrier: "Aereopar",
+      trackingCode: "AP-99887",
+    });
+
+    expect(body).toContain("Transporte: Aereopar · Guía AP-99887");
+  });
+
+  it("con link de seguimiento, lo agrega aparte", () => {
+    const body = customerNoticeBody("enviado", {
+      ...order,
+      trackingCarrier: "Aereopar",
+      trackingCode: "AP-99887",
+      trackingUrl: "https://aereopar.com.py/seguimiento/AP-99887",
+    });
+
+    expect(body).toContain("https://aereopar.com.py/seguimiento/AP-99887");
+  });
+
+  it("sólo courier: no inventa una guía", () => {
+    const body = customerNoticeBody("enviado", { ...order, trackingCarrier: "Moto propia" });
+
+    expect(body).toContain("Transporte: Moto propia");
+    expect(body).not.toContain("Guía");
+  });
+
+  it("sólo guía: no inventa un courier", () => {
+    const body = customerNoticeBody("enviado", { ...order, trackingCode: "R-0007" });
+
+    expect(body).toContain("Guía: R-0007");
+    expect(body).not.toContain("Transporte:");
+  });
+
+  it("sin tracking, el texto es el de siempre", () => {
+    const sinNada = customerNoticeBody("enviado", order);
+    const conNulls = customerNoticeBody("enviado", {
+      ...order,
+      trackingCarrier: null,
+      trackingCode: null,
+      trackingUrl: null,
+    });
+    // Y con cadenas vacías, que es lo que llega de un formulario que el
+    // mostrador dejó en blanco.
+    const conVacios = customerNoticeBody("enviado", {
+      ...order,
+      trackingCarrier: "",
+      trackingCode: "   ",
+      trackingUrl: "",
+    });
+
+    expect(conNulls).toBe(sinNada);
+    expect(conVacios).toBe(sinNada);
+    expect(sinNada).not.toContain("Transporte");
+    expect(sinNada).not.toContain("Guía");
+  });
 });
 
 describe("resolveCustomerNotifier — sin plantilla, apagado en cualquier canal", () => {
