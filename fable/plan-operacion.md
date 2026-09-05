@@ -884,6 +884,47 @@ usaran cuentas distintas, la vista previa sería peor que no tenerla.
 expiración que O6 dejó listo para el backup) y `scripts/backup-db.ts`, que es
 el camino "grande" que sigue existiendo.
 
+### 2026-09-05 · O8 — backups, versión, logger y reporte de errores
+
+Branch `phase/o8`. Sin schema nuevo (`job_runs` es de O5) y **sin dependencias
+nuevas de runtime**. Última fase Opus.
+
+**Qué existe ahora.** `BACKUP_TABLES` en `schema.ts`: lista explícita y
+ordenada por dependencia, con test de cobertura contra las tablas declaradas.
+`backup.ts` vuelca en streaming (JSON Lines + gzip, paginado por PK, nunca la
+base en memoria) y sube a Cloudinary `raw` + `authenticated` con retención de
+14 días; `/api/cron/backup` con lock de 30 min, aviso al dueño si falla y
+respuesta sin el nombre del archivo. `scripts/restore-backup.ts`
+(`pnpm restore`) con el candado del nombre de base, y test de round-trip.
+`/api/version` con `CRON_SECRET`; `/api/health` sin tocar. `log.ts` con
+redacción por nombre de campo y `reqId` desde `proxy.ts` por
+`AsyncLocalStorage`; los 33 `console.*` de `src/domain` y `src/app/api`
+migrados, con un test que greppea que no vuelvan. `instrumentation.ts` con
+`onRequestError`, apagado sin `ERROR_REPORT_URL`.
+
+**Decisiones y desvíos.**
+- El aviso de backup fallido **reusa** `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO`
+  como dice el plan: pedirle a Meta una plantilla más, por tienda, para un
+  aviso que ojalá nunca salga, sería agregarle un trámite a cada instalación.
+- La paginación del dump va por **PK y no por `OFFSET`**: con `OFFSET`, una
+  fila insertada a mitad del dump corre el resto y una fila se salta o se
+  duplica. Hay test con más de una página.
+- La retención corre **después** de subir la copia de hoy y su fallo **no**
+  marca la corrida como fallida: es preferible una carpeta con una copia de
+  más que una corrida en rojo cuando la copia de hoy ya está guardada.
+- El límite de tamaño por archivo de Cloudinary (10 MB en el plan free) **no**
+  se resolvió partiendo el dump por tabla: hoy no hay ninguna tienda cerca de
+  ese tamaño y partirlo agrega una forma de fallar a medias. Queda anotado en
+  `KNOWN-ISSUES.md` con el arreglo cuando haga falta.
+- `sin-console.test.ts` deja **una** excepción documentada: el sender de
+  consola de dev, cuyo trabajo *es* imprimir por consola (y que
+  `resolveMessageSender` ya se niega a devolver en producción).
+- El `x-request-id` que llega de afuera **se valida** antes de repetirlo: uno
+  con saltos de línea inyectaría líneas falsas en el log del comercio.
+
+**Fin de las fases Opus.** S9, S10 y S11 pueden arrancar, en paralelo o de a
+una, en cualquier orden.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).

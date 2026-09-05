@@ -343,6 +343,66 @@ un status de error haría que Hostinger reintentara al pedo.
 Sin `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO` cargada, la ruta corre igual y no
 manda nada (`sent: false`). `pnpm preflight` avisa si falta.
 
+### La tercera entrada: la copia de seguridad (O8)
+
+`/api/cron/backup` vuelca la base entera a Cloudinary, comprimida y privada.
+De madrugada, cuando no hay nadie comprando — **03:00 de Asunción = 06:00 UTC**:
+
+```bash
+# minuto 0, hora 6 (UTC) = 03:00 en Asunción
+0 6 * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/cron/backup
+```
+
+Sin credenciales de Cloudinary la ruta se saltea sola y contesta `200` con
+`skipped: "sin_cloudinary"`: no hay dónde guardar la copia. `pnpm preflight`
+lo avisa.
+
+**Dos corridas nunca se pisan**: el lock de `job_runs` tiene expiración (30
+minutos), porque un proceso que se muere no libera nada y un lock eterno
+dejaría al comercio sin copias sin que nadie se entere. **Y si falla, al dueño
+le llega un WhatsApp** (reusa la plantilla del resumen diario): un backup que
+falla en silencio es peor que no tener backup, porque da la tranquilidad sin
+dar la copia.
+
+Las copias viven en `<prefijo>backups/` como `raw` + `authenticated` —sin firma
+no se descargan— y se borran solas a los 14 días. La retención no es prolijidad:
+sin ella la cuenta de Cloudinary se llena y deja de aceptar **la copia de hoy**.
+
+`pnpm backup` (mysqldump desde tu máquina) sigue existiendo y sigue siendo el
+camino "grande". Éste es el que corre solo.
+
+### Restaurar una copia
+
+```bash
+# 1. Bajá el archivo de Cloudinary (Media Library → backups/, "Download").
+# 2. Creá una base NUEVA para restaurar. El nombre TIENE que contener
+#    "restore" o "test" — el script se niega a correr contra cualquier otra.
+# 3. Apuntá DATABASE_URL a esa base y restaurá:
+pnpm restore -- backup-2026-08-12T0300.jsonl.gz
+# 4. Mirá que esté todo (pnpm reconcile, entrá al panel).
+# 5. Recién entonces decidí qué hacer con la base de producción.
+```
+
+El candado del paso 2 es a propósito y no tiene flag para saltearlo: un
+`pnpm restore` corrido con el `.env` de producción cargado por accidente
+—el error más fácil del mundo, y el más caro— borraría la tienda en vez de
+recuperarla.
+
+### Los logs
+
+Desde O8 el servidor escribe **una línea JSON por evento**
+(`{"ts":…,"level":…,"msg":…,"reqId":…}`). En el hPanel, Node.js → Logs:
+
+```bash
+grep '"level":"error"' logs.txt            # sólo los errores
+grep '"reqId":"abc-123"' logs.txt          # todo lo de un request
+```
+
+El `reqId` viaja también en el header `x-request-id` de cada respuesta: si una
+compradora reporta un problema y puede mandar ese valor, se ve exactamente qué
+pasó en su request. **Los teléfonos, tokens y secretos nunca salen en el log**:
+el logger los redacta por nombre de campo.
+
 ---
 
 ## 6. Prueba de humo post-deploy
