@@ -16,7 +16,8 @@ import type { MessageKey, Params } from "@/i18n";
 
 import { DomainError } from "./errors";
 import type { Executor } from "./executor";
-import { heldQtyMap } from "./stock";
+import { getAvailability, heldQtyMap } from "./stock";
+import { notifyBackInStock } from "./stock-alerts";
 
 /**
  * Catálogo desde el panel (PLAN.md 4.6).
@@ -334,6 +335,12 @@ export type VariantWrite = {
   pricePyg: number;
   compareAtPyg: number | null;
   isActive: boolean;
+  /**
+   * A partir de cuántas unidades esta variante entra en "stock bajo" (O6).
+   * `null` = usá el umbral global de la tienda (`DEFAULT_REORDER_POINT`), que
+   * es lo que vale para toda variante que nadie configuró.
+   */
+  reorderPoint?: number | null;
 };
 
 /**
@@ -367,6 +374,7 @@ export async function saveVariant(
       pricePyg: input.pricePyg,
       compareAtPyg: input.compareAtPyg,
       isActive: input.isActive,
+      reorderPoint: input.reorderPoint ?? null,
       onHand: 0,
     });
     return;
@@ -380,6 +388,7 @@ export async function saveVariant(
       pricePyg: input.pricePyg,
       compareAtPyg: input.compareAtPyg,
       isActive: input.isActive,
+      reorderPoint: input.reorderPoint ?? null,
     })
     .where(and(eq(variants.id, input.id), eq(variants.productId, productId)));
 }
@@ -412,6 +421,27 @@ export const ADJUSTMENT_MIN_REASON = 4;
  * de otro.
  */
 export async function adjustStock(input: StockAdjustment): Promise<{
+  previousOnHand: number;
+  newOnHand: number;
+}> {
+  const disponibleAntes = await getAvailability(input.variantId).catch(() => 0);
+  const resultado = await adjustStockInner(input);
+
+  // "Avisame cuando haya stock" (O6): **después** del commit, sin `await` que
+  // demore, y sólo cuando la disponibilidad cruzó de 0 a algo. Sin la
+  // comparación, cada reposición de una variante que nunca estuvo agotada
+  // haría una consulta al pedo; y con `await`, un Meta lento haría esperar al
+  // dueño que acaba de contar cajas.
+  if (resultado.newOnHand > resultado.previousOnHand && disponibleAntes <= 0) {
+    void notifyBackInStock(input.variantId).catch((error) => {
+      console.error("notifyBackInStock rechazó", error);
+    });
+  }
+
+  return resultado;
+}
+
+async function adjustStockInner(input: StockAdjustment): Promise<{
   previousOnHand: number;
   newOnHand: number;
 }> {
@@ -504,13 +534,35 @@ export async function deleteProductImage(imageId: number, executor?: Executor): 
  * `on_hand`: si hay 5 y 5 están reservados, no hay nada para vender aunque el
  * número físico se vea sano.
  */
+export const DEFAULT_REORDER_POINT = 3;
+
+export type LowStockVariant = {
+  variantId: number;
+  sku: string;
+  label: string;
+  productName: string;
+  available: number;
+  /** El umbral que se le aplicó: el propio de la variante o el global. */
+  reorderPoint: number;
+};
+
+/**
+ * Las variantes que están en o por debajo de su punto de reposición.
+ *
+ * **El umbral es por variante** desde O6 (`variants.reorder_point`), con el
+ * global de `threshold` como respaldo: una remera que se vende de a diez por
+ * semana está en problemas con tres unidades, y una máquina que se vende una
+ * vez por mes no lo está con una. Un único número para toda la tienda obliga
+ * al dueño a elegir entre que le griten por todo o que no le avisen de nada.
+ *
+ * `COALESCE` en el SQL y no en JS: el umbral entra en el `ORDER BY` y en el
+ * corte del `LIMIT`, así que tiene que decidirlo la base.
+ */
 export async function lowStockVariants(
-  threshold = 3,
+  threshold = DEFAULT_REORDER_POINT,
   limit = 20,
   executor?: Executor,
-): Promise<
-  Array<{ variantId: number; sku: string; label: string; productName: string; available: number }>
-> {
+): Promise<LowStockVariant[]> {
   const tx = executor ?? getDb();
   const rows = await tx
     .select({
@@ -519,11 +571,14 @@ export async function lowStockVariants(
       label: variants.label,
       onHand: variants.onHand,
       productName: products.name,
+      reorderPoint: sql<number>`COALESCE(${variants.reorderPoint}, ${threshold})`,
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
     .where(and(eq(variants.isActive, true), eq(products.isActive, true)))
-    .orderBy(asc(variants.onHand))
+    // Por "cuánto le falta para su propio umbral", no por stock crudo: con
+    // umbrales distintos, la variante con menos unidades no es la más urgente.
+    .orderBy(asc(sql`${variants.onHand} - COALESCE(${variants.reorderPoint}, ${threshold})`))
     // Se traen de más porque el filtro real es sobre la disponibilidad, que se
     // calcula recién después de restar las reservas.
     .limit(limit * 5);
@@ -540,8 +595,9 @@ export async function lowStockVariants(
       label: row.label,
       productName: row.productName,
       available: Math.max(0, row.onHand - (held.get(row.variantId) ?? 0)),
+      reorderPoint: Number(row.reorderPoint),
     }))
-    .filter((row) => row.available <= threshold)
-    .sort((a, b) => a.available - b.available)
+    .filter((row) => row.available <= row.reorderPoint)
+    .sort((a, b) => a.available - a.reorderPoint - (b.available - b.reorderPoint))
     .slice(0, limit);
 }

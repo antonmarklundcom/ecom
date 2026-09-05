@@ -460,6 +460,13 @@ export const esPY = {
   "error.checkout.sinTarjeta": "El pago con tarjeta no está disponible en este momento.",
   "error.checkout.generico": "No pudimos crear el pedido. Probá de nuevo en un momento.",
 
+  // == O6 · avisame cuando haya stock ==
+  "error.avisoStock.apagado": "Por ahora no podemos avisarte. Escribinos por WhatsApp y te contamos.",
+  "error.avisoStock.noExiste": "Ese producto ya no está disponible.",
+  "error.avisoStock.hayStock": "¡Buena noticia! Ya hay stock: podés comprarlo ahora.",
+  "error.avisoStock.demasiados":
+    "Ya nos pediste varios avisos. Probá de nuevo más tarde.",
+
   // == O5 · notas internas del pedido ==
   "error.nota.vacia": "Escribí algo en la nota.",
   "error.nota.larga": "La nota no puede pasar de {maximo} caracteres.",
@@ -544,6 +551,24 @@ export const esPY = {
   "wa.cliente.enviado": "Hola {nombre}! Tu pedido {numero} ya salió.",
   "wa.cliente.enviado.envio": "Entrega: {metodo}.",
   "wa.cliente.enviado.nota": "Nota: {nota}",
+  // == O6 · resumen diario al dueño ==
+  //
+  // Voseo y sin adornos: esto se lee de un vistazo a las ocho de la mañana,
+  // en el celular, antes de abrir el local.
+  "wa.resumen.titulo": "Resumen de hoy",
+  "wa.resumen.sinNovedades": "Sin novedades: nada pendiente y ayer no hubo ventas.",
+  "wa.resumen.comprobantes": "Comprobantes por revisar: {n}",
+  "wa.resumen.sinPagar": "Pedidos sin pagar hace más de un día: {n}",
+  "wa.resumen.sinPagarLinea": "· {numero} — {horas} h",
+  "wa.resumen.stockBajo": "Stock bajo: {n}",
+  "wa.resumen.stockBajoLinea": "· {producto} ({etiqueta}) — quedan {quedan}",
+  "wa.resumen.ayer": "Ayer: {n} pedidos, {total}",
+  "wa.resumen.ayerSinVentas": "Ayer no hubo ventas.",
+
+  // == O6 · avisame cuando haya stock ==
+  "wa.stock.disponible": "Hola! Volvió a haber stock de {producto} ({etiqueta}) en {tienda}.",
+  "wa.stock.verProducto": "Mirálo acá: {url}",
+
   // == O5 · seguimiento del envío ==
   // Tres formas de la misma línea porque las tres pasan de verdad: courier
   // con guía, sólo courier (una moto propia, "Entrega propia"), y sólo guía
