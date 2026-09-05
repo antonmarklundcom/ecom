@@ -87,9 +87,18 @@ export async function* dumpRows(
 
       for (const row of filas) yield { table, row };
 
-      const ultima = filas[filas.length - 1]!;
-      desde = ultima[pk] as number | string;
       if (filas.length < PAGE_SIZE) break;
+
+      // El cursor de la página siguiente. Si la columna no vino —un `pk` mal
+      // escrito en `PRIMARY_KEY`— se corta con un error claro en vez de
+      // quedarse en un bucle infinito volcando la misma página para siempre,
+      // que es la peor forma de fallar que puede tener un backup.
+      const ultima = filas[filas.length - 1]!;
+      const cursor = ultima[pk];
+      if (typeof cursor !== 'number' && typeof cursor !== 'string') {
+        throw new Error(`La tabla ${table} no devolvió la columna "${pk}" para paginar`);
+      }
+      desde = cursor;
     }
   }
 }
@@ -132,6 +141,12 @@ export function dumpDatabase(executor?: Executor): {
       }
     })(),
   );
+
+  // Sin esto, si la subida falla antes de que el dump termine, `stats` queda
+  // rechazada y sin nadie escuchándola: Node lo reporta como unhandled
+  // rejection y —según la versión— mata el proceso. Quien llama sigue viendo
+  // el rechazo porque `runBackup` la espera.
+  stats.catch(() => {});
 
   return { stream: lineas.pipe(createGzip()), stats };
 }
