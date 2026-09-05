@@ -22,6 +22,13 @@ export const CAPABILITIES = [
   "pedidos.despachar",
   /** Dar por cobrado, cancelar, vencer, rechazar. Mueve plata o suelta stock. */
   "pedidos.cobrar",
+  /**
+   * Escribir notas internas en un pedido (O5). Los tres roles: es mostrador
+   * puro —"llamó, pasa el jueves"— y quien atiende el teléfono es
+   * justamente el vendedor. No mueve plata, no mueve stock, no cambia el
+   * estado, y la compradora no la ve nunca.
+   */
+  "pedidos.notas",
   /** Ver y decidir comprobantes de transferencia. */
   "comprobantes",
   /** Ver montos: totales, desglose de IVA, precios del catálogo. */
@@ -85,6 +92,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     "pedidos.ver",
     "pedidos.despachar",
     "pedidos.cobrar",
+    "pedidos.notas",
     "comprobantes",
     "precios",
     "productos",
@@ -98,7 +106,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
 
   // El mostrador y nada más: ve los pedidos y los despacha. Sin montos, sin
   // comprobantes, sin stock, sin el resumen de ventas.
-  vendedor: ["pedidos.ver", "pedidos.despachar"],
+  vendedor: ["pedidos.ver", "pedidos.despachar", "pedidos.notas"],
 };
 
 export function can(role: UserRole, capability: Capability): boolean {

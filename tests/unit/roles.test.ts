@@ -120,10 +120,16 @@ describe('la matriz de capacidades', () => {
     expect(can('staff', 'productos')).toBe(true);
   });
 
-  it('el vendedor ve y despacha pedidos, y nada más', () => {
-    expect(ROLE_CAPABILITIES.vendedor).toEqual(['pedidos.ver', 'pedidos.despachar']);
+  it('el vendedor ve, despacha y anota pedidos, y nada más', () => {
+    // `pedidos.notas` entró en O5 y es la única capacidad que se le sumó al
+    // vendedor desde el MVP: es mostrador puro —no mueve plata, no mueve
+    // stock, no cambia el estado, y la compradora no la ve nunca— y quien
+    // atiende cuando la compradora llama es justamente él.
+    const DEL_VENDEDOR = ['pedidos.ver', 'pedidos.despachar', 'pedidos.notas'] as const;
+
+    expect(ROLE_CAPABILITIES.vendedor).toEqual([...DEL_VENDEDOR]);
     for (const capability of CAPABILITIES) {
-      if (capability === 'pedidos.ver' || capability === 'pedidos.despachar') continue;
+      if ((DEL_VENDEDOR as readonly string[]).includes(capability)) continue;
       expect(can('vendedor', capability)).toBe(false);
     }
   });

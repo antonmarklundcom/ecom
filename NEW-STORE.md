@@ -646,5 +646,26 @@ final de `template:sync`) es lo que mueve. Si no hay `.template-baseline`
 todavía, corré `pnpm template:diff --marcar` una vez en un commit conocido
 antes de tocar `template:sync`.
 
+### Migraciones que llegan por `template:sync`
+
+Una migración del template es **maquinaria**: viaja marcada con `*` y
+`template:sync` la trae sola con el commit que la creó. Después del sync, en
+esta tienda hay que aplicarla como cualquier otra —`pnpm db:push` en local,
+`POST /api/setup/init` en el servidor (DEPLOY.md)— y `pnpm db:generate` tiene
+que quedar sin drift.
+
+La `0012` (plan de operación, fase O5) agrega el seguimiento del envío, las
+notas del pedido, el punto de reposición por variante, "avisame cuando haya
+stock", destacados, categorías con foto y descripción, el ledger de
+devoluciones y la tabla de trabajos programados. **Toda columna nueva es
+nullable o tiene default**, y eso es a propósito: una tienda que sincroniza el
+código antes que la migración tiene que seguir andando. Trae además un
+backfill escrito a mano (`src/db/backfills.ts`) que le arma la fila de ledger
+a cada devolución anterior a esta migración; sin él, la contabilidad de
+`pnpm reconcile` nace en rojo en toda tienda que ya devolvió plata alguna vez.
+
+Sigue valiendo lo de siempre: Dependabot no mueve nada de esto y las columnas
+no se agregan a mano en el hPanel — la migración es la única fuente.
+
 Si algún día son muchas tiendas, recién ahí conviene sacar `src/domain` y
 `src/lib` a un paquete compartido. Antes de eso es complejidad sin pagar.

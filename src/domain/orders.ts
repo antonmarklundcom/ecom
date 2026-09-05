@@ -97,6 +97,24 @@ export class StockUnavailableError extends Error {
   }
 }
 
+/**
+ * Se mandó seguimiento del envío en una transición que no es `→ enviado`.
+ *
+ * Es un error de programación, no de la persona del panel, y por eso frena en
+ * vez de ignorar el dato: aceptarlo en silencio dejaría la guía escrita en un
+ * pedido `preparando` —o peor, en uno `cancelado`— y la compradora recibiría
+ * después el aviso de envío con el número de otra cosa.
+ */
+export class TrackingNotAllowedError extends Error {
+  constructor(
+    readonly orderId: number,
+    readonly to: OrderStatus,
+  ) {
+    super(`El seguimiento del envío sólo se puede cargar al despachar, no al pasar a "${to}".`);
+    this.name = 'TrackingNotAllowedError';
+  }
+}
+
 export class InvalidTransitionError extends Error {
   constructor(
     readonly orderId: number,
@@ -135,7 +153,43 @@ export type TransitionOptions = {
    * `actor` (el string) sigue siendo obligatorio y no cambia.
    */
   actorUserId?: number | null;
+  /**
+   * Seguimiento del envío, **sólo** con `to === 'enviado'` (plan-operacion
+   * §5.1). Cualquier otro destino con esto puesto tira
+   * `TrackingNotAllowedError`.
+   *
+   * Se escribe en `orders` en la misma transacción que el cambio de estado, y
+   * no en un `UPDATE` posterior desde la acción: son la misma decisión del
+   * mostrador —"esto salió, con este courier y esta guía"— y partirla en dos
+   * escrituras crea el estado imposible de un pedido despachado sin guía
+   * cuando la segunda falla.
+   *
+   * Los tres campos son opcionales entre sí: una moto propia despacha sin
+   * número de guía, y un courier puede no dar link de seguimiento.
+   */
+  tracking?: OrderTracking;
 };
+
+/** Lo que el panel carga al despachar. Validado en `src/lib/schemas.ts`. */
+export type OrderTracking = {
+  carrier?: string | null;
+  code?: string | null;
+  url?: string | null;
+};
+
+/**
+ * Los tres campos, normalizados para el UPDATE: `""` y `undefined` entran como
+ * NULL. Sin esto, "despachar sin guía" dejaría la columna en cadena vacía y
+ * cada lector tendría que acordarse de tratarla como ausente.
+ */
+function trackingColumns(tracking: OrderTracking) {
+  const limpio = (valor: string | null | undefined): string | null => valor?.trim() || null;
+  return {
+    trackingCarrier: limpio(tracking.carrier),
+    trackingCode: limpio(tracking.code),
+    trackingUrl: limpio(tracking.url),
+  };
+}
 
 /**
  * Cambia el estado de un pedido.
@@ -155,6 +209,13 @@ export async function transitionOrder(
   reason?: string | null,
   options: TransitionOptions = {},
 ): Promise<TransitionResult> {
+  // Antes de abrir nada: el seguimiento sólo tiene sentido al despachar. Se
+  // chequea acá arriba y no adentro de la transacción porque no depende del
+  // estado de la base — es la forma del llamado la que está mal.
+  if (options.tracking && to !== 'enviado') {
+    throw new TrackingNotAllowedError(orderId, to);
+  }
+
   const run = async (tx: Tx | Executor): Promise<TransitionResult> => {
     const locked = await tx
       .select({
@@ -210,6 +271,10 @@ export async function transitionOrder(
       .set({
         status: to,
         ...(to === 'pagado' ? { paidAt: new Date() } : {}),
+        // El seguimiento viaja en este mismo UPDATE, dentro de la misma
+        // transacción: o el pedido queda despachado con su guía, o no queda
+        // despachado. Ver `TransitionOptions.tracking`.
+        ...(options.tracking ? trackingColumns(options.tracking) : {}),
       })
       .where(and(eq(orders.id, orderId), eq(orders.status, from)));
 

@@ -86,3 +86,45 @@ export const AdminProductInput = z.object({
 });
 
 export type AdminProductInput = z.infer<typeof AdminProductInput>;
+
+/**
+ * El seguimiento del envío que carga el panel al despachar (O5).
+ *
+ * Los tres campos son opcionales entre sí: una tienda que reparte en moto
+ * propia despacha sin número de guía, y un courier chico no da link. Los
+ * `.max()` son exactamente el largo de las columnas (`varchar(80)`, `(120)`,
+ * `(500)`): sin ellos, un texto largo pasa Zod y revienta en el UPDATE, que
+ * es un 500 en vez de un error de validación.
+ *
+ * `https://` obligatorio en la URL y no `z.url()` a secas: ese link se le
+ * manda a la compradora por WhatsApp, y un `javascript:` o un `http://`
+ * llegando desde el formulario del panel es exactamente lo que no queremos
+ * pegar en un mensaje saliente.
+ */
+export const OrderTrackingSchema = z.object({
+  carrier: z.string().trim().max(80).nullish(),
+  code: z.string().trim().max(120).nullish(),
+  url: z
+    .url()
+    .max(500)
+    .refine((value) => value.startsWith("https://"), {
+      message: "El link de seguimiento tiene que empezar con https://",
+    })
+    .nullish(),
+});
+
+export type OrderTrackingInput = z.infer<typeof OrderTrackingSchema>;
+
+/**
+ * Una nota interna del pedido (O5).
+ *
+ * 1..1000 y trimmed: el `.min(1)` corre **después** del trim, así que una
+ * nota de puros espacios se rechaza en vez de guardar una fila vacía que
+ * nadie puede borrar (la tabla es append-only).
+ */
+export const OrderNoteSchema = z.object({
+  orderId: z.number().int().positive(),
+  body: z.string().trim().min(1).max(1000),
+});
+
+export type OrderNoteInput = z.infer<typeof OrderNoteSchema>;

@@ -92,6 +92,14 @@ export type CustomerNoticeOrder = {
   totalPyg: number;
   /** Snapshot del método (FASE 3); ausente en pedidos viejos o tiendas sin configurar. */
   shippingMethodName?: string | null;
+  /**
+   * Seguimiento del envío (O5). Los tres pueden faltar: una tienda que
+   * reparte en moto propia despacha sin courier ni guía, y el aviso tiene que
+   * quedar exactamente como era antes de estas columnas.
+   */
+  trackingCarrier?: string | null;
+  trackingCode?: string | null;
+  trackingUrl?: string | null;
 };
 
 /**
@@ -129,9 +137,27 @@ export function customerNoticeBody(
 
   // "enviado"
   const nota = options.note?.trim();
+  // El seguimiento (O5). El courier y la guía van en una sola línea porque
+  // así se leen: "Transporte: Aereopar · Guía 12345". Cada mitad puede
+  // faltar sola —una moto propia no tiene guía, un courier chico no da
+  // link— y sin ninguna el texto es exactamente el de antes.
+  const courier = order.trackingCarrier?.trim();
+  const guia = order.trackingCode?.trim();
+  const linkSeguimiento = order.trackingUrl?.trim();
+  const seguimiento =
+    courier && guia
+      ? t("wa.cliente.enviado.seguimiento", { courier, guia })
+      : courier
+        ? t("wa.cliente.enviado.courier", { courier })
+        : guia
+          ? t("wa.cliente.enviado.guia", { guia })
+          : null;
+
   return [
     t("wa.cliente.enviado", { nombre, numero: order.orderNumber }),
     ...(metodo ? [t("wa.cliente.enviado.envio", { metodo })] : []),
+    ...(seguimiento ? [seguimiento] : []),
+    ...(linkSeguimiento ? [t("wa.cliente.enviado.seguirEnvio", { url: linkSeguimiento })] : []),
     ...(nota ? [t("wa.cliente.enviado.nota", { nota })] : []),
     t("wa.cliente.verPedido", { url }),
   ].join("\n");
@@ -167,6 +193,13 @@ export async function notifyCustomerOrderEvent(
         accessToken: orders.accessToken,
         totalPyg: orders.totalPyg,
         shippingMethodName: orders.shippingMethodName,
+        // El seguimiento se lee de la fila y no se recibe por parámetro: para
+        // cuando esto corre, `transitionOrder` ya commiteó el UPDATE que lo
+        // escribió, y leerlo acá hace que el aviso diga la verdad aunque lo
+        // dispare otro camino.
+        trackingCarrier: orders.trackingCarrier,
+        trackingCode: orders.trackingCode,
+        trackingUrl: orders.trackingUrl,
         status: orders.status,
       })
       .from(orders)

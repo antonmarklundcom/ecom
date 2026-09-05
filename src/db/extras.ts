@@ -12,6 +12,9 @@ export const ORDERS_SHIPPING_METHOD_FK = 'orders_shipping_method_fk';
 export const LOGIN_TOKENS_CUSTOMER_FK = 'login_tokens_customer_fk';
 export const ORDER_EVENTS_ACTOR_FK = 'order_events_actor_fk';
 export const STOCK_ADJUSTMENTS_ACTOR_FK = 'stock_adjustments_actor_fk';
+export const ORDER_NOTES_ACTOR_FK = 'order_notes_actor_fk';
+export const REFUNDS_ACTOR_FK = 'refunds_actor_fk';
+export const PRICE_ADJUSTMENTS_ACTOR_FK = 'price_adjustments_actor_fk';
 
 export async function applySchemaExtras(pool: Pool): Promise<string[]> {
   const applied: string[] = [];
@@ -127,6 +130,12 @@ export async function applySchemaExtras(pool: Pool): Promise<string[]> {
   for (const [constraint, table] of [
     [ORDER_EVENTS_ACTOR_FK, 'order_events'],
     [STOCK_ADJUSTMENTS_ACTOR_FK, 'stock_adjustments'],
+    // Las tres auditorías que agrega plan-operacion §2 (O5 las crea, O7 las
+    // escribe). Misma regla que arriba: la persona se puede borrar, lo que
+    // hizo no.
+    [ORDER_NOTES_ACTOR_FK, 'order_notes'],
+    [REFUNDS_ACTOR_FK, 'refunds'],
+    [PRICE_ADJUSTMENTS_ACTOR_FK, 'price_adjustments'],
   ] as const) {
     const [rows] = await pool.query<never>(
       `SELECT COUNT(*) AS n FROM information_schema.table_constraints

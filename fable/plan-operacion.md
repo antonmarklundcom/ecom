@@ -753,6 +753,45 @@ chat. **STOP.**
 <título>` + 5–10 líneas: PR, qué existe ahora, decisiones/desvíos, dónde mirar primero
 en la fase siguiente, valores medidos si los hay.)*
 
+### 2026-09-05 · O5 — schema completo, tracking del envío y notas del pedido
+
+Branch `phase/o5`. **Todo el schema de §2 entra acá y no se retoca**: migración
+`0012_vengeful_piledriver.sql`, doce cambios en once tablas (tracking en
+`orders`, `order_notes`, `variants.reorder_point`, `stock_alerts`,
+`products.is_featured`, tres columnas en `categories`, `refunds`,
+`payments.refunded_pyg`, `price_adjustments`, `job_runs`). Toda columna nueva es
+nullable o tiene default. Las tres FK de `actor_user_id` van a
+`src/db/extras.ts` como las dos que ya estaban.
+
+**Qué existe ahora.** `transitionOrder` acepta `options.tracking` y lo escribe
+en el mismo `UPDATE` que el estado, sólo con destino `enviado`
+(`TrackingNotAllowedError` en cualquier otro, chequeado antes de abrir la
+transacción). El aviso ENVIADO a la compradora suma courier / guía / link
+leyéndolos de la fila ya commiteada; sin ninguno de los tres el texto es
+idéntico al de antes. `src/domain/order-notes.ts` (`addOrderNote` /
+`listOrderNotes`) + la acción homónima con `requireAdminSession`, capability
+`pedidos.notas` para los tres roles, y `nota` como tercer origen del
+`UNION ALL` de `/admin/actividad`.
+
+**Decisiones y desvíos.**
+- El backfill del ledger vive en `src/db/backfills.ts` y la migración lo copia
+  textualmente; un test unitario verifica esa copia. Sin eso, el test de
+  integración (que corre contra una base ya migrada, sin datos) y el SQL real
+  podían separarse sin que nada avisara.
+- **Bug encontrado y arreglado en la fase:** el UPDATE del acumulado disparaba
+  el `ON UPDATE CURRENT_TIMESTAMP` de `payments.updated_at` y le ponía la fecha
+  de la migración a todas las devoluciones históricas — justo el dato del que
+  el ledger saca su `created_at`. Se arregla asignando `updated_at` a sí misma;
+  hay un test que lo fija.
+- El feed y su filtro `nota` obligaron a tocar `/admin/actividad` (markup) y
+  `activity-filters.tsx`: es el mínimo para que el tercer origen se vea.
+- Nada nuevo en `KNOWN-ISSUES.md`.
+
+**Dónde mirar primero en O6.** `src/db/schema.ts` → `jobRuns` (el comentario
+dice cómo lo tienen que usar `claimJob`/`finishJob`) y `stockAlerts`; después
+`src/domain/order-customer-notifications.ts`, que es el patrón exacto que O6
+tiene que repetir para el resumen diario y el aviso de stock.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).

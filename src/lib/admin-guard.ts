@@ -125,4 +125,8 @@ const KNOWN_DOMAIN_ERRORS = [
   "AdminInputError",
   "AdminBankError",
   "AdminShippingMethodError",
+  // O5: la nota vacía, el pedido que no existe y el usuario desactivado
+  // tienen mensajes escritos para quien está en el mostrador.
+  "OrderNoteError",
+  "TrackingNotAllowedError",
 ];

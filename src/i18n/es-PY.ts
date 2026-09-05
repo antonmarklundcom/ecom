@@ -460,6 +460,12 @@ export const esPY = {
   "error.checkout.sinTarjeta": "El pago con tarjeta no está disponible en este momento.",
   "error.checkout.generico": "No pudimos crear el pedido. Probá de nuevo en un momento.",
 
+  // == O5 · notas internas del pedido ==
+  "error.nota.vacia": "Escribí algo en la nota.",
+  "error.nota.larga": "La nota no puede pasar de {maximo} caracteres.",
+  "error.nota.pedidoNoExiste": "No encontramos ese pedido.",
+  "error.nota.usuarioInactivo": "Tu usuario ya no tiene acceso al panel.",
+
   "error.comprobante.vacio": "El archivo está vacío.",
   "error.comprobante.pesado": "El comprobante no puede pesar más de 5 MB.",
   "error.comprobante.formato": "Subí una foto (JPG o PNG) o un PDF del comprobante.",
@@ -538,6 +544,14 @@ export const esPY = {
   "wa.cliente.enviado": "Hola {nombre}! Tu pedido {numero} ya salió.",
   "wa.cliente.enviado.envio": "Entrega: {metodo}.",
   "wa.cliente.enviado.nota": "Nota: {nota}",
+  // == O5 · seguimiento del envío ==
+  // Tres formas de la misma línea porque las tres pasan de verdad: courier
+  // con guía, sólo courier (una moto propia, "Entrega propia"), y sólo guía
+  // (el comercio despacha por su cuenta y anota el número del remito).
+  "wa.cliente.enviado.seguimiento": "Transporte: {courier} · Guía {guia}",
+  "wa.cliente.enviado.courier": "Transporte: {courier}",
+  "wa.cliente.enviado.guia": "Guía: {guia}",
+  "wa.cliente.enviado.seguirEnvio": "Seguí tu envío: {url}",
   "wa.cliente.verPedido": "Seguilo acá: {url}",
 
   // -------------------------------------------------------------------------
@@ -684,6 +698,8 @@ export const esPY = {
   "adminError.noEntendi.usuario": "No entendí qué usuario cambiar.",
   "adminError.noEntendi.rol": "No entendí qué rol poner.",
   "adminError.noEntendi.mover": "No entendí hacia dónde mover.",
+  // == O5 ==
+  "adminError.noEntendi.nota": "No entendí qué nota guardar.",
   "adminError.comprobanteInvalido": "Comprobante inválido.",
   "adminError.productoInvalido": "Producto inválido.",
   "adminError.elegiFoto": "Elegí la foto.",
@@ -937,6 +953,8 @@ export const esPY = {
   "panel.actividad.todo": "Todo",
   "panel.actividad.tipoPedido": "Cambios de pedido",
   "panel.actividad.tipoStock": "Ajustes de stock",
+  // == O5 ==
+  "panel.actividad.tipoNota": "Notas de pedidos",
   "panel.actividad.hastaIncluye": "Incluye todo ese día.",
   "panel.actividad.filtrar": "Filtrar",
 
@@ -1319,6 +1337,8 @@ export const esPY = {
   "panel.actividad.transicion": "{desde} → {hasta}",
   "panel.actividad.deltaStock": "{delta} ({antes} → {despues})",
   "panel.actividad.elSistema": "El sistema",
+  // == O5 ==
+  "panel.actividad.nota": "nota interna",
   "panel.actividad.masNuevos": "← Más nuevos",
   "panel.actividad.masViejos": "Más viejos →",
 
