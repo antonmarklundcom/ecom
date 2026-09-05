@@ -17,6 +17,17 @@ import {
   type CatalogImportPlan,
 } from "@/domain/catalog-import-plan";
 import { type CatalogoProducto } from "@/domain/catalog-import";
+import {
+  BULK_MAX_IDS,
+  BULK_MIN_REASON,
+  PERCENT_MAX,
+  PERCENT_MIN,
+  bulkAdjustPrices,
+  bulkMoveCategory,
+  bulkSetActive,
+  duplicateProduct,
+  previewPriceAdjustment,
+} from "@/domain/admin-bulk";
 import { sweepBackInStock } from "@/domain/stock-alerts";
 import { validateProductImage } from "@/domain/product-images";
 import { CLOUDINARY_PRODUCTS_FOLDER, cloudinary } from "@/lib/cloudinary";
@@ -25,6 +36,7 @@ import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from "@/lib/spreads
 import {
   actorLabel,
   adminActionError,
+  requireOwnerSession,
   requireStaffSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
@@ -388,5 +400,157 @@ export async function applyCatalogImport(formData: FormData): Promise<CatalogImp
   } catch (error) {
     const result = adminActionError("applyCatalogImport", error);
     return { ok: false, errores: [result.error] };
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Acciones masivas y duplicar (O7, plan-operacion §5.3 B y C)
+ *
+ * Las tres primeras son `productos` (staff): publicar, despublicar y mover de
+ * categoría es trabajo de catálogo. La de precios es **owner**, porque es la
+ * única que mueve plata — ver el comentario de `precios.masivo` en
+ * `permissions.ts`.
+ * ------------------------------------------------------------------------- */
+
+const BulkIdsSchema = z.object({
+  productIds: z.array(z.number().int().positive()).min(1).max(BULK_MAX_IDS),
+});
+
+export async function bulkSetProductsActive(
+  input: unknown,
+): Promise<AdminActionResult<{ afectados: number }>> {
+  try {
+    await requireStaffSession();
+
+    const parsed = BulkIdsSchema.extend({ isActive: z.boolean() }).safeParse(input);
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.masivo") };
+
+    const afectados = await bulkSetActive(parsed.data.productIds, parsed.data.isActive);
+
+    revalidatePath("/admin/productos");
+    return { ok: true, afectados };
+  } catch (error) {
+    return adminActionError("bulkSetProductsActive", error);
+  }
+}
+
+export async function bulkMoveProductsCategory(
+  input: unknown,
+): Promise<AdminActionResult<{ afectados: number }>> {
+  try {
+    await requireStaffSession();
+
+    const parsed = BulkIdsSchema.extend({
+      categoryId: z.number().int().positive(),
+    }).safeParse(input);
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.masivo") };
+
+    const afectados = await bulkMoveCategory(parsed.data.productIds, parsed.data.categoryId);
+
+    revalidatePath("/admin/productos");
+    return { ok: true, afectados };
+  } catch (error) {
+    return adminActionError("bulkMoveProductsCategory", error);
+  }
+}
+
+/**
+ * El porcentaje y los ids viajan; **los precios no**. Cada precio nuevo lo
+ * calcula el servidor releyendo el viejo con la fila bloqueada.
+ */
+const BulkPriceSchema = z
+  .object({
+    variantIds: z.array(z.number().int().positive()).max(BULK_MAX_IDS).optional(),
+    productIds: z.array(z.number().int().positive()).max(BULK_MAX_IDS).optional(),
+    percent: z.number().int().min(PERCENT_MIN).max(PERCENT_MAX),
+    roundTo: z.union([z.literal(100), z.literal(1000)]),
+    reason: z.string().trim().min(BULK_MIN_REASON).max(500),
+  })
+  .refine(
+    (data) => Boolean(data.variantIds?.length) !== Boolean(data.productIds?.length),
+    // Una de las dos, no las dos ni ninguna: con las dos, no está claro cuál
+    // gana, y "las dos" es siempre un error de quien llama.
+    { message: "Elegí variantes o productos, no las dos cosas." },
+  );
+
+export async function bulkAdjustProductPrices(
+  input: unknown,
+): Promise<AdminActionResult<{ cambiadas: number; miradas: number; diferenciaPyg: number }>> {
+  try {
+    const actor = await requireOwnerSession();
+
+    const parsed = BulkPriceSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.noEntendi.masivo") };
+    }
+
+    const result = await bulkAdjustPrices({
+      variantIds: parsed.data.variantIds,
+      productIds: parsed.data.productIds,
+      percent: parsed.data.percent,
+      roundTo: parsed.data.roundTo,
+      reason: parsed.data.reason,
+      actor: actorLabel(actor),
+      actorUserId: actor.userId,
+    });
+
+    revalidatePath("/admin/productos");
+    return { ok: true, ...result };
+  } catch (error) {
+    return adminActionError("bulkAdjustProductPrices", error);
+  }
+}
+
+/** La vista previa del ajuste. Owner también: muestra precios y no escribe. */
+export async function previewBulkPriceAdjustment(
+  input: unknown,
+): Promise<
+  AdminActionResult<{
+    cambiadas: number;
+    miradas: number;
+    diferenciaPyg: number;
+    ejemplos: Array<{ variantId: number; from: number; to: number }>;
+  }>
+> {
+  try {
+    await requireOwnerSession();
+
+    const parsed = BulkPriceSchema.omit({ reason: true }).safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.noEntendi.masivo") };
+    }
+
+    const result = await previewPriceAdjustment({
+      variantIds: parsed.data.variantIds,
+      productIds: parsed.data.productIds,
+      percent: parsed.data.percent,
+      roundTo: parsed.data.roundTo,
+    });
+
+    return { ok: true, ...result };
+  } catch (error) {
+    return adminActionError("previewBulkPriceAdjustment", error);
+  }
+}
+
+/**
+ * Duplicar un producto. La copia nace despublicada y con stock 0; **no lleva
+ * las fotos** (ver el comentario de `duplicateProduct`).
+ */
+export async function duplicateProductAction(
+  input: unknown,
+): Promise<AdminActionResult<{ productId: number }>> {
+  try {
+    await requireStaffSession();
+
+    const parsed = z.object({ productId: z.number().int().positive() }).safeParse(input);
+    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.masivo") };
+
+    const productId = await duplicateProduct(parsed.data.productId);
+
+    revalidatePath("/admin/productos");
+    return { ok: true, productId };
+  } catch (error) {
+    return adminActionError("duplicateProductAction", error);
   }
 }

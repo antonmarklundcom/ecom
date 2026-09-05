@@ -43,6 +43,14 @@ function revalidarVidriera(): void {
 const CreateSchema = z.object({
   name: z.string().trim().min(1, t("adminForm.nombreCategoria")).max(120),
   slug: z.string().trim().max(120).optional(),
+  /**
+   * Presentación de la categoría (O7). Los `.max()` son el largo exacto de las
+   * columnas; `null` borra el campo y **ausente no lo toca**, que es lo que
+   * necesita el formulario de hoy (S10 dibuja los campos).
+   */
+  description: z.string().trim().max(5000).nullish(),
+  imageCloudinaryId: z.string().trim().max(255).nullish(),
+  imageAlt: z.string().trim().max(200).nullish(),
 });
 
 export async function crearCategoria(input: unknown): Promise<AdminActionResult<{ id: number }>> {
@@ -57,6 +65,9 @@ export async function crearCategoria(input: unknown): Promise<AdminActionResult<
     const created = await createCategory({
       name: parsed.data.name,
       slug: parsed.data.slug || null,
+      description: parsed.data.description,
+      imageCloudinaryId: parsed.data.imageCloudinaryId,
+      imageAlt: parsed.data.imageAlt,
     });
 
     revalidarVidriera();
@@ -71,6 +82,14 @@ const UpdateSchema = z.object({
   categoryId: z.number().int().positive(),
   name: z.string().trim().min(1, t("adminForm.nombreCategoria")).max(120),
   slug: z.string().trim().max(120).optional(),
+  /**
+   * Presentación de la categoría (O7). Los `.max()` son el largo exacto de las
+   * columnas; `null` borra el campo y **ausente no lo toca**, que es lo que
+   * necesita el formulario de hoy (S10 dibuja los campos).
+   */
+  description: z.string().trim().max(5000).nullish(),
+  imageCloudinaryId: z.string().trim().max(255).nullish(),
+  imageAlt: z.string().trim().max(200).nullish(),
 });
 
 export async function editarCategoria(input: unknown): Promise<AdminActionResult> {
@@ -86,6 +105,9 @@ export async function editarCategoria(input: unknown): Promise<AdminActionResult
       categoryId: parsed.data.categoryId,
       name: parsed.data.name,
       slug: parsed.data.slug || null,
+      description: parsed.data.description,
+      imageCloudinaryId: parsed.data.imageCloudinaryId,
+      imageAlt: parsed.data.imageAlt,
     });
 
     revalidarVidriera();

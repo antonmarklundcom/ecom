@@ -252,6 +252,11 @@ export type ProductWrite = {
   isActive: boolean;
   /** `true` publica ahora; `false` lo saca de la vidriera. */
   published: boolean;
+  /**
+   * Destacado de la home, elegido a mano (O7). Ausente = no se toca, que es lo
+   * que necesita todo formulario que no dibuje la casilla — S10 la agrega.
+   */
+  isFeatured?: boolean;
 };
 
 export async function createProduct(input: ProductWrite, executor?: Executor): Promise<number> {
@@ -266,6 +271,7 @@ export async function createProduct(input: ProductWrite, executor?: Executor): P
     brand: input.brand,
     ivaRate: input.ivaRate,
     isActive: input.isActive,
+    isFeatured: input.isFeatured ?? false,
     publishedAt: input.published ? new Date() : null,
   });
 
@@ -305,6 +311,10 @@ export async function updateProduct(
       brand: input.brand,
       ivaRate: input.ivaRate,
       isActive: input.isActive,
+      // `undefined` = no se toca. Es la diferencia importante con `false`: un
+      // formulario que no dibuja la casilla de destacado (el de hoy, hasta
+      // S10) no puede des-destacar un producto de paso al guardar el precio.
+      ...(input.isFeatured === undefined ? {} : { isFeatured: input.isFeatured }),
       // Se conserva la fecha original de publicación: republicar no debería
       // mandar el producto al tope de "nuevos" otra vez.
       publishedAt: input.published ? (current.publishedAt ?? new Date()) : null,

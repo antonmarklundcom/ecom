@@ -35,6 +35,14 @@ export const CAPABILITIES = [
   "precios",
   /** ABM de productos y variantes. */
   "productos",
+  /**
+   * Cambiar precios **en masa** por porcentaje (O7). Owner, y no `productos`,
+   * por lo mismo que los reembolsos: el error no se ve y no se puede deshacer
+   * con un botón. Un +10 % de más se descubre cuando ya se vendió a ese
+   * precio. Las acciones masivas que no tocan plata —activar, mover de
+   * categoría, duplicar— siguen bajo `productos`.
+   */
+  "precios.masivo",
   /** Ajustar `on_hand` a mano. */
   "stock",
   /** El listado de compradores con lo que gastó cada uno. */

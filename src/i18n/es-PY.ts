@@ -704,6 +704,29 @@ export const esPY = {
     "Ese pedido está cancelado y no se revive solo: si el comprador todavía lo quiere, armá uno nuevo. Si no, marcá el pago como devuelto.",
   "adminError.pago.sinMotivo":
     "Escribí por qué se devuelve: queda en el historial del pedido y es lo único que va a explicar esta plata dentro de seis meses.",
+  // == O7 · acciones masivas ==
+  "adminError.masivo.sinSeleccion": "No seleccionaste ningún producto.",
+  "adminError.masivo.demasiados":
+    "Son demasiados de una vez (máximo {maximo}). Filtrá y hacelo por tandas.",
+  "adminError.masivo.sinMotivo":
+    "Escribí por qué cambiás los precios: queda en el historial de cada variante y es lo único que va a explicar estos precios dentro de seis meses.",
+  "adminError.masivo.porcentajeEntero": "El porcentaje tiene que ser un número entero.",
+  "adminError.masivo.porcentajeFuera":
+    "El porcentaje tiene que estar entre {min} % y {max} %.",
+  "adminError.masivo.redondeoInvalido": "El redondeo tiene que ser a ₲100 o a ₲1.000.",
+  "adminError.masivo.categoriaNoExiste": "Esa categoría ya no existe.",
+  "adminError.masivo.categoriaApagada":
+    "Esa categoría está apagada: mover los productos ahí los saca a todos de la vidriera. Prendela primero.",
+  "adminError.masivo.productoNoExiste": "Ese producto ya no existe.",
+  "adminError.masivo.demasiadasCopias":
+    "Ya hay demasiadas copias de este producto. Renombrá o borrá alguna antes de duplicar de nuevo.",
+  "adminError.masivo.noPude": "No pude duplicar el producto. Probá de nuevo.",
+
+  // == O7 · reembolso parcial ==
+  "adminError.pago.montoInvalido": "El monto a devolver tiene que ser un número entero de guaraníes, mayor que cero.",
+  "adminError.pago.montoExcede":
+    "Ese monto supera lo que queda por devolver de este pago (₲ {disponible}). Recargá: puede que alguien ya haya devuelto una parte.",
+
   "adminError.pago.noEncontrado": "No encontramos ese pago.",
   "adminError.pago.pedidoNoExiste": "El pedido de ese pago ya no existe.",
   "adminError.pago.nadaQueDevolver": "Ese pago no está acreditado: no hay nada que devolver todavía.",
@@ -725,6 +748,8 @@ export const esPY = {
   "adminError.noEntendi.mover": "No entendí hacia dónde mover.",
   // == O5 ==
   "adminError.noEntendi.nota": "No entendí qué nota guardar.",
+  // == O7 ==
+  "adminError.noEntendi.masivo": "No entendí qué querés hacer con esos productos.",
   "adminError.comprobanteInvalido": "Comprobante inválido.",
   "adminError.productoInvalido": "Producto inválido.",
   "adminError.elegiFoto": "Elegí la foto.",

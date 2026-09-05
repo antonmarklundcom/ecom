@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 
 import type { Executor } from "./executor";
 import { ORDER_TRANSITIONS } from "./orders";
+import { PARTIAL_REFUND_REASON_PREFIX } from "./payment-recovery";
 
 /**
  * Reconciliación (PLAN.md 4.10).
@@ -181,7 +182,8 @@ export type CrossCheckKind =
   | "arista_imposible"
   | "descuento_sin_cupon"
   | "descuento_mayor_al_subtotal"
-  | "usos_del_cupon_no_cuadran";
+  | "usos_del_cupon_no_cuadran"
+  | "devoluciones_no_cuadran";
 
 export type CrossCheckFinding = {
   kind: CrossCheckKind;
@@ -490,6 +492,10 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
     targets.map((to) => sql`(${from}, ${to})`),
   );
 
+  // Fuera del template: un literal anidado adentro de un `${}` de `sql` no
+  // compila, y el patrón conviene armarlo una sola vez igual.
+  const parcialLike = `${PARTIAL_REFUND_REASON_PREFIX}%`;
+
   const result = await tx.execute(sql`
     SELECT
       o.id            AS orderId,
@@ -508,6 +514,13 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
       -- un NULL adentro del row constructor vuelve la comparación NULL, o sea
       -- "no sospechoso", que es justo lo contrario de lo que queremos.
       WHEN e.from_status IS NULL THEN e.to_status <> 'pendiente_pago'
+      -- Un reembolso parcial (O7) deja a propósito una fila con from = to:
+      -- no es una transición, es plata que salió de un pedido que sigue su
+      -- curso. Sin esta excepción, cada devolución parcial legítima saldría
+      -- reportada como arista imposible, y un control que grita siempre es un
+      -- control que nadie mira. Se reconoce por el prefijo del motivo, que es
+      -- una constante compartida con payment-recovery.ts.
+      WHEN e.from_status = e.to_status AND e.reason LIKE ${parcialLike} THEN FALSE
       ELSE (e.from_status, e.to_status) NOT IN (${sql.join(allowed, sql`, `)})
     END
     ORDER BY e.id DESC
@@ -520,6 +533,63 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
     detail:
       `el evento ${row.eventId} registra "${row.fromStatus}" → "${row.toStatus}" ` +
       `(actor ${row.actor}), que la máquina de estados no permite`,
+  }));
+}
+
+/**
+ * El ledger de devoluciones contra el acumulado del pago (O7).
+ *
+ * Tres igualdades que tienen que valer siempre, y las tres se rompen de formas
+ * distintas y silenciosas:
+ *
+ * 1. **`payments.refunded_pyg = Σ refunds.amount_pyg`.** El acumulado existe
+ *    para poder decidir "¿puedo devolver ₲50.000 más?" con la fila bloqueada,
+ *    sin un `SUM()` adentro del lock. El precio de esa denormalización es que
+ *    puede separarse del ledger — y si se separa, el próximo reembolso se
+ *    calcula contra un número que no es la verdad.
+ * 2. **`refunded_pyg ≤ amount_pyg`.** Devolver más de lo que entró.
+ * 3. **`status = 'refunded' ⇔ refunded_pyg = amount_pyg`.** Las dos
+ *    direcciones: un pago marcado devuelto al que le falta plata en el ledger,
+ *    y un pago con todo devuelto que sigue figurando como cobrado.
+ *
+ * Se reportan contra el pedido del pago porque es lo que el dueño puede abrir.
+ */
+export async function findRefundMismatches(
+  executor?: Executor,
+): Promise<CrossCheckFinding[]> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      o.id            AS orderId,
+      o.order_number  AS orderNumber,
+      o.status        AS orderStatus,
+      p.id            AS paymentId,
+      p.status        AS paymentStatus,
+      p.amount_pyg    AS amountPyg,
+      p.refunded_pyg  AS refundedPyg,
+      COALESCE(r.total, 0) AS ledgerPyg
+    FROM payments p
+    JOIN orders o ON o.id = p.order_id
+    LEFT JOIN (
+      SELECT payment_id, SUM(amount_pyg) AS total
+      FROM refunds
+      GROUP BY payment_id
+    ) r ON r.payment_id = p.id
+    WHERE p.refunded_pyg <> COALESCE(r.total, 0)
+       OR p.refunded_pyg > p.amount_pyg
+       OR (p.status = 'refunded' AND p.refunded_pyg <> p.amount_pyg)
+       OR (p.status <> 'refunded' AND p.amount_pyg > 0 AND p.refunded_pyg = p.amount_pyg)
+    ORDER BY p.id DESC
+    LIMIT ${CROSS_CHECK_LIMIT}
+  `);
+
+  return rowsOf(result).map((row) => ({
+    kind: "devoluciones_no_cuadran" as const,
+    ...identity(row),
+    detail:
+      `el pago ${row.paymentId} (${row.paymentStatus}) cobró ${row.amountPyg} y tiene ` +
+      `refunded_pyg = ${row.refundedPyg}, pero el ledger de devoluciones suma ${row.ledgerPyg}`,
   }));
 }
 
@@ -542,6 +612,7 @@ export async function reconcile(executor?: Executor): Promise<ReconciliationRepo
     findDiscountsWithoutCoupon(executor),
     findDiscountsOverSubtotal(executor),
     findCouponUsageMismatches(executor),
+    findRefundMismatches(executor),
   ]);
 
   const crossChecks = cross.flat();
