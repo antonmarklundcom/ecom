@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { ORDER_STATUSES } from "@/db/schema";
+import { addOrderNote as addOrderNoteToDomain } from "@/domain/order-notes";
 import { transitionOrder } from "@/domain/orders";
 import { receiptPreview, reviewReceipt } from "@/domain/receipt-review";
 import {
@@ -14,6 +15,7 @@ import {
   requireStaffSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
+import { OrderNoteSchema, OrderTrackingSchema } from "@/lib/schemas";
 import { t } from "@/i18n";
 
 /**
@@ -34,6 +36,13 @@ const AdvanceSchema = z.object({
   orderId: z.number().int().positive(),
   to: z.enum(ORDER_STATUSES),
   reason: z.string().trim().max(500).optional(),
+  /**
+   * El seguimiento del envío (O5). Sólo tiene sentido con `to === "enviado"`;
+   * el dominio rechaza cualquier otro destino con `TrackingNotAllowedError`,
+   * y esta acción no lo pre-filtra a propósito: un panel que manda tracking
+   * al cancelar un pedido es un bug que queremos ver, no tapar.
+   */
+  tracking: OrderTrackingSchema.optional(),
 });
 
 export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
@@ -56,7 +65,7 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
       parsed.data.reason || null,
       // El string `admin:email` es la verdad histórica; el id es lo que hace
       // consultable "qué hizo esta persona" (PR D).
-      { actorUserId: actor.userId },
+      { actorUserId: actor.userId, tracking: parsed.data.tracking },
     );
 
     revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);
@@ -126,5 +135,41 @@ export async function previewReceipt(
     return { ok: true, url: preview.url, mime: preview.mime };
   } catch (error) {
     return adminActionError("previewReceipt", error);
+  }
+}
+
+/**
+ * Escribe una nota interna en un pedido (O5).
+ *
+ * `requireAdminSession` y no `requireStaffSession`: los tres roles pueden
+ * —capability `pedidos.notas`—, porque quien atiende el teléfono cuando la
+ * compradora llama es justamente el vendedor, y la nota que deja es la que
+ * evita el segundo viaje de la moto. No mueve plata, no mueve stock, no
+ * cambia el estado, y la compradora no la ve nunca.
+ *
+ * El id del actor va sí o sí: sin él la nota queda escrita "por el sistema" y
+ * el feed de actividad pierde justo la fila que más se busca (PR D).
+ */
+export async function addOrderNote(input: unknown): Promise<AdminActionResult> {
+  try {
+    const actor = await requireAdminSession();
+
+    const parsed = OrderNoteSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: t("adminError.noEntendi.nota") };
+    }
+
+    await addOrderNoteToDomain({
+      orderId: parsed.data.orderId,
+      body: parsed.data.body,
+      actor: actorLabel(actor),
+      actorUserId: actor.userId,
+    });
+
+    revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);
+    revalidatePath("/admin/actividad");
+    return { ok: true };
+  } catch (error) {
+    return adminActionError("addOrderNote", error);
   }
 }

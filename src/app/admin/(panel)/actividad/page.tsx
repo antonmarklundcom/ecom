@@ -133,6 +133,13 @@ function ActivityItem({ row }: { row: ActivityRow }) {
                     })}
               </span>
             </>
+          ) : row.kind === "nota" ? (
+            <>
+              <Link href={`/admin/pedidos/${row.orderId}`} className="underline">
+                {row.orderNumber}
+              </Link>{" "}
+              <span className="font-normal">{t("panel.actividad.nota")}</span>
+            </>
           ) : (
             <>
               <Link href={`/admin/productos/${row.productId}`} className="underline">
@@ -163,7 +170,17 @@ function ActivityItem({ row }: { row: ActivityRow }) {
         <p className="text-muted-foreground mt-1 text-xs">{row.productName}</p>
       ) : null}
 
-      {row.reason ? <p className="mt-1 text-xs">{row.reason}</p> : null}
+      {/*
+        El cuerpo de la nota y el motivo del evento ocupan el mismo renglón:
+        son la misma cosa para quien lee el feed —el texto que alguien
+        escribió— y sólo cambia de qué tabla salió. `whitespace-pre-line`
+        porque una nota de mostrador viene con saltos de línea.
+      */}
+      {row.kind === "nota" ? (
+        <p className="mt-1 text-xs whitespace-pre-line">{row.body}</p>
+      ) : row.reason ? (
+        <p className="mt-1 text-xs">{row.reason}</p>
+      ) : null}
 
       {/*
         El nombre de hoy arriba y el string histórico abajo: `actor` dice

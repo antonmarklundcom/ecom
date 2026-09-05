@@ -88,6 +88,7 @@ export function ActivityFiltersForm({
             <option value="">{t("panel.actividad.todo")}</option>
             <option value="pedido">{t("panel.actividad.tipoPedido")}</option>
             <option value="stock">{t("panel.actividad.tipoStock")}</option>
+            <option value="nota">{t("panel.actividad.tipoNota")}</option>
           </select>
         </div>
       </div>

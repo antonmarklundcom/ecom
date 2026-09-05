@@ -4,6 +4,7 @@ import { unionAll, type MySqlColumn } from 'drizzle-orm/mysql-core';
 import { getDb } from '@/db';
 import {
   orderEvents,
+  orderNotes,
   orders,
   products,
   stockAdjustments,
@@ -45,7 +46,7 @@ import type { Executor } from './executor';
 
 export const ACTIVITY_PER_PAGE = 30;
 
-export const ACTIVITY_KINDS = ['pedido', 'stock'] as const;
+export const ACTIVITY_KINDS = ['pedido', 'stock', 'nota'] as const;
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 
 export function isActivityKind(value: string | undefined): value is ActivityKind {
@@ -98,6 +99,17 @@ export type ActivityRow =
       previousOnHand: number;
       newOnHand: number;
       reason: string;
+    }
+  | {
+      kind: 'nota';
+      id: number;
+      createdAt: Date;
+      actor: string;
+      actorUserId: number | null;
+      actorName: string | null;
+      orderId: number;
+      orderNumber: string;
+      body: string;
     };
 
 export type ActivityPage = {
@@ -139,28 +151,42 @@ export async function listActivity(
 
   const wherePedidos = condiciones(filters, orderEvents);
   const whereStock = condiciones(filters, stockAdjustments);
+  const whereNotas = condiciones(filters, orderNotes);
 
-  const cuentaPedidos =
-    filters.kind === 'stock'
+  // Un filtro por tipo apaga los otros dos conteos: el total tiene que ser el
+  // de lo que se va a listar, o la paginación promete páginas que no existen.
+  const cuenta = async (kind: ActivityKind, consulta: Promise<Array<{ n: number }>>) =>
+    filters.kind !== undefined && filters.kind !== kind
       ? 0
-      : Number(
-          (await tx.select({ n: count() }).from(orderEvents).where(wherePedidos))[0]?.n ?? 0,
-        );
-  const cuentaStock =
-    filters.kind === 'pedido'
-      ? 0
-      : Number(
-          (await tx.select({ n: count() }).from(stockAdjustments).where(whereStock))[0]?.n ?? 0,
-        );
+      : Number((await consulta)[0]?.n ?? 0);
 
-  const total = cuentaPedidos + cuentaStock;
+  const cuentaPedidos = await cuenta(
+    'pedido',
+    tx.select({ n: count() }).from(orderEvents).where(wherePedidos),
+  );
+  const cuentaStock = await cuenta(
+    'stock',
+    tx.select({ n: count() }).from(stockAdjustments).where(whereStock),
+  );
+  const cuentaNotas = await cuenta(
+    'nota',
+    tx.select({ n: count() }).from(orderNotes).where(whereNotas),
+  );
+
+  const total = cuentaPedidos + cuentaStock + cuentaNotas;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   // Si el filtro achicó el resultado, `?page=9` no puede quedar en una página
   // vacía sin explicación. Mismo criterio que el listado de pedidos.
   const safePage = Math.min(page, totalPages);
   const offset = (safePage - 1) * perPage;
 
-  const claves = await clavesDeLaPagina(tx, filters, { wherePedidos, whereStock, perPage, offset });
+  const claves = await clavesDeLaPagina(tx, filters, {
+    wherePedidos,
+    whereStock,
+    whereNotas,
+    perPage,
+    offset,
+  });
   const rows = await hidratar(tx, claves);
 
   return { rows, total, page: safePage, perPage, totalPages };
@@ -182,11 +208,12 @@ async function clavesDeLaPagina(
   opciones: {
     wherePedidos: SQL | undefined;
     whereStock: SQL | undefined;
+    whereNotas: SQL | undefined;
     perPage: number;
     offset: number;
   },
 ): Promise<Clave[]> {
-  const { wherePedidos, whereStock, perPage, offset } = opciones;
+  const { wherePedidos, whereStock, whereNotas, perPage, offset } = opciones;
 
   if (filters.kind === 'pedido') {
     const rows = await tx
@@ -210,6 +237,17 @@ async function clavesDeLaPagina(
     return rows.map((row) => ({ kind: 'stock' as const, id: row.id }));
   }
 
+  if (filters.kind === 'nota') {
+    const rows = await tx
+      .select({ id: orderNotes.id })
+      .from(orderNotes)
+      .where(whereNotas)
+      .orderBy(desc(orderNotes.createdAt), desc(orderNotes.id))
+      .limit(perPage)
+      .offset(offset);
+    return rows.map((row) => ({ kind: 'nota' as const, id: row.id }));
+  }
+
   const pedidos = tx
     .select({
       kind: sql<ActivityKind>`'pedido'`.as('kind'),
@@ -228,11 +266,20 @@ async function clavesDeLaPagina(
     .from(stockAdjustments)
     .where(whereStock);
 
+  const notas = tx
+    .select({
+      kind: sql<ActivityKind>`'nota'`.as('kind'),
+      id: orderNotes.id,
+      createdAt: orderNotes.createdAt,
+    })
+    .from(orderNotes)
+    .where(whereNotas);
+
   // El ORDER BY de una UNION se resuelve contra los **alias de salida**, no
   // contra las columnas de una tabla: por eso van escritos a mano y no con
   // `desc(orderEvents.createdAt)`, que emitiría `order_events`.`created_at` y
   // MySQL lo rechaza.
-  const filas = await unionAll(pedidos, stock)
+  const filas = await unionAll(pedidos, stock, notas)
     .orderBy(sql`\`created_at\` DESC, \`kind\` ASC, \`id\` DESC`)
     .limit(perPage)
     .offset(offset);
@@ -244,8 +291,9 @@ async function clavesDeLaPagina(
 async function hidratar(tx: Executor, claves: Clave[]): Promise<ActivityRow[]> {
   const idsPedido = claves.filter((clave) => clave.kind === 'pedido').map((clave) => clave.id);
   const idsStock = claves.filter((clave) => clave.kind === 'stock').map((clave) => clave.id);
+  const idsNota = claves.filter((clave) => clave.kind === 'nota').map((clave) => clave.id);
 
-  const [eventos, ajustes] = await Promise.all([
+  const [eventos, ajustes, notas] = await Promise.all([
     idsPedido.length === 0
       ? []
       : tx
@@ -291,6 +339,25 @@ async function hidratar(tx: Executor, claves: Clave[]): Promise<ActivityRow[]> {
           .innerJoin(products, eq(variants.productId, products.id))
           .leftJoin(users, eq(stockAdjustments.actorUserId, users.id))
           .where(inArray(stockAdjustments.id, idsStock)),
+    idsNota.length === 0
+      ? []
+      : tx
+          .select({
+            id: orderNotes.id,
+            createdAt: orderNotes.createdAt,
+            actor: orderNotes.actor,
+            actorUserId: orderNotes.actorUserId,
+            actorName: users.name,
+            actorEmail: users.email,
+            orderId: orderNotes.orderId,
+            orderNumber: orders.orderNumber,
+            body: orderNotes.body,
+          })
+          .from(orderNotes)
+          .innerJoin(orders, eq(orderNotes.orderId, orders.id))
+          // LEFT, igual que arriba: la FK del actor es nullable por diseño.
+          .leftJoin(users, eq(orderNotes.actorUserId, users.id))
+          .where(inArray(orderNotes.id, idsNota)),
   ]);
 
   const porClave = new Map<string, ActivityRow>();
@@ -327,6 +394,20 @@ async function hidratar(tx: Executor, claves: Clave[]): Promise<ActivityRow[]> {
       previousOnHand: row.previousOnHand,
       newOnHand: row.newOnHand,
       reason: row.reason,
+    });
+  }
+
+  for (const row of notas) {
+    porClave.set(`nota:${row.id}`, {
+      kind: 'nota',
+      id: row.id,
+      createdAt: row.createdAt,
+      actor: row.actor,
+      actorUserId: row.actorUserId,
+      actorName: nombreDelActor(row.actorName, row.actorEmail),
+      orderId: row.orderId,
+      orderNumber: row.orderNumber,
+      body: row.body,
     });
   }
 

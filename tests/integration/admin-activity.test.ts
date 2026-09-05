@@ -3,11 +3,18 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { orderEvents, stockAdjustments, users } from '@/db/schema';
-import { actividadActores, listActivity } from '@/domain/admin-activity';
+import { actividadActores, listActivity, type ActivityRow } from '@/domain/admin-activity';
 import { createUser } from '@/lib/auth';
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
 import { createOrder, createVariant } from '../helpers/factories';
+
+/**
+ * El texto que escribió quien hizo la cosa, sea cual sea el origen: el
+ * `reason` de un evento o de un ajuste, y el `body` de una nota (O5). El feed
+ * los muestra en el mismo renglón, así que los tests los comparan igual.
+ */
+const motivo = (row: ActivityRow): string | null => (row.kind === 'nota' ? row.body : row.reason);
 
 /**
  * El feed de actividad (PLAN.md FASE 2, PR L).
@@ -83,8 +90,7 @@ describe.skipIf(!hasTestDb)('feed unificado y su paginación', () => {
     return { orderId, variantId };
   }
 
-  const motivos = (page: Awaited<ReturnType<typeof listActivity>>) =>
-    page.rows.map((row) => row.reason);
+  const motivos = (page: Awaited<ReturnType<typeof listActivity>>) => page.rows.map(motivo);
 
   it('mezcla las dos tablas en un solo orden cronológico', async () => {
     await seisMovimientos();
@@ -254,7 +260,7 @@ describe.skipIf(!hasTestDb)('filtros', () => {
     const page = await listActivity({ actorUserId: ana });
 
     expect(page.total).toBe(1);
-    expect(page.rows[0]?.reason).toBe('lo de Ana');
+    expect(page.rows[0] && motivo(page.rows[0])).toBe('lo de Ana');
     // El nombre de hoy, no el string histórico: el dueño busca a Ana.
     expect(page.rows[0]?.actorName).toBe('Ana');
     expect(page.rows[0]?.actor).toBe('admin:ana@tienda.py');
@@ -271,7 +277,7 @@ describe.skipIf(!hasTestDb)('filtros', () => {
     const page = await listActivity({ actorUserId: 'sistema' });
 
     expect(page.total).toBe(1);
-    expect(page.rows[0]?.reason).toBe('lo del cron');
+    expect(page.rows[0] && motivo(page.rows[0])).toBe('lo del cron');
     expect(page.rows[0]?.actorName).toBeNull();
   });
 
@@ -292,7 +298,7 @@ describe.skipIf(!hasTestDb)('filtros', () => {
 
     const page = await listActivity({ createdFrom: minuto(2), createdTo: minuto(4) });
     expect(page.total).toBe(2);
-    expect(page.rows.map((row) => row.reason)).toEqual(['lo de Ana', 'lo de Beto']);
+    expect(page.rows.map(motivo)).toEqual(['lo de Ana', 'lo de Beto']);
   });
 
   it('los filtros se combinan', async () => {
