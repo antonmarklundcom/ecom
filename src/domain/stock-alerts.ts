@@ -277,11 +277,14 @@ export async function purgeNotifiedStockAlerts(
   const tx = executor ?? getDb();
   const limite = new Date(now.getTime() - PURGE_AFTER_DAYS * 24 * 3600_000);
 
+  // El driver de mysql2 devuelve `[ResultSetHeader, FieldPacket[]]`, así que
+  // `affectedRows` está en el primer elemento y no en el objeto de arriba.
   const result = await tx
     .delete(stockAlerts)
     .where(and(isNotNull(stockAlerts.notifiedAt), lt(stockAlerts.notifiedAt, limite)));
 
-  return Number((result as unknown as { affectedRows?: number }).affectedRows ?? 0);
+  const header = (result as unknown as Array<{ affectedRows?: number }>)[0];
+  return Number(header?.affectedRows ?? 0);
 }
 
 export type BackInStockProduct = { productName: string; label: string; slug: string };

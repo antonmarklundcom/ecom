@@ -75,8 +75,15 @@ export async function claimJob(job: JobName, options: ClaimOptions = {}): Promis
     // que la fila exista para poder bloquearla. Sin esto, el primerísimo cron
     // de una tienda nueva no tendría nada que lockear y dos corridas
     // simultáneas insertarían las dos.
+    //
+    // La fila nace **terminada** (`finished_at = started_at`) y no en curso:
+    // representa "nunca corrió", no "hay una corrida viva". Con `finished_at`
+    // en NULL, la primerísima llamada se encontraría a sí misma y se
+    // contestaría `en_curso` — el trabajo no correría nunca hasta que
+    // venciera el lock.
     await tx.execute(
-      sql`INSERT INTO \`job_runs\` (\`job\`, \`started_at\`) VALUES (${job}, ${now})
+      sql`INSERT INTO \`job_runs\` (\`job\`, \`started_at\`, \`finished_at\`)
+          VALUES (${job}, ${now}, ${now})
           ON DUPLICATE KEY UPDATE \`job\` = \`job\``,
     );
 
@@ -90,9 +97,9 @@ export async function claimJob(job: JobName, options: ClaimOptions = {}): Promis
       .where(eq(jobRuns.job, job))
       .for('update');
 
+    // Siempre hay fila: el INSERT de arriba se encargó. El `if` es para el
+    // tipo, no para un caso real.
     const row = locked[0];
-
-    // La fila recién insertada por este mismo INSERT: nadie corrió todavía.
     if (row) {
       // Lock: hay una corrida empezada, sin terminar, y todavía fresca.
       const enCurso =

@@ -315,6 +315,34 @@ Sin `CRON_SECRET` configurado (o con menos de 16 caracteres) la ruta responde
 503 y no vence nada: una ruta "abierta hasta que la configuren" es una ruta
 abierta.
 
+### La segunda entrada: el resumen diario (O6)
+
+`/api/cron/resumen-diario` le manda al dueño, por WhatsApp, las cuatro cosas
+que hay que mirar antes de abrir: comprobantes por revisar, pedidos sin pagar
+hace más de un día, stock bajo y las ventas de ayer. De paso barre los avisos
+pendientes de "avisame cuando haya stock".
+
+hPanel → **Advanced → Cron Jobs** → una vez por día, **08:00 de Asunción**.
+Hostinger interpreta la hora del cron en UTC, y Paraguay está en **UTC−3 todo
+el año** (no hay horario de verano desde 2024), así que 08:00 PY = **11:00
+UTC**:
+
+```bash
+# minuto 0, hora 11 (UTC) = 08:00 en Asunción
+0 11 * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/cron/resumen-diario
+```
+
+Mismo secreto que la otra ruta, misma trampa del `?secret=`.
+
+**Se puede llamar de más sin miedo.** El resumen sale **una sola vez por día
+calendario de Asunción** aunque el cron pegue diez veces: la decisión se toma
+en `job_runs` con la fila bloqueada. Una llamada de más contesta `200` con
+`skipped: "ya_corrio_hoy"` y no manda nada — a propósito no es un error, porque
+un status de error haría que Hostinger reintentara al pedo.
+
+Sin `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO` cargada, la ruta corre igual y no
+manda nada (`sent: false`). `pnpm preflight` avisa si falta.
+
 ---
 
 ## 6. Prueba de humo post-deploy

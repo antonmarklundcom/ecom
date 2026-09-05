@@ -792,6 +792,46 @@ dice cómo lo tienen que usar `claimJob`/`finishJob`) y `stockAlerts`; después
 `src/domain/order-customer-notifications.ts`, que es el patrón exacto que O6
 tiene que repetir para el resumen diario y el aviso de stock.
 
+### 2026-09-05 · O6 — resumen diario, punto de reposición, avisos de stock
+
+Branch `phase/o6`. Sin schema nuevo: todo lo de §2 ya estaba (O5).
+
+**Qué existe ahora.** `src/lib/cron-auth.ts` con las cuatro decisiones de la
+puerta (503 sin secreto, rate limit, `timingSafeEqual`, `Bearer` o `?secret=`);
+`vencer-pedidos` la usa y su test sigue verde sin tocarlo. `job-runs.ts` con
+`claimJob`/`finishJob`: idempotencia por día calendario de Asunción para el
+resumen y lock con expiración para el backup de O8. `/api/cron/resumen-diario`
+arma y manda el resumen (cuatro secciones, "Sin novedades" igual se manda) y
+barre los avisos de stock pendientes. `variants.reorder_point` se guarda desde
+`saveVariant` y lo respeta `lowStockVariants` con `COALESCE` en el SQL.
+`stock-alerts.ts` completo: alta pública con rate limit por IP y por teléfono,
+disparo post-commit desde `adjustStock`, barrido en el cron y purga a los 90
+días en `runMaintenance`.
+
+**Decisiones y desvíos.**
+- El disparo del `catalog-import` se hace desde `applyCatalogImport` (owned) y
+  no desde `scripts/seed.ts`, que es donde realmente sube `on_hand` y está
+  fuera de los Owns de la fase. Se dispara el **barrido** y no un aviso por
+  variante: una planilla trae doscientas filas y sólo unas pocas le interesan
+  a alguien.
+- El resumen que no se pudo mandar cierra la corrida como **exitosa** con el
+  motivo en `last_error`: marcarla fallida haría que el cron de las 8:15
+  reintentara y el dueño recibiera el resumen dos veces el día que Meta se
+  recupera solo.
+- **Dos bugs encontrados y arreglados en la fase:** la fila de `job_runs`
+  nacía con `finished_at` en NULL y la primerísima corrida se contestaba
+  `en_curso` a sí misma (el trabajo no corría nunca hasta que venciera el
+  lock); y la purga leía `affectedRows` del objeto equivocado (mysql2 lo
+  devuelve en `result[0]`), así que borraba bien y reportaba 0.
+- `security-review.test.ts` se actualizó para seguir a la extracción, y de
+  paso ganó un control nuevo: ninguna ruta de cron se arma su propia puerta.
+- Nada nuevo en `KNOWN-ISSUES.md`.
+
+**Dónde mirar primero en O7.** `src/domain/payment-recovery.ts` (`refundPayment`
+y qué hace hoy con `transitionOrder` para el reembolso total, que hay que
+conservar exacto) y `src/domain/reconciliation.ts`, que gana las tres
+invariantes del ledger.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).
