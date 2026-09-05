@@ -10,8 +10,11 @@ leé:
   §5 mapea qué archivo toca cada parte de un mockup.
 - **ARCH.md** — arquitectura: dominio, estados del pedido, plata, Pagopar.
 - **PLAN.md** / **TASKS.md** — qué falta y en qué fase está.
-- **fable/plan.md** — el plan activo de endurecimiento (revisión en `fable/REVIEW.md`,
-  fases en `fable/prompts/`). `fable/PROMPT.md` es el prompt que lo generó.
+- **fable/plan-operacion.md** — el plan activo: la tienda después del lanzamiento
+  (tracking, notas, remito, resumen diario, backups, panel, vidriera, CI). Nueve fases,
+  dos ventanas encadenadas (§11); §12 explica cómo llega a las tiendas ya creadas. `fable/plan.md` es el plan anterior de endurecimiento, ya
+  mergeado y hoy historial (revisión en `fable/REVIEW.md`, fases en `fable/prompts/`).
+  `fable/PROMPT.md` es el prompt que genera estas revisiones.
 - **DEPLOY.md** — el runbook de Hostinger.
 
 ## La regla que más importa: maquinaria vs. piel
