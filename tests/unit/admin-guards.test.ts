@@ -163,6 +163,17 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   // stock, no cambia el estado y la compradora no la ve nunca.
   addOrderNote: 'Admin',
 
+  // Acciones masivas (O7). Publicar, despublicar, mover de categoría y
+  // duplicar son trabajo de catálogo: `Staff`. El **ajuste de precios** es
+  // `Owner`, y es la única distinción que importa acá: es lo único de este
+  // grupo que mueve plata, el error no se ve y no se puede deshacer con un
+  // botón. La vista previa también es Owner porque muestra precios.
+  bulkSetProductsActive: 'Staff',
+  bulkMoveProductsCategory: 'Staff',
+  duplicateProductAction: 'Staff',
+  bulkAdjustProductPrices: 'Owner',
+  previewBulkPriceAdjustment: 'Owner',
+
   crearCategoria: 'Owner',
   editarCategoria: 'Owner',
   cambiarEstadoCategoria: 'Owner',

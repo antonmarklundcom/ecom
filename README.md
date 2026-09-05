@@ -54,7 +54,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm db:check` | prueba la `DATABASE_URL`: imprime con qué usuario, base, host y puerto conecta (nunca la contraseña) y traduce el error si falla. Primer paso de debugging del deploy (DEPLOY.md §3) |
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |
 | `pnpm demo` | deja la base en un estado mostrable: catálogo + un pedido en cada estado |
-| `pnpm reconcile` | control de caja: los totales de cada pedido (incluido el descuento de cupones) más ocho invariantes entre tablas; sale con código 1 si algo no cuadra |
+| `pnpm reconcile` | control de caja: los totales de cada pedido (incluido el descuento de cupones) más nueve invariantes entre tablas —desde O7, también que el ledger de devoluciones cuadre con `payments.refunded_pyg`—; sale con código 1 si algo no cuadra |
 | `pnpm backfill:pagos-manuales` | completa la fila de `payments` de los pedidos cobrados por transferencia o contra entrega **antes** de que eso se registrara solo (ARCH.md §5.1). Ensayo por defecto: agregá `--apply` para escribir |
 | `pnpm backup` | copia comprimida de la base en `backups/` (`--retener N` para la limpieza por antigüedad). Se corre desde tu máquina, no desde Hostinger — DEPLOY.md §7 |
 | `pnpm nueva-tienda` | wizard de tienda nueva: marca, secretos, `.env.local` y el bloque de variables del hPanel. Idempotente; `--dry-run` no escribe nada — NEW-STORE.md §2 |

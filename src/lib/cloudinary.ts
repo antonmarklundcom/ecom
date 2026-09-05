@@ -81,6 +81,16 @@ function folderPrefix(): string {
 export const CLOUDINARY_PRODUCTS_FOLDER = `${folderPrefix()}productos`;
 
 /**
+ * Carpeta pública: la foto de portada de cada categoría (O7).
+ *
+ * Aparte de `productos/` y no adentro, por lo mismo que el QR del banco: son
+ * assets de la tienda, no del catálogo, y mezclarlos hace imposible mirar la
+ * carpeta y entender qué hay. Bajo el mismo prefijo, así que dos tiendas en la
+ * misma cuenta de Cloudinary no se pisan.
+ */
+export const CLOUDINARY_CATEGORIES_FOLDER = `${folderPrefix()}categorias`;
+
+/**
  * Carpeta **pública** del QR SPI del comercio (PLAN.md FASE 2, PR T).
  *
  * Pública y separada de `comprobantes/` a propósito: ese folder es

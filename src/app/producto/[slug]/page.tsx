@@ -10,6 +10,7 @@ import { getProductBySlug, getRelatedProducts } from "@/db/queries";
 import { t } from "@/i18n";
 import { comercioWaLink } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
+import { markdownToText } from "@/lib/markdown";
 import { formatGs } from "@/lib/money";
 import { jsonLdScript } from "@/lib/seo";
 
@@ -37,8 +38,12 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     undefined
   );
 
+  // `markdownToText` y no la descripción cruda (O7): desde que el campo acepta
+  // markdown, una que empiece con `**Importado**` publicaría literalmente los
+  // asteriscos en el resultado de Google. Es el único lugar de la vidriera que
+  // O7 toca — el render de la descripción en la página es de S11.
   const description =
-    product.description?.slice(0, 160) ??
+    markdownToText(product.description).slice(0, 160) ||
     t("producto.metaDescripcion", {
       nombre: product.name,
       precio: cheapest ? formatGs(cheapest) : "",
@@ -106,7 +111,8 @@ export default async function ProductPage({ params }: { params: Params }) {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
-    description: product.description ?? undefined,
+    // Mismo motivo que arriba: el JSON-LD que lee Google es texto, no markdown.
+    description: markdownToText(product.description) || undefined,
     brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
     sku: product.variants[0]?.sku,
     offers: product.variants.map((variant) => ({

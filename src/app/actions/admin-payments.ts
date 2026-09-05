@@ -59,7 +59,18 @@ export async function retryPaymentRevival(
   }
 }
 
-const RefundSchema = PaymentSchema.extend({ reason: z.string().trim().max(500) });
+const RefundSchema = PaymentSchema.extend({
+  reason: z.string().trim().max(500),
+  /**
+   * Cuánto devolver, en guaraníes enteros (O7). **Ausente = todo lo que
+   * queda**, que es el comportamiento de siempre.
+   *
+   * Lo que llega acá es una intención, no una decisión: el dominio relee el
+   * pago con la fila bloqueada y verifica contra `amount_pyg` y
+   * `refunded_pyg` reales. El navegador no decide plata.
+   */
+  amountPyg: z.number().int().positive().optional(),
+});
 
 /**
  * Registrar una devolución. **Sólo el dueño** (ARCH.md §1).
@@ -67,10 +78,22 @@ const RefundSchema = PaymentSchema.extend({ reason: z.string().trim().max(500) }
  * Es la única acción del panel que reconoce plata que sale, y ningún otro
  * control la revisa después: quien la aprieta decide solo. Hasta este PR la
  * podía hacer cualquier `staff`.
+ *
+ * Desde O7 acepta un monto: sin él devuelve todo lo que queda (el
+ * comportamiento de siempre), con él registra una devolución **parcial** que
+ * deja su fila en `refunds`, suma en `payments.refunded_pyg` y **no mueve el
+ * estado del pedido**. `pnpm reconcile` verifica que las tres cosas cuadren.
  */
 export async function markPaymentRefunded(
   input: unknown,
-): Promise<AdminActionResult<{ orderNumber: string; changed: boolean }>> {
+): Promise<
+  AdminActionResult<{
+    orderNumber: string;
+    changed: boolean;
+    refundedPyg?: number;
+    fullyRefunded?: boolean;
+  }>
+> {
   try {
     const actor = await requireOwnerSession();
 
@@ -82,12 +105,19 @@ export async function markPaymentRefunded(
     const result = await refundPayment({
       paymentId: parsed.data.paymentId,
       reason: parsed.data.reason,
+      amountPyg: parsed.data.amountPyg,
       actor: actorLabel(actor),
       actorUserId: actor.userId,
     });
 
     revalidatePayment(result.orderId);
-    return { ok: true, orderNumber: result.orderNumber, changed: result.changed };
+    return {
+      ok: true,
+      orderNumber: result.orderNumber,
+      changed: result.changed,
+      refundedPyg: result.refundedPyg,
+      fullyRefunded: result.fullyRefunded,
+    };
   } catch (error) {
     return adminActionError("markPaymentRefunded", error);
   }

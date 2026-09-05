@@ -115,10 +115,34 @@ function normalizar(input: { name: string; slug?: string | null }): { name: stri
   return { name, slug };
 }
 
+/**
+ * Los tres campos de presentación que agrega O7 (plan-operacion §5.3 E).
+ *
+ * `undefined` = no se toca; `null` = borrar. La diferencia importa: un
+ * formulario que no dibuja estos campos —el de hoy, hasta S10— no puede
+ * borrarle la foto a una categoría de paso al renombrarla.
+ */
+export type CategoryPresentation = {
+  description?: string | null;
+  imageCloudinaryId?: string | null;
+  imageAlt?: string | null;
+};
+
+/** Sólo las claves presentes, ya trimmeadas; `''` entra como `null`. */
+function presentacion(input: CategoryPresentation): Record<string, string | null> {
+  const campos: Record<string, string | null> = {};
+  if (input.description !== undefined) campos.description = input.description?.trim() || null;
+  if (input.imageCloudinaryId !== undefined) {
+    campos.imageCloudinaryId = input.imageCloudinaryId?.trim() || null;
+  }
+  if (input.imageAlt !== undefined) campos.imageAlt = input.imageAlt?.trim() || null;
+  return campos;
+}
+
 export async function createCategory(input: {
   name: string;
   slug?: string | null;
-}): Promise<AdminCategoryRow> {
+} & CategoryPresentation): Promise<AdminCategoryRow> {
   const { name, slug } = normalizar(input);
 
   return getDb().transaction(async (tx) => {
@@ -141,6 +165,7 @@ export async function createCategory(input: {
       name,
       slug,
       position: Number(ultima?.n ?? -1) + 1,
+      ...presentacion(input),
     });
 
     const created = await tx.select().from(categories).where(eq(categories.slug, slug)).limit(1);
@@ -171,7 +196,7 @@ export async function updateCategory(input: {
   categoryId: number;
   name: string;
   slug?: string | null;
-}): Promise<void> {
+} & CategoryPresentation): Promise<void> {
   const { name, slug } = normalizar(input);
 
   return getDb().transaction(async (tx) => {
@@ -191,7 +216,10 @@ export async function updateCategory(input: {
       .limit(1);
     if (choque[0]) throw new AdminCategoryError('adminError.categoria.urlRepetidaOtra', { slug });
 
-    await tx.update(categories).set({ name, slug }).where(eq(categories.id, category.id));
+    await tx
+      .update(categories)
+      .set({ name, slug, ...presentacion(input) })
+      .where(eq(categories.id, category.id));
   });
 }
 

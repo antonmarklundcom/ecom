@@ -25,18 +25,28 @@ async function folders(prefix: string | undefined) {
 
 describe('las carpetas de Cloudinary', () => {
   it('sin prefijo son las de siempre', async () => {
-    const { CLOUDINARY_PRODUCTS_FOLDER, CLOUDINARY_RECEIPTS_FOLDER, CLOUDINARY_BANK_FOLDER } =
-      await folders('');
+    const {
+      CLOUDINARY_PRODUCTS_FOLDER,
+      CLOUDINARY_RECEIPTS_FOLDER,
+      CLOUDINARY_BANK_FOLDER,
+      CLOUDINARY_CATEGORIES_FOLDER,
+    } = await folders('');
 
     expect(CLOUDINARY_PRODUCTS_FOLDER).toBe('productos');
     expect(CLOUDINARY_RECEIPTS_FOLDER).toBe('comprobantes');
     expect(CLOUDINARY_BANK_FOLDER).toBe('banco');
+    expect(CLOUDINARY_CATEGORIES_FOLDER).toBe('categorias');
   });
 
   it('con prefijo cuelgan todas de él, incluidos los comprobantes', async () => {
-    const { CLOUDINARY_PRODUCTS_FOLDER, CLOUDINARY_RECEIPTS_FOLDER, CLOUDINARY_BANK_FOLDER } =
-      await folders('lenceria');
+    const {
+      CLOUDINARY_PRODUCTS_FOLDER,
+      CLOUDINARY_RECEIPTS_FOLDER,
+      CLOUDINARY_BANK_FOLDER,
+      CLOUDINARY_CATEGORIES_FOLDER,
+    } = await folders('lenceria');
 
+    expect(CLOUDINARY_CATEGORIES_FOLDER).toBe('lenceria/categorias');
     expect(CLOUDINARY_PRODUCTS_FOLDER).toBe('lenceria/productos');
     // Ésta es la que importa: es la que colisiona entre tiendas.
     expect(CLOUDINARY_RECEIPTS_FOLDER).toBe('lenceria/comprobantes');

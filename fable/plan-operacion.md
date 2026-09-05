@@ -839,6 +839,51 @@ y qué hace hoy con `transitionOrder` para el reembolso total, que hay que
 conservar exacto) y `src/domain/reconciliation.ts`, que gana las tres
 invariantes del ledger.
 
+### 2026-09-05 · O7 — plata y catálogo
+
+Branch `phase/o7`. Sin schema nuevo (todo lo de §2 lo creó O5).
+
+**Qué existe ahora.** `refundPayment` acepta `amountPyg`: fila en `refunds`,
+acumulado en `payments.refunded_pyg`, `status = 'refunded'` **sólo** al llegar
+al total (y ahí la misma transición de siempre), y el parcial no mueve el
+estado del pedido pero deja su `order_event` con `from = to`. `reconcile` gana
+`devoluciones_no_cuadran` con las tres igualdades de §5.3.A, y el control de
+aristas imposibles perdona ese evento por el prefijo del motivo —constante
+compartida, para que no se puedan separar—. `admin-bulk.ts`: activar/
+desactivar, mover de categoría, `bulkAdjustPrices` (owner, `precios.masivo`) y
+`duplicateProduct`. `markdown.ts` sin dependencias. Destacados
+(`getFeaturedProducts`, `updateProduct.isFeatured`) y categorías con
+descripción, foto y alt.
+
+**`previewPriceAdjustment` quedó** (S10 la necesita) y usa `precioAjustado`, la
+**misma** función que aplica el ajuste: si la vista previa y la escritura
+usaran cuentas distintas, la vista previa sería peor que no tenerla.
+
+**Decisiones y desvíos.**
+- §5.3 E dice que sin destacados se devuelvan "los más nuevos" y lo iguala a
+  "la home de hoy". **Son cosas distintas**: la home de hoy es
+  `getCatalog({ limit: 8 })`, ordenado por posición de categoría y nombre.
+  Manda el criterio verificable del prompt —"exactamente lo que la home
+  muestra hoy"—, porque es el que garantiza que una tienda que sincroniza
+  `0012` no vea moverse su portada. Hay test del orden, no sólo del conjunto.
+- El parcial **sí** se permite sobre un pedido vivo (el total no, como
+  siempre): ése es justamente su caso de uso — la compradora se queda con dos
+  de tres remeras.
+- Sin monto, el reembolso devuelve **lo que queda**, no `amount_pyg`: con
+  parciales previos son cosas distintas y devolver el total dos veces sería
+  devolver de más.
+- **Bug encontrado y arreglado en la fase:** el evento del parcial se escribía
+  con `from_status = NULL` (el default de `recordOrderEvent`), que significa
+  "el pedido nació" — `reconcile` lo reportaba como arista imposible. Ahora se
+  pasa `fromStatus: order.status` explícito, con su test.
+- `atribucion.test.ts` no cubría las escrituras auditadas nuevas y pasaba en
+  falso: se le agregaron `addOrderNote` y `bulkAdjustPrices` al patrón.
+- Nada nuevo en `KNOWN-ISSUES.md`.
+
+**Dónde mirar primero en O8.** `src/domain/job-runs.ts` (el lock con
+expiración que O6 dejó listo para el backup) y `scripts/backup-db.ts`, que es
+el camino "grande" que sigue existiendo.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).

@@ -164,7 +164,7 @@ const PRODUCT_COLUMNS = {
 
 /** Catálogo completo (home / demo). */
 export async function getCatalog(
-  options: { categorySlug?: string; limit?: number } = {},
+  options: { categorySlug?: string; limit?: number; featured?: boolean } = {},
   executor?: Executor
 ): Promise<CatalogProduct[]> {
   const tx = executor ?? getDb();
@@ -172,11 +172,49 @@ export async function getCatalog(
     .select(PRODUCT_COLUMNS)
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .where(and(PUBLISHED(), options.categorySlug ? eq(categories.slug, options.categorySlug) : undefined))
-    .orderBy(asc(categories.position), asc(products.name))
+    .where(
+      and(
+        PUBLISHED(),
+        options.categorySlug ? eq(categories.slug, options.categorySlug) : undefined,
+        options.featured ? eq(products.isFeatured, true) : undefined
+      )
+    )
+    // Los destacados se ordenan por fecha de publicación, no por categoría y
+    // nombre: en una vitrina de ocho productos elegidos a mano, el orden
+    // alfabético no significa nada y lo nuevo sí.
+    .orderBy(
+      ...(options.featured
+        ? [desc(products.publishedAt)]
+        : [asc(categories.position), asc(products.name)])
+    )
     .limit(options.limit ?? 100);
 
   return hydrate(tx, rows);
+}
+
+/**
+ * Los productos de la vitrina de la home (O7, plan-operacion §5.3 E).
+ *
+ * **Sin ningún destacado marcado devuelve exactamente lo que la home muestra
+ * hoy**: `getCatalog({ limit })`, con su orden por posición de categoría y
+ * nombre. Eso no es un fallback de cortesía — es lo que permite que la
+ * migración `0012` llegue a una tienda existente sin cambiarle la portada. La
+ * feature se enciende sola el día que el dueño marca el primer producto, y
+ * hasta entonces no existe.
+ *
+ * (El plan §5.3 E dice "los más nuevos" y lo iguala a la home de hoy; son dos
+ * cosas distintas: la home de hoy ordena por categoría y nombre. Manda el
+ * criterio verificable —"lo que la home muestra hoy"— porque es el que hace
+ * que una tienda que sincroniza esta migración no vea moverse su portada.)
+ */
+export async function getFeaturedProducts(
+  limit = 8,
+  executor?: Executor
+): Promise<CatalogProduct[]> {
+  const destacados = await getCatalog({ featured: true, limit }, executor);
+  if (destacados.length > 0) return destacados;
+
+  return getCatalog({ limit }, executor);
 }
 
 export type CategoryQuery = {
