@@ -81,6 +81,7 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 | Resumen de ventas (`/admin`) | ✅ | ✅ | ❌ |
 | Listado de clientes | ✅ | ✅ | ❌ |
 | Registrar una devolución | ✅ | ❌ | ❌ |
+| Cambiar precios en masa por porcentaje | ✅ | ❌ | ❌ |
 | Exports CSV | ✅ | ❌ | ❌ |
 | Gestión de usuarios del panel | ✅ | ❌ | ❌ |
 | Cupones (ABM) | ✅ | ❌ | ❌ |
@@ -326,6 +327,49 @@ Controles cruzados nuevos: `descuento_sin_cupon` (y su inverso),
 - Display: `new Intl.NumberFormat('es-PY', { style:'currency', currency:'PYG', maximumFractionDigits:0 })` → `₲ 1.234.567`.
 - `line_total_pyg = unit_price_pyg * qty`, `total_pyg = subtotal_pyg + shipping_pyg` — asserted in the same server function that writes them, and by a nightly reconciliation query.
 - Prices are **IVA incluido** (PY consumer convention). Included IVA per line = `round(line_total * rate / (100 + rate))`, summed into `iva_10_pyg` / `iva_5_pyg`. Never added on top of the displayed price.
+
+#### Devoluciones: el ledger, no un estado (O7)
+
+Hasta O7 una devolución era `payments.status = 'refunded'` y nada más: no
+quedaba ni el monto ni quién la autorizó, y **un comercio que devuelve una
+remera de un pedido de tres no tenía dónde escribirlo**. Ahora cada devolución
+—total o parcial— es una fila en `refunds`, append-only como el resto de la
+auditoría, y `payments.refunded_pyg` es el acumulado.
+
+El acumulado es una denormalización deliberada: la decisión "¿puedo devolver
+₲50.000 más?" se toma con la fila bloqueada en una sola transacción, y un
+`SUM()` sobre el ledger adentro de ese lock es exactamente la carrera que el
+lock existe para evitar. El precio es que se puede separar del ledger, y por
+eso `pnpm reconcile` verifica tres igualdades en cada corrida:
+
+| Invariante | Qué se rompe si falla |
+|---|---|
+| `payments.refunded_pyg = Σ refunds.amount_pyg` | El próximo reembolso se calcula contra un número que no es la verdad. |
+| `refunded_pyg ≤ amount_pyg` | Se devolvió más de lo que entró. |
+| `status = 'refunded' ⇔ refunded_pyg = amount_pyg` | Un pago marcado devuelto al que le falta plata en el ledger, o uno con todo devuelto que sigue figurando como cobrado — y por lo tanto aparece en los controles de "plata que entró". |
+
+**Un parcial no mueve el estado del pedido.** Es su caso de uso: la compradora
+se queda con dos de las tres remeras y ese pedido sigue su curso. Deja igual su
+rastro en la historia del pedido, con `from = to` y el prefijo
+`devolución parcial ₲`, y el control de aristas imposibles reconoce ese prefijo
+en vez de reportarlo (la constante la comparten `payment-recovery.ts` y
+`reconciliation.ts`, justamente para que no se puedan separar). Sólo el
+movimiento que **completa** el total marca `status = 'refunded'` y hace la
+transición de pedido de siempre.
+
+#### `price_adjustments`: por qué los precios también tienen auditoría (O7)
+
+`variants.price_pyg` es una sola cifra que se pisa. Sin una fila por cambio, la
+pregunta "¿por qué esta variante vale ₲180.000 si la semana pasada valía
+₲150.000?" no tiene respuesta.
+
+Importa sobre todo por la acción masiva: subir un 20 % a doscientas variantes
+de un click es la operación más fácil de arrepentirse del panel. El cálculo es
+entero y con el redondeo explícito (`precio × (100 + %) / 100`, multiplicando
+antes de dividir, redondeado a ₲100 o ₲1.000), **nunca da ₲0** —el piso es el
+propio redondeo— y `compare_at_pyg` no se toca: si el precio tachado subiera
+con el resto, el descuento que muestra la vidriera sería siempre el mismo y no
+significaría nada.
 
 ### Columnas de la compra que no son plata
 

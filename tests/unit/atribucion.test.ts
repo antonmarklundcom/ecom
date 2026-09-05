@@ -19,8 +19,14 @@ import { exportedAsyncFunctions, listSourceFiles, readCode } from '../helpers/so
 
 const ACTIONS_DIR = path.join('src', 'app', 'actions');
 
-/** Lo que deja fila en `order_events` o en `stock_adjustments`. */
-const ESCRITURAS_AUDITADAS = /transitionOrder\s*\(|adjustStock\s*\(|retryOrderRevival\s*\(|refundPayment\s*\(|reviewReceipt\s*\(/;
+/**
+ * Lo que deja fila en una tabla de auditoría: `order_events`,
+ * `stock_adjustments`, `order_notes` (O5), `refunds` y `price_adjustments`
+ * (O7). Agregar una escritura auditada sin agregarla acá deja el control
+ * pasando en falso, que es peor que no tenerlo.
+ */
+const ESCRITURAS_AUDITADAS =
+  /transitionOrder\s*\(|adjustStock\s*\(|retryOrderRevival\s*\(|refundPayment\s*\(|reviewReceipt\s*\(|addOrderNoteToDomain\s*\(|bulkAdjustPrices\s*\(/;
 
 /** Cómo se pasa la atribución: la FK directa, o el `reviewerId` que ya lo es. */
 const ATRIBUCION = /actorUserId|reviewerId/;

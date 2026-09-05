@@ -351,6 +351,11 @@ export async function refundPayment(input: {
         {
           orderId: order.id,
           status: order.status,
+          // `from` y `to` en el **mismo** estado, explícito. El default de
+          // `recordOrderEvent` es `fromStatus: null`, que significa otra cosa
+          // —"el pedido nació"— y `reconcile` lo reporta como arista
+          // imposible en cuanto el destino no es `pendiente_pago`.
+          fromStatus: order.status,
           actor: input.actor,
           actorUserId: input.actorUserId ?? null,
           reason: `${PARTIAL_REFUND_REASON_PREFIX}${monto}: ${reason}`.slice(0, 500),
