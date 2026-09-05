@@ -25,6 +25,7 @@ import type { MessageKey, Params } from "@/i18n";
 import type { CartIssue } from "@/lib/cart-issues";
 
 import { DomainError } from "./errors";
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Creación del pedido (PLAN.md 3.3).
@@ -422,7 +423,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
   // que pasa TODO pedido nuevo, y así queda un solo punto que mantener en
   // vez de uno por cada forma de llegar a un pedido.
   void notifyCustomerOrderEvent(created.orderId, "confirmado").catch((error) => {
-    console.error("notifyCustomerOrderEvent rechazó", error);
+    log.error('notifyCustomerOrderEvent rechazó', { error: mensajeDe(error) });
   });
 
   return created;

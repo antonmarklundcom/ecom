@@ -1,4 +1,5 @@
 import { MessageSendError, type MessageSender, type OutgoingMessage } from './sender';
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * WhatsApp Cloud API de Meta (PLAN.md FASE 2, PR F.2).
@@ -100,16 +101,18 @@ export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageS
       } catch (error) {
         // El detalle al log del servidor; hacia afuera, nada. El mensaje de
         // error de Meta puede incluir el número de destino.
-        console.error('WhatsApp Cloud: la llamada falló', error);
+        log.error('WhatsApp Cloud: la llamada falló', { error: mensajeDe(error) });
         throw new MessageSendError('No pudimos mandar el mensaje.');
       }
 
       if (!response.ok) {
-        console.error(
-          'WhatsApp Cloud respondió %s: %s',
-          response.status,
-          await response.text().catch(() => '(sin cuerpo)'),
-        );
+        log.error('WhatsApp Cloud rechazó el envío', {
+          status: response.status,
+          // El cuerpo del error de Meta dice qué plantilla falló y por qué;
+          // no trae datos de la compradora (el `to` va en el request, no en
+          // la respuesta). Se recorta igual: no es un volcado.
+          respuesta: (await response.text().catch(() => '(sin cuerpo)')).slice(0, 500),
+        });
         throw new MessageSendError('No pudimos mandar el mensaje.');
       }
     },

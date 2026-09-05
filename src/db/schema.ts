@@ -1084,3 +1084,51 @@ export const jobRuns = mysqlTable('job_runs', {
   /** Lo que produjo la corrida (cantidades, no datos de nadie). */
   payload: json('payload'),
 });
+
+/**
+ * **Todas** las tablas de este schema, en orden de dependencia (las que no
+ * dependen de nadie primero).
+ *
+ * Existe para el backup de O8, y el orden es lo que la hace útil: restaurar en
+ * este orden nunca choca contra una FK, porque cada tabla llega después de
+ * aquellas a las que apunta.
+ *
+ * **Lista explícita y no `SHOW TABLES`**, a propósito. Con `SHOW TABLES` una
+ * tabla nueva entraría sola al backup y nadie decidiría nada; el día que
+ * alguien agregue una tabla que **no** debe copiarse —o una que sí y hay que
+ * ubicar bien en el orden— nada avisaría. Con la lista, hay un test que
+ * compara esto contra las tablas declaradas en el archivo y falla si alguien
+ * agrega una y se olvida: la decisión se toma una vez, a mano, y queda escrita.
+ */
+export const BACKUP_TABLES = [
+  // Sin dependencias.
+  'counters',
+  'setup_state',
+  'job_runs',
+  'users',
+  'customers',
+  'categories',
+  'coupons',
+  'shipping_zones',
+  'shipping_methods',
+  'payment_events',
+  // Cuelgan de las de arriba.
+  'bank_details',
+  'login_tokens',
+  'products',
+  'product_images',
+  'variants',
+  'stock_alerts',
+  'price_adjustments',
+  'stock_adjustments',
+  'orders',
+  'order_items',
+  'order_events',
+  'order_notes',
+  'payments',
+  'refunds',
+  'receipts',
+  'stock_reservations',
+] as const;
+
+export type BackupTable = (typeof BACKUP_TABLES)[number];

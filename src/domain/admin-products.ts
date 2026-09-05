@@ -18,6 +18,7 @@ import { DomainError } from "./errors";
 import type { Executor } from "./executor";
 import { getAvailability, heldQtyMap } from "./stock";
 import { notifyBackInStock } from "./stock-alerts";
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Catálogo desde el panel (PLAN.md 4.6).
@@ -444,7 +445,7 @@ export async function adjustStock(input: StockAdjustment): Promise<{
   // dueño que acaba de contar cajas.
   if (resultado.newOnHand > resultado.previousOnHand && disponibleAntes <= 0) {
     void notifyBackInStock(input.variantId).catch((error) => {
-      console.error("notifyBackInStock rechazó", error);
+      log.error('notifyBackInStock rechazó', { error: mensajeDe(error) });
     });
   }
 

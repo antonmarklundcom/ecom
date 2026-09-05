@@ -28,7 +28,8 @@
     "template:diff": "tsx scripts/template-diff.ts",
     "template:sync": "tsx scripts/template-sync.ts",
     "setup:doctor": "tsx scripts/doctor.ts",
-    "bootstrap:repo": "tsx scripts/bootstrap-into-repo.ts"
+    "bootstrap:repo": "tsx scripts/bootstrap-into-repo.ts",
+    "restore": "tsx scripts/restore-backup.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

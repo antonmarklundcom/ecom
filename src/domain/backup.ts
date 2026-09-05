@@ -1,0 +1,321 @@
+import { createGzip } from 'node:zlib';
+import { Readable } from 'node:stream';
+
+import { sql } from 'drizzle-orm';
+
+import { getDb } from '@/db';
+import { BACKUP_TABLES, type BackupTable } from '@/db/schema';
+import { CLOUDINARY_BACKUPS_FOLDER, cloudinary, cloudinaryConfigured } from '@/lib/cloudinary';
+import { log } from '@/lib/log';
+import { PY_TIMEZONE } from '@/lib/py';
+
+import type { Executor } from './executor';
+
+/**
+ * Copias de seguridad de la base, desde adentro de la app (plan-operacion §5.4 A).
+ *
+ * `pnpm backup` ya existía y sigue existiendo: es el camino "grande",
+ * `mysqldump` corrido **desde la máquina de Anton** contra la base remota. Su
+ * problema es que depende de que alguien se acuerde. Esto es el otro camino:
+ * un cron que corre solo, todos los días, sin que nadie haga nada.
+ *
+ * ### Las cuatro decisiones que da el entorno
+ *
+ * 1. **No hay `mysqldump` en el slot de Hostinger**, ni conviene pelearse con
+ *    los ulimits para conseguirlo. Así que el dump es JavaScript: `SELECT *`
+ *    paginado y JSON Lines.
+ * 2. **Hay poca RAM.** Nunca se arma la base entera en memoria: se pagina de a
+ *    1.000 filas y se escribe a un stream comprimido. Una tienda con 50.000
+ *    pedidos tiene que poder sacar su copia en un slot compartido.
+ * 3. **La lista de tablas es explícita** (`BACKUP_TABLES` en `schema.ts`), no
+ *    `SHOW TABLES`. Una tabla nueva que nadie decidió incluir hace fallar un
+ *    test en vez de entrar sola —o, peor, quedar afuera en silencio.
+ * 4. **`raw_payload` de `payments` va entero.** Es el aviso crudo de Pagopar y
+ *    es parte del rastro de la plata: un backup que lo trunca no sirve para
+ *    reconstruir un incidente, que es justo cuando se usa un backup.
+ *
+ * ### El formato
+ *
+ * JSON Lines comprimido: una línea por fila, `{"table":"orders","row":{…}}`.
+ * Se puede `zcat | grep` sin cargar nada, se puede restaurar en streaming, y
+ * un archivo cortado a la mitad conserva todas las filas anteriores al corte —
+ * cosa que un `.sql` con una transacción gigante no.
+ */
+
+/** Cuántas filas por consulta. Ver la decisión 2. */
+export const PAGE_SIZE = 1_000;
+
+/** Cuántos días se conservan las copias en Cloudinary. */
+export const RETAIN_DAYS = 14;
+
+export type DumpStats = { tables: number; rows: number };
+
+/**
+ * Vuelca la base a un stream de JSON Lines (sin comprimir).
+ *
+ * La paginación va por **clave primaria** y no por `OFFSET`: con `OFFSET`, una
+ * fila insertada a mitad del dump corre el resto y una fila se salta o se
+ * duplica. Todas las tablas de `BACKUP_TABLES` tienen `id` autoincremental
+ * salvo `counters` (PK `name`), `setup_state`, `bank_details` y `job_runs`,
+ * que son de una o dos filas y se traen enteras.
+ */
+export async function* dumpRows(
+  executor?: Executor,
+): AsyncGenerator<{ table: BackupTable; row: Record<string, unknown> }> {
+  const tx = executor ?? getDb();
+
+  for (const table of BACKUP_TABLES) {
+    const pk = PRIMARY_KEY[table];
+
+    if (pk === null) {
+      // Tablas de configuración: una puñado de filas, sin paginar.
+      const result = await tx.execute(sql.raw(`SELECT * FROM \`${table}\``));
+      for (const row of rowsOf(result)) yield { table, row };
+      continue;
+    }
+
+    let desde: number | string | null = null;
+    for (;;) {
+      const where = desde === null ? '' : `WHERE \`${pk}\` > ${escapar(desde)}`;
+      const result = await tx.execute(
+        sql.raw(
+          `SELECT * FROM \`${table}\` ${where} ORDER BY \`${pk}\` ASC LIMIT ${PAGE_SIZE}`,
+        ),
+      );
+      const filas = rowsOf(result);
+      if (filas.length === 0) break;
+
+      for (const row of filas) yield { table, row };
+
+      const ultima = filas[filas.length - 1]!;
+      desde = ultima[pk] as number | string;
+      if (filas.length < PAGE_SIZE) break;
+    }
+  }
+}
+
+/**
+ * El dump entero como stream **comprimido**, listo para subir.
+ *
+ * Devuelve también las cantidades, que se resuelven recién cuando el stream
+ * termina de consumirse — por eso es una promesa y no un número.
+ */
+export function dumpDatabase(executor?: Executor): {
+  stream: NodeJS.ReadableStream;
+  stats: Promise<DumpStats>;
+} {
+  // Los `!` son honestos: el ejecutor de una promesa corre de forma síncrona,
+  // así que las dos quedan asignadas antes de la línea siguiente. TypeScript
+  // no lo sabe.
+  let resolver!: (stats: DumpStats) => void;
+  let rechazar!: (error: unknown) => void;
+  const stats = new Promise<DumpStats>((resolve, reject) => {
+    resolver = resolve;
+    rechazar = reject;
+  });
+
+  const tablas = new Set<string>();
+  let filas = 0;
+
+  const lineas = Readable.from(
+    (async function* () {
+      try {
+        for await (const { table, row } of dumpRows(executor)) {
+          tablas.add(table);
+          filas += 1;
+          yield `${JSON.stringify({ table, row })}\n`;
+        }
+        resolver({ tables: tablas.size, rows: filas });
+      } catch (error) {
+        rechazar(error);
+        throw error;
+      }
+    })(),
+  );
+
+  return { stream: lineas.pipe(createGzip()), stats };
+}
+
+/** El nombre del archivo: la fecha y hora **de Asunción**, que es la que el dueño lee. */
+export function backupPublicId(now: Date = new Date()): string {
+  const partes = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: PY_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now);
+  // `sv-SE` da `2026-08-12 03:00`; se normaliza a algo que sea un `public_id`
+  // válido y que ordene alfabéticamente igual que cronológicamente.
+  return `backup-${partes.replace(' ', 'T').replace(':', '')}`;
+}
+
+export type UploadResult = { publicId: string; bytes: number };
+
+/**
+ * Sube el stream a Cloudinary.
+ *
+ * `resource_type: 'raw'` (no es una imagen) y **`type: 'authenticated'`**: un
+ * backup en una carpeta pública es la base de datos del comercio servida por
+ * CDN a quien adivine la URL. Con `authenticated`, sin firma no se descarga.
+ */
+export async function uploadBackup(
+  stream: NodeJS.ReadableStream,
+  publicId: string,
+): Promise<UploadResult> {
+  return new Promise((resolve, reject) => {
+    const subida = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'raw',
+        type: 'authenticated',
+        folder: CLOUDINARY_BACKUPS_FOLDER,
+        public_id: publicId,
+        overwrite: false,
+      },
+      (error, result) => {
+        if (error || !result) return reject(error ?? new Error('Cloudinary no devolvió resultado'));
+        resolve({ publicId: result.public_id, bytes: result.bytes ?? 0 });
+      },
+    );
+    stream.pipe(subida);
+  });
+}
+
+/**
+ * Borra las copias de más de `retainDays` días.
+ *
+ * Sin esto, la carpeta crece para siempre y la cuenta de Cloudinary se llena
+ * — y cuando se llena, deja de aceptar **la copia de hoy**, que es la que
+ * importa. La retención no es prolijidad: es lo que hace que el backup siga
+ * funcionando dentro de un año.
+ */
+export async function pruneBackups(
+  retainDays = RETAIN_DAYS,
+  now: Date = new Date(),
+): Promise<number> {
+  const limite = new Date(now.getTime() - retainDays * 24 * 3600_000);
+
+  const listado = await cloudinary.api.resources({
+    resource_type: 'raw',
+    type: 'authenticated',
+    prefix: `${CLOUDINARY_BACKUPS_FOLDER}/`,
+    max_results: 500,
+  });
+
+  const viejos = (listado.resources ?? [])
+    .filter((recurso: { created_at?: string }) =>
+      recurso.created_at ? new Date(recurso.created_at) < limite : false,
+    )
+    .map((recurso: { public_id: string }) => recurso.public_id);
+
+  if (viejos.length === 0) return 0;
+
+  await cloudinary.api.delete_resources(viejos, {
+    resource_type: 'raw',
+    type: 'authenticated',
+  });
+
+  return viejos.length;
+}
+
+export type BackupResult = {
+  publicId: string;
+  bytes: number;
+  tables: number;
+  rows: number;
+  pruned: number;
+};
+
+/** ¿Esta tienda puede sacar copias automáticas? Sin Cloudinary, no. */
+export function backupsEnabled(): boolean {
+  return cloudinaryConfigured();
+}
+
+/** El backup completo: dump → subida → retención. */
+export async function runBackup(options: { now?: Date } = {}): Promise<BackupResult> {
+  if (!backupsEnabled()) {
+    throw new Error('Cloudinary no está configurado: no hay dónde guardar la copia');
+  }
+
+  const publicId = backupPublicId(options.now);
+  const { stream, stats } = dumpDatabase();
+
+  const subida = await uploadBackup(stream, publicId);
+  const { tables, rows } = await stats;
+
+  // La retención va **después** de subir la de hoy, y su fallo no invalida el
+  // backup: se prefiere una carpeta con una copia de más que una corrida
+  // marcada como fallida cuando la copia de hoy ya está guardada.
+  let pruned = 0;
+  try {
+    pruned = await pruneBackups(RETAIN_DAYS, options.now);
+  } catch (error) {
+    log.warn('no se pudieron borrar los backups viejos', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return { publicId: subida.publicId, bytes: subida.bytes, tables, rows, pruned };
+}
+
+/**
+ * La clave por la que se pagina cada tabla. `null` = traerla entera.
+ *
+ * Escrita a mano y no derivada del schema a propósito: es la decisión de "esta
+ * tabla es chica y se puede traer de una", y esa decisión tiene que ser
+ * explícita. El test de cobertura verifica que estén **todas** las de
+ * `BACKUP_TABLES`.
+ */
+export const PRIMARY_KEY: Record<BackupTable, string | null> = {
+  counters: null,
+  setup_state: null,
+  job_runs: null,
+  bank_details: null,
+  users: 'id',
+  customers: 'id',
+  categories: 'id',
+  coupons: 'id',
+  shipping_zones: 'id',
+  shipping_methods: 'id',
+  payment_events: 'id',
+  login_tokens: 'id',
+  products: 'id',
+  product_images: 'id',
+  variants: 'id',
+  stock_alerts: 'id',
+  price_adjustments: 'id',
+  stock_adjustments: 'id',
+  orders: 'id',
+  order_items: 'id',
+  order_events: 'id',
+  order_notes: 'id',
+  payments: 'id',
+  refunds: 'id',
+  receipts: 'id',
+  stock_reservations: 'id',
+};
+
+/**
+ * El cursor de la paginación, escapado.
+ *
+ * Es lo único que se interpola en el SQL, y viene de una fila que **acaba de
+ * salir de esta misma base**, no de un usuario. Aun así se escapa: un id
+ * numérico se valida como número y una PK de texto va entre comillas con las
+ * comillas escapadas. Una interpolación sin escapar en un archivo que arma SQL
+ * a mano es exactamente el tipo de cosa que después nadie vuelve a mirar.
+ */
+function escapar(valor: number | string): string {
+  if (typeof valor === 'number') {
+    if (!Number.isFinite(valor)) throw new Error('cursor de paginación inválido');
+    return String(valor);
+  }
+  return `'${valor.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+/** mysql2 devuelve `[rows, fields]`; drizzle a veces pasa las filas peladas. */
+function rowsOf(result: unknown): Array<Record<string, unknown>> {
+  const candidate = Array.isArray(result) ? result[0] : result;
+  return Array.isArray(candidate) ? (candidate as Array<Record<string, unknown>>) : [];
+}

@@ -27,8 +27,39 @@ const SECURITY_HEADERS = [
   },
 ];
 
+/**
+ * Qué build es éste (plan-operacion §5.4 B).
+ *
+ * Se resuelve **en build** y queda incrustado: en runtime, el slot de Hostinger
+ * no tiene el `.git` a mano ni conviene invocar git en cada request.
+ *
+ * Tres fuentes, en orden: git (un checkout normal), `SOURCE_COMMIT` (lo que
+ * ponen algunas plataformas de deploy), y `"desconocido"` — que es honesto y
+ * mejor que un valor inventado que después nadie sabe interpretar.
+ */
+function buildSha(): string {
+  const delEntorno = process.env.SOURCE_COMMIT?.trim();
+  if (delEntorno) return delEntorno.slice(0, 12);
+
+  try {
+    // `execSync` sólo corre en build. Si no hay git —un tarball subido a
+    // mano—, se cae al fallback en vez de romper el build.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { execSync } = require("node:child_process") as typeof import("node:child_process");
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "desconocido";
+  }
+}
+
 const nextConfig: NextConfig = {
   agentRules: false,
+  env: {
+    BUILD_SHA: buildSha(),
+    BUILD_AT: new Date().toISOString(),
+  },
   // mysql2 usa APIs de Node que el bundler no debe tocar.
   serverExternalPackages: ["mysql2"],
   // `X-Powered-By: Next.js` regala la versión exacta del framework.

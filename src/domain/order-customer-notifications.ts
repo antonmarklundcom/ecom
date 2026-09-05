@@ -10,6 +10,7 @@ import { resolveMessageSender, type MessageSender } from "./messaging";
 import { motivoDeAviso, withTimeout } from "./notify-timing";
 import { firstName, buyerOrderUrl } from "./order-messages";
 import { recordOrderEvent } from "./order-events";
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Los avisos por WhatsApp que recibe la COMPRADORA (fase O3, sigue a O2 —
@@ -232,7 +233,7 @@ export async function notifyCustomerOrderEvent(
         reason: reasonOk(kind),
       });
     } catch (error) {
-      console.error(`notifyCustomerOrderEvent(${kind}): no se pudo avisar del pedido`, error);
+      log.error(`notifyCustomerOrderEvent(${kind}): no se pudo avisar del pedido`, { error: mensajeDe(error) });
       await recordOrderEvent({
         orderId,
         status: order.status as OrderStatus,
@@ -243,6 +244,6 @@ export async function notifyCustomerOrderEvent(
   } catch (error) {
     // Último cinturón: si hasta el registro del fallo falla, quien disparó
     // esto (createOrder, transitionOrder) igual no se entera.
-    console.error("notifyCustomerOrderEvent falló entero", error);
+    log.error('notifyCustomerOrderEvent falló entero', { error: mensajeDe(error) });
   }
 }

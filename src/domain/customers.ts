@@ -9,6 +9,7 @@ import { hashPassword, verifyPassword } from '@/lib/password';
 import { normalizePhonePY } from '@/lib/py';
 
 import type { Executor } from './executor';
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * Cuentas de cliente (PLAN.md FASE 2, PR E).
@@ -174,7 +175,7 @@ export async function authenticateCustomer(
   try {
     await tx.update(customers).set({ lastLoginAt: sql`NOW()` }).where(eq(customers.id, row.id));
   } catch (error) {
-    console.error('No pude registrar last_login_at del cliente', error);
+    log.error('No pude registrar last_login_at del cliente', { error: mensajeDe(error) });
   }
 
   return {

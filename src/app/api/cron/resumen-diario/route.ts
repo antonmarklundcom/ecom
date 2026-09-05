@@ -2,6 +2,7 @@ import { sendDailyDigest } from "@/domain/daily-digest";
 import { claimJob, finishJob } from "@/domain/job-runs";
 import { sweepBackInStock } from "@/domain/stock-alerts";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * El cron del resumen diario (plan-operacion §5.2 C).
@@ -54,11 +55,13 @@ async function handle(request: Request): Promise<Response> {
 
     // Sólo cantidades: los logs de Hostinger los ve cualquiera con acceso al
     // hPanel, y acá adentro no van números de pedido ni teléfonos.
-    console.info(
-      `cron resumen: sent=${resumen.sent} comprobantes=${resumen.digest.comprobantesPendientes} ` +
-        `sinPagar=${resumen.digest.sinPagar.length} stockBajo=${resumen.digest.stockBajo.length} ` +
-        `avisosStock=${barrido.enviadas}`,
-    );
+    log.info("cron: resumen diario", {
+      sent: resumen.sent,
+      comprobantes: resumen.digest.comprobantesPendientes,
+      sinPagar: resumen.digest.sinPagar.length,
+      stockBajo: resumen.digest.stockBajo.length,
+      avisosStock: barrido.enviadas,
+    });
 
     // Un sender caído deja `sent: false` y el motivo en `job_runs.last_error`,
     // pero la corrida **fue exitosa como corrida**: se armó el resumen, se
@@ -86,7 +89,7 @@ async function handle(request: Request): Promise<Response> {
       avisosStock: barrido.enviadas,
     });
   } catch (error) {
-    console.error("cron resumen: falló la corrida", error);
+    log.error('cron resumen: falló la corrida', { error: mensajeDe(error) });
     // Acá sí falla de verdad (la base se cayó a mitad): `last_ok_at` no se
     // mueve, así que la corrida siguiente del mismo día vuelve a intentar.
     await finishJob("resumen_diario", {

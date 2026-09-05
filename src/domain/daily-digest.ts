@@ -11,6 +11,7 @@ import { DEFAULT_REORDER_POINT, lowStockVariants, type LowStockVariant } from '.
 import type { Executor } from './executor';
 import { resolveMessageSender, type MessageSender } from './messaging';
 import { withTimeout } from './notify-timing';
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * El resumen de la mañana que el dueño recibe por WhatsApp (plan-operacion
@@ -258,7 +259,7 @@ export async function sendDailyDigest(
     );
     return { sent: true, error: null, digest };
   } catch (error) {
-    console.error('resumen diario: no se pudo mandar', error);
+    log.error('resumen diario: no se pudo mandar', { error: mensajeDe(error) });
     const motivo = error instanceof Error ? error.message : String(error);
     return { sent: false, error: motivo.replace(/\s+/g, ' ').trim().slice(0, 500), digest };
   }

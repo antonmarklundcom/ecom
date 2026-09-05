@@ -13,6 +13,7 @@ import type { Executor } from './executor';
 import { getAvailability } from './stock';
 import { resolveMessageSender, type MessageSender } from './messaging';
 import { withTimeout } from './notify-timing';
+import { log, mensajeDe } from '@/lib/log';
 
 /**
  * "Avisame cuando haya stock" (plan-operacion §5.2 E).
@@ -210,19 +211,19 @@ export async function notifyBackInStock(
         // La fila queda marcada igual: ver la regla 2. Se pierde este aviso y
         // no se reintenta — reintentar es la forma más rápida de mandarle
         // diez mensajes a la misma persona.
-        console.error(`avisoStock: no se pudo avisar de la variante ${variantId}`, error);
+        log.error(`avisoStock: no se pudo avisar de la variante ${variantId}`, { error: mensajeDe(error) });
       }
     }
 
     if (marcadas !== enviadas) {
-      console.warn(`avisoStock: ${marcadas - enviadas} aviso(s) perdido(s) de ${variantId}`);
+      log.warn(`avisoStock: ${marcadas - enviadas} aviso(s) perdido(s) de ${variantId}`);
     }
 
     return { marcadas, enviadas };
   } catch (error) {
     // Último cinturón: esto corre sin `await` detrás de un ajuste de stock ya
     // commiteado, y no puede hacer ruido en quien lo disparó.
-    console.error('notifyBackInStock falló entero', error);
+    log.error('notifyBackInStock falló entero', { error: mensajeDe(error) });
     return { marcadas: 0, enviadas: 0 };
   }
 }
