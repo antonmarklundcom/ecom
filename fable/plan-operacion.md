@@ -686,9 +686,13 @@ Branch `phase/s13`. Owns: `.github/workflows/template-al-dia.yml` (nuevo), `scri
 `fable/plan-operacion.md`.
 
 - **Distribución desde el template (§12).** `.github/workflows/distribuir.yml` en **este**
-  repo: se dispara en cada push a `main` (y por `workflow_dispatch`), lee la lista de
-  tiendas de `tiendas.json` (raíz; `[{ "repo": "antonmarklundcom/<tienda>" }, …]`; vacío
-  en el template = no hace nada) y, por cada una en una `matrix`, clona la tienda con un
+  repo: se dispara **sólo a mano**
+  (`workflow_dispatch`), nunca en push. Inputs: `tiendas` (texto, lista separada por comas
+  de las tiendas a actualizar, o `todas`), `hasta` (sha del template hasta el que traer,
+  vacío = `main`) y `solo_reporte` (booleano: corre `template:diff` y muestra qué traería,
+  sin pushear nada). Lee la lista completa de `tiendas.json` (raíz; `[{ "repo":
+  "antonmarklundcom/<tienda>" }, …]`; vacío en el template = no hace nada), filtra por el
+  input, y por cada una en una `matrix` clona la tienda con un
   PAT (`secrets.TIENDAS_TOKEN`, permisos `contents:write` + `pull-requests:write` sobre
   esas repos), agrega el remoto `template`, corre `pnpm template:sync --sin-tests` en una
   branch `template/<fecha>-<sha corto>`; si termina limpio, pushea y abre (o actualiza) un
@@ -698,7 +702,14 @@ Branch `phase/s13`. Owns: `.github/workflows/template-al-dia.yml` (nuevo), `scri
   decide si se mergea. Sin `TIENDAS_TOKEN` el workflow se salta con un aviso en el log.
   `template:sync` gana `--json` (resumen máquina para el cuerpo del PR) y
   `--rama-destino <nombre>`; test unitario del `--json` (extender
-  `tests/unit/template-sync.test.ts`). `template-diff` **no** cambia.
+  `tests/unit/template-sync.test.ts`). `template-diff` **no** cambia. Además, un segundo
+  workflow `reporte-tiendas.yml`, semanal (`schedule`) y de sólo lectura: corre
+  `template:diff` contra cada tienda de `tiendas.json` y deja el resumen en el log del
+  run (qué le falta a cada una, cuántos commits de maquinaria, cuántos mixtos). Sin PR,
+  sin issue: es para que Anton decida a quién mandarle qué, desde la pestaña Actions.
+  **Cero Claude en todo el circuito**: git, Actions y el CI de cada tienda. Una sesión de
+  IA sólo hace falta si un PR sale en draft por conflicto, y ahí es un cherry-pick que
+  terminar, no un plan.
 - **Lo que sigue siendo a mano.** Los commits mixtos (`~`: maquinaria + piel en el mismo
   commit) y los de piel pura no viajan: NEW-STORE.md lo dice ya y S13 lo repite en §12
   con el criterio de este plan (S9–S11 son piel: cada tienda decide si los quiere).
@@ -816,8 +827,11 @@ aparecen después" lo explica.
    la pena; si las rediseñó, se re-aplica a mano lo que quiera (la maquinaria de abajo ya
    está: los botones son lo único que falta). Por eso cada fase Sonnet es un commit
    prolijo por PR: para que la tienda pueda elegir de a uno.
-3. Con S13 mergeada, el paso 1 deja de ser manual: `distribuir.yml` abre el PR en cada
-   tienda de `tiendas.json` en cada push a `main` del template. Anton sólo mergea.
+3. Con S13 mergeada, el paso 1 se hace desde la pestaña Actions del template: Anton
+   corre `distribuir.yml`, elige las tiendas (una, varias o todas) y hasta qué commit, y el
+   workflow abre el PR en cada tienda elegida. Después mergea cada PR con su CI verde. El
+   reporte semanal (`reporte-tiendas.yml`) le dice qué le falta a cada tienda para poder
+   decidir. Ninguno de los dos usa Claude.
 
 **Después de este plan — construir una vez, que llegue a todas.** Tres caminos, del más
 barato al más profundo; el plan recomienda el primero ahora y el segundo como fase
@@ -825,7 +839,7 @@ siguiente si las tiendas pasan de cinco:
 
 | Camino | Qué es | Qué resuelve | Qué cuesta |
 |---|---|---|---|
-| **A. Distribución por cherry-pick (S13)** | Lo de arriba: el template empuja PRs a cada tienda. | Maquinaria llega sola; cada tienda decide su piel. | Cero cambio en las tiendas. Un PR por tienda por push; conflictos en piel se resuelven en la tienda. |
+| **A. Distribución por cherry-pick (S13)** | Lo de arriba: desde Actions, Anton elige tiendas y el template les abre PRs. | Maquinaria llega sola; cada tienda decide su piel. | Cero cambio en las tiendas. Un PR por tienda por push; conflictos en piel se resuelven en la tienda. |
 | **B. Paquete `@antonmarklund/ecom-core`** | `src/domain`, `src/lib`, `src/db`, `src/app/actions`, `src/app/api` y los componentes del panel salen a un paquete (GitHub Packages o `git+https` con tag). La tienda es un Next app finito: `tienda.ts`, piel, y páginas de tres líneas que re-exportan las del paquete. Actualizar = subir la versión. NEW-STORE.md ya lo anticipa ("¿cuándo salen a un paquete compartido?"). | Una build del core, N tiendas con `pnpm up`. Las migraciones viajan en el paquete. | Una fase Opus de extracción + adaptar cada tienda una vez. `transpilePackages` en Next para los `"use server"`. |
 | **C. Multi-tenant** | Una sola app y una sola base con `tenant_id`; los dominios apuntan al mismo slot; la piel es un tema por tienda. PLAN.md FASE 3 §4 lo lista ("agregar `tenant_id` antes, no después"). | Deploy una vez, todas las tiendas. | El cambio más grande: cada consulta y cada guard aprende `tenant_id`; una caída afecta a todas; la piel deja de ser "libre" y pasa a ser un tema. Sólo si las tiendas son muchas y parecidas. |
 

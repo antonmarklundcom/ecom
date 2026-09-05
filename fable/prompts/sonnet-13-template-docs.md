@@ -18,9 +18,10 @@ Reglas de la fase:
 - Branch `phase/s13` desde `main` actualizado.
 - Skills: `nextjs-deploy-hostinger` (las entradas de cron del hPanel, horas UTC),
   `fable-cost-guardrail`.
-- El workflow **se salta a sí mismo** en `antonmarklundcom/ecom` y lo dice en el log;
-  probalo con `workflow_dispatch` en este repo antes de abrir el PR. Abre/actualiza un
-  issue, nunca un PR.
+- `distribuir.yml` corre **sólo** por `workflow_dispatch` con el input de tiendas (nunca en
+  push: Anton aprueba a mano a quién le llega cada actualización); `reporte-tiendas.yml` es
+  semanal y de sólo lectura. Con `tiendas.json` vacío los dos se saltan y lo dicen en el log;
+  probalos así antes de abrir el PR. Ninguno usa Claude ni ninguna API de IA.
 - Docs: cada ruta, comando y variable que nombres tiene que existir (`grep` de cada uno
   antes de cerrar). Las tres entradas de cron en **una** tabla en DEPLOY.md con hora Asunción
   y UTC.
