@@ -27,6 +27,63 @@ export function paymentMethodRadio(page: Page, value: string): Locator {
 }
 
 /**
+ * La fila de un pedido en `/admin/pedidos`, ubicada por `data-order` (el
+ * número de pedido) y no por el texto visible — mismo criterio que
+ * `shippingMethodRadio` (S9, plan-operacion §6.1).
+ */
+export function adminOrderRow(page: Page, orderNumber: string): Locator {
+  return page.locator(
+    `[data-testid="${TESTIDS.adminOrderRowLink}"][data-order="${orderNumber}"]`
+  );
+}
+
+/**
+ * El botón que dispara una transición de estado en la ficha del pedido
+ * (`order-actions.tsx`), ubicado por `data-status` — el enum del dominio, no
+ * la etiqueta traducida (S9, plan-operacion §6.1).
+ */
+export function orderTransitionButton(page: Page, status: string): Locator {
+  return page.locator(
+    `[data-testid="${TESTIDS.orderTransitionButton}"][data-status="${status}"]`
+  );
+}
+
+/**
+ * Entra a `/admin` con `OWNER_EMAIL`/`OWNER_PASSWORD` (sembrados por
+ * `pnpm create-owner` o `POST /api/setup/init`) y espera el nav del panel.
+ * Repetido en cada spec de `panel.spec.ts` que necesita sesión — factorizado
+ * acá para no desincronizar los tres al primer cambio de la puerta.
+ */
+export async function loginAsOwner(page: Page): Promise<void> {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  const ownerPassword = process.env.OWNER_PASSWORD;
+  if (!ownerEmail || !ownerPassword) {
+    throw new Error(
+      "Faltan OWNER_EMAIL/OWNER_PASSWORD en el entorno del test — son los mismos que usó " +
+        "`pnpm create-owner` (o `POST /api/setup/init`) para sembrar la cuenta del dueño."
+    );
+  }
+
+  await page.goto("/admin/pedidos");
+  await page.waitForURL(/\/admin\/login\?next=%2Fadmin%2Fpedidos/);
+  await page.getByTestId(TESTIDS.adminLoginEmail).fill(ownerEmail);
+  await page.getByTestId(TESTIDS.adminLoginPassword).fill(ownerPassword);
+  await page.getByTestId(TESTIDS.adminLoginSubmit).click();
+  await page.waitForURL(/\/admin\/pedidos$/);
+  await expect(page.getByTestId(TESTIDS.adminNavOrders)).toBeVisible();
+}
+
+/**
+ * Busca un pedido por número en `/admin/pedidos` y entra a su ficha.
+ */
+export async function openOrderFicha(page: Page, orderNumber: string): Promise<void> {
+  await page.getByTestId(TESTIDS.adminOrdersSearchInput).fill(orderNumber);
+  await page.getByTestId(TESTIDS.adminOrdersSearchSubmit).click();
+  await adminOrderRow(page, orderNumber).click();
+  await page.waitForURL(/\/admin\/pedidos\/\d+$/);
+}
+
+/**
  * Datos de una compra válida, iguales a los que pide el plan (fable/plan.md
  * §6.1): teléfono `+5959…`, documento CI, ciudad de una zona sembrada
  * (`scripts/seed-data.ts`) y transferencia — el único medio de pago que esta

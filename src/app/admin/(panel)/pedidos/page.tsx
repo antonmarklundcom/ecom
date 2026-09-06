@@ -18,6 +18,7 @@ import { comercioWaLink } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
+import { TESTIDS } from "@/lib/testids";
 import { t, tPlural } from "@/i18n";
 
 export const metadata: Metadata = { title: t("panel.pedidos.meta") };
@@ -107,7 +108,12 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
         <ul className="mt-4 grid gap-3">
           {result.rows.map((order) => (
             <li key={order.id} className="border-border rounded-xl border">
-              <Link href={`/admin/pedidos/${order.id}`} className="hover:bg-muted/50 block p-4">
+              <Link
+                href={`/admin/pedidos/${order.id}`}
+                data-testid={TESTIDS.adminOrderRowLink}
+                data-order={order.orderNumber}
+                className="hover:bg-muted/50 block p-4"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium tabular-nums">{order.orderNumber}</span>
                   <OrderStatusBadge status={order.status} />
