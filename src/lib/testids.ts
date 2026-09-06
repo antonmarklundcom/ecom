@@ -53,45 +53,6 @@ export const TESTIDS = {
   adminOrdersSearchInput: "admin-orders-search-input",
   adminOrdersSearchSubmit: "admin-orders-search-submit",
 
-  // == S9 ==
-  /** Campos de seguimiento en el paso intermedio de "Enviado" (`order-actions.tsx`). */
-  orderTrackingCarrierInput: "order-tracking-carrier-input",
-  orderTrackingCodeInput: "order-tracking-code-input",
-  orderTrackingUrlInput: "order-tracking-url-input",
-  /** El bloque del formulario de tracking, dentro del paso intermedio. */
-  orderTrackingBlockForm: "order-tracking-block-form",
-  /** El bloque "Seguimiento" de la ficha del pedido, sólo si hay tracking cargado. */
-  orderTrackingBlock: "order-tracking-block",
-  /** Link a `/admin/pedidos/[id]/imprimir` desde la ficha del pedido. */
-  orderPrintLink: "order-print-link",
-  /** Notas internas del pedido (`order-notes.tsx`). */
-  orderNotesList: "order-notes-list",
-  orderNotesTextarea: "order-notes-textarea",
-  orderNotesSubmit: "order-notes-submit",
-  /** El bloque de seguimiento en `/pedido/[orderNumber]` (la compradora). */
-  pedidoTrackingBlock: "pedido-tracking-block",
-  /** La fila de un pedido en `/admin/pedidos`, con `data-order` (el número). */
-  adminOrderRowLink: "admin-order-row-link",
-  /** Un botón de transición de estado (`order-actions.tsx`), con `data-status`. */
-  orderTransitionButton: "order-transition-button",
-  /** El botón "Confirmar" del paso intermedio de una transición. */
-  orderTransitionConfirm: "order-transition-confirm",
-
-  // == S11 ==
-  /** Una ficha en "vistos recientemente" (`recently-viewed.tsx`), con `data-slug`. */
-  recentlyViewedItem: "recently-viewed-item",
-  /**
-   * El form "avisame cuando haya stock" (`stock-alert-form.tsx`). Sólo existe
-   * en el DOM cuando `stockAlertsEnabled()` es `true` y la variante elegida no
-   * tiene disponibilidad — su ausencia en CI (sin sender) es lo que prueban
-   * `compra.spec.ts`/`csp.spec.ts`.
-   */
-  stockAlertForm: "stock-alert-form",
-  stockAlertPhone: "stock-alert-phone",
-  stockAlertSubmit: "stock-alert-submit",
-  /** El link "Consultar por WhatsApp" de una variante (`variant-inquiry-link.tsx`). */
-  variantInquiryLink: "variant-inquiry-link",
-
   // == S10 ==
   /** Campo "Nombre" y botón "Guardar" de `product-form.tsx`. */
   adminProductNameInput: "admin-product-name-input",
