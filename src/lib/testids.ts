@@ -52,6 +52,21 @@ export const TESTIDS = {
   /** El buscador del listado de pedidos (`admin/order-filters.tsx`). */
   adminOrdersSearchInput: "admin-orders-search-input",
   adminOrdersSearchSubmit: "admin-orders-search-submit",
+
+  // == S11 ==
+  /** Una ficha en "vistos recientemente" (`recently-viewed.tsx`), con `data-slug`. */
+  recentlyViewedItem: "recently-viewed-item",
+  /**
+   * El form "avisame cuando haya stock" (`stock-alert-form.tsx`). Sólo existe
+   * en el DOM cuando `stockAlertsEnabled()` es `true` y la variante elegida no
+   * tiene disponibilidad — su ausencia en CI (sin sender) es lo que prueban
+   * `compra.spec.ts`/`csp.spec.ts`.
+   */
+  stockAlertForm: "stock-alert-form",
+  stockAlertPhone: "stock-alert-phone",
+  stockAlertSubmit: "stock-alert-submit",
+  /** El link "Consultar por WhatsApp" de una variante (`variant-inquiry-link.tsx`). */
+  variantInquiryLink: "variant-inquiry-link",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];

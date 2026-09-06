@@ -1458,4 +1458,29 @@ export const esPY = {
   // También lo usa `/admin/productos/nuevo`, que lo dibuja arriba del
   // formulario para poder volver sin perder el filtro.
   "panel.productoNuevo.volver": "← Productos",
+
+  // -------------------------------------------------------------------------
+  // == S11 == Vidriera: destacados, vistos recientemente, avisame, consulta
+  // por WhatsApp por variante (plan-operacion §6.3)
+  // -------------------------------------------------------------------------
+  // Fallback de la home sin destacados elegidos a mano — misma lista de
+  // productos que "home.destacados", pero el título dice lo que es: lo más
+  // nuevo, no una selección del comercio.
+  "home.novedades": "Novedades",
+
+  "producto.vistosRecientemente": "Vistos recientemente",
+
+  "stock.avisame.titulo": "Avisame cuando haya stock",
+  "stock.avisame.label": "Tu WhatsApp",
+  "stock.avisame.boton": "Avisame",
+  "stock.avisame.enviando": "Enviando…",
+  "stock.avisame.listo": "Listo, te avisamos por WhatsApp apenas vuelva el stock.",
+
+  // El texto que arma `variant-inquiry-link.tsx`. La URL, cuando hay
+  // `NEXT_PUBLIC_SITE_URL`, se agrega aparte con un separador " — " en vez de
+  // ir adentro de la clave: así una tienda que no configuró esa variable
+  // manda el mismo mensaje sin un hueco vacío al final.
+  "producto.consultaVariante":
+    'Hola, quiero consultar por "{producto}" ({variante}, SKU {sku})',
+  "producto.consultarWhatsApp": "Consultar por WhatsApp",
 } as const satisfies Record<string, string>;
