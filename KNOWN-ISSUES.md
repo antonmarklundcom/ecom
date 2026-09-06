@@ -112,6 +112,38 @@ a ciegas de los actuales. Arreglo: sumar las tres columnas al `SELECT` de
 `listAdminCategories` (fuera de los límites de S10) y prellenar el formulario
 como corresponde.
 
+## `@/db/schema` filtra `drizzle-orm` (y toda la definición de tablas) al bundle del cliente — fase S12
+
+Midiendo el presupuesto de JS (`tests/e2e/presupuesto.spec.ts`, plan-operacion
+§6.4) apareció un chunk de ~17 KB gz, presente en `/`, en la página de
+producto y en `/checkout`, cuyo contenido es código real de `drizzle-orm`
+(el tracer de spans de sus queries) — no un string suelto.
+
+La causa: varios componentes cliente importan un **valor** (no sólo un tipo)
+desde `@/db/schema` — `order-status-tabs.tsx` y `order-filters.tsx`
+(`ORDER_STATUSES`), `users-manager.tsx` (`USER_ROLES`), `coupons-manager.tsx`
+(`COUPON_TYPES`). `schema.ts` define todas las tablas con `mysqlTable(...)`
+al alcance del módulo — llamadas con efecto, no puras — así que ningún
+bundler puede tree-shakear el resto del archivo (ni su `import` de
+`drizzle-orm`) sólo porque el componente use una constante. El resultado es
+que esas cuatro pantallas de panel (y cualquier chunk compartido con ellas)
+cargan el ORM entero para un array de strings.
+
+No se arregla acá: el archivo que hay que tocar es `src/db/schema.ts`
+(fuera de los límites duros de las fases Sonnet, §4.7). Arreglo, cuando una
+fase con permiso sobre `src/db/**` lo tome: mover `ORDER_STATUSES`,
+`PAYMENT_METHODS`, `USER_ROLES`, `COUPON_TYPES`, `DOC_TYPES` (los arrays de
+valores del enum, sin ninguna tabla) a un archivo sin `import` de
+`drizzle-orm` — `src/db/enums.ts`, por ejemplo — y que `schema.ts` los
+re-exporte para el uso del lado del servidor. Los cuatro componentes de
+arriba cambian el import a ese archivo nuevo y el chunk compartido baja sin
+tocar una sola línea de dominio.
+
+Mientras tanto, el presupuesto de esta fase ya incluye ese peso en sus
+techos (medido, no aspiracional — plan-operacion §9): no bloquea el CI, pero
+sí deja usado buena parte del margen del 10% contra el próximo crecimiento
+real.
+
 ## Reembolso parcial: "ya devuelto" arranca en 0 en cada carga de la pantalla — fase S10
 
 `refund-form.tsx` (nuevo, S10) muestra `amount_pyg`, `refunded_pyg` y lo que
