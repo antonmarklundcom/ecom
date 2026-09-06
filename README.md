@@ -49,7 +49,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 |---|---|
 | `pnpm typecheck` / `pnpm lint` / `pnpm test` | lo que corre CI |
 | `pnpm test` | unitarios siempre; los de integración necesitan `TEST_DATABASE_URL` (esa base se borra y se recrea en cada corrida) |
-| `pnpm test:e2e` | Playwright contra un `next build` de verdad (`tests/e2e/`): compra de invitado, la puerta de `/admin` y el CSP en un navegador. Necesita `DATABASE_URL` con el catálogo sembrado (`pnpm db:push && pnpm db:seed`) y `OWNER_EMAIL`/`OWNER_PASSWORD` (`pnpm create-owner`) — fable/plan.md §6.1 |
+| `pnpm test:e2e` | Playwright contra un `next build` de verdad (`tests/e2e/`): compra de invitado, la puerta de `/admin`, el CSP, el presupuesto de JS por página (bloquea, `presupuesto.spec.ts`) y las capturas por PR (`capturas.spec.ts`, sólo al artifact de CI). Necesita `DATABASE_URL` con el catálogo sembrado (`pnpm db:push && pnpm db:seed`) y `OWNER_EMAIL`/`OWNER_PASSWORD` (`pnpm create-owner`) — fable/plan.md §6.1, plan-operacion §6.4 |
 | `pnpm db:studio` | Drizzle Studio |
 | `pnpm db:check` | prueba la `DATABASE_URL`: imprime con qué usuario, base, host y puerto conecta (nunca la contraseña) y traduce el error si falla. Primer paso de debugging del deploy (DEPLOY.md §3) |
 | `pnpm db:seed -- --reset-stock` | re-siembra pisando `on_hand` |

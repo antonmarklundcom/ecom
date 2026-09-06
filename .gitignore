@@ -152,3 +152,7 @@ vite.config.ts.timestamp-*
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Capturas de pantalla (plan-operacion §6.4): siempre al artifact de CI,
+# nunca a git.
+/docs/screenshots/
