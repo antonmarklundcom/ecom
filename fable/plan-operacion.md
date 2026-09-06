@@ -1092,6 +1092,91 @@ arriba son la misma clase de problema (una acción o un `SELECT` que O7 dejó
 sin el campo que su propia UI necesita) y los cuatro arreglos son chicos y
 están descritos en `KNOWN-ISSUES.md` con el archivo y el campo exactos.
 
+### 2026-09-06 · S12 — CI y calidad: presupuesto de bundle, Lighthouse, capturas, render tests
+
+Branch `phase/s12`, tras S9+S10+S11 mergeadas. Sólo `tests/**`,
+`.github/workflows/**`, `.gitignore`, `.lighthouserc.json` (nuevo) y la fila
+de README — nada de `src/**` salvo `src/components/__tests__/**`.
+
+**Valores medidos** (Next 16.3.4/Turbopack, `next build && next start`,
+MySQL 8 local, `pnpm db:seed` sin flags — bytes reales transferidos por los
+`<script>` del mismo origen, sin el fallback `nomodule` que un Chromium
+evergreen nunca pide):
+
+| Página | Medido (gz) | Techo (medido + 10%) |
+|---|---|---|
+| `/` | 219.9 KB | **245 KB** |
+| `/producto/<slug>` | 229.6 KB | **260 KB** |
+| `/checkout` | 224.2 KB | **255 KB** |
+
+Muy por encima de la cifra aspiracional de ARCH.md §6 (120 KB) — que queda
+así documentada como no vigente hasta que otra fase achique el bundle; el
+techo de acá es una alarma contra que crezca **más**, no un objetivo de
+performance (regla dura de S12, plan-operacion §0.11 y prompt de la fase).
+El culpable principal, listado por `presupuesto.spec.ts` en un fallo: un
+chunk compartido de ~17 KB gz con código real de `drizzle-orm` (no un
+string), presente en las tres páginas — `@/db/schema` filtra al cliente
+porque varios componentes del panel importan un *valor* de ese módulo
+(`ORDER_STATUSES`, etc.) y las llamadas a `mysqlTable(...)` en el resto del
+archivo tienen efecto, así que ningún bundler puede tree-shakearlas.
+Documentado en `KNOWN-ISSUES.md` con el arreglo exacto (mover los arrays de
+enum a un archivo sin `drizzle-orm`); no se toca acá porque `src/db/**` está
+fuera de los límites duros de S12.
+
+**Qué existe ahora.** `tests/e2e/presupuesto.spec.ts`: suma
+`request.sizes().responseBodySize` (más preciso que `Content-Length`, que
+`next start` no manda en los chunks — van con `Transfer-Encoding: chunked`)
+de cada script del mismo origen en `/`, un producto del seed y `/checkout`;
+si algo se cae, gzip manual del cuerpo como plan B. Falla listando los 5
+chunks más pesados. Job `lighthouse` nuevo en `ci.yml` (`needs: e2e`,
+`continue-on-error: true`), `treosh/lighthouse-ci-action` contra
+`next start` con preset mobile (`.lighthouserc.json`), `performance ≥ 0.8`
+como `warn`, reporte como artifact — un comentario en el job explica por
+qué no bloquea. `tests/e2e/capturas.spec.ts`: 6 páginas × 2 anchos (390,
+1280) a `playwright-report/capturas/`; el job `e2e` sube esa carpeta con
+`if: always()`, el reporte completo de Playwright sigue sólo en fallo.
+`.gitignore` gana `docs/screenshots/` (`playwright-report/` y
+`test-results/` ya estaban). Tres render tests nuevos en
+`src/components/__tests__/` (RTL + `vi.mock` de las server actions, cero
+red/DB): `order-actions.test.tsx` (un botón por `nextStatuses`, tracking
+sólo con `enviado`, el payload que efectivamente manda `advanceOrder`),
+`bulk-actions.test.tsx` (el botón de precios sólo con `canBulkPrice`),
+`order-notes.test.tsx` (contador, botón deshabilitado sin texto y mientras
+la acción está en vuelo). El test de cobertura del dump que pedía la salida
+de la fase ya existía (`tests/integration/backup.test.ts`, de O8) — no hizo
+falta uno nuevo.
+
+**Decisiones y desvíos.**
+- Sin Docker ni el binario de Chromium de Playwright disponibles en esta
+  sesión (el registro de Docker Hub y `cdn.playwright.dev` responden 403 de
+  política de red, no un error transitorio — no se insistió, siguiendo la
+  guía del proxy de la sesión). Se instaló `mysql-server` por `apt` en la
+  máquina misma (no en contenedor) para tener un MySQL 8 real: con eso,
+  `pnpm typecheck && pnpm lint && pnpm test` corrieron verdes de punta a
+  punta (1466 tests) y `pnpm build`/`pnpm start` también, lo que permitió
+  medir el presupuesto de bundle contra bytes reales (ver arriba) en vez de
+  a ciegas. Lo que **no** pudo correr en esta sesión es
+  `pnpm exec playwright test` (ningún spec, ni siquiera los preexistentes)
+  por falta del binario del navegador — mismo tipo de bloqueo que Docker en
+  S9. Los tres specs nuevos pasan `tsc`/`eslint` y su lógica de medición se
+  validó por separado con un script de Node que replica exactamente el
+  criterio del spec (mismos chunks, mismo descarte del `nomodule`, mismo
+  gzip real vía `http.get` con `Accept-Encoding: gzip` explícito — la razón
+  por la que el spec usa `request.sizes()` y no sólo el header). Los specs
+  nuevos y los preexistentes quedan para que los corra CI, que sí tiene
+  Chromium.
+- Los techos son 245/260/255 KB y no un número redondo por debajo: son el
+  medido + 10% real, tal como pide la fase — no una cifra elegida a mano.
+- `LIGHTHOUSE`: un solo run (`runs: 1`), como pide §4.12 (un solo Lighthouse
+  en toda la fase) — no se ajustó ni se repitió una vez armado.
+- Nada más nuevo en `KNOWN-ISSUES.md` fuera de la fuga de `drizzle-orm`
+  documentada arriba.
+
+**Dónde mirar primero en S13.** `KNOWN-ISSUES.md` tiene ahora seis entradas
+(los cuatro huecos de S10 más la restricción del backup en un archivo de
+O8 más la fuga de `drizzle-orm` de acá); ARCH.md §6 sigue con la cifra
+vieja de 120 KB y S13 la actualiza con los valores medidos de esta tabla.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).
