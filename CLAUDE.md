@@ -10,11 +10,15 @@ leé:
   §5 mapea qué archivo toca cada parte de un mockup.
 - **ARCH.md** — arquitectura: dominio, estados del pedido, plata, Pagopar.
 - **PLAN.md** / **TASKS.md** — qué falta y en qué fase está.
-- **fable/plan-operacion.md** — el plan activo: la tienda después del lanzamiento
-  (tracking, notas, remito, resumen diario, backups, panel, vidriera, CI). Nueve fases,
-  dos ventanas encadenadas (§11); §12 explica cómo llega a las tiendas ya creadas. `fable/plan.md` es el plan anterior de endurecimiento, ya
-  mergeado y hoy historial (revisión en `fable/REVIEW.md`, fases en `fable/prompts/`).
-  `fable/PROMPT.md` es el prompt que genera estas revisiones.
+- **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
+  remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).
+  Nueve fases (O5–S13), **todas mergeadas — hoy es historial**, igual que
+  `fable/plan.md` (revisión en `fable/REVIEW.md`, fases en `fable/prompts/`).
+  `fable/PROMPT.md` es el prompt que genera la próxima revisión.
+- Operación diaria del panel, backups/restore y la distribución automática a las
+  tiendas (`.github/workflows/distribuir.yml` + `tiendas.json`): NEW-STORE.md §4f y
+  § "La distribución automática del template". Cron consolidado (las tres entradas,
+  hora Asunción y UTC): DEPLOY.md §5.
 - **DEPLOY.md** — el runbook de Hostinger.
 
 ## La regla que más importa: maquinaria vs. piel

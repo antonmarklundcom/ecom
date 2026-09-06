@@ -510,6 +510,81 @@ Dos cosas que conviene saber antes de tocar nada:
   zonas están todas apagadas: está activa, se ve activa, y no le aparece a
   nadie en el checkout.
 
+### 4f. La operación diaria del panel (S9–S11, después del lanzamiento)
+
+Nada de esto necesita configuración — viene andando desde que la tienda sale
+del template. Lo que sigue es sólo dónde encontrarlo:
+
+- **Seguimiento del envío y remito.** Al despachar un pedido (`enviado`), el
+  panel pide courier, número de guía y link de seguimiento — los tres
+  opcionales. Quedan en un bloque "Seguimiento" en la ficha del pedido y en
+  `/pedido/[número]`, la página que ve la compradora. Desde la ficha,
+  `/admin/pedidos/[id]/imprimir` arma un remito en A4 (sin precios si quien
+  imprime es `vendedor`) listo para pegar en el paquete.
+- **Notas internas.** Un textarea arriba del historial de cada pedido, para lo
+  que dijeron por teléfono — nunca lo ve la compradora, la puede escribir
+  cualquiera de los tres roles (`pedidos.notas`, ARCH.md §1).
+- **Resumen diario y "avisame cuando haya stock".** Ya están en §4c —dos
+  plantillas de Meta, vacías = apagado— y necesitan además la entrada de cron
+  del hPanel (DEPLOY.md §5).
+- **Punto de reposición por variante.** En el editor de cada variante: un
+  número entero, vacío = usa el default global (3). Por debajo de ese número,
+  la variante entra en "stock bajo" en `/admin` y en el resumen diario.
+- **Destacados y categorías con foto.** El toggle "Destacado" del formulario
+  de producto elige lo que muestra la home bajo el título "Destacados"; sin
+  ninguno elegido, la home sigue mostrando "Novedades" como siempre.
+  `/admin/categorias` acepta una descripción y una foto por categoría —
+  aparecen arriba de la grilla en `/categoria/<slug>` cuando están cargadas, y
+  la descripción entra también en el `<meta name="description">` de esa
+  página.
+- **Acciones masivas y precios por porcentaje.** En `/admin/productos`,
+  seleccionar varios productos habilita activar, desactivar, mover de
+  categoría y —sólo `owner`— ajustar precios por porcentaje con una vista
+  previa antes de confirmar. Cada ajuste deja su fila de auditoría
+  (`price_adjustments`, ARCH.md §2).
+- **Reembolso parcial.** Vive junto al botón de devolución total (dashboard,
+  "Pagos sin pedido vivo"): un monto menor al total dejando el pedido como
+  está, con su fila en el ledger de devoluciones (`refunds`, ARCH.md §2).
+- **Backups automáticos y restauración.** Corren solos con la entrada de cron
+  del hPanel (DEPLOY.md §5, tercera entrada) — nada que prender a mano más
+  allá de tener Cloudinary configurado. Restaurar una copia es
+  `pnpm restore -- <archivo.jsonl.gz>` (README.md, DEPLOY.md §"Restaurar una
+  copia"): sólo corre contra una base cuyo nombre contenga `restore` o `test`.
+
+### La distribución automática del template (S13)
+
+Cada push a `main` de `antonmarklundcom/ecom` dispara
+`.github/workflows/distribuir.yml` en el template, que le abre (o actualiza)
+un PR de maquinaria a cada tienda listada en la raíz de `tiendas.json` — el
+mismo `pnpm template:sync` de arriba, corrido por una acción en vez de a mano.
+Es lo que hace que el paso 1 de "Arreglos que aparecen después" deje de ser
+manual.
+
+**Para que una tienda reciba estos PRs, alguien con acceso al repo del
+template tiene que:**
+
+1. Agregarla a `tiendas.json` en la raíz del template:
+
+   ```json
+   [{ "repo": "antonmarklundcom/mi-tienda" }]
+   ```
+
+2. Tener cargado el secret `TIENDAS_TOKEN` en el repo del template: un PAT de
+   GitHub con `contents:write` + `pull-requests:write` sobre esa(s) tienda(s).
+   Sin el secret, el workflow se salta solo y lo dice en el log — no hace
+   nada a medias.
+
+El PR que abre en la tienda trae **sólo lo que `template:sync` clasifica como
+maquinaria** (los mismos límites de siempre: `fable/` se descarta, el
+lockfile se regenera, los workflows de CI se quedan con la versión del
+template). Si `template:sync` se para en un conflicto real, el PR igual se
+abre —**en draft**—, con lo que sí entró limpio más el commit, el archivo y
+los pasos para terminarlo a mano en el cuerpo. El CI de cada tienda decide si
+se mergea; nadie mergea por ella. Los commits de piel (S9, S10, S11 de este
+mismo plan, o cualquier rediseño) **no viajan por acá** — siguen siendo
+`git cherry-pick` a mano si la tienda no rediseñó esa pantalla, tal como
+describe § "Migraciones que llegan por `template:sync`" más abajo.
+
 ### 5. Diseño
 
 #### Del mockup al código
