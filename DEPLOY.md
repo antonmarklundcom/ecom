@@ -295,7 +295,25 @@ se revisó en un PR.
 
 ---
 
-## 5. Cron cada 15 minutos
+## 5. Cron: las tres entradas del hPanel
+
+Tres rutas, tres entradas en **hPanel → Advanced → Cron Jobs**. Hostinger
+interpreta la hora del cron en **UTC**, y Paraguay está en **UTC−3 todo el
+año** (sin horario de verano desde 2024) — la columna de la derecha ya trae
+la resta hecha:
+
+| Ruta | Frecuencia | Hora Asunción | Hora UTC (expresión cron) | Qué hace si falta la variable |
+|---|---|---|---|---|
+| `/api/cron/vencer-pedidos` | cada 15 min | — | `*/15 * * * *` | Sin `CRON_SECRET` (≥16 caracteres), 503: nunca vence nada sin secreto |
+| `/api/cron/resumen-diario` | diaria | 08:00 | `0 11 * * *` | Sin `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO`, corre igual y no manda nada (`sent: false`) |
+| `/api/cron/backup` | diaria | 03:00 | `0 6 * * *` | Sin credenciales de Cloudinary, se saltea sola (`skipped: "sin_cloudinary"`) |
+
+Las tres comparten el mismo `CRON_SECRET` (`src/lib/cron-auth.ts`): 503 sin
+secreto configurado, comparación en tiempo constante, rate-limited, header
+`Authorization: Bearer` o `?secret=` como plan B (ver la trampa del `?secret=`
+más abajo). Detalle de cada una:
+
+### La primera entrada: vencer pedidos (cada 15 minutos)
 
 `/api/cron/vencer-pedidos` vence los pedidos sin pago y limpia reservas viejas.
 Sin él, los pedidos muertos quedan para siempre en `pendiente_pago` y el panel
@@ -426,6 +444,18 @@ base ni la red, así que se puede correr todas las veces que quieras.
 
 Después, a mano: entrar a la tienda, agregar algo al carrito, llegar al
 checkout, y entrar a `/admin` con la cuenta del dueño.
+
+### ¿El redeploy tomó de verdad?
+
+```bash
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/version
+```
+
+Devuelve `{"sha","builtAt","node"}` (ARCH.md § "Observabilidad") — el SHA corto
+del build que está corriendo. Compará contra el commit que acabás de deployar;
+si no coincide, el redeploy de Hostinger no levantó el build nuevo (ver el
+punto 2, cache del build). Mismo `CRON_SECRET` que las tres rutas de cron: sin
+él, 503.
 
 ---
 

@@ -423,6 +423,40 @@ Consecuencia para el dueño, y la pantalla se la dice con el número exacto ante
 de confirmar: **apagar una categoría apaga todos sus productos.** No borra
 nada — los productos quedan como estaban y vuelven solos al reactivarla.
 
+### Destacados, categorías con foto y "avisame cuando haya stock" (O6, O7)
+
+Tres piezas chicas de schema, agregadas por O5/O6/O7, que no tienen entidad
+propia en el diagrama de arriba porque son columnas sueltas o tablas sin
+relaciones nuevas:
+
+- **`products.is_featured`** (bool, default `false`, índice
+  `(is_featured, published_at)`): lo elige el dueño a mano desde el panel.
+  `getFeaturedProducts(limit)` los devuelve; si no hay ninguno, cae al mismo
+  criterio que la home de siempre (`getCatalog({ limit })`, orden por
+  posición de categoría y nombre) — **no** "los más nuevos" a secas, para que
+  una tienda que recién trae la migración no vea moverse su portada.
+- **`categories.description` / `image_cloudinary_id` / `image_alt`**: texto y
+  foto opcionales de la página de categoría (`f_auto,q_auto`, folder
+  `categorias/` bajo el prefijo de Cloudinary de la tienda). Sin ninguno de
+  los tres, la página es bit a bit la de antes.
+- **`variants.reorder_point`** (`int unsigned` NULL): umbral de "stock bajo"
+  por variante; `NULL` usa el default global (3). `lowStockVariants` lo
+  respeta con `COALESCE` en el SQL — y con `CAST(... AS SIGNED)` en la
+  comparación, porque `on_hand - reorder_point` en aritmética sin signo tira
+  `ER_DATA_OUT_OF_RANGE` en MySQL 8 apenas el resultado sería negativo (que es
+  justo el caso que la consulta busca; MariaDB no lo reproduce — ver
+  `KNOWN-ISSUES.md`).
+- **`stock_alerts`** (`id`, `variant_id` FK cascade, `phone`, `created_at`,
+  `notified_at` NULL; `UNIQUE(variant_id, phone)`): "avisame cuando haya
+  stock" de la vidriera. `subscribe()` rechaza si la variante **ya** tiene
+  disponibilidad (no es un embudo de marketing, es un aviso puntual);
+  `notifyBackInStock()` marca `notified_at` **antes** de mandar el WhatsApp
+  (mismo patrón que `login-tokens`), así un envío que falla no se reintenta
+  ni duplica. Se dispara post-commit cuando `on_hand` cruza de 0 a > 0
+  (`adjustStock`, importación de catálogo) y además lo barre el cron del
+  resumen diario, para el caso de una reserva vencida que liberó stock sin
+  ningún ajuste manual detrás. Purga a los 90 días desde `runMaintenance`.
+
 ### Zonas de envío: quién las escribe (FASE 2, PR K)
 
 `shipping_zones` la edita el `owner` desde `/admin/envios`, y el dominio
@@ -973,7 +1007,28 @@ sigue siendo el endpoint abierto y sigue sin decir ni una versión.
 - Do **not** store uploads on the Hostinger filesystem — a git-based redeploy can wipe them.
 - Blur placeholders stored in `product_images.blur_data_url`; `next/image` with `unoptimized` (Cloudinary already does the work) and long cache headers.
 - Catalog pages use ISR (`revalidate`); only live availability is fetched client-side.
-- Budget: LCP < 2.5 s on Slow-4G, client JS < 120 KB gz on the product page.
+- Budget: LCP < 2.5 s on Slow-4G.
+- **Client JS, measured (S12, 2026-09-06 — Next 16.3.4/Turbopack, `next build && next start`, real gz bytes of same-origin `<script>` responses, no fallback):**
+
+  | Página | Medido | Techo que bloquea CI (`tests/e2e/presupuesto.spec.ts`) |
+  |---|---|---|
+  | `/` | 219.9 KB gz | **245 KB** |
+  | `/producto/<slug>` | 229.6 KB gz | **260 KB** |
+  | `/checkout` | 224.2 KB gz | **255 KB** |
+
+  Muy por encima de la cifra de 120 KB que este documento tenía antes de
+  medir — esa cifra **no** era una medición, era una aspiración, y quedó
+  obsoleta en cuanto alguien puso un runner real a contarla. El techo de
+  arriba es medido + 10 %: una alarma contra que el bundle **crezca más**, no
+  un objetivo de performance. El culpable principal (documentado en
+  `KNOWN-ISSUES.md`): varios componentes cliente del panel importan un
+  *valor* (no sólo un tipo) desde `@/db/schema` — como `schema.ts` define
+  cada tabla con `mysqlTable(...)` a nivel de módulo (una llamada con
+  efecto), ningún bundler puede tree-shakear el resto del archivo ni su
+  `import` de `drizzle-orm`, así que esas pantallas cargan el ORM entero
+  (~17 KB gz) para leer un array de strings. El arreglo (mover los arrays de
+  enum a un archivo sin `drizzle-orm`) está fuera de los límites de las
+  fases Sonnet — queda para una fase con permiso sobre `src/db/**`.
 - MySQL pool `connectionLimit: 8` — Hostinger caps concurrent connections per user; a bigger pool causes random `ER_CON_COUNT_ERROR` under load.
 
 ---

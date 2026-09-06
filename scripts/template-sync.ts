@@ -34,6 +34,13 @@ import {
  *   pnpm template:sync --dry-run          # qué haría, sin tocar nada
  *   pnpm template:sync --hasta <sha>      # para en un commit dado
  *   pnpm template:sync --sin-tests        # no corre typecheck/lint/test al final
+ *   pnpm template:sync --rama-destino <nombre>   # crea/usa esa rama antes de sincronizar
+ *   pnpm template:sync --json             # resumen de una línea en JSON (para un PR automático)
+ *
+ * `--rama-destino` y `--json` existen para `distribuir.yml` (plan-operacion
+ * §6.5): el workflow clona la tienda recién, así que no hay ninguna rama de
+ * feature creada todavía, y necesita un resumen que pueda leer sin parsear el
+ * texto pensado para una terminal.
  */
 
 const URL_TEMPLATE = 'https://github.com/antonmarklundcom/ecom.git';
@@ -44,6 +51,9 @@ export type Opciones = {
   dryRun: boolean;
   hasta: string | null;
   sinTests: boolean;
+  /** Opcional para no romper a quien construye `Opciones` a mano (tests viejos). */
+  ramaDestino?: string | null;
+  json?: boolean;
 };
 
 export function parseArgs(argv: string[]): Opciones {
@@ -53,6 +63,8 @@ export function parseArgs(argv: string[]): Opciones {
     dryRun: false,
     hasta: null,
     sinTests: false,
+    ramaDestino: null,
+    json: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -66,12 +78,17 @@ export function parseArgs(argv: string[]): Opciones {
       opciones.sinTests = true;
       continue;
     }
-    if (flag === '--hasta' || flag === '--remoto' || flag === '--rama') {
+    if (flag === '--json') {
+      opciones.json = true;
+      continue;
+    }
+    if (flag === '--hasta' || flag === '--remoto' || flag === '--rama' || flag === '--rama-destino') {
       const valor = argv[i + 1];
       if (!valor || valor.startsWith('--')) throw new Error(`${flag} espera un valor`);
       if (flag === '--hasta') opciones.hasta = valor;
       else if (flag === '--remoto') opciones.remoto = valor;
-      else opciones.rama = valor;
+      else if (flag === '--rama') opciones.rama = valor;
+      else opciones.ramaDestino = valor;
       i += 1;
       continue;
     }
@@ -158,6 +175,33 @@ export type ResultadoSync =
 
 function ramaActual(cwd: string): string {
   return gitEn(cwd, ['branch', '--show-current']).trim();
+}
+
+function ramaExiste(cwd: string, rama: string): boolean {
+  try {
+    gitEn(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${rama}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `--rama-destino`: crea (o retoma) la rama pedida antes de sincronizar.
+ *
+ * Existe para `distribuir.yml`: el workflow clona la tienda recién parada en
+ * su default branch y no hay ninguna rama de feature todavía — sin esto,
+ * cada corrida necesitaría un paso de `git checkout -b` aparte, y una corrida
+ * que reanuda (conflicto resuelto a mano, reintento) necesita el mismo
+ * comando para volver a pararse en la rama que ya empezó.
+ */
+function pararEnRamaDestino(cwd: string, rama: string): void {
+  if (ramaActual(cwd) === rama) return;
+  if (ramaExiste(cwd, rama)) {
+    gitEn(cwd, ['checkout', rama]);
+  } else {
+    gitEn(cwd, ['checkout', '-b', rama]);
+  }
 }
 
 function treeSucio(cwd: string): boolean {
@@ -258,6 +302,10 @@ function mensajeDeError(error: unknown): string {
  * llamar directo desde un test de integración contra un repo temporal.
  */
 export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
+  if (opciones.ramaDestino) {
+    pararEnRamaDestino(cwd, opciones.ramaDestino);
+  }
+
   if (ramaActual(cwd) === 'main') {
     return {
       estado: 'precondicion',
@@ -446,18 +494,74 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
   return { estado: 'completado', aplicados, salteados, baseline: objetivo };
 }
 
+/**
+ * Resumen máquina de un `ResultadoSync`, para `--json`.
+ *
+ * Pura a propósito (nada de git acá): así el test unitario fija la forma sin
+ * tener que armar un repo de verdad — eso ya lo cubre el test de integración
+ * para `ejecutarSync`. `distribuir.yml` parsea esto para armar el cuerpo del
+ * PR (lista de commits) y decidir si abre el PR en draft (`conflicto`).
+ */
+export function resumenJson(resultado: ResultadoSync): Record<string, unknown> {
+  const commit = (c: Commit) => ({ sha: c.sha, asunto: c.asunto });
+
+  switch (resultado.estado) {
+    case 'sin-cambios':
+      return { estado: 'sin-cambios', aplicados: [], salteados: [] };
+    case 'dry-run':
+      return { estado: 'dry-run', pendientes: resultado.pendientes.map(commit) };
+    case 'precondicion':
+      return { estado: 'precondicion', mensaje: resultado.mensaje };
+    case 'conflicto-manual':
+      return {
+        estado: 'conflicto-manual',
+        sha: resultado.sha,
+        asunto: resultado.asunto,
+        archivos: resultado.archivos,
+        mensaje: resultado.mensaje,
+      };
+    case 'fallo-post':
+      return {
+        estado: 'fallo-post',
+        mensaje: resultado.mensaje,
+        aplicados: resultado.aplicados.map(commit),
+        salteados: resultado.salteados.map(commit),
+      };
+    case 'completado':
+      return {
+        estado: 'completado',
+        aplicados: resultado.aplicados.map(commit),
+        salteados: resultado.salteados.map(commit),
+        baseline: resultado.baseline,
+      };
+    default:
+      return { estado: 'desconocido' };
+  }
+}
+
 function main(): void {
   let opciones: Opciones;
   try {
     opciones = parseArgs(process.argv.slice(2));
   } catch (error) {
     console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
-    console.error('\n  pnpm template:sync [--dry-run] [--hasta <sha>] [--sin-tests]\n');
+    console.error(
+      '\n  pnpm template:sync [--dry-run] [--hasta <sha>] [--sin-tests] ' +
+        '[--rama-destino <nombre>] [--json]\n',
+    );
     process.exitCode = 1;
     return;
   }
 
   const resultado = ejecutarSync(process.cwd(), opciones);
+
+  if (opciones.json) {
+    console.log(JSON.stringify(resumenJson(resultado)));
+    if (resultado.estado === 'precondicion' || resultado.estado === 'conflicto-manual' || resultado.estado === 'fallo-post') {
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   switch (resultado.estado) {
     case 'precondicion':
