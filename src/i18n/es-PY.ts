@@ -1540,4 +1540,80 @@ export const esPY = {
   "panel.reembolso.hecho": "Devolución registrada.",
   "panel.reembolso.completo": "Con esto el pago queda devuelto por completo.",
   "panel.reembolso.excede": "El monto no puede superar lo que queda por devolver.",
+
+  // ===========================================================================
+  // == S9 — panel de pedidos: tracking, notas, remito imprimible (§6.1) ==
+  // ===========================================================================
+  "panel.pedido.imprimirRemito": "Imprimir remito",
+  "panel.pedido.tracking.titulo": "Seguimiento",
+  "panel.pedido.tracking.courier": "Transporte",
+  "panel.pedido.tracking.guia": "Guía",
+  "panel.pedido.tracking.link": "Link",
+  "panel.pedido.notas": "Notas internas",
+
+  "panel.acciones.tracking.titulo": "Seguimiento del envío (opcional)",
+  "panel.acciones.tracking.courier": "Transporte",
+  "panel.acciones.tracking.courier.placeholder": "Moto propia, OCA, correo…",
+  "panel.acciones.tracking.guia": "Número de guía",
+  "panel.acciones.tracking.guia.placeholder": "Ej.: 123456789",
+  "panel.acciones.tracking.link": "Link de seguimiento",
+  "panel.acciones.tracking.link.placeholder": "https://…",
+  "panel.acciones.tracking.opcional":
+    "Los tres campos son opcionales. Lo que cargues acá lo ve la compradora en la página de su pedido.",
+
+  "panel.notas.sinNotas": "Todavía no hay notas en este pedido.",
+  "panel.notas.placeholder": "Llamó, pasa a retirar el jueves…",
+  "panel.notas.contador": "{n}/{maximo}",
+  "panel.notas.agregar": "Agregar nota",
+  "panel.notas.guardando": "Guardando…",
+  "panel.notas.guardada": "Nota guardada.",
+
+  "panel.remito.meta": "Remito",
+  "panel.remito.imprimir": "Imprimir",
+  "panel.remito.volver": "← Volver al pedido",
+  "panel.remito.titulo": "Remito",
+  "panel.remito.numeroPedido": "N.º de pedido",
+  "panel.remito.entrega": "Entrega",
+  "panel.remito.nombre": "Nombre",
+  "panel.remito.telefono": "Teléfono",
+  "panel.remito.direccion": "Dirección",
+  "panel.remito.referencia": "Referencia",
+  "panel.remito.esRegalo": "Es un regalo",
+  "panel.remito.items": "Contenido",
+  "panel.remito.sku": "SKU",
+  "panel.remito.producto": "Producto",
+  "panel.remito.cantidad": "Cant.",
+  "panel.remito.total": "Total",
+  "panel.remito.totalPedido": "Total: {total}",
+
+  "pedido.tracking.titulo": "Seguimiento del envío",
+  "pedido.tracking.courierYguia": "{courier} · Guía {guia}",
+  "pedido.tracking.soloCourier": "{courier}",
+  "pedido.tracking.soloGuia": "Guía {guia}",
+  "pedido.tracking.verEnvio": "Seguí tu envío →",
+
+  // -------------------------------------------------------------------------
+  // == S11 == Vidriera: destacados, vistos recientemente, avisame, consulta
+  // por WhatsApp por variante (plan-operacion §6.3)
+  // -------------------------------------------------------------------------
+  // Fallback de la home sin destacados elegidos a mano — misma lista de
+  // productos que "home.destacados", pero el título dice lo que es: lo más
+  // nuevo, no una selección del comercio.
+  "home.novedades": "Novedades",
+
+  "producto.vistosRecientemente": "Vistos recientemente",
+
+  "stock.avisame.titulo": "Avisame cuando haya stock",
+  "stock.avisame.label": "Tu WhatsApp",
+  "stock.avisame.boton": "Avisame",
+  "stock.avisame.enviando": "Enviando…",
+  "stock.avisame.listo": "Listo, te avisamos por WhatsApp apenas vuelva el stock.",
+
+  // El texto que arma `variant-inquiry-link.tsx`. La URL, cuando hay
+  // `NEXT_PUBLIC_SITE_URL`, se agrega aparte con un separador " — " en vez de
+  // ir adentro de la clave: así una tienda que no configuró esa variable
+  // manda el mismo mensaje sin un hueco vacío al final.
+  "producto.consultaVariante":
+    'Hola, quiero consultar por "{producto}" ({variante}, SKU {sku})',
+  "producto.consultarWhatsApp": "Consultar por WhatsApp",
 } as const satisfies Record<string, string>;

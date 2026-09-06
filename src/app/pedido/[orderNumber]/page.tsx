@@ -226,6 +226,38 @@ export default async function OrderPage({
         </p>
       </section>
 
+      {/* Sólo si el pedido tiene courier/guía cargados (plan-operacion §6.1):
+          los pedidos que no pasaron por `enviado` con tracking no muestran
+          una sección vacía. Es distinto del historial de estados de abajo,
+          que siempre existe. */}
+      {order.trackingCarrier || order.trackingCode || order.trackingUrl ? (
+        <section className="mt-6" data-testid={TESTIDS.pedidoTrackingBlock}>
+          <h2 className="font-medium">{t("pedido.tracking.titulo")}</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {order.trackingCarrier && order.trackingCode
+              ? t("pedido.tracking.courierYguia", {
+                  courier: order.trackingCarrier,
+                  guia: order.trackingCode,
+                })
+              : order.trackingCarrier
+                ? t("pedido.tracking.soloCourier", { courier: order.trackingCarrier })
+                : order.trackingCode
+                  ? t("pedido.tracking.soloGuia", { guia: order.trackingCode })
+                  : null}
+          </p>
+          {order.trackingUrl ? (
+            <a
+              href={order.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="border-border mt-2 inline-flex rounded-lg border px-4 py-2 text-sm"
+            >
+              {t("pedido.tracking.verEnvio")}
+            </a>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="mt-6">
         <h2 className="font-medium">{t("pedido.seguimiento")}</h2>
         <ol className="mt-2 space-y-2 text-sm">

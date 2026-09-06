@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { realizarCompra } from "./helpers";
+import {
+  loginAsOwner,
+  openOrderFicha,
+  orderTransitionButton,
+  realizarCompra,
+} from "./helpers";
 import { TESTIDS } from "./testids";
 
 /**
@@ -14,30 +19,9 @@ import { TESTIDS } from "./testids";
 test("la puerta de /admin redirige, el login entra y el pedido aparece en el panel", async ({
   page,
 }) => {
-  const ownerEmail = process.env.OWNER_EMAIL;
-  const ownerPassword = process.env.OWNER_PASSWORD;
-  if (!ownerEmail || !ownerPassword) {
-    throw new Error(
-      "Faltan OWNER_EMAIL/OWNER_PASSWORD en el entorno del test — son los mismos que usó " +
-        "`pnpm create-owner` (o `POST /api/setup/init`) para sembrar la cuenta del dueño."
-    );
-  }
-
   const { orderNumber } = await realizarCompra(page);
 
-  // Sin cookie, la puerta del proxy manda al login con el destino original
-  // (src/proxy.ts) — esto es UX, no el control de acceso real.
-  await page.goto("/admin/pedidos");
-  await page.waitForURL(/\/admin\/login\?next=%2Fadmin%2Fpedidos/);
-
-  await page.getByTestId(TESTIDS.adminLoginEmail).fill(ownerEmail);
-  await page.getByTestId(TESTIDS.adminLoginPassword).fill(ownerPassword);
-  await page.getByTestId(TESTIDS.adminLoginSubmit).click();
-
-  await page.waitForURL(/\/admin\/pedidos$/);
-  // Antes que el listado: el nav es lo que confirma que el panel entero
-  // renderizó con sesión, no sólo esta pantalla.
-  await expect(page.getByTestId(TESTIDS.adminNavOrders)).toBeVisible();
+  await loginAsOwner(page);
 
   // Filtra por el número de pedido: la lista sin filtro pagina y el pedido
   // recién creado puede no estar en la primera página.
@@ -45,4 +29,59 @@ test("la puerta de /admin redirige, el login entra y el pedido aparece en el pan
   await page.getByTestId(TESTIDS.adminOrdersSearchSubmit).click();
 
   await expect(page.getByText(orderNumber)).toBeVisible();
+});
+
+/**
+ * Despachar con guía de seguimiento (S9, plan-operacion §6.1): el paso
+ * intermedio de "Enviado" acepta courier/guía/link, la ficha del pedido los
+ * muestra en el bloque "Seguimiento" y la compradora los ve en su propia
+ * página del pedido — el mismo dato, en los dos lados del mostrador.
+ */
+test("despachar con guía: la ficha y la página de la compradora la muestran", async ({ page }) => {
+  const { orderNumber, url } = await realizarCompra(page);
+
+  await loginAsOwner(page);
+  await openOrderFicha(page, orderNumber);
+
+  // pendiente_pago → pagado → preparando → enviado (con guía). Las dos
+  // primeras no paran en el paso intermedio (no son destructivas ni
+  // `enviado`): confirman solas.
+  await orderTransitionButton(page, "pagado").click();
+  await expect(orderTransitionButton(page, "preparando")).toBeVisible();
+
+  await orderTransitionButton(page, "preparando").click();
+  await expect(orderTransitionButton(page, "enviado")).toBeVisible();
+
+  await orderTransitionButton(page, "enviado").click();
+
+  const trackingCode = `E2E-${Date.now()}`;
+  await page.getByTestId(TESTIDS.orderTrackingCarrierInput).fill("Moto propia");
+  await page.getByTestId(TESTIDS.orderTrackingCodeInput).fill(trackingCode);
+  await page.getByTestId(TESTIDS.orderTransitionConfirm).click();
+
+  await expect(page.getByTestId(TESTIDS.orderTrackingBlock)).toContainText(trackingCode);
+
+  // La compradora entra con su propio link tokenizado, no con la sesión del
+  // panel: navegar a `url` (la que devuelve `realizarCompra`) alcanza.
+  await page.goto(url);
+  await expect(page.getByTestId(TESTIDS.pedidoTrackingBlock)).toContainText(trackingCode);
+});
+
+/**
+ * Notas internas (S9, plan-operacion §6.1): se agregan desde la ficha y
+ * aparecen en la lista sin recargar la página a mano (`router.refresh()`).
+ * Nunca las ve la compradora — eso lo garantiza el dominio, acá sólo se
+ * prueba que el mostrador las vea.
+ */
+test("agregar una nota interna: aparece en la lista de la ficha", async ({ page }) => {
+  const { orderNumber } = await realizarCompra(page);
+
+  await loginAsOwner(page);
+  await openOrderFicha(page, orderNumber);
+
+  const noteText = `Llamó, pasa el jueves — E2E ${Date.now()}`;
+  await page.getByTestId(TESTIDS.orderNotesTextarea).fill(noteText);
+  await page.getByTestId(TESTIDS.orderNotesSubmit).click();
+
+  await expect(page.getByTestId(TESTIDS.orderNotesList)).toContainText(noteText);
 });

@@ -925,6 +925,58 @@ migrados, con un test que greppea que no vuelvan. `instrumentation.ts` con
 **Fin de las fases Opus.** S9, S10 y S11 pueden arrancar, en paralelo o de a
 una, en cualquier orden.
 
+### 2026-09-06 · S9 — panel de pedidos: tracking, notas, remito imprimible
+
+Branch `phase/s9`. Piel pura: todo lo que necesitaba ya estaba expuesto por
+O5 (`transitionOrder` con `tracking`, `order-notes.ts`, `advanceOrder` /
+`addOrderNote` ya aceptaban lo que hacía falta) — cero cambios de dominio.
+
+**Qué existe ahora.** `order-actions.tsx`: al elegir `enviado` en el paso
+intermedio aparecen tres campos opcionales (courier con sugerencias de los
+`shipping_methods` de la tienda vía `<datalist>`, guía, link), que viajan en
+`advanceOrder({ tracking })`. La ficha del pedido muestra un bloque
+"Seguimiento" sólo si hay algo cargado, con el link clickeable. `order-notes.tsx`
+(nuevo): lista + textarea con contador, arriba del historial de eventos,
+visible para los tres roles (usa `pedidos.notas`, ya en `permissions.ts`
+desde O5). Remito imprimible en
+`/admin/pedidos/[id]/imprimir` (dentro del layout del panel: reutiliza su
+guard, no agrega uno): marca, número grande para pegar en el paquete, datos
+de entrega, ítems con precios sólo si `can(role, "precios")`, nota de regalo.
+CSS de impresión en `globals.css` bajo `@media print` (`header { display:
+none }` alcanza porque es el único `<header>` de `/admin`), sin una línea
+inline. `/pedido/[orderNumber]` gana su propio bloque de seguimiento
+—distinto del historial de estados, que ya existía con el mismo título—,
+visible sólo si hay courier, guía o link.
+
+**Decisiones y desvíos.**
+- `enviado` no estaba en `DESTRUCTIVE_TRANSITIONS`, así que el botón corría
+  directo sin el paso intermedio donde se carga el tracking. Se agregó una
+  segunda condición (`needsConfirmStep`) que abre el paso intermedio también
+  para `enviado`, sin tratarlo como destructivo (mismo estilo de botón,
+  mismo `reason` opcional).
+- El nav del panel se oculta en impresión con un selector de tag (`header`)
+  en vez de tocar `src/app/admin/(panel)/layout.tsx`, que está fuera de los
+  Owns de esta fase: es el único `<header>` bajo `/admin`, así que alcanza y
+  de paso sirve para cualquier otra página del panel que alguien imprima.
+- `pnpm test:e2e` **no corrió en esta sesión**: el entorno no tiene Docker
+  corriendo (`no such file or directory` contra el socket) para levantar el
+  MySQL de `docker-compose.yml`, y no hay `TEST_DATABASE_URL` en el shell.
+  `pnpm typecheck && pnpm lint && pnpm test` sí corrieron verdes contra un
+  worktree limpio de `phase/s9` (765 tests, sin los de integración). Los
+  specs nuevos de `panel.spec.ts` (guía visible en la ficha y en la página de
+  la compradora; nota que aparece en la lista) quedan para que los corra CI.
+- Esta fase corrió en un checkout compartido con S10 y S11 (mismo `/home/user/ecom`,
+  tres branches al mismo tiempo): los tres bloques propios de `testids.ts` y
+  `es-PY.ts` convivían sin problema en el disco compartido, pero para no
+  llevarme las claves e ids de las otras dos fases a este PR arme un
+  `git worktree` aparte de `phase/s9` y reconstruí ahí sólo mi bloque sobre
+  la base de `origin/main`. Si esto se repite, un worktree por fase desde el
+  principio evita el paso extra.
+
+**Dónde mirar primero en S12.** `tests/e2e/panel.spec.ts` tiene los dos specs
+nuevos y `loginAsOwner`/`openOrderFicha`/`orderTransitionButton` en
+`helpers.ts` para reusar en specs de S10/S11 si hace falta sesión de owner.
+
 ### 2026-09-06 · S11 — vidriera: destacados, vistos recientemente, avisame, consulta por WhatsApp
 
 Branch `phase/s11`. Piel, corrida en paralelo con S9 y S10 sobre O8 mergeada.
@@ -957,7 +1009,7 @@ error en consola con `localStorage` bloqueado.
 - El `setState` de `recently-viewed.tsx` va adentro de un `setTimeout(…, 0)`
   y no suelto en el cuerpo del efecto — la regla `react-hooks/set-state-in-effect`
   lo marca igual que en `search-box.tsx`; mismo patrón que ya usa ese archivo.
-- Las categorías no tienen `blur_data_url` (sólo las fotos de producto, O7 no
+- Las categorías no tienen `blur_data_url` (sólo las fotos de producto; O7 no
   agregó esa columna para categorías): la portada de categoría sale sin blur
   placeholder. No es una regresión — hoy no existe ninguna portada de
   categoría — y agregar la columna es schema nuevo, fuera de los Owns de esta
@@ -970,6 +1022,75 @@ error en consola con `localStorage` bloqueado.
 **Dónde mirar primero en S12.** Nada de esta fase toca `.github/workflows/**`
 ni `playwright.config.ts`; S12 arranca limpio en cuanto S9, S10 y S11 estén
 las tres mergeadas.
+
+### 2026-09-06 · S10 — panel de productos y categorías
+
+Branch `phase/s10`, en paralelo con S9 y S11. Sólo piel: nada de
+`src/domain/**`, `src/db/**`, `src/app/actions/**` ni `src/app/api/**`.
+
+**Qué existe ahora.** `/admin/productos`: checkbox por fila + "seleccionar
+página" (`product-list.tsx`, nuevo) con una barra de acciones masivas
+(`bulk-actions.tsx`) — activar, desactivar, mover de categoría (`productos`,
+staff) y, sólo si `can(role, 'precios.masivo')`, "Ajustar precios"
+(`bulk-price-dialog.tsx`): vista previa con `previewPriceAdjustment` (la
+misma fórmula que escribe, como dejó O7) y una confirmación explícita con la
+cantidad de variantes, el porcentaje, el redondeo y el motivo antes de
+escribir. Duplicar producto, en la ficha. Punto de reposición por variante en
+`variant-editor.tsx`. Descripción con markdown seguro: `markdown-editor.tsx`
+(nuevo) con pestaña "Vista previa" que llama a `renderMarkdown` en el
+cliente — cero server actions nuevas. Categorías con descripción y foto
+(`categories-manager.tsx`). Reembolso parcial: `refund-form.tsx` (nuevo).
+E2E nuevo: `tests/e2e/productos.spec.ts` (alta con markdown + vista previa,
+duplicar, acción masiva sobre la copia), todo por testid.
+
+**Decisiones y desvíos — tres huecos que dejó O7 y que S10 no pudo cerrar
+porque están fuera de sus límites duros (§4.7), documentados en
+`KNOWN-ISSUES.md` con el arreglo exacto:**
+- **"Destacado" no tiene botón.** El dominio (`updateProduct.isFeatured`,
+  `getFeaturedProducts`) está listo desde O7, pero la server action
+  `saveProduct` (`admin-products.ts`) nunca ganó el campo y
+  `listAdminProducts` no selecciona `is_featured`. Sin acción que lo acepte,
+  no hay workaround de piel que no sea "inventar un fetch" (prohibido, §0.9).
+  Toggle, chip y filtro quedan para cuando esos dos archivos se puedan tocar.
+- **La foto de categoría se pega como `public_id`, no se sube.** No existe
+  una acción de subida no atada a un producto/pago/comprobante concreto;
+  las tres que hay viven en `src/app/actions/**`. Los tres campos
+  (`description`, `imageCloudinaryId`, `imageAlt`) sí llegan a
+  `createCategory`/`updateCategory` — falta sólo el `<input type="file">`.
+- **Editar categoría no prellena descripción/foto.** `listAdminCategories`
+  no las selecciona. Se resolvió con un checkbox "Cambiar descripción o
+  foto" destildado por defecto: destildado, esos campos ni viajan (el
+  dominio ya trata "ausente" como "no tocar"), así que editar el nombre de
+  una categoría con foto no se la borra.
+
+**Un cuarto hueco, del mismo tipo pero sobre `refundPayment` (O7):**
+`refund-form.tsx` necesitaba vivir en `pedidos/[id]/page.tsx` (S9), pero esa
+ficha no trae ningún dato del pago del pedido y no existe una consulta de
+dominio que lo traiga para un pedido **vivo** (`findUnmatchedPayments`
+excluye a propósito esos estados). Se montó en cambio en "Pagos sin pedido
+vivo" (`unmatched-payments.tsx`, el dashboard, no owned por S9 ni S10 pero
+es donde ya vivía el botón de devolución total) — **no en `pedidos/[id]`,
+que es donde el prompt lo esperaba**: la nota es literal por si el merge la
+necesita. El "ya devuelto" que muestra arranca en 0 en cada carga de página
+por la misma razón (`findUnmatchedPayments` no trae `refunded_pyg`); se
+mantiene correcto dentro de la misma sesión de pantalla porque se actualiza
+en el cliente después de cada reembolso exitoso. El servidor nunca se
+equivoca — `refundPayment` relee la fila real con el candado tomado — así
+que el bug posible es sólo un número mal mostrado tras un refresh, nunca
+plata mal movida.
+
+**Nota sobre el checkout compartido.** Esta fase corrió en el mismo
+`/home/user/ecom` que S9 y S11 al mismo tiempo (no un `git worktree` por
+fase): un primer commit terminó sin querer en `phase/s11` por un `git
+checkout` de otra sesión en el mismo directorio, y `es-PY.ts`/`testids.ts`
+llevaban bloques ajenos que hubo que sacar (CI de esta fase sola los veía
+como claves muertas). Si esto se repite, un worktree por fase desde el
+principio evita los dos problemas.
+
+**Dónde mirar primero en S12/una fase de dominio.** Los cuatro huecos de
+arriba son la misma clase de problema (una acción o un `SELECT` que O7 dejó
+sin el campo que su propia UI necesita) y los cuatro arreglos son chicos y
+están descritos en `KNOWN-ISSUES.md` con el archivo y el campo exactos.
 
 ## 10. Backlog
 
