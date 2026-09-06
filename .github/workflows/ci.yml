@@ -155,9 +155,101 @@ jobs:
       - run: pnpm exec playwright test
         timeout-minutes: 10
 
+      # Las capturas (`capturas.spec.ts`, plan-operacion §6.4) son para mirar
+      # cómo quedó la pantalla en este PR, no para diagnosticar un fallo —
+      # así que suben siempre. El reporte completo de Playwright (traces,
+      # video de los tests que fallaron) sigue subiendo sólo en fallo: es
+      # pesado y sólo hace falta para debuguear.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: playwright-report/capturas/
+          retention-days: 14
+          if-no-files-found: ignore
+
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Lighthouse contra el mismo `next start` que ya usa `e2e` (plan-operacion
+  # §6.4). Corre después de `e2e` — no tiene sentido pagar el minuto extra
+  # si el build ya no levanta. `continue-on-error: true` a propósito: la
+  # varianza del runner compartido de GitHub Actions es demasiada para que
+  # un número de performance bloquee un PR — el número que sí bloquea es el
+  # presupuesto de JS de `tests/e2e/presupuesto.spec.ts` (arriba, en `e2e`),
+  # medido con bytes reales, no con un puntaje que cambia con la carga del
+  # runner. Este job es sólo una alarma temprana.
+  lighthouse:
+    needs: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ecom
+          MYSQL_USER: ecom
+          MYSQL_PASSWORD: ecom
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/ecom
+      SESSION_SECRET: ci-session-secret-de-al-menos-32-caracteres
+      NEXT_PUBLIC_SITE_URL: https://ci.example.py
+      CRON_SECRET: ci-cron-secret-de-16-caracteres
+      WHATSAPP_NUMBER: "+595981123456"
+      OWNER_EMAIL: owner@ci.example.py
+      OWNER_PASSWORD: "Contrasena-Segura-Para-CI-123"
+      OWNER_NAME: "Dueño CI"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm db:push
+      - run: pnpm db:seed
+      - run: pnpm create-owner
+
+      - run: pnpm build
+
+      # Un producto del seed, por slug — el mismo criterio de `compra.spec.ts`
+      # (fable/plan.md §6.1): no hardcodear el catálogo de una tienda
+      # concreta, salvo que `scripts/seed-data.ts` (que sí es fijo, a
+      # diferencia del catálogo real de una tienda) ya lo garantice. Ese
+      # archivo siempre trae un producto con este slug.
+      - name: Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v12
+        continue-on-error: true
+        with:
+          urls: |
+            http://127.0.0.1:3000/
+            http://127.0.0.1:3000/producto/auriculares-bluetooth-tws
+            http://127.0.0.1:3000/checkout
+          uploadArtifacts: true
+          temporaryPublicStorage: false
+          runs: 1
+          startServerCommand: pnpm start
+          startServerReadyPattern: "Ready in"
+          startServerReadyTimeout: 30000
+          configPath: ./.lighthouserc.json
