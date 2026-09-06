@@ -8,7 +8,9 @@ import { saveProduct } from "@/app/actions/admin-products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MarkdownEditor } from "@/components/admin/markdown-editor";
 import { slugify } from "@/lib/slug";
+import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 export type ProductFormValues = {
@@ -88,6 +90,7 @@ export function ProductForm({
           id="name"
           name="name"
           required
+          data-testid={TESTIDS.adminProductNameInput}
           defaultValue={defaults.name}
           onChange={(event) => {
             if (!slugTouched) setSlug(slugify(event.target.value));
@@ -109,16 +112,17 @@ export function ProductForm({
         />
       </div>
 
-      <div className="grid gap-1.5">
-        <Label htmlFor="description">{t("panel.producto.descripcion")}</Label>
-        <textarea
-          id="description"
-          name="description"
-          rows={4}
-          defaultValue={defaults.description}
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-        />
-      </div>
+      {/* Markdown seguro (O7 §5.3 D): el `<textarea name="description">` de
+          adentro es exactamente el mismo campo que leía `saveProduct` antes
+          de este PR, así que el submit no cambió — sólo se le sumó la
+          pestaña de vista previa, renderizada en el cliente con la misma
+          función que va a usar la ficha pública del producto. */}
+      <MarkdownEditor
+        name="description"
+        label={t("panel.producto.descripcion")}
+        defaultValue={defaults.description}
+        rows={4}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
@@ -173,7 +177,7 @@ export function ProductForm({
         <p className="text-muted-foreground text-xs">{t("panel.producto.publicadoAyuda")}</p>
       </div>
 
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" data-testid={TESTIDS.adminProductSaveSubmit} disabled={isPending}>
         {isPending ? t("panel.acciones.guardando") : t("panel.producto.guardar")}
       </Button>
     </form>

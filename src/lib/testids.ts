@@ -52,6 +52,81 @@ export const TESTIDS = {
   /** El buscador del listado de pedidos (`admin/order-filters.tsx`). */
   adminOrdersSearchInput: "admin-orders-search-input",
   adminOrdersSearchSubmit: "admin-orders-search-submit",
+
+  // == S9 ==
+  /** Campos de seguimiento en el paso intermedio de "Enviado" (`order-actions.tsx`). */
+  orderTrackingCarrierInput: "order-tracking-carrier-input",
+  orderTrackingCodeInput: "order-tracking-code-input",
+  orderTrackingUrlInput: "order-tracking-url-input",
+  /** El bloque del formulario de tracking, dentro del paso intermedio. */
+  orderTrackingBlockForm: "order-tracking-block-form",
+  /** El bloque "Seguimiento" de la ficha del pedido, sólo si hay tracking cargado. */
+  orderTrackingBlock: "order-tracking-block",
+  /** Link a `/admin/pedidos/[id]/imprimir` desde la ficha del pedido. */
+  orderPrintLink: "order-print-link",
+  /** Notas internas del pedido (`order-notes.tsx`). */
+  orderNotesList: "order-notes-list",
+  orderNotesTextarea: "order-notes-textarea",
+  orderNotesSubmit: "order-notes-submit",
+  /** El bloque de seguimiento en `/pedido/[orderNumber]` (la compradora). */
+  pedidoTrackingBlock: "pedido-tracking-block",
+  /** La fila de un pedido en `/admin/pedidos`, con `data-order` (el número). */
+  adminOrderRowLink: "admin-order-row-link",
+  /** Un botón de transición de estado (`order-actions.tsx`), con `data-status`. */
+  orderTransitionButton: "order-transition-button",
+  /** El botón "Confirmar" del paso intermedio de una transición. */
+  orderTransitionConfirm: "order-transition-confirm",
+
+  // == S11 ==
+  /** Una ficha en "vistos recientemente" (`recently-viewed.tsx`), con `data-slug`. */
+  recentlyViewedItem: "recently-viewed-item",
+  /**
+   * El form "avisame cuando haya stock" (`stock-alert-form.tsx`). Sólo existe
+   * en el DOM cuando `stockAlertsEnabled()` es `true` y la variante elegida no
+   * tiene disponibilidad — su ausencia en CI (sin sender) es lo que prueban
+   * `compra.spec.ts`/`csp.spec.ts`.
+   */
+  stockAlertForm: "stock-alert-form",
+  stockAlertPhone: "stock-alert-phone",
+  stockAlertSubmit: "stock-alert-submit",
+  /** El link "Consultar por WhatsApp" de una variante (`variant-inquiry-link.tsx`). */
+  variantInquiryLink: "variant-inquiry-link",
+
+  // == S10 ==
+  /** Campo "Nombre" y botón "Guardar" de `product-form.tsx`. */
+  adminProductNameInput: "admin-product-name-input",
+  adminProductSaveSubmit: "admin-product-save-submit",
+  /** Checkbox de selección de una fila (`productos/page.tsx`), con `data-id`. */
+  adminProductRowSelect: "admin-product-row-select",
+  /** "Seleccionar toda la página" (`productos/page.tsx`). */
+  adminProductSelectAll: "admin-product-select-all",
+  /** La barra de acciones masivas, visible con al menos una fila elegida. */
+  adminBulkBar: "admin-bulk-bar",
+  adminBulkActivate: "admin-bulk-activate",
+  adminBulkDeactivate: "admin-bulk-deactivate",
+  adminBulkMoveCategorySelect: "admin-bulk-move-category-select",
+  adminBulkMoveCategoryConfirm: "admin-bulk-move-category-confirm",
+  /** Abre el diálogo de ajuste masivo de precios (owner, `precios.masivo`). */
+  adminBulkPriceOpen: "admin-bulk-price-open",
+  adminBulkPricePercent: "admin-bulk-price-percent",
+  adminBulkPriceRound: "admin-bulk-price-round",
+  adminBulkPriceReason: "admin-bulk-price-reason",
+  adminBulkPricePreview: "admin-bulk-price-preview",
+  adminBulkPriceConfirm: "admin-bulk-price-confirm",
+  /** Duplicar producto, en la ficha (`productos/[id]`). */
+  adminProductDuplicate: "admin-product-duplicate",
+  /** Punto de reposición de una variante (`variant-editor.tsx`). */
+  adminVariantReorderPoint: "admin-variant-reorder-point",
+  /** Pestañas del editor de markdown (`markdown-editor.tsx`). */
+  adminMarkdownTabEdit: "admin-markdown-tab-edit",
+  adminMarkdownTabPreview: "admin-markdown-tab-preview",
+  adminMarkdownTextarea: "admin-markdown-textarea",
+  adminMarkdownPreview: "admin-markdown-preview",
+  /** Formulario de reembolso parcial (`refund-form.tsx`). */
+  adminRefundOpen: "admin-refund-open",
+  adminRefundAmount: "admin-refund-amount",
+  adminRefundReason: "admin-refund-reason",
+  adminRefundConfirm: "admin-refund-confirm",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];

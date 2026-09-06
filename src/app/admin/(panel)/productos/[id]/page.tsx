@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DuplicateProductButton } from "@/components/admin/bulk-actions";
 import { ProductForm } from "@/components/admin/product-form";
 import { ProductImages } from "@/components/admin/product-images";
 import { VariantEditor } from "@/components/admin/variant-editor";
@@ -47,7 +48,12 @@ export default async function AdminProductPage({ params }: { params: Params }) {
       <Link href="/admin/productos" className="text-muted-foreground text-sm">
         {t("panel.producto.volver")}
       </Link>
-      <h1 className="mt-2 text-xl font-semibold tracking-tight">{product.name}</h1>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight">{product.name}</h1>
+        {/* Duplicar (O7 §5.3 C): staff, la misma capacidad de ABM que ya
+            gobierna el resto de esta ficha. */}
+        <DuplicateProductButton productId={product.id} />
+      </div>
       <p className="text-muted-foreground mt-1 text-sm">
         <Link href={`/producto/${product.slug}`} className="underline">
           /producto/{product.slug}
@@ -89,6 +95,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
               onHand: variant.onHand,
               heldQty: variant.heldQty,
               available: variant.available,
+              reorderPoint: variant.reorderPoint,
             }))}
           />
         </div>
