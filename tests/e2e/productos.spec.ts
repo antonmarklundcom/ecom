@@ -54,8 +54,14 @@ test("crear producto con markdown, duplicarlo y desactivar la copia en masa", as
   const productId = productUrl.split("/").pop();
 
   // --- Duplicar -------------------------------------------------------------
-  await page.getByTestId(TESTIDS.adminProductDuplicate).click();
-  await page.waitForURL(/\/admin\/productos\/\d+$/);
+  // Ya estamos en `/admin/productos/{productId}`, que matchea el mismo
+  // patrón al que redirige la copia: un `waitForURL` con sólo el patrón
+  // resolvería de inmediato contra la URL ya puesta, sin esperar la
+  // navegación real. Por eso el predicado exige, además, que cambie.
+  await Promise.all([
+    page.waitForURL((url) => url.href !== productUrl && /\/admin\/productos\/\d+$/.test(url.pathname)),
+    page.getByTestId(TESTIDS.adminProductDuplicate).click(),
+  ]);
   const copyUrl = page.url();
   expect(copyUrl).not.toBe(productUrl);
   const copyId = copyUrl.split("/").pop();
