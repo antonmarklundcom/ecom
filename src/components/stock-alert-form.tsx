@@ -31,7 +31,7 @@ export function StockAlertForm({ variantId }: { variantId: number }) {
   return (
     <form
       data-testid={TESTIDS.stockAlertForm}
-      className="mt-3 flex flex-wrap items-end gap-2"
+      className="mt-3 space-y-2"
       onSubmit={async (event) => {
         event.preventDefault();
         setStatus("loading");
@@ -45,32 +45,33 @@ export function StockAlertForm({ variantId }: { variantId: number }) {
         }
       }}
     >
-      <div className="grid gap-1.5">
-        <Label htmlFor="stockAlertPhone" className="text-sm font-medium">
-          {t("stock.avisame.titulo")}
-        </Label>
-        <Input
-          id="stockAlertPhone"
-          name="stockAlertPhone"
-          data-testid={TESTIDS.stockAlertPhone}
-          required
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-          placeholder={t("checkout.whatsapp.placeholder")}
-          inputMode="tel"
-          autoComplete="tel"
-        />
+      <p className="text-sm font-medium">{t("stock.avisame.titulo")}</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="stockAlertPhone">{t("stock.avisame.label")}</Label>
+          <Input
+            id="stockAlertPhone"
+            name="stockAlertPhone"
+            data-testid={TESTIDS.stockAlertPhone}
+            required
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            placeholder={t("checkout.whatsapp.placeholder")}
+            inputMode="tel"
+            autoComplete="tel"
+          />
+        </div>
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          disabled={status === "loading"}
+          data-testid={TESTIDS.stockAlertSubmit}
+        >
+          {status === "loading" ? t("stock.avisame.enviando") : t("stock.avisame.boton")}
+        </Button>
+        {error ? <p className="text-destructive basis-full text-sm">{error}</p> : null}
       </div>
-      <Button
-        type="submit"
-        size="sm"
-        variant="outline"
-        disabled={status === "loading"}
-        data-testid={TESTIDS.stockAlertSubmit}
-      >
-        {status === "loading" ? t("stock.avisame.enviando") : t("stock.avisame.boton")}
-      </Button>
-      {error ? <p className="text-destructive basis-full text-sm">{error}</p> : null}
     </form>
   );
 }
