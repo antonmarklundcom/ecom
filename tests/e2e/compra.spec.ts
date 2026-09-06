@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 import "../../src/lib/load-env";
 import { closePool, getDb } from "../../src/db";
-import { orders, shippingMethods, shippingZones } from "../../src/db/schema";
+import { categories, orders, products, shippingMethods, shippingZones, variants } from "../../src/db/schema";
 
 import {
   completarCheckout,
@@ -139,5 +139,61 @@ test.describe("con formas de entrega configuradas", () => {
     await expect(page.getByTestId(TESTIDS.orderConfirmationNumber)).toHaveText(orderNumber);
     // Contra entrega no muestra el bloque de transferencia: se paga al recibir.
     await expect(page.getByText("Pagá por transferencia o QR")).toHaveCount(0);
+  });
+});
+
+/**
+ * "Avisame cuando haya stock" (plan-operacion §6.3): el formulario se dibuja
+ * **sólo** cuando `stockAlertsEnabled()` es `true` — sender disponible y
+ * plantilla de Meta cargada. El job de CI no configura ninguna de las dos
+ * cosas, así que el caso que hay que fijar acá es que, delante de una
+ * variante sin stock, el formulario **no aparece** — nunca un botón que no
+ * puede funcionar.
+ */
+test.describe("avisame cuando haya stock", () => {
+  const SLUG_SIN_STOCK = "e2e-sin-stock-s11";
+  let productId = 0;
+
+  test.beforeAll(async () => {
+    const db = getDb();
+    const [categoria] = await db.select().from(categories).where(eq(categories.isActive, true)).limit(1);
+    if (!categoria) {
+      throw new Error("Este spec necesita al menos una categoría activa — ¿corriste `pnpm db:seed`?");
+    }
+
+    const [inserted] = await db.insert(products).values({
+      slug: SLUG_SIN_STOCK,
+      name: "Producto E2E sin stock",
+      categoryId: categoria.id,
+      isActive: true,
+      publishedAt: new Date(),
+    });
+    productId = inserted.insertId;
+
+    await db.insert(variants).values({
+      productId,
+      sku: `${SLUG_SIN_STOCK}-unica`,
+      label: "Única",
+      pricePyg: 50_000,
+      onHand: 0,
+      isActive: true,
+    });
+  });
+
+  test.afterAll(async () => {
+    if (productId) {
+      // `ON DELETE CASCADE` en `variants.product_id` se lleva la variante sola.
+      await getDb().delete(products).where(eq(products.id, productId));
+    }
+    await closePool();
+  });
+
+  test("producto sin stock no muestra el formulario en CI (sin sender configurado)", async ({
+    page,
+  }) => {
+    await page.goto(`/producto/${SLUG_SIN_STOCK}`);
+
+    await expect(page.getByTestId(TESTIDS.productAddToCart)).toBeDisabled();
+    await expect(page.getByTestId(TESTIDS.stockAlertForm)).toHaveCount(0);
   });
 });

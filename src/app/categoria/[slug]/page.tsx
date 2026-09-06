@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
 
 import { CatalogFilters } from "@/components/catalog-filters";
 import { ProductCard } from "@/components/product-card";
+import { ProductDescription } from "@/components/product-description";
 import { Button } from "@/components/ui/button";
 import { t, tPlural } from "@/i18n";
+import { productImageUrl } from "@/lib/images";
+import { markdownToText } from "@/lib/markdown";
 import { parsePriceRange } from "@/lib/price-ranges";
 import { breadcrumbJsonLd, itemListJsonLd, jsonLdScript } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
@@ -39,10 +43,15 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { slug } = await params;
   const category = await loadCategory(slug).catch(() => null);
   if (!category) return { title: t("categoria.meta") };
-  return {
-    title: category.name,
-    description: t("categoria.metaDescripcion", { nombre: category.name }),
-  };
+
+  // `markdownToText`: la descripción acepta markdown (O7), y una que empiece
+  // con `**Importado**` publicaría literalmente los asteriscos en el
+  // resultado de Google — mismo motivo que en `producto/[slug]`.
+  const description =
+    markdownToText(category.description).slice(0, 160) ||
+    t("categoria.metaDescripcion", { nombre: category.name });
+
+  return { title: category.name, description };
 }
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -63,6 +72,10 @@ export default async function CategoryPage({
   // Ver la nota en producto/[slug]: el 404 tiene que decidirse acá, y por eso
   // esta ruta tampoco lleva loading.tsx.
   if (!category) notFound();
+
+  // `null` sin `CLOUDINARY_CLOUD_NAME` o sin foto cargada — la página cae al
+  // encabezado de texto de siempre (plan-operacion §6.3).
+  const categoryImageUrl = productImageUrl(category.imageCloudinaryId, "hero");
 
   const sortParam = first(query.orden);
   const { min, max } = parsePriceRange(first(query.precio));
@@ -126,6 +139,32 @@ export default async function CategoryPage({
       <p className="text-muted-foreground mt-1 text-sm">
         {tPlural("catalogo.productos", result.total)} · {t("catalogo.ivaIncluidoNota")}
       </p>
+
+      {/* Sin foto ni descripción cargadas (O7, `/admin/categorias`), esta
+          página queda exactamente igual que antes de esta sección. */}
+      {categoryImageUrl || category.description ? (
+        <div className="mt-5">
+          {categoryImageUrl ? (
+            <div className="bg-muted relative aspect-[16/5] w-full overflow-hidden rounded-xl">
+              <Image
+                src={categoryImageUrl}
+                alt={category.imageAlt ?? category.name}
+                fill
+                unoptimized
+                priority
+                sizes="(max-width: 1024px) 100vw, 1152px"
+                className="object-cover"
+              />
+            </div>
+          ) : null}
+          {category.description ? (
+            <ProductDescription
+              markdown={category.description}
+              className={categoryImageUrl ? "mt-4" : undefined}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-5">
         <Suspense fallback={null}>
