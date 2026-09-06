@@ -4,15 +4,19 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { AddToCart } from "@/components/add-to-cart";
+import { ProductDescription } from "@/components/product-description";
 import { ProductImage } from "@/components/product-image";
 import { ProductCard } from "@/components/product-card";
+import { RecentlyViewed } from "@/components/recently-viewed";
 import { getProductBySlug, getRelatedProducts } from "@/db/queries";
+import { stockAlertsEnabled } from "@/domain/stock-alerts";
 import { t } from "@/i18n";
-import { comercioWaLink } from "@/lib/comercio";
+import { comercioWaLink, comercioWhatsApp } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
 import { formatGs } from "@/lib/money";
 import { jsonLdScript } from "@/lib/seo";
+import { siteOrigin } from "@/lib/site-url";
 
 /**
  * Ficha de producto.
@@ -105,6 +109,14 @@ export default async function ProductPage({ params }: { params: Params }) {
 
   const waHref = comercioWaLink(t("producto.consultaWhatsApp", { nombre: product.name }));
 
+  // Para el link de consulta por variante (`variant-inquiry-link.tsx`, cliente):
+  // el teléfono sale de una variable sin `NEXT_PUBLIC_`, así que se resuelve
+  // acá, en el servidor, y se pasa ya normalizado — el componente cliente
+  // nunca lee `process.env`.
+  const whatsappPhone = comercioWhatsApp();
+  const origin = siteOrigin();
+  const productUrl = origin ? `${origin.origin}/producto/${product.slug}` : null;
+
   // JSON-LD: PYG y priceValidUntil no se inventan — se dejan afuera si no
   // hay dato, que es mejor que un dato falso en el rich result.
   const jsonLd = {
@@ -176,7 +188,12 @@ export default async function ProductPage({ params }: { params: Params }) {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{product.name}</h1>
 
           <div className="mt-6">
-            <AddToCart product={product} />
+            <AddToCart
+              product={product}
+              stockAlertsEnabled={stockAlertsEnabled()}
+              whatsappPhone={whatsappPhone}
+              productUrl={productUrl}
+            />
           </div>
 
           {waHref ? (
@@ -193,9 +210,7 @@ export default async function ProductPage({ params }: { params: Params }) {
           {product.description ? (
             <div className="border-border mt-8 border-t pt-6">
               <h2 className="text-sm font-medium">{t("producto.descripcion")}</h2>
-              <p className="text-muted-foreground mt-2 text-sm whitespace-pre-line">
-                {product.description}
-              </p>
+              <ProductDescription markdown={product.description} className="mt-2 text-sm" />
             </div>
           ) : null}
 
@@ -228,6 +243,16 @@ export default async function ProductPage({ params }: { params: Params }) {
           </div>
         </section>
       ) : null}
+
+      <RecentlyViewed
+        current={{
+          slug: product.slug,
+          name: product.name,
+          pricePyg: cheapest ?? product.variants[0]?.pricePyg ?? 0,
+          imageCloudinaryId: product.images[0]?.cloudinaryId ?? null,
+          imageAlt: product.images[0]?.alt ?? null,
+        }}
+      />
     </main>
   );
 }

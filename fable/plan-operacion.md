@@ -977,6 +977,52 @@ visible sólo si hay courier, guía o link.
 nuevos y `loginAsOwner`/`openOrderFicha`/`orderTransitionButton` en
 `helpers.ts` para reusar en specs de S10/S11 si hace falta sesión de owner.
 
+### 2026-09-06 · S11 — vidriera: destacados, vistos recientemente, avisame, consulta por WhatsApp
+
+Branch `phase/s11`. Piel, corrida en paralelo con S9 y S10 sobre O8 mergeada.
+
+**Qué existe ahora.** Home: título "Destacados" cuando el comercio eligió al
+menos uno (`getCatalog({ featured: true, limit: 8 })` no vacío) o "Novedades"
+con el fallback de siempre — dos claves i18n, mismo `getCatalog` que usa
+`getFeaturedProducts` (O7) por dentro, sin tocar `db/queries.ts`. Categoría:
+foto (`f_auto,q_auto`, tamaño `hero`) y descripción arriba de la grilla, las
+dos condicionadas a que existan — sin ninguna, la página es bit a bit la de
+antes; `generateMetadata` usa la descripción (vía `markdownToText`) cuando
+hay. Producto: `product-description.tsx` (nuevo, server component) reemplaza
+el `<p>` de texto plano por `renderMarkdown` + `dangerouslySetInnerHTML` —
+único lugar del template que usa esa prop, con el comentario de por qué es
+seguro ahí y sólo ahí; estilos `.prose` en el bloque `S11` de `globals.css`.
+`stock-alert-form.tsx` (nuevo) se dibuja en `add-to-cart.tsx` sólo cuando la
+variante elegida no tiene disponibilidad **y** la page pasó
+`stockAlertsEnabled()` en `true` — nunca decide nada por su cuenta, sólo
+llama a la acción existente de O6. `variant-inquiry-link.tsx` (nuevo) arma el
+`wa.me` con la variante y el SKU elegidos en el cliente; el teléfono viaja
+como prop ya normalizado (`comercioWhatsApp()`, servidor) porque
+`WHATSAPP_NUMBER` no tiene `NEXT_PUBLIC_`. `recently-viewed.tsx` (nuevo,
+client-only): guarda hasta 8 fichas mínimas en `localStorage` (clave
+`${CART_STORAGE_KEY}-vistos`, sin endpoint nuevo — límite §4.7), arranca en
+`null` y sólo dibuja después de un `useEffect`, así que el primer render de
+servidor y de cliente son iguales; `try/catch` en cada lectura/escritura, sin
+error en consola con `localStorage` bloqueado.
+
+**Decisiones y desvíos.**
+- El `setState` de `recently-viewed.tsx` va adentro de un `setTimeout(…, 0)`
+  y no suelto en el cuerpo del efecto — la regla `react-hooks/set-state-in-effect`
+  lo marca igual que en `search-box.tsx`; mismo patrón que ya usa ese archivo.
+- Las categorías no tienen `blur_data_url` (sólo las fotos de producto; O7 no
+  agregó esa columna para categorías): la portada de categoría sale sin blur
+  placeholder. No es una regresión — hoy no existe ninguna portada de
+  categoría — y agregar la columna es schema nuevo, fuera de los Owns de esta
+  fase (§4.7).
+- El e2e de "avisame" (`compra.spec.ts`) crea y borra un producto con una
+  variante en `on_hand: 0`: fija que, en CI (sin sender ni plantilla), el
+  formulario **no** aparece — nunca un botón que no puede funcionar.
+- Nada nuevo en `KNOWN-ISSUES.md`.
+
+**Dónde mirar primero en S12.** Nada de esta fase toca `.github/workflows/**`
+ni `playwright.config.ts`; S12 arranca limpio en cuanto S9, S10 y S11 estén
+las tres mergeadas.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).

@@ -15,10 +15,23 @@ export const revalidate = 300;
 export default async function HomePage() {
   let categories: Awaited<ReturnType<typeof getCategories>> = [];
   let featured: CatalogProduct[] = [];
+  let isChosen = false;
   let error: string | null = null;
 
   try {
-    [categories, featured] = await Promise.all([getCategories(), getCatalog({ limit: 8 })]);
+    // `getFeaturedProducts` (O7) ya resuelve destacados-o-fallback, pero no
+    // dice cuál rama tomó — y el título de la sección tiene que ser distinto
+    // en cada caso ("Destacados" elegidos a mano vs. "Novedades" de
+    // `getCatalog({ limit })` de siempre). Se pide la rama elegida aparte, con
+    // el mismo `getCatalog({ featured: true })` que usa por dentro, y sólo se
+    // cae al catálogo de siempre cuando viene vacía.
+    let destacados: CatalogProduct[];
+    [categories, destacados] = await Promise.all([
+      getCategories(),
+      getCatalog({ featured: true, limit: 8 }),
+    ]);
+    isChosen = destacados.length > 0;
+    featured = isChosen ? destacados : await getCatalog({ limit: 8 });
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause);
   }
@@ -66,7 +79,9 @@ export default async function HomePage() {
           {featured.length > 0 ? (
             <section className="mt-12">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-lg font-semibold">{t("home.destacados")}</h2>
+                <h2 className="text-lg font-semibold">
+                  {isChosen ? t("home.destacados") : t("home.novedades")}
+                </h2>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
                 {featured.map((product, index) => (

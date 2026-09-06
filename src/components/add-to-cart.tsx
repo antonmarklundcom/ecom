@@ -4,9 +4,11 @@ import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { QuantityStepper } from "@/components/quantity-stepper";
+import { StockAlertForm } from "@/components/stock-alert-form";
 import { StockBadge } from "@/components/stock-badge";
 import { PriceTag } from "@/components/price-tag";
 import { Button } from "@/components/ui/button";
+import { VariantInquiryLink } from "@/components/variant-inquiry-link";
 import { useCart } from "@/lib/cart-store";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
 import { TESTIDS } from "@/lib/testids";
@@ -21,8 +23,24 @@ import { t } from "@/i18n";
  * manda es el del servidor (revalidación del carrito y, después, la reserva
  * en el checkout). Acá sólo evitamos que el comprador pida algo que ya
  * sabemos que no está.
+ *
+ * `stockAlertsEnabled` y `whatsappPhone` los decide la page (server): la
+ * primera es `stockAlertsEnabled()` del dominio, y sin sender configurado
+ * llega en `false` — nunca se dibuja un botón que no puede funcionar. La
+ * segunda es `WHATSAPP_NUMBER` ya normalizado; sin ella no hay link de
+ * consulta por variante.
  */
-export function AddToCart({ product }: { product: CatalogProductDetail }) {
+export function AddToCart({
+  product,
+  stockAlertsEnabled = false,
+  whatsappPhone = null,
+  productUrl = null,
+}: {
+  product: CatalogProductDetail;
+  stockAlertsEnabled?: boolean;
+  whatsappPhone?: string | null;
+  productUrl?: string | null;
+}) {
   const add = useCart((state) => state.add);
   const firstAvailable = product.variants.find((variant) => variant.available > 0);
   const [picked, setPicked] = useState<number | undefined>(undefined);
@@ -125,7 +143,23 @@ export function AddToCart({ product }: { product: CatalogProductDetail }) {
         >
           {canAdd ? t("producto.agregar") : t("stock.sin")}
         </Button>
+        {selected ? (
+          <VariantInquiryLink
+            phone={whatsappPhone}
+            productName={product.name}
+            variantLabel={selected.label}
+            sku={selected.sku}
+            productUrl={productUrl}
+          />
+        ) : null}
       </div>
+
+      {/* Sólo cuando la variante elegida no tiene disponibilidad y la page
+          confirmó que hay con qué avisar — nunca un formulario que no puede
+          funcionar (plan-operacion §6.3). */}
+      {selected && !canAdd && stockAlertsEnabled ? (
+        <StockAlertForm variantId={selected.id} />
+      ) : null}
     </div>
   );
 }
