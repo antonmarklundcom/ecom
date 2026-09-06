@@ -57,7 +57,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
     createdAt: formatDateTimePY(note.createdAt),
   }));
 
-  const courierSuggestions = shippingMethods.map((method) => method.name);
+  // Sólo las activas: una desactivada no es algo que el mostrador debería
+  // volver a tipear como courier.
+  const courierSuggestions = shippingMethods.filter((method) => method.isActive).map((method) => method.name);
 
   const hasTracking = Boolean(order.trackingCarrier || order.trackingCode || order.trackingUrl);
 
