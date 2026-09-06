@@ -53,6 +53,30 @@ export const TESTIDS = {
   adminOrdersSearchInput: "admin-orders-search-input",
   adminOrdersSearchSubmit: "admin-orders-search-submit",
 
+  // == S9 ==
+  /** Campos de seguimiento en el paso intermedio de "Enviado" (`order-actions.tsx`). */
+  orderTrackingCarrierInput: "order-tracking-carrier-input",
+  orderTrackingCodeInput: "order-tracking-code-input",
+  orderTrackingUrlInput: "order-tracking-url-input",
+  /** El bloque del formulario de tracking, dentro del paso intermedio. */
+  orderTrackingBlockForm: "order-tracking-block-form",
+  /** El bloque "Seguimiento" de la ficha del pedido, sólo si hay tracking cargado. */
+  orderTrackingBlock: "order-tracking-block",
+  /** Link a `/admin/pedidos/[id]/imprimir` desde la ficha del pedido. */
+  orderPrintLink: "order-print-link",
+  /** Notas internas del pedido (`order-notes.tsx`). */
+  orderNotesList: "order-notes-list",
+  orderNotesTextarea: "order-notes-textarea",
+  orderNotesSubmit: "order-notes-submit",
+  /** El bloque de seguimiento en `/pedido/[orderNumber]` (la compradora). */
+  pedidoTrackingBlock: "pedido-tracking-block",
+  /** La fila de un pedido en `/admin/pedidos`, con `data-order` (el número). */
+  adminOrderRowLink: "admin-order-row-link",
+  /** Un botón de transición de estado (`order-actions.tsx`), con `data-status`. */
+  orderTransitionButton: "order-transition-button",
+  /** El botón "Confirmar" del paso intermedio de una transición. */
+  orderTransitionConfirm: "order-transition-confirm",
+
   // == S11 ==
   /** Una ficha en "vistos recientemente" (`recently-viewed.tsx`), con `data-slug`. */
   recentlyViewedItem: "recently-viewed-item",
