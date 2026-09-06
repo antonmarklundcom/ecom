@@ -8,6 +8,7 @@ import {
   necesitaInstall,
   ordenarParaAplicar,
   parseArgs,
+  resumenJson,
   shasYaAplicados,
 } from '../../scripts/template-sync';
 
@@ -26,6 +27,8 @@ describe('parseArgs', () => {
       dryRun: false,
       hasta: null,
       sinTests: false,
+      ramaDestino: null,
+      json: false,
     });
   });
 
@@ -46,9 +49,32 @@ describe('parseArgs', () => {
     });
   });
 
+  it('--rama-destino toma el nombre que sigue', () => {
+    expect(parseArgs(['--rama-destino', 'template/2026-09-06-abc1234']).ramaDestino).toBe(
+      'template/2026-09-06-abc1234',
+    );
+  });
+
+  it('--json es un flag suelto', () => {
+    expect(parseArgs(['--json']).json).toBe(true);
+  });
+
+  it('--rama-destino y --json combinan con el resto de las opciones', () => {
+    expect(parseArgs(['--sin-tests', '--rama-destino', 'mi-rama', '--json'])).toEqual({
+      remoto: 'template',
+      rama: 'main',
+      dryRun: false,
+      hasta: null,
+      sinTests: true,
+      ramaDestino: 'mi-rama',
+      json: true,
+    });
+  });
+
   it('una opción desconocida o sin valor no se ignora', () => {
     expect(() => parseArgs(['--hasta'])).toThrow(/espera un valor/);
     expect(() => parseArgs(['--hasta', '--sin-tests'])).toThrow(/espera un valor/);
+    expect(() => parseArgs(['--rama-destino'])).toThrow(/espera un valor/);
     expect(() => parseArgs(['--marcar'])).toThrow(/no conozco/);
   });
 });
@@ -175,5 +201,70 @@ describe('necesitaInstall', () => {
     expect(necesitaInstall(['src/domain/stock.ts', 'package.json'])).toBe(true);
     expect(necesitaInstall(['src/domain/stock.ts'])).toBe(false);
     expect(necesitaInstall([])).toBe(false);
+  });
+});
+
+// `--json` (plan-operacion §6.5): `distribuir.yml` parsea esta salida para
+// armar el cuerpo del PR en cada tienda — la forma es el contrato.
+describe('resumenJson', () => {
+  it('sin-cambios: listas vacías, nada de commits', () => {
+    expect(resumenJson({ estado: 'sin-cambios' })).toEqual({
+      estado: 'sin-cambios',
+      aplicados: [],
+      salteados: [],
+    });
+  });
+
+  it('completado: aplicados y salteados sólo con sha y asunto, más el baseline', () => {
+    const resultado = {
+      estado: 'completado' as const,
+      aplicados: [commit('ccc', 'Cotización de envío', true)],
+      salteados: [commit('bbb', 'Ya estaba aplicado', true)],
+      baseline: 'ccc',
+    };
+    expect(resumenJson(resultado)).toEqual({
+      estado: 'completado',
+      aplicados: [{ sha: 'ccc', asunto: 'Cotización de envío' }],
+      salteados: [{ sha: 'bbb', asunto: 'Ya estaba aplicado' }],
+      baseline: 'ccc',
+    });
+  });
+
+  it('conflicto-manual: trae el sha, el archivo y el mensaje para el cuerpo del PR en draft', () => {
+    const resultado = {
+      estado: 'conflicto-manual' as const,
+      sha: 'ddd4444',
+      asunto: 'Arreglo de stock',
+      archivos: ['src/domain/stock.ts'],
+      mensaje: 'Conflicto en ddd4444 que no puedo resolver solo',
+    };
+    expect(resumenJson(resultado)).toEqual(resultado);
+  });
+
+  it('precondicion y fallo-post no pierden el mensaje', () => {
+    expect(resumenJson({ estado: 'precondicion', mensaje: 'está en main' })).toEqual({
+      estado: 'precondicion',
+      mensaje: 'está en main',
+    });
+    expect(
+      resumenJson({
+        estado: 'fallo-post',
+        mensaje: '`pnpm install` falló',
+        aplicados: [commit('aaa', 'Uno', true)],
+        salteados: [],
+      }),
+    ).toEqual({
+      estado: 'fallo-post',
+      mensaje: '`pnpm install` falló',
+      aplicados: [{ sha: 'aaa', asunto: 'Uno' }],
+      salteados: [],
+    });
+  });
+
+  it('dry-run: sólo los pendientes, con sha y asunto', () => {
+    expect(resumenJson({ estado: 'dry-run', pendientes: [commit('eee', 'Pendiente', true)] })).toEqual({
+      estado: 'dry-run',
+      pendientes: [{ sha: 'eee', asunto: 'Pendiente' }],
+    });
   });
 });
