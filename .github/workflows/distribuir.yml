@@ -21,10 +21,6 @@ jobs:
       hay_token: ${{ steps.token.outputs.hay }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            tiendas.json
-          sparse-checkout-cone-mode: false
 
       - name: Leer tiendas.json
         id: leer
@@ -85,22 +81,40 @@ jobs:
         tienda: ${{ fromJson(needs.preparar.outputs.tiendas) }}
 
     steps:
+      # Sin `path:` — este workflow ya vive en el template, así que
+      # $GITHUB_WORKSPACE ES el template (igual que en ci.yml). Eso mantiene
+      # a `pnpm/action-setup` leyendo `packageManager` de `package.json` en
+      # la raíz sin nada especial, y deja un solo checkout para usar como
+      # remoto `template` de cada tienda (clonada aparte, en `./tienda`).
       - name: Checkout del template
         uses: actions/checkout@v4
         with:
-          path: template
+          # Historia completa: la tienda cherry-pickea commits arbitrariamente
+          # viejos (desde su `.template-baseline`) y un clon shallow (depth 1,
+          # el default) no los tiene — este checkout es el remoto `template`
+          # de cada tienda, así que sin esto todo `git log baseline..ref` del
+          # lado de la tienda vería un solo commit.
+          fetch-depth: 0
 
+      - name: Asegurar una rama local "main" para servir de remoto
+        # `actions/checkout` deja el HEAD **detached** en el SHA del evento —
+        # no existe `refs/heads/main` local. `template:sync` (acá y en cada
+        # tienda) hace `git fetch template main`: sin una rama local con ese
+        # nombre, git no tiene qué mandarle. `-B` la crea o la mueve al HEAD
+        # actual sin quejarse si ya existe.
+        run: git checkout -B main
+
+      # `pnpm`/`node` en el PATH para el resto del job — el `pnpm install` de
+      # verdad corre más abajo, adentro del checkout de la tienda: es ahí
+      # donde hace falta `tsx` (para `template-sync.ts`) y `gh`/`git` corren
+      # sobre ese working tree. El checkout del template no necesita sus
+      # propias dependencias instaladas — sólo se copian dos `.ts` sueltos
+      # (ver el paso de abajo) y un `.mjs` sin dependencias externas.
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: template/pnpm-lock.yaml
-
-      - name: Instalar dependencias del template (para tsx)
-        working-directory: template
-        run: pnpm install --frozen-lockfile
 
       - name: Clonar la tienda
         env:
@@ -112,7 +126,7 @@ jobs:
           cd tienda
           git config user.name "ecom-template-bot"
           git config user.email "actions@users.noreply.github.com"
-          git remote add template "$GITHUB_WORKSPACE/template"
+          git remote add template "$GITHUB_WORKSPACE"
 
       - name: Preparar la rama y sincronizar
         id: sync
@@ -134,8 +148,8 @@ jobs:
           # que los agregó viaja después en este mismo cherry-pick, el
           # cherry-pick da "vacío" (contenido idéntico) y se saltea solo —
           # mismo camino que un commit ya aplicado.
-          cp "$GITHUB_WORKSPACE/template/scripts/template-sync.ts" scripts/template-sync.ts
-          cp "$GITHUB_WORKSPACE/template/scripts/template-shared.ts" scripts/template-shared.ts
+          cp "$GITHUB_WORKSPACE/scripts/template-sync.ts" scripts/template-sync.ts
+          cp "$GITHUB_WORKSPACE/scripts/template-shared.ts" scripts/template-shared.ts
           if [ -n "$(git status --porcelain -- scripts/template-sync.ts scripts/template-shared.ts)" ]; then
             git add scripts/template-sync.ts scripts/template-shared.ts
             git -c core.editor=true commit -m "Actualizar scripts/template-sync.ts para poder distribuir (bootstrap de CI)"
@@ -159,7 +173,7 @@ jobs:
           repo="${{ matrix.tienda.repo }}"
           rama="${{ steps.sync.outputs.rama }}"
 
-          node "$GITHUB_WORKSPACE/template/scripts/ci/armar-pr-tiendas.mjs" \
+          node "$GITHUB_WORKSPACE/scripts/ci/armar-pr-tiendas.mjs" \
             --repo "$repo" --rama "$rama" --resultado sync-resultado.json --sha "$GITHUB_SHA"
 
       - name: Sin novedades para esta tienda o error sin nada para mostrar
