@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatGs } from "@/lib/money";
+import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 export type VariantCard = {
@@ -21,6 +22,8 @@ export type VariantCard = {
   onHand: number;
   heldQty: number;
   available: number;
+  /** Umbral de "stock bajo" propio (O6). `null` = el umbral general de la tienda. */
+  reorderPoint?: number | null;
 };
 
 export function VariantEditor({
@@ -130,6 +133,8 @@ function VariantFields({
         const data = new FormData(event.currentTarget);
         const compareAt = String(data.get("compareAtPyg") ?? "").trim();
 
+        const reorderPointRaw = String(data.get("reorderPoint") ?? "").trim();
+
         startTransition(async () => {
           const result = await saveProductVariant({
             productId,
@@ -139,6 +144,7 @@ function VariantFields({
             pricePyg: Number(data.get("pricePyg")),
             compareAtPyg: compareAt === "" ? null : Number(compareAt),
             isActive: data.get("isActive") === "on",
+            reorderPoint: reorderPointRaw === "" ? null : Number(reorderPointRaw),
           });
 
           if (!result.ok) {
@@ -207,6 +213,24 @@ function VariantFields({
             inputMode="numeric"
             defaultValue={variant?.compareAtPyg ?? ""}
           />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`reorder-${variant?.id ?? "new"}`}>{t("panel.variante.puntoReposicion")}</Label>
+          <Input
+            id={`reorder-${variant?.id ?? "new"}`}
+            name="reorderPoint"
+            type="number"
+            min={0}
+            max={100_000}
+            step={1}
+            inputMode="numeric"
+            data-testid={TESTIDS.adminVariantReorderPoint}
+            placeholder={t("panel.variante.puntoReposicion.placeholder")}
+            defaultValue={variant?.reorderPoint ?? ""}
+          />
+          <p className="text-muted-foreground text-xs">
+            {t("panel.variante.puntoReposicion.ayuda")}
+          </p>
         </div>
       </div>
 

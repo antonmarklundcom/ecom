@@ -91,6 +91,42 @@ export const TESTIDS = {
   stockAlertSubmit: "stock-alert-submit",
   /** El link "Consultar por WhatsApp" de una variante (`variant-inquiry-link.tsx`). */
   variantInquiryLink: "variant-inquiry-link",
+
+  // == S10 ==
+  /** Campo "Nombre" y botón "Guardar" de `product-form.tsx`. */
+  adminProductNameInput: "admin-product-name-input",
+  adminProductSaveSubmit: "admin-product-save-submit",
+  /** Checkbox de selección de una fila (`productos/page.tsx`), con `data-id`. */
+  adminProductRowSelect: "admin-product-row-select",
+  /** "Seleccionar toda la página" (`productos/page.tsx`). */
+  adminProductSelectAll: "admin-product-select-all",
+  /** La barra de acciones masivas, visible con al menos una fila elegida. */
+  adminBulkBar: "admin-bulk-bar",
+  adminBulkActivate: "admin-bulk-activate",
+  adminBulkDeactivate: "admin-bulk-deactivate",
+  adminBulkMoveCategorySelect: "admin-bulk-move-category-select",
+  adminBulkMoveCategoryConfirm: "admin-bulk-move-category-confirm",
+  /** Abre el diálogo de ajuste masivo de precios (owner, `precios.masivo`). */
+  adminBulkPriceOpen: "admin-bulk-price-open",
+  adminBulkPricePercent: "admin-bulk-price-percent",
+  adminBulkPriceRound: "admin-bulk-price-round",
+  adminBulkPriceReason: "admin-bulk-price-reason",
+  adminBulkPricePreview: "admin-bulk-price-preview",
+  adminBulkPriceConfirm: "admin-bulk-price-confirm",
+  /** Duplicar producto, en la ficha (`productos/[id]`). */
+  adminProductDuplicate: "admin-product-duplicate",
+  /** Punto de reposición de una variante (`variant-editor.tsx`). */
+  adminVariantReorderPoint: "admin-variant-reorder-point",
+  /** Pestañas del editor de markdown (`markdown-editor.tsx`). */
+  adminMarkdownTabEdit: "admin-markdown-tab-edit",
+  adminMarkdownTabPreview: "admin-markdown-tab-preview",
+  adminMarkdownTextarea: "admin-markdown-textarea",
+  adminMarkdownPreview: "admin-markdown-preview",
+  /** Formulario de reembolso parcial (`refund-form.tsx`). */
+  adminRefundOpen: "admin-refund-open",
+  adminRefundAmount: "admin-refund-amount",
+  adminRefundReason: "admin-refund-reason",
+  adminRefundConfirm: "admin-refund-confirm",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];

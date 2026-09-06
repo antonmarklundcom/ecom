@@ -1023,6 +1023,75 @@ error en consola con `localStorage` bloqueado.
 ni `playwright.config.ts`; S12 arranca limpio en cuanto S9, S10 y S11 estén
 las tres mergeadas.
 
+### 2026-09-06 · S10 — panel de productos y categorías
+
+Branch `phase/s10`, en paralelo con S9 y S11. Sólo piel: nada de
+`src/domain/**`, `src/db/**`, `src/app/actions/**` ni `src/app/api/**`.
+
+**Qué existe ahora.** `/admin/productos`: checkbox por fila + "seleccionar
+página" (`product-list.tsx`, nuevo) con una barra de acciones masivas
+(`bulk-actions.tsx`) — activar, desactivar, mover de categoría (`productos`,
+staff) y, sólo si `can(role, 'precios.masivo')`, "Ajustar precios"
+(`bulk-price-dialog.tsx`): vista previa con `previewPriceAdjustment` (la
+misma fórmula que escribe, como dejó O7) y una confirmación explícita con la
+cantidad de variantes, el porcentaje, el redondeo y el motivo antes de
+escribir. Duplicar producto, en la ficha. Punto de reposición por variante en
+`variant-editor.tsx`. Descripción con markdown seguro: `markdown-editor.tsx`
+(nuevo) con pestaña "Vista previa" que llama a `renderMarkdown` en el
+cliente — cero server actions nuevas. Categorías con descripción y foto
+(`categories-manager.tsx`). Reembolso parcial: `refund-form.tsx` (nuevo).
+E2E nuevo: `tests/e2e/productos.spec.ts` (alta con markdown + vista previa,
+duplicar, acción masiva sobre la copia), todo por testid.
+
+**Decisiones y desvíos — tres huecos que dejó O7 y que S10 no pudo cerrar
+porque están fuera de sus límites duros (§4.7), documentados en
+`KNOWN-ISSUES.md` con el arreglo exacto:**
+- **"Destacado" no tiene botón.** El dominio (`updateProduct.isFeatured`,
+  `getFeaturedProducts`) está listo desde O7, pero la server action
+  `saveProduct` (`admin-products.ts`) nunca ganó el campo y
+  `listAdminProducts` no selecciona `is_featured`. Sin acción que lo acepte,
+  no hay workaround de piel que no sea "inventar un fetch" (prohibido, §0.9).
+  Toggle, chip y filtro quedan para cuando esos dos archivos se puedan tocar.
+- **La foto de categoría se pega como `public_id`, no se sube.** No existe
+  una acción de subida no atada a un producto/pago/comprobante concreto;
+  las tres que hay viven en `src/app/actions/**`. Los tres campos
+  (`description`, `imageCloudinaryId`, `imageAlt`) sí llegan a
+  `createCategory`/`updateCategory` — falta sólo el `<input type="file">`.
+- **Editar categoría no prellena descripción/foto.** `listAdminCategories`
+  no las selecciona. Se resolvió con un checkbox "Cambiar descripción o
+  foto" destildado por defecto: destildado, esos campos ni viajan (el
+  dominio ya trata "ausente" como "no tocar"), así que editar el nombre de
+  una categoría con foto no se la borra.
+
+**Un cuarto hueco, del mismo tipo pero sobre `refundPayment` (O7):**
+`refund-form.tsx` necesitaba vivir en `pedidos/[id]/page.tsx` (S9), pero esa
+ficha no trae ningún dato del pago del pedido y no existe una consulta de
+dominio que lo traiga para un pedido **vivo** (`findUnmatchedPayments`
+excluye a propósito esos estados). Se montó en cambio en "Pagos sin pedido
+vivo" (`unmatched-payments.tsx`, el dashboard, no owned por S9 ni S10 pero
+es donde ya vivía el botón de devolución total) — **no en `pedidos/[id]`,
+que es donde el prompt lo esperaba**: la nota es literal por si el merge la
+necesita. El "ya devuelto" que muestra arranca en 0 en cada carga de página
+por la misma razón (`findUnmatchedPayments` no trae `refunded_pyg`); se
+mantiene correcto dentro de la misma sesión de pantalla porque se actualiza
+en el cliente después de cada reembolso exitoso. El servidor nunca se
+equivoca — `refundPayment` relee la fila real con el candado tomado — así
+que el bug posible es sólo un número mal mostrado tras un refresh, nunca
+plata mal movida.
+
+**Nota sobre el checkout compartido.** Esta fase corrió en el mismo
+`/home/user/ecom` que S9 y S11 al mismo tiempo (no un `git worktree` por
+fase): un primer commit terminó sin querer en `phase/s11` por un `git
+checkout` de otra sesión en el mismo directorio, y `es-PY.ts`/`testids.ts`
+llevaban bloques ajenos que hubo que sacar (CI de esta fase sola los veía
+como claves muertas). Si esto se repite, un worktree por fase desde el
+principio evita los dos problemas.
+
+**Dónde mirar primero en S12/una fase de dominio.** Los cuatro huecos de
+arriba son la misma clase de problema (una acción o un `SELECT` que O7 dejó
+sin el campo que su propia UI necesita) y los cuatro arreglos son chicos y
+están descritos en `KNOWN-ISSUES.md` con el archivo y el campo exactos.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).

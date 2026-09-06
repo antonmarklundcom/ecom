@@ -50,3 +50,94 @@ cuando alguna tienda se acerque: un archivo por tabla **más** un manifiesto con
 la lista y el conteo de filas de cada uno, y que `restore` se niegue a correr
 si falta alguno. Mientras tanto, el dump comprimido de una tienda con miles de
 pedidos entra cómodo en 10 MB.
+
+## "Destacado" no tiene botón en el panel — fase S10
+
+O7 dejó `updateProduct` (dominio) aceptando `isFeatured` y `getFeaturedProducts`
+armado, pero **la server action `saveProduct`** (`src/app/actions/admin-products.ts`)
+nunca ganó el campo — el `ProductSchema` de esa acción no lo tiene, así que hoy
+no existe ningún camino, ni de panel ni de API, para que alguien marque un
+producto como destacado más allá de escribir la columna a mano en la base.
+`listAdminProducts` tampoco selecciona `is_featured`, así que el listado no
+podría dibujar el chip ni el filtro "destacados" aunque el toggle existiera.
+
+S10 no lo arregló porque los dos archivos que hacen falta tocar —
+`src/app/actions/admin-products.ts` y `src/domain/admin-products.ts` (el
+`SELECT` de `listAdminProducts`)— están fuera de sus límites duros (§4.7):
+`src/app/actions/**` y `src/domain/**`. No hay workaround de piel para esto:
+sin una acción que acepte el campo, no hay ningún fetch del lado del cliente
+que pueda escribirlo sin inventar un camino nuevo, que el plan prohíbe
+explícitamente (§0.9, "no un fetch inventado").
+
+Arreglo: una fase con permiso de tocar `src/app/actions/**` agrega
+`isFeatured: z.boolean()` (opcional, default `false`) a `ProductSchema` en
+`saveProduct`, lo pasa a `updateProduct`/`createProduct` (que ya lo aceptan), y
+suma `isFeatured: products.isFeatured` al `SELECT` de `listAdminProducts`. Con
+eso puesto, el toggle en `product-form.tsx`, el chip en el listado y el filtro
+"destacados" en `product-filters.tsx` son un cambio chico y quedan afuera de
+`src/domain/**`/`src/app/actions/**` de ahí en más.
+
+## La foto de una categoría se carga pegando el `public_id`, no subiendo el archivo — fase S10
+
+`crearCategoria`/`editarCategoria` (O7) aceptan `imageCloudinaryId` como texto,
+no como archivo: la subida real (`cloudinary.uploader.upload`) vive hoy sólo
+adentro de acciones atadas a una entidad concreta —`uploadProductImage`
+(producto), la de banco, la de comprobantes— y todas están en
+`src/app/actions/**`, fuera de los límites de S10. Sin una acción
+`uploadCategoryImage` (o una genérica), no hay forma de ofrecer un
+`<input type="file">` real en `categories-manager.tsx`.
+
+El formulario de categoría de este PR pide el `public_id` a mano (subido antes
+a la carpeta `categorias/` por fuera del panel) más el alt. Funciona —los tres
+campos ya llegan a `createCategory`/`updateCategory` tal cual— pero es peor
+UX que arrastrar un archivo. Arreglo: una fase Opus agrega
+`uploadCategoryImage` en `src/app/actions/admin-categories.ts` (mismo patrón
+que `uploadProductImage`, carpeta `categorias/`) y S10 (o quien la reemplace)
+cambia el campo de texto por el mismo `<input type="file">` que ya usa
+`product-images.tsx`.
+
+## El formulario de editar categoría no muestra la descripción ni la foto que ya tiene cargadas — fase S10
+
+`listAdminCategories` (dominio) no selecciona `description`, `imageCloudinaryId`
+ni `imageAlt` — sólo `id`, `slug`, `name`, `position`, `isActive` y los dos
+conteos de productos. `categories-manager.tsx` no tiene entonces cómo prellenar
+esos campos al editar una categoría que ya los tiene puestos.
+
+Se resolvió con un checkbox "Cambiar descripción o foto", destildado por
+defecto al editar: mientras esté destildado, esos tres campos ni siquiera
+viajan en el payload (`crearCategoria`/`editarCategoria` tratan la ausencia
+como "no tocar", no como "borrar") así que editar sólo el nombre de una
+categoría con foto no se la borra. Tildarlo permite escribir valores nuevos,
+a ciegas de los actuales. Arreglo: sumar las tres columnas al `SELECT` de
+`listAdminCategories` (fuera de los límites de S10) y prellenar el formulario
+como corresponde.
+
+## Reembolso parcial: "ya devuelto" arranca en 0 en cada carga de la pantalla — fase S10
+
+`refund-form.tsx` (nuevo, S10) muestra `amount_pyg`, `refunded_pyg` y lo que
+queda por devolver, pero el `refunded_pyg` que recibe como prop
+(`refundedPygInicial`) es **siempre 0** al montarse: `findUnmatchedPayments`
+(`src/domain/payment-recovery.ts`, dominio) no selecciona
+`payments.refunded_pyg`, así que "Pagos sin pedido vivo" —el único lugar de
+hoy con los datos de un pago para dibujar algo— no tiene ese número para
+pasar. Adentro de la misma sesión de pantalla el número sí se mantiene
+correcto (se actualiza en el cliente después de cada reembolso exitoso, sin
+volver a preguntarle al servidor), así que el caso roto es sólo: alguien hace
+un reembolso parcial, **recarga la página**, y el formulario vuelve a mostrar
+"queda por devolver: `amount_pyg`" en vez de restarle lo ya devuelto. El
+servidor no se equivoca nunca —`refundPayment` relee `refunded_pyg` real con
+la fila bloqueada y rechaza un monto que se pase—, así que esto es sólo un
+número mal mostrado, nunca una plata mal movida.
+
+Tampoco hay hoy una consulta de dominio que traiga el pago de un pedido
+**vivo** (`enviado`, `entregado`, etc.) para el caso de uso real que describe
+plan-operacion §5.3.A ("la compradora se queda con dos de tres remeras"):
+`findUnmatchedPayments` excluye a propósito esos pedidos (`SETTLED_STATUSES`),
+así que el formulario de este PR quedó montado en "Pagos sin pedido vivo"
+(`unmatched-payments.tsx`, dashboard) y no en la ficha del pedido
+(`pedidos/[id]`), que es donde el plan lo imaginaba. Los dos huecos son el
+mismo: falta una función de dominio tipo `getPaymentForOrder(orderId)` que
+devuelva `paymentId`, `amountPyg` y `refundedPyg`. Arreglo: una fase con
+permiso sobre `src/domain/**` la agrega, y entonces `refund-form.tsx` se monta
+en `pedidos/[id]/page.tsx` con los datos reales en vez de en el dashboard con
+un `refundedPygInicial` fijo en 0.

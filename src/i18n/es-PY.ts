@@ -1459,6 +1459,88 @@ export const esPY = {
   // formulario para poder volver sin perder el filtro.
   "panel.productoNuevo.volver": "← Productos",
 
+  // == S10 == Panel de productos y categorías: selección y acciones masivas,
+  // duplicar, markdown seguro, punto de reposición, categorías con foto y
+  // descripción, reembolso parcial (plan-operacion §6.2)
+  // -------------------------------------------------------------------------
+  "panel.productos.seleccionar": "Seleccionar {nombre}",
+  "panel.productos.seleccionarPagina": "Seleccionar toda la página",
+  "panel.productos.seleccionados.uno": "{n} producto seleccionado",
+  "panel.productos.seleccionados.varios": "{n} productos seleccionados",
+  "panel.productos.limpiarSeleccion": "Limpiar selección",
+
+  "panel.masivo.activar": "Activar",
+  "panel.masivo.desactivar": "Desactivar",
+  "panel.masivo.moverCategoria": "Mover de categoría",
+  "panel.masivo.moverConfirmar": "Mover",
+  "panel.masivo.ajustarPrecios": "Ajustar precios",
+  "panel.masivo.aplicando": "Aplicando…",
+  "panel.masivo.cambiaronActivos.uno": "Cambió {n} producto.",
+  "panel.masivo.cambiaronActivos.varios": "Cambiaron {n} productos.",
+  "panel.masivo.movieron.uno": "Se movió {n} producto.",
+  "panel.masivo.movieron.varios": "Se movieron {n} productos.",
+  "panel.masivo.elegiCategoria": "Elegí una categoría",
+
+  "panel.masivo.precios.titulo": "Ajustar precios por porcentaje",
+  "panel.masivo.precios.bajada":
+    "Se aplica sobre el precio de cada variante de los productos elegidos. El precio tachado no cambia.",
+  "panel.masivo.precios.porcentaje": "Porcentaje (negativo para bajar)",
+  "panel.masivo.precios.redondeo": "Redondear a",
+  "panel.masivo.precios.redondeo100": "₲ 100",
+  "panel.masivo.precios.redondeo1000": "₲ 1.000",
+  "panel.masivo.precios.motivo": "Motivo",
+  "panel.masivo.precios.motivo.placeholder": "Ej: ajuste por inflación de proveedor",
+  "panel.masivo.precios.verVistaPrevia": "Ver vista previa",
+  "panel.masivo.precios.calculando": "Calculando…",
+  "panel.masivo.precios.vistaPrevia": "Vista previa ({miradas} variantes, {cambiadas} cambian)",
+  "panel.masivo.precios.ejemploLinea": "Variante #{variantId}: {desde} → {hasta}",
+  "panel.masivo.precios.sinCambios": "Con este porcentaje y redondeo ningún precio cambia.",
+  "panel.masivo.precios.confirmarTitulo": "¿Confirmás el ajuste?",
+  "panel.masivo.precios.confirmarBajada":
+    "Vas a cambiar el precio de {cambiadas} variante(s) un {porcentaje}%, redondeado a {redondeo}. Motivo: “{motivo}”. Esto no se puede deshacer con un botón.",
+  "panel.masivo.precios.confirmarBoton": "Sí, ajustar precios",
+  "panel.masivo.precios.aplicado.uno": "Se ajustó el precio de {n} variante.",
+  "panel.masivo.precios.aplicado.varios": "Se ajustó el precio de {n} variantes.",
+  "panel.masivo.precios.diferencia": "Diferencia total: {monto}",
+
+  "panel.producto.duplicar": "Duplicar producto",
+  "panel.producto.duplicando": "Duplicando…",
+  "panel.producto.duplicado": "Se creó la copia, sin publicar.",
+
+  "panel.variante.puntoReposicion": "Punto de reposición",
+  "panel.variante.puntoReposicion.ayuda":
+    "Debajo de este stock, la variante aparece como \"stock bajo\" en el resumen diario. Vacío = el umbral general de la tienda.",
+  "panel.variante.puntoReposicion.placeholder": "Umbral general",
+
+  "panel.markdown.editar": "Escribir",
+  "panel.markdown.vistaPrevia": "Vista previa",
+  "panel.markdown.ayuda": "**negrita**, *cursiva*, listas con \"- \" y links [texto](https://…).",
+  "panel.markdown.vacio": "Sin descripción todavía.",
+
+  "panel.categoria.descripcion": "Descripción",
+  "panel.categoria.descripcion.placeholder": "Texto para la página de la categoría (opcional).",
+  "panel.categoria.foto": "ID de la foto en Cloudinary",
+  "panel.categoria.foto.ayuda":
+    "Subí la foto a la carpeta \"categorias/\" del panel multimedia y pegá acá el public_id. Vacío = sin foto.",
+  "panel.categoria.foto.alt": "Descripción de la foto (alt)",
+  "panel.categoria.cambiarPresentacion": "Cambiar descripción o foto",
+  "panel.categoria.presentacionAyuda":
+    "Esta lista no muestra la descripción ni la foto que ya tiene cargadas la categoría — sólo lo que escribas acá se guarda. Dejalo destildado para no tocar lo que ya tiene.",
+
+  "panel.reembolso.titulo": "Reembolso parcial",
+  "panel.reembolso.pagado": "Pagado",
+  "panel.reembolso.devuelto": "Ya devuelto",
+  "panel.reembolso.resta": "Queda por devolver",
+  "panel.reembolso.monto": "Monto a devolver",
+  "panel.reembolso.motivo": "Motivo",
+  "panel.reembolso.motivo.placeholder": "Ej: la compradora devolvió una de las tres unidades",
+  "panel.reembolso.confirmar": "Registrar devolución",
+  "panel.reembolso.cancelar": "Cancelar",
+  "panel.reembolso.abrir": "Reembolso parcial…",
+  "panel.reembolso.hecho": "Devolución registrada.",
+  "panel.reembolso.completo": "Con esto el pago queda devuelto por completo.",
+  "panel.reembolso.excede": "El monto no puede superar lo que queda por devolver.",
+
   // ===========================================================================
   // == S9 — panel de pedidos: tracking, notas, remito imprimible (§6.1) ==
   // ===========================================================================
