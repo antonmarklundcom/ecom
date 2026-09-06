@@ -3,11 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OrderActions } from "@/components/admin/order-actions";
+import { OrderNotes, type OrderNoteView } from "@/components/admin/order-notes";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { ReceiptReview } from "@/components/admin/receipt-review";
+import { listAdminShippingMethods } from "@/domain/admin-shipping-methods";
 import { getAdminOrder, isRecoverableStatus } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
+import { listOrderNotes } from "@/domain/order-notes";
 import { listReceipts } from "@/domain/receipts";
 import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
 import { adminActor } from "@/lib/admin-guard";
@@ -16,6 +19,7 @@ import { formatGs, ivaIncluded } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { VENDEDOR_TRANSITIONS } from "@/lib/session";
 import { formatDateTimePY, formatPhonePY } from "@/lib/py";
+import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 export const metadata: Metadata = { title: t("panel.pedido.meta") };
@@ -34,13 +38,28 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   if (!found) notFound();
 
   const { order, items } = found;
-  const [events, receipts, banco] = await Promise.all([
+  const [events, receipts, banco, notes, shippingMethods] = await Promise.all([
     getOrderEvents(order.id),
     listReceipts(order.id),
     // Una sola lectura por pantalla: `recoveryMessage` ya no los busca solo
     // (ver `src/domain/order-messages.ts`).
     getDatosBancarios(),
+    listOrderNotes(order.id),
+    // Sugerencias de courier en el paso de despacho — nombres nada más, no
+    // hace falta la ficha completa del método.
+    listAdminShippingMethods(),
   ]);
+
+  const noteViews: OrderNoteView[] = notes.map((note) => ({
+    id: note.id,
+    body: note.body,
+    author: note.actorName ?? note.actor,
+    createdAt: formatDateTimePY(note.createdAt),
+  }));
+
+  const courierSuggestions = shippingMethods.map((method) => method.name);
+
+  const hasTracking = Boolean(order.trackingCarrier || order.trackingCode || order.trackingUrl);
 
   // Los dos mensajes salen del mismo armador que usa "Por cobrar": el link
   // tokenizado y la regla de no listar lo comprado se escriben una sola vez
@@ -76,6 +95,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
+        <Link
+          href={`/admin/pedidos/${order.id}/imprimir`}
+          data-testid={TESTIDS.orderPrintLink}
+          className="border-border rounded-lg border px-4 py-2 text-sm font-medium"
+        >
+          {t("panel.pedido.imprimirRemito")}
+        </Link>
         {waHref ? (
           <a
             href={waHref}
@@ -291,6 +317,43 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         </dl>
       </section>
 
+      {/* Sólo si hay algo cargado: los pedidos que no pasaron por `enviado`
+          con courier/guía no muestran una sección vacía (plan-operacion §6.1). */}
+      {hasTracking ? (
+        <section className="mt-6" data-testid={TESTIDS.orderTrackingBlock}>
+          <h2 className="font-medium">{t("panel.pedido.tracking.titulo")}</h2>
+          <dl className="mt-2 grid gap-1 text-sm">
+            {order.trackingCarrier ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">{t("panel.pedido.tracking.courier")}</dt>
+                <dd className="text-right">{order.trackingCarrier}</dd>
+              </div>
+            ) : null}
+            {order.trackingCode ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">{t("panel.pedido.tracking.guia")}</dt>
+                <dd className="text-right tabular-nums">{order.trackingCode}</dd>
+              </div>
+            ) : null}
+            {order.trackingUrl ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">{t("panel.pedido.tracking.link")}</dt>
+                <dd className="max-w-[60%] text-right break-all">
+                  <a
+                    href={order.trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {order.trackingUrl}
+                  </a>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </section>
+      ) : null}
+
       <section className="mt-6">
         <h2 className="font-medium">{t("panel.pedido.cambiarEstado")}</h2>
         {nextStatuses.length === 0 ? (
@@ -304,9 +367,20 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
           </p>
         ) : (
           <div className="mt-2">
-            <OrderActions orderId={order.id} nextStatuses={[...nextStatuses]} />
+            <OrderActions
+              orderId={order.id}
+              nextStatuses={[...nextStatuses]}
+              courierSuggestions={courierSuggestions}
+            />
           </div>
         )}
+      </section>
+
+      <section className="mt-6">
+        <h2 className="font-medium">{t("panel.pedido.notas")}</h2>
+        <div className="mt-2">
+          <OrderNotes orderId={order.id} notes={noteViews} />
+        </div>
       </section>
 
       <section className="mt-6">

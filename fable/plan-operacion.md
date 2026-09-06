@@ -925,6 +925,58 @@ migrados, con un test que greppea que no vuelvan. `instrumentation.ts` con
 **Fin de las fases Opus.** S9, S10 y S11 pueden arrancar, en paralelo o de a
 una, en cualquier orden.
 
+### 2026-09-06 · S9 — panel de pedidos: tracking, notas, remito imprimible
+
+Branch `phase/s9`. Piel pura: todo lo que necesitaba ya estaba expuesto por
+O5 (`transitionOrder` con `tracking`, `order-notes.ts`, `advanceOrder` /
+`addOrderNote` ya aceptaban lo que hacía falta) — cero cambios de dominio.
+
+**Qué existe ahora.** `order-actions.tsx`: al elegir `enviado` en el paso
+intermedio aparecen tres campos opcionales (courier con sugerencias de los
+`shipping_methods` de la tienda vía `<datalist>`, guía, link), que viajan en
+`advanceOrder({ tracking })`. La ficha del pedido muestra un bloque
+"Seguimiento" sólo si hay algo cargado, con el link clickeable. `order-notes.tsx`
+(nuevo): lista + textarea con contador, arriba del historial de eventos,
+visible para los tres roles (usa `pedidos.notas`, ya en `permissions.ts`
+desde O5). Remito imprimible en
+`/admin/pedidos/[id]/imprimir` (dentro del layout del panel: reutiliza su
+guard, no agrega uno): marca, número grande para pegar en el paquete, datos
+de entrega, ítems con precios sólo si `can(role, "precios")`, nota de regalo.
+CSS de impresión en `globals.css` bajo `@media print` (`header { display:
+none }` alcanza porque es el único `<header>` de `/admin`), sin una línea
+inline. `/pedido/[orderNumber]` gana su propio bloque de seguimiento
+—distinto del historial de estados, que ya existía con el mismo título—,
+visible sólo si hay courier, guía o link.
+
+**Decisiones y desvíos.**
+- `enviado` no estaba en `DESTRUCTIVE_TRANSITIONS`, así que el botón corría
+  directo sin el paso intermedio donde se carga el tracking. Se agregó una
+  segunda condición (`needsConfirmStep`) que abre el paso intermedio también
+  para `enviado`, sin tratarlo como destructivo (mismo estilo de botón,
+  mismo `reason` opcional).
+- El nav del panel se oculta en impresión con un selector de tag (`header`)
+  en vez de tocar `src/app/admin/(panel)/layout.tsx`, que está fuera de los
+  Owns de esta fase: es el único `<header>` bajo `/admin`, así que alcanza y
+  de paso sirve para cualquier otra página del panel que alguien imprima.
+- `pnpm test:e2e` **no corrió en esta sesión**: el entorno no tiene Docker
+  corriendo (`no such file or directory` contra el socket) para levantar el
+  MySQL de `docker-compose.yml`, y no hay `TEST_DATABASE_URL` en el shell.
+  `pnpm typecheck && pnpm lint && pnpm test` sí corrieron verdes contra un
+  worktree limpio de `phase/s9` (765 tests, sin los de integración). Los
+  specs nuevos de `panel.spec.ts` (guía visible en la ficha y en la página de
+  la compradora; nota que aparece en la lista) quedan para que los corra CI.
+- Esta fase corrió en un checkout compartido con S10 y S11 (mismo `/home/user/ecom`,
+  tres branches al mismo tiempo): los tres bloques propios de `testids.ts` y
+  `es-PY.ts` convivían sin problema en el disco compartido, pero para no
+  llevarme las claves e ids de las otras dos fases a este PR arme un
+  `git worktree` aparte de `phase/s9` y reconstruí ahí sólo mi bloque sobre
+  la base de `origin/main`. Si esto se repite, un worktree por fase desde el
+  principio evita el paso extra.
+
+**Dónde mirar primero en S12.** `tests/e2e/panel.spec.ts` tiene los dos specs
+nuevos y `loginAsOwner`/`openOrderFicha`/`orderTransitionButton` en
+`helpers.ts` para reusar en specs de S10/S11 si hace falta sesión de owner.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).
