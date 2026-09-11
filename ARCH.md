@@ -74,6 +74,7 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 | Preparar / despachar / entregar | ✅ | ✅ | ✅ |
 | Escribir notas internas en un pedido | ✅ | ✅ | ✅ |
 | Dar por cobrado, cancelar, vencer, rechazar | ✅ | ✅ | ❌ |
+| Editar un pedido sin pagar (cantidades, dirección) | ✅ | ✅ | ❌ |
 | Ver montos (totales, IVA, precios) | ✅ | ✅ | ❌ |
 | Comprobantes: ver, aprobar, rechazar | ✅ | ✅ | ❌ |
 | Productos y variantes (ABM) | ✅ | ✅ | ❌ |
@@ -91,6 +92,8 @@ Tres roles, tres niveles de confianza. El de abajo nunca puede lo del de arriba.
 | Datos bancarios de la tienda | ✅ | ❌ | ❌ |
 
 Lo que el `owner` no delega tiene siempre el mismo motivo: **el error no se ve y no se puede deshacer**. Una devolución es plata que sale y nadie la revisa después; un CSV es la base de clientes del comercio en un archivo que se lleva quien renuncia; repartir accesos es repartir todo lo anterior. Los tres ABMs que se sumaron en la FASE 2 son de la misma familia: un cupón mal puesto se descubre cuando ya lo usaron cien personas, apagar una categoría le saca de la vidriera a todos sus productos de una vez, y una zona de envío con el precio viejo cobra de menos en cada pedido sin romper nada, sin dejar log y sin que nadie se entere hasta cerrar el mes. Las formas de entrega (FASE 3) entran en la misma familia y por partida doble: además del flete, deciden **con qué se puede pagar**, así que un método mal configurado habilita contra entrega en ciudades donde nadie del comercio va a ir a cobrar — y eso se descubre con el repartidor en la puerta, no en una pantalla. Los datos bancarios (FASE 2, PR T) son el caso más puro de la familia: quien puede cambiar el número de cuenta al que transfieren las compradoras desvía la facturación entera a otra cuenta sin generar un solo pedido raro — la tienda sigue andando igual y el dueño se entera cuando mira su banco.
+
+Editar un pedido sin pagar (O16, capability `pedidos.editar`) está del lado de `staff` y no del vendedor por la misma línea que separa despachar de cobrar: la pantalla muestra totales, descuento y envío —montos que su rol no ve— y además los **cambia**.
 
 Lo que queda afuera del `vendedor` es todo lo que mueve plata o suelta stock. Le queda el mostrador: ver qué hay que armar y marcarlo despachado — y, desde O5, dejar la nota de lo que le dijeron por teléfono (`pedidos.notas`). Una nota no mueve plata, no mueve stock, no cambia el estado y la compradora no la ve nunca; quien atiende cuando la compradora llama es justamente el vendedor, y esa nota es la que evita el segundo viaje de la moto.
 
@@ -687,6 +690,35 @@ lo va a mirar hasta que aparezca en el lugar equivocado. El aviso ENVIADO a la
 compradora (`order-customer-notifications.ts`) lee esas tres columnas de la
 fila ya commiteada y suma courier, guía y link cuando existen; sin ninguno de
 los tres, el texto es exactamente el de antes de O5.
+
+**Editar un pedido no es una transición** (O16). `editPendingOrder`
+(`src/domain/edit-order.ts`) cambia cantidades, dirección, envío y totales de
+un pedido que sigue en `pendiente_pago`: el estado no se mueve, así que **no**
+pasa por `transitionOrder` y `orders.status` conserva su único escritor. Lo que
+deja es una fila en `order_events` con `from = to` y el prefijo constante
+`EDIT_ORDER_REASON_PREFIX`, el mismo mecanismo del reembolso parcial — y, como
+aquél, `reconcile` lo reconoce por ese prefijo para no reportarlo como arista
+imposible. Los totales que escribe los sigue verificando `findTotalMismatches`
+con la identidad de siempre: `total = subtotal − descuento + envío`.
+
+Sólo se edita lo que todavía no se cobró: `pendiente_pago`, sin un pago `paid`,
+y **nunca con tarjeta** — ahí el monto ya está comprometido en Pagopar y la
+verificación de monto del webhook (§4) es la red que atrapa un cobro que no
+coincide; editar el total a mano sería romperla. Las cantidades sólo bajan o se
+quitan (subir es un pedido nuevo), el `unit_price_pyg` que la compradora vio no
+se toca, `reserved_until` no se extiende, y las reservas de stock bajan con las
+líneas para que lo que ya no se vende vuelva a estar disponible.
+
+**El cupón se re-valida contra el subtotal nuevo, pero sólo por el mínimo de
+compra.** Si con las cantidades nuevas el pedido ya no llega al mínimo, el
+cupón se quita, el descuento vuelve a 0 y la pantalla lo dice (`couponRemoved`)
+— nunca en silencio. Lo que **no** se re-chequea es vigencia ni usos: ese
+control responde "¿se le puede dar este cupón a alguien ahora?", y acá la
+pregunta es otra; empezando por el uso que este mismo pedido ya consumió, le
+subiría el total a una compradora que sólo pidió mandar una remera menos. Y los
+usos consumidos **no se devuelven** cuando el cupón se quita: es la decisión
+conservadora — devolver un uso es tocar un contador compartido por una
+corrección de mostrador.
 
 ---
 

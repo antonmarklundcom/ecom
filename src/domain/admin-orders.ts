@@ -6,12 +6,14 @@ import {
   PAYMENT_METHODS,
   orderItems,
   orders,
+  payments,
   type OrderStatus,
   type PaymentMethod,
 } from "@/db/schema";
 import { EXPORT_MAX_ROWS } from "@/lib/csv";
 import { normalizePhonePY } from "@/lib/py";
 
+import { canEditPendingOrder } from "./edit-order";
 import type { Executor } from "./executor";
 
 /**
@@ -264,6 +266,15 @@ export async function countOrdersByStatus(
 }
 
 /** Ficha completa del pedido para `/admin/pedidos/[id]` (PLAN.md 4.3). */
+/**
+ * La ficha del pedido para el panel.
+ *
+ * Devuelve además si el pedido **se puede editar** (O16) y, si no, por qué:
+ * la pantalla dibuja el botón o la línea que lo explica ("con tarjeta no se
+ * edita: cancelá y rehacé") sin duplicar la regla. La decisión de verdad la
+ * vuelve a tomar `editPendingOrder` con la fila bloqueada — entre que se
+ * pintó esta pantalla y el click pudo entrar el pago.
+ */
 export async function getAdminOrder(orderId: number, executor?: Executor) {
   const tx = executor ?? getDb();
   const rows = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
@@ -271,7 +282,20 @@ export async function getAdminOrder(orderId: number, executor?: Executor) {
   if (!order) return null;
 
   const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-  return { order, items };
+
+  const pagos = await tx
+    .select({ id: payments.id })
+    .from(payments)
+    .where(and(eq(payments.orderId, orderId), eq(payments.status, "paid")))
+    .limit(1);
+
+  const editability = canEditPendingOrder({
+    status: order.status,
+    paymentMethod: order.paymentMethod,
+    hasPaidPayment: pagos.length > 0,
+  });
+
+  return { order, items, editability };
 }
 
 /** Pedidos con comprobante esperando revisión — el trabajo pendiente del dueño. */

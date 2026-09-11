@@ -23,6 +23,13 @@ export const CAPABILITIES = [
   /** Dar por cobrado, cancelar, vencer, rechazar. Mueve plata o suelta stock. */
   "pedidos.cobrar",
   /**
+   * Editar un pedido que todavía no se pagó (O16): bajar cantidades, quitar
+   * una línea, corregir la dirección. No es `pedidos.despachar` sino plata: la
+   * pantalla muestra totales, descuento y envío —que el vendedor no ve— y
+   * además los cambia.
+   */
+  "pedidos.editar",
+  /**
    * Escribir notas internas en un pedido (O5). Los tres roles: es mostrador
    * puro —"llamó, pasa el jueves"— y quien atiende el teléfono es
    * justamente el vendedor. No mueve plata, no mueve stock, no cambia el
@@ -100,6 +107,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     "pedidos.ver",
     "pedidos.despachar",
     "pedidos.cobrar",
+    "pedidos.editar",
     "pedidos.notas",
     "comprobantes",
     "precios",
