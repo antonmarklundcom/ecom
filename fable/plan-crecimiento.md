@@ -638,6 +638,58 @@ integración, las diez de §5.3 D incluidas.
 
 **Preguntas para Anton.** Ninguna.
 
+### S18 — Kit de piel: tres temas y la pregunta en `nueva-tienda` · 2026-09-11 · `phase/s18`
+
+**Qué existe.** `src/app/globals.css` deja de definir `:root`/`.dark` y pasa a
+`@import "../styles/temas/neutro.css";` — los valores de hoy, movidos byte a byte, así que la
+vidriera no cambia un píxel con `neutro` activo (verificado con la suite completa y
+`capturas.spec.ts`, que siguen sin tocarse). `calido.css` (tierra/terracota, `--radius: 1rem`,
+`Fraunces` + `Figtree` sugeridas) y `oscuro-vivo.css` (fondo oscuro **fijo** —`:root` y `.dark`
+con los mismos valores—, acento saturado, `--radius: 0.25rem`, `Sora` + `Inter` sugeridas)
+definen exactamente las mismas variables; `tests/unit/temas.test.ts` lo verifica leyendo los
+tres `.css` (no confía en memoria) y también que cada uno documenta para quién es, las fuentes
+y las dos líneas de `layout.tsx`. `pnpm nueva-tienda --tema <nombre>` (y la pregunta
+interactiva "¿Tema?") reescribe el `@import` de forma idempotente; sin terminal y sin bandera,
+el default es el tema que `globals.css` ya tenía (`neutro` si no tenía ninguno). La barra de
+categorías del header tiene un fade CSS puro en el borde derecho (truco de "scroll shadows":
+dos degradés con `background-attachment: local`/`scroll`, sin JS ni listeners, desaparece solo
+al llegar al final del scroll y cuando no hay overflow no se ve nunca). `product-image.tsx`
+muestra un SVG genérico nuevo (`public/placeholders/categoria.svg`) con el nombre de la
+categoría en texto cuando la categoría no es una de las cuatro del seed, en vez de caer en el
+mismo dibujo de "producto sin foto" sin decir de cuál se trata. NEW-STORE.md §5 documenta los
+tres temas, cómo elegirlos y cómo crear un cuarto.
+
+**Decisiones y desvíos.**
+
+1. **El placeholder de categoría no pasa por `categoryPlaceholderSrc`** (`src/lib/images.ts`):
+   ese archivo es `src/lib/**`, fuera de los límites duros de esta fase, y su fallback ya
+   apuntaba a `generico.svg` (el de "producto", sin nombre) para cualquier categoría fuera del
+   seed. `product-image.tsx` duplica —a propósito, documentado con un comentario que dice por
+   qué— la lista de las cuatro categorías conocidas y decide localmente cuándo usar el SVG
+   nuevo; `categoryPlaceholderSrc` no se tocó y sigue sirviendo a `recently-viewed.tsx` como
+   antes. El nombre que se muestra sale de un slug-a-texto simple (`"hogar-y-cocina"` →
+   `"Hogar y cocina"`), no de una prop nueva: los llamadores de `ProductImage` sólo pasan el
+   slug, y agregarles un `categoryName` era tocar archivos fuera de los Owns de esta fase por
+   una mejora cosmética menor.
+2. **El fade no es un pseudo-elemento con `mask-image`** como sugería el prompt entre
+   paréntesis, sino la técnica clásica de "scroll shadows" (dos `linear-gradient` sobre
+   `--background`, uno con `background-attachment: local` pegado al final real del contenido y
+   otro con `scroll` pegado al borde visible del contenedor). Se prefirió porque cumple la
+   parte que sí es un requisito explícito del plan —"que desaparece al llegar al final"— sin
+   JS: con un `::after` estático el fade queda siempre visible, tape o no algo de contenido.
+   Efecto lateral bueno: en desktop, donde `max-w-6xl` casi nunca desborda, el degradé
+   coincide consigo mismo desde el arranque y no se ve nunca, así que no hizo falta un
+   `sm:hidden` aparte.
+3. **`nueva-tienda --tema` agrega una séptima pregunta** al wizard existente (no un script
+   separado): comparte el mismo `readline` y el mismo default-por-lo-que-ya-hay que las otras
+   seis, así que "Enter, Enter, Enter…" sigue dejando todo como está, tema incluido.
+4. **Los tres temas compilan.** Se cambió el `@import` a `calido.css`, corrió `pnpm build`
+   completo (Turbopack, `next build`) sin errores; se repitió con `oscuro-vivo.css`; se volvió
+   a dejar `neutro.css` como `@import` activo (`git diff -- src/app/globals.css` vacío después)
+   antes de commitear.
+
+**Preguntas para Anton.** Ninguna.
+
 ## 10. Backlog
 
 - Backup por tabla + manifiesto (`KNOWN-ISSUES.md`), cuando una tienda se acerque al límite.

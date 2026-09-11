@@ -57,6 +57,20 @@ export type DatosTienda = {
 };
 
 /**
+ * Los temas del kit de piel (plan-crecimiento §6.2), en el mismo orden que
+ * la pregunta interactiva los ofrece. `src/styles/temas/<nombre>.css` tiene
+ * que existir para cada uno — `temas.test.ts` es quien lo verifica, no este
+ * script.
+ */
+export const TEMAS = ['neutro', 'calido', 'oscuro-vivo'] as const;
+export type Tema = (typeof TEMAS)[number];
+
+/** ¿`valor` es uno de los temas conocidos? Sirve de type guard para `--tema`. */
+export function esTema(valor: string): valor is Tema {
+  return (TEMAS as readonly string[]).includes(valor);
+}
+
+/**
  * El título que se propone cuando el que hay sigue siendo el del template.
  *
  * Es el único de los cuatro campos que lleva la marca adentro
@@ -207,6 +221,45 @@ async function formatearTienda(archivo: string): Promise<void> {
   }
 }
 
+/** El `@import` de un tema, tal como lo escribe `escribirTema`. */
+const IMPORT_TEMA_REGEX = /@import\s+"\.\.\/styles\/temas\/([a-z0-9-]+)\.css";/;
+
+/**
+ * El tema que `globals.css` importa hoy, o `'neutro'` si no se puede leer.
+ *
+ * `'neutro'` como default y no un error a propósito: es el único de los
+ * tres que puede faltar sin que nada se rompa (es el que trae el template
+ * antes de que esta fase exista), y una tienda que corre el wizard por
+ * primera vez sobre un `globals.css` viejo no tiene por qué fallar acá.
+ */
+export function leerTemaActual(globalsSource: string): Tema {
+  const match = IMPORT_TEMA_REGEX.exec(globalsSource);
+  const encontrado = match?.[1];
+  return encontrado !== undefined && esTema(encontrado) ? encontrado : 'neutro';
+}
+
+/**
+ * Reescribe la línea `@import ".../temas/<tema>.css";` de `globals.css`.
+ *
+ * Idempotente: si ya importa `tema`, devuelve `globalsSource` sin tocar
+ * (mismo string, para que quien llama pueda comparar por referencia y no
+ * escribir un archivo idéntico). Si el archivo no tiene el `@import`
+ * esperado —alguien reescribió `globals.css` a mano—, avisa en vez de
+ * escribir cualquier cosa, igual que `reescribirTienda`.
+ */
+export function escribirTema(globalsSource: string, tema: Tema): string {
+  if (!esTema(tema)) {
+    throw new Error(`"${tema}" no es un tema conocido. Elegí uno de: ${TEMAS.join(', ')}.`);
+  }
+  if (!IMPORT_TEMA_REGEX.test(globalsSource)) {
+    throw new Error(
+      'No encontré el `@import ".../styles/temas/<tema>.css";` en src/app/globals.css. ' +
+        '¿Lo reescribiste a mano? Cambiá la línea vos y salteá este paso.',
+    );
+  }
+  return globalsSource.replace(IMPORT_TEMA_REGEX, `@import "../styles/temas/${tema}.css";`);
+}
+
 /**
  * Un secreto nuevo, con `crypto.randomBytes` y no con `openssl` por
  * `execSync`.
@@ -224,25 +277,30 @@ export function generarSecreto(bytes = 32): string {
   return randomBytes(bytes).toString('base64');
 }
 
-/** Las seis respuestas, tal como pueden venir por bandera. */
-export type Respuestas = Partial<DatosTienda>;
+/** Las seis respuestas de marca, más el tema — tal como pueden venir por bandera. */
+export type Respuestas = Partial<DatosTienda> & { tema?: string };
 
 /**
- * `--nombre "Lencería Guaraní" --dominio lenceria.com.py` → `{ … }`.
+ * `--nombre "Lencería Guaraní" --dominio lenceria.com.py --tema calido` → `{ … }`.
  *
  * Sirve para dos cosas distintas: correrlo sin terminal (un script, CI) y
- * repetir exactamente la misma corrida sin volver a tipear seis campos.
+ * repetir exactamente la misma corrida sin volver a tipear los campos.
  * Una bandera desconocida es un error y no algo que se ignora: `--nombr` mal
  * tipeado tiene que doler ahora y no cuando el header diga "TiendaPY".
+ *
+ * `--tema` no se valida acá contra `TEMAS`: el valor crudo se guarda igual
+ * (así el mensaje de error, si el nombre está mal, sale de `escribirTema`,
+ * que es quien conoce la lista completa y no la duplica).
  */
 export function parseFlags(argv: readonly string[]): Respuestas {
-  const conocidas: Record<string, keyof DatosTienda> = {
+  const conocidas: Record<string, keyof DatosTienda | 'tema'> = {
     '--nombre': 'nombre',
     '--titulo': 'titulo',
     '--descripcion': 'descripcion',
     '--tagline': 'tagline',
     '--whatsapp': 'whatsapp',
     '--dominio': 'dominio',
+    '--tema': 'tema',
   };
   const sinValor = new Set(['--dry-run']);
 
@@ -403,21 +461,24 @@ export function normalizarWhatsApp(entrada: string): string {
 const TIENDA_FILE = 'src/config/tienda.ts';
 const ENV_FILE = '.env.local';
 const ENV_EXAMPLE = '.env.example';
+const GLOBALS_FILE = 'src/app/globals.css';
 
 /** Las claves que este script sabe completar. El resto las trae otra persona. */
 const CLAVES_GENERADAS = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET'] as const;
 
 /**
- * Las seis preguntas, con lo que ya está como sugerencia. Enter deja el
- * default; una bandera pisa el default y se muestra como tal.
+ * Las seis preguntas de marca más la del tema, con lo que ya está como
+ * sugerencia. Enter deja el default; una bandera pisa el default y se
+ * muestra como tal.
  */
 async function preguntarTodo(
   inicial: DatosTienda,
+  temaInicial: Tema,
   flags: Respuestas,
   dryRun: boolean,
-): Promise<DatosTienda> {
+): Promise<{ datos: DatosTienda; tema: Tema }> {
   let actuales = inicial;
-  console.log('\n  Tienda nueva — seis preguntas y listo.');
+  console.log('\n  Tienda nueva — siete preguntas y listo.');
   console.log('  Entre paréntesis va lo que hay hoy: Enter lo deja como está.');
   if (dryRun) console.log('  (--dry-run: no se escribe nada)');
   console.log('');
@@ -437,7 +498,7 @@ async function preguntarTodo(
     // `<title>` de todas las pantallas.
     actuales = { ...actuales, titulo: sugerirTitulo(actuales.titulo, nombre) };
 
-    return {
+    const datos: DatosTienda = {
       nombre,
       titulo: await preguntar('Título del navegador', 'titulo'),
       descripcion: await preguntar('Meta description (150-160)', 'descripcion'),
@@ -445,6 +506,21 @@ async function preguntarTodo(
       whatsapp: await preguntar('WhatsApp del comercio', 'whatsapp'),
       dominio: await preguntar('Dominio final', 'dominio'),
     };
+
+    const temaDefault = flags.tema ?? temaInicial;
+    let tema: Tema = esTema(temaDefault) ? temaDefault : temaInicial;
+    const respuestaTema = (
+      await rl.question(`  Tema (${TEMAS.join(' / ')}) (${tema}): `)
+    ).trim();
+    if (respuestaTema !== '') {
+      if (!esTema(respuestaTema)) {
+        console.log(`  "${respuestaTema}" no es un tema conocido — se deja "${tema}".`);
+      } else {
+        tema = respuestaTema;
+      }
+    }
+
+    return { datos, tema };
   } finally {
     rl.close();
   }
@@ -457,8 +533,16 @@ async function preguntarTodo(
  * dejar la marca del template, pero eso es exactamente el error que
  * `pnpm preflight` bloquea después — mejor decirlo acá, con la bandera que
  * falta escrita en el mensaje.
+ *
+ * El tema **no** hace fallar nada: sin bandera queda el que ya estaba
+ * (`neutro` si `globals.css` no importaba ninguno todavía), y una bandera
+ * con un nombre que no existe es un error explícito de `escribirTema`.
  */
-function sinTerminal(actuales: DatosTienda, flags: Respuestas): DatosTienda {
+function sinTerminal(
+  actuales: DatosTienda,
+  temaActual: Tema,
+  flags: Respuestas,
+): { datos: DatosTienda; tema: string } {
   const datos: DatosTienda = { ...actuales, ...limpiar(flags) };
   datos.titulo = flags.titulo ?? sugerirTitulo(datos.titulo, datos.nombre);
 
@@ -469,11 +553,11 @@ function sinTerminal(actuales: DatosTienda, flags: Respuestas): DatosTienda {
         '    pnpm nueva-tienda --nombre "Lencería Guaraní" \\\n' +
         '      --titulo "Lencería Guaraní — Comprá online en Paraguay" \\\n' +
         '      --descripcion "…" --tagline "…" \\\n' +
-        '      --whatsapp 0981123456 --dominio lenceria.com.py',
+        '      --whatsapp 0981123456 --dominio lenceria.com.py --tema neutro',
     );
   }
 
-  return datos;
+  return { datos, tema: flags.tema?.trim() || temaActual };
 }
 
 /** Una bandera vacía no pisa lo que ya está escrito. */
@@ -497,11 +581,17 @@ async function main(): Promise<void> {
       ? readFileSync(ENV_EXAMPLE, 'utf8')
       : '';
 
+  if (!existsSync(GLOBALS_FILE)) {
+    throw new Error(`No encuentro ${GLOBALS_FILE}. ¿Estás parado en la raíz del repo?`);
+  }
+  const globalsSource = readFileSync(GLOBALS_FILE, 'utf8');
+
   const flags = parseFlags(process.argv.slice(2));
 
   // Los defaults salen de lo que ya está escrito: en la primera corrida son
   // los del template, y en la segunda son los de esta tienda — que es lo que
-  // hace que repetir el wizard sea "Enter, Enter, Enter".
+  // hace que repetir el wizard sea "Enter, Enter, Enter". El tema sigue la
+  // misma regla: el default es el que `globals.css` ya importa.
   const actuales: DatosTienda = {
     nombre: leerCampoTienda(tiendaSource, 'nombre') ?? '',
     titulo: leerCampoTienda(tiendaSource, 'titulo') ?? '',
@@ -510,20 +600,28 @@ async function main(): Promise<void> {
     whatsapp: leerValorEnv(envActual, 'WHATSAPP_NUMBER'),
     dominio: leerValorEnv(envActual, 'NEXT_PUBLIC_SITE_URL'),
   };
+  const temaActual = leerTemaActual(globalsSource);
 
   const crudos = stdin.isTTY
-    ? await preguntarTodo(actuales, flags, dryRun)
-    : sinTerminal(actuales, flags);
+    ? await preguntarTodo(actuales, temaActual, flags, dryRun)
+    : sinTerminal(actuales, temaActual, flags);
 
   const datos: DatosTienda = {
-    ...crudos,
-    whatsapp: normalizarWhatsApp(crudos.whatsapp),
-    dominio: normalizarDominio(crudos.dominio),
+    ...crudos.datos,
+    whatsapp: normalizarWhatsApp(crudos.datos.whatsapp),
+    dominio: normalizarDominio(crudos.datos.dominio),
   };
 
   // --- tienda.ts ----------------------------------------------------------
   const tiendaNueva = reescribirTienda(tiendaSource, datos);
   const tiendaCambia = tiendaNueva !== tiendaSource;
+
+  // --- globals.css (tema) ---------------------------------------------------
+  if (!esTema(crudos.tema)) {
+    throw new Error(`"${crudos.tema}" no es un tema conocido. Elegí uno de: ${TEMAS.join(', ')}.`);
+  }
+  const globalsNuevo = escribirTema(globalsSource, crudos.tema);
+  const temaCambia = globalsNuevo !== globalsSource;
 
   // --- .env.local ---------------------------------------------------------
   const generados: ValoresEnv = {};
@@ -554,6 +652,9 @@ async function main(): Promise<void> {
   if (env.conservadas.length > 0) {
     console.log(`     (se conservan los valores ya cargados de ${env.conservadas.join(', ')})`);
   }
+  console.log(
+    `  ${GLOBALS_FILE}: ${temaCambia ? `tema → ${crudos.tema}` : `sin cambios (tema ${crudos.tema})`}`,
+  );
 
   if (dryRun) {
     console.log('\n  --dry-run: no se escribió nada.\n');
@@ -566,6 +667,7 @@ async function main(): Promise<void> {
     await formatearTienda(TIENDA_FILE);
   }
   writeFileSync(ENV_FILE, env.contenido);
+  if (temaCambia) writeFileSync(GLOBALS_FILE, globalsNuevo);
 
   imprimirHPanel(env.contenido, aEscribir);
   marcarBaseline();
