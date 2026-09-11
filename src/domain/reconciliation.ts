@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 
 import type { Executor } from "./executor";
 import { ORDER_TRANSITIONS } from "./orders";
+import { EDIT_ORDER_REASON_PREFIX } from "./edit-order";
 import { PARTIAL_REFUND_REASON_PREFIX } from "./payment-recovery";
 
 /**
@@ -495,6 +496,7 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
   // Fuera del template: un literal anidado adentro de un `${}` de `sql` no
   // compila, y el patrón conviene armarlo una sola vez igual.
   const parcialLike = `${PARTIAL_REFUND_REASON_PREFIX}%`;
+  const edicionLike = `${EDIT_ORDER_REASON_PREFIX}%`;
 
   const result = await tx.execute(sql`
     SELECT
@@ -521,6 +523,12 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
       -- control que nadie mira. Se reconoce por el prefijo del motivo, que es
       -- una constante compartida con payment-recovery.ts.
       WHEN e.from_status = e.to_status AND e.reason LIKE ${parcialLike} THEN FALSE
+      -- Una edición de pedido sin pagar (O16) deja otra fila con from = to,
+      -- por el mismo motivo: cambió la plata del pedido, no su estado. La
+      -- identidad total = subtotal - descuento + envio la sigue verificando
+      -- findTotalMismatches, que es el control que importa aca: si la edicion
+      -- dejara los totales torcidos, sale reportada ahi.
+      WHEN e.from_status = e.to_status AND e.reason LIKE ${edicionLike} THEN FALSE
       ELSE (e.from_status, e.to_status) NOT IN (${sql.join(allowed, sql`, `)})
     END
     ORDER BY e.id DESC

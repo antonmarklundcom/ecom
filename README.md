@@ -124,7 +124,7 @@ salida si alguien se queda afuera.
 |---|---|
 | `/admin` | ventas del día y del mes, comprobantes por revisar, stock bajo |
 | `/admin/pedidos` | accesos rápidos por estado con su cuenta, filtros por método/fecha, búsqueda por nro., WhatsApp o RUC, paginación server-side, descarga CSV de lo filtrado |
-| `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante |
+| `/admin/pedidos/[id]` | ítems, desglose de IVA, datos del cliente, timeline, botón de WhatsApp, aprobar/rechazar comprobante y —mientras no se haya pagado y no sea con tarjeta— editar el pedido: bajar cantidades, quitar una línea, corregir la dirección (ARCH.md §3) |
 | `/admin/productos` | ABM de productos y variantes, fotos, ajuste de stock con motivo obligatorio (auditado), descarga CSV por variante |
 | `/admin/usuarios` | owner-only: quién puede entrar y con qué rol. Alta, cambio de rol, reseteo de contraseña y activar/desactivar. Nadie se borra — se desactiva, y así el historial de lo que hizo sigue siendo consultable |
 | `/admin/cupones` | owner-only: ABM de códigos de descuento con sus usos consumidos. Cero cupones = el checkout no muestra ningún campo de descuento |

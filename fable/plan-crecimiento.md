@@ -595,6 +595,49 @@ avisa (advertencia, nunca bloqueo). Sin entrada nueva de cron en el hPanel.
 **Preguntas para Anton.** Ninguna. Para que el recordatorio salga en producción falta la
 plantilla de Meta (§7), que es trabajo suyo y del comercio.
 
+### O16 — Editar un pedido antes del pago · 2026-09-11 · `phase/o16`
+
+**Qué existe.** `src/domain/edit-order.ts` con `editPendingOrder`: en **una** transacción con
+`SELECT … FOR UPDATE` del pedido baja o quita líneas, corrige ciudad/dirección/referencia,
+re-cotiza el envío con el subtotal nuevo, re-valida el cupón, recalcula los totales con la
+misma función que el checkout y deja la fila de auditoría. `canEditPendingOrder` es la misma
+regla, exportada para que la pantalla dibuje el botón o el motivo; `getAdminOrder` la devuelve
+ya resuelta. `editPendingOrderAction` (guard `requireStaffSession`, capability
+`pedidos.editar`) devuelve además el texto prearmado de WhatsApp. `reconcile` reconoce el
+prefijo `EDIT_ORDER_REASON_PREFIX` en el `CASE` de `arista_imposible`. Quince pruebas de
+integración, las diez de §5.3 D incluidas.
+
+**Decisiones y desvíos.**
+
+1. **El cupón se re-valida sólo por el mínimo de compra, no con `validateCoupon` entero**, y
+   es el desvío importante de esta fase. Correr `validateCoupon` sobre un pedido que ya tiene
+   el cupón lo rechazaría por motivos que no tienen nada que ver con la edición — empezando
+   por el uso que **ese mismo pedido** ya consumió (`times_used >= max_uses` ⇒ `agotado`), y
+   siguiendo por la vigencia: un cupón que venció ayer sigue siendo legítimo en un pedido de
+   anteayer. El resultado sería subirle el total a una compradora que sólo pidió mandar una
+   remera menos. Lo que sí cambia con la edición es el mínimo de compra, y eso se re-chequea;
+   el monto se recalcula siempre (un 10 % sobre otro subtotal es otro número). Escrito en
+   ARCH.md §3 y en el módulo.
+2. **La aritmética se extrajo a `sumOrderMoney`** (`order-totals.ts`), que antes estaba inline
+   dentro de `computeOrderTotals`. Las dos la usan ahora: el checkout re-precia contra el
+   catálogo, la edición conserva el `unit_price_pyg`, y la cuenta es literalmente la misma
+   función. `money-path.test.ts` y los tests de `create-order` siguen verdes sin tocarse.
+3. **La invariante de totales de `reconcile` ya existía** (`findTotalMismatches` verifica
+   `subtotal = Σ líneas` **y** `total = subtotal − descuento + envío`), así que no se agregó
+   una nueva: se agregó el test que prueba que cubre un pedido editado y que sigue atrapando
+   un total forzado a mano.
+4. **`reserved_until` no se toca.** Editar no le regala tiempo a nadie: extenderlo le
+   bloquearía el stock al resto por más rato, y la edición no es un pago.
+5. Sin método de envío pedido se conserva el del pedido; si ese método ya no aplica a la
+   ciudad nueva, el error lo dice en vez de cobrar otro en silencio. Y se re-chequea que el
+   método acepte el medio de pago del pedido (ARCH.md, "cómo se entrega decide con qué se
+   paga"): cambiar de ciudad no puede dejar un contra entrega donde nadie va a ir a cobrar.
+6. El aviso a la compradora lo manda **una persona** con el `wa.me` de siempre, con el texto
+   que devuelve la acción. Sin plantilla de Meta nueva: una edición se acordó por WhatsApp
+   hace un minuto y el mensaje que sigue no lo escribe el servidor.
+
+**Preguntas para Anton.** Ninguna.
+
 ## 10. Backlog
 
 - Backup por tabla + manifiesto (`KNOWN-ISSUES.md`), cuando una tienda se acerque al límite.

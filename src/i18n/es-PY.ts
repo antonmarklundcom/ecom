@@ -1634,4 +1634,36 @@ export const esPY = {
     "Hola {nombre}! Tu pedido {numero} ({total}) todavía está esperando el pago.",
   "wa.cliente.recordatorio.limite": "Podés pagarlo hasta las {limite}.",
   "wa.cliente.recordatorio.pagar": "Pagá o mirá cómo acá: {url}",
+
+  // -------------------------------------------------------------------------
+  // == O16 == Editar un pedido antes del pago (fable/plan-crecimiento.md §5.3)
+  // -------------------------------------------------------------------------
+  // Los lee el staff en el panel, no la compradora: dicen qué se puede hacer
+  // en vez de "no se pudo".
+  "error.edicion.noExiste": "Ese pedido ya no existe.",
+  "error.edicion.estado": "Sólo se puede editar un pedido que todavía está esperando el pago.",
+  "error.edicion.tarjeta":
+    "Un pedido con tarjeta no se edita: el monto ya está comprometido en Pagopar. Cancelalo y que lo haga de nuevo.",
+  "error.edicion.yaPagado": "Este pedido ya tiene el pago acreditado: no se edita.",
+  "error.edicion.motivo": "Escribí por qué lo estás editando: queda en la historia del pedido.",
+  "error.edicion.sinLineas": "Ese pedido no tiene líneas para editar.",
+  "error.edicion.cantidad": "La cantidad tiene que ser un número entero de 0 para arriba.",
+  "error.edicion.lineaAjena": "Esa línea no es de este pedido.",
+  "error.edicion.cantidadSube":
+    "Acá las cantidades sólo bajan. Para agregar productos hace falta un pedido nuevo.",
+  "error.edicion.quedaVacio":
+    "El pedido no puede quedar sin nada. Si ya no quiere nada, cancelalo.",
+  "error.edicion.envio":
+    "Esa forma de entrega no sirve para esta ciudad. Elegí otra antes de guardar.",
+  "error.edicion.envioPago":
+    "Esa forma de entrega no acepta el medio de pago de este pedido.",
+
+  // El mensaje que el staff le manda a la compradora después de editar. Lo
+  // manda una persona por el `wa.me` de siempre: una edición se acordó por
+  // WhatsApp hace un minuto y el que sigue no lo escribe el servidor.
+  "wa.edicion.total": "Listo, tu pedido {numero} quedó en {total}.",
+  "wa.edicion.cuponQuitado":
+    "Con las cantidades nuevas el cupón ya no llegaba al mínimo, así que quedó sin descuento.",
+  "wa.edicion.limite": "Podés pagarlo hasta las {limite}.",
+  "wa.edicion.link": "Mirá el detalle acá: {url}",
 } as const satisfies Record<string, string>;

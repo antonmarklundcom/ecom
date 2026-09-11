@@ -128,3 +128,37 @@ export const OrderNoteSchema = z.object({
 });
 
 export type OrderNoteInput = z.infer<typeof OrderNoteSchema>;
+
+/**
+ * Editar un pedido que todavía no se pagó (O16).
+ *
+ * Los `.max()` son los mismos del checkout, y por el mismo motivo: son el
+ * largo exacto de las columnas. El precio unitario **no está acá** —no se
+ * edita— y la forma de entrega viaja como **id**, nunca como precio: lo que
+ * se cobra sale de re-cotizar contra la base (ARCH.md §1, regla 1).
+ *
+ * `qty: 0` quita la línea. Que pueda bajar pero no subir lo decide el dominio,
+ * que es el único que conoce la cantidad actual.
+ */
+export const EditOrderSchema = z.object({
+  orderId: z.number().int().positive(),
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.number().int().positive(),
+        qty: z.number().int().nonnegative(),
+      }),
+    )
+    .optional(),
+  shipping: z
+    .object({
+      city: z.string().trim().min(1).max(120),
+      address: z.string().trim().min(1).max(255),
+      reference: z.string().trim().max(255).nullable().optional(),
+      shippingMethodId: z.number().int().positive().nullable().optional(),
+    })
+    .optional(),
+  reason: z.string().trim().min(5).max(500),
+});
+
+export type EditOrderSchemaInput = z.infer<typeof EditOrderSchema>;

@@ -26,7 +26,7 @@ const ACTIONS_DIR = path.join('src', 'app', 'actions');
  * pasando en falso, que es peor que no tenerlo.
  */
 const ESCRITURAS_AUDITADAS =
-  /transitionOrder\s*\(|adjustStock\s*\(|retryOrderRevival\s*\(|refundPayment\s*\(|reviewReceipt\s*\(|addOrderNoteToDomain\s*\(|bulkAdjustPrices\s*\(/;
+  /transitionOrder\s*\(|adjustStock\s*\(|retryOrderRevival\s*\(|refundPayment\s*\(|reviewReceipt\s*\(|addOrderNoteToDomain\s*\(|bulkAdjustPrices\s*\(|editPendingOrder\s*\(/;
 
 /** Cómo se pasa la atribución: la FK directa, o el `reviewerId` que ya lo es. */
 const ATRIBUCION = /actorUserId|reviewerId/;
