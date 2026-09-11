@@ -110,9 +110,15 @@ test("editar un pedido: bajar una cantidad cambia el total en la ficha y en /ped
   await expect(page).toHaveURL(/\/producto\//);
 
   await page.getByTestId(TESTIDS.productAddToCart).click();
+  await expect(page.getByTestId(TESTIDS.cartCheckoutLink)).toBeVisible();
   await page.keyboard.press("Escape");
+  // Esperar a que el sheet termine de cerrar: reabrirlo mientras todavía
+  // está animando la salida deja al `Sheet` (Radix) en un estado que no
+  // vuelve a abrir con el segundo click.
+  await expect(page.getByTestId(TESTIDS.cartCheckoutLink)).toBeHidden();
   await page.getByTestId(TESTIDS.productAddToCart).click();
 
+  await expect(page.getByTestId(TESTIDS.cartCheckoutLink)).toBeVisible();
   await page.getByTestId(TESTIDS.cartCheckoutLink).click();
   await expect(page).toHaveURL(/\/checkout/);
 
