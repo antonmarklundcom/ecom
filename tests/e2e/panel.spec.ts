@@ -144,8 +144,13 @@ test("editar un pedido: bajar una cantidad cambia el total en la ficha y en /ped
 
   await expect(page.getByTestId(TESTIDS.adminEditOrderResult)).toBeVisible();
 
+  // `router.refresh()` (dentro de `EditOrderForm`) es asíncrono: el resumen
+  // "total antes → después" ya está en pantalla antes de que el Server
+  // Component de la ficha vuelva a pedir `order.totalPyg`. Un `innerText()`
+  // suelto lee lo que hubiera antes de esa segunda vuelta; `toHaveText`
+  // reintenta hasta que el DOM cambie de verdad.
+  await expect(page.getByTestId(TESTIDS.adminOrderTotal)).not.toHaveText(totalAntes);
   const totalDespues = await page.getByTestId(TESTIDS.adminOrderTotal).innerText();
-  expect(totalDespues).not.toBe(totalAntes);
 
   // La compradora entra con su propio link tokenizado — el total que ve tiene
   // que ser el mismo que quedó en el panel, no una segunda cuenta.
