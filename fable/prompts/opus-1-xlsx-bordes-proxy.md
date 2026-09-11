@@ -1,11 +1,11 @@
 # Fase O1 — `xlsx` parcheado, bordes de input, `proxy()` con test. Pegar en una sesión nueva de OPUS.
 
 Leé `fable/plan.md` ENTERO primero — más §9 (build log) y `KNOWN-ISSUES.md` si existe. Después
-`CLAUDE.md`, `fable/REVIEW.md` §3 (F1, F6, F3) y §5. Ejecutá plan §5.1 bajo el protocolo de
+`CLAUDE.md`, `fable/REVIEW-2026-09-02.md` §3 (F1, F6, F3) y §5. Ejecutá plan §5.1 bajo el protocolo de
 autonomía §4. Nada fuera del plan.
 
 Reglas de la fase:
-- Branch `phase/o1` desde `main` actualizado. Si `fable/REVIEW.md` P1 tiene respuesta de Anton
+- Branch `phase/o1` desde `main` actualizado. Si `fable/REVIEW-2026-09-02.md` P1 tiene respuesta de Anton
   en el hilo o en el repo, manda ésa; si no, el tarball oficial de SheetJS (plan §1.3).
 - Skills a cargar: `nextjs-deploy-hostinger` (para razonar si el build de Hostinger baja del
   CDN de SheetJS — no hay evidencia en contra; si dudás, vendorizá en `vendor/` y anotalo).
