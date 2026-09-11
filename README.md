@@ -18,7 +18,8 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
-| [fable/plan-crecimiento.md](./fable/plan-crecimiento.md) | **Plan activo** (revisión de Fable del 2026-09-11 en [fable/REVIEW.md](./fable/REVIEW.md)): deuda de dominio de `KNOWN-ISSUES.md`, recordatorio de pago antes del vencimiento, edición de un pedido sin pagar, kit de tres temas, dependencias. Seis fases O14–S19 en dos ventanas |
+| [fable/REVIEW.md](./fable/REVIEW.md) | **La revisión vigente** de Fable (2026-09-11): diagnóstico completo sobre el que salió `fable/plan-crecimiento.md`. La próxima revisión de Fable arranca desde `fable/PROMPT.md` |
+| [fable/plan-crecimiento.md](./fable/plan-crecimiento.md) | Plan de deuda de dominio de `KNOWN-ISSUES.md`, recordatorio de pago antes del vencimiento, edición de un pedido sin pagar, kit de tres temas y dependencias. Seis fases O14–S19 en dos ventanas, **todas mergeadas — historial**, igual que `fable/plan-operacion.md` y `fable/plan.md` |
 | [fable/plan-operacion.md](./fable/plan-operacion.md) | Plan de la tienda después del lanzamiento (tracking, notas, remito, resumen diario, backups, acciones masivas, vidriera, CI, distribución a las tiendas). Nueve fases O5–S13, todas mergeadas — **historial**, igual que `fable/plan.md` |
 | [fable/plan.md](./fable/plan.md) | Plan de endurecimiento anterior (revisión en `fable/REVIEW-2026-09-02.md`), mergeado completo — historial |
 
