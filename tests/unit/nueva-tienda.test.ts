@@ -7,15 +7,19 @@ import {
   bloqueHPanel,
   completarEnv,
   esPlaceholder,
+  esTema,
+  escribirTema,
   fijarEnv,
   generarSecreto,
   leerCampoTienda,
+  leerTemaActual,
   leerValorEnv,
   normalizarDominio,
   normalizarWhatsApp,
   parseFlags,
   reescribirTienda,
   sugerirTitulo,
+  TEMAS,
   type DatosTienda,
 } from '../../scripts/nueva-tienda';
 
@@ -245,6 +249,13 @@ describe('las banderas', () => {
     ).toEqual({ nombre: 'Lencería', dominio: 'lenceria.com.py' });
   });
 
+  it('lee --tema junto con el resto', () => {
+    expect(parseFlags(['--nombre', 'Lencería', '--tema', 'calido'])).toEqual({
+      nombre: 'Lencería',
+      tema: 'calido',
+    });
+  });
+
   it('una bandera desconocida es un error, no algo que se ignora', () => {
     // `--nombr` mal tipeado tiene que doler ahora y no cuando el header diga
     // "TiendaPY".
@@ -296,6 +307,67 @@ describe('fijar lo que la persona acaba de contestar', () => {
       WHATSAPP_NUMBER: '+595981123456',
     });
     expect(escritas).toEqual([]);
+  });
+});
+
+/**
+ * `globals.css` **del template**, tal como queda después de S18: sólo el
+ * `@import` del tema, no todo el archivo (no hace falta para probar el
+ * lector/escritor del tema, y así el test no se rompe si `globals.css`
+ * gana una regla nueva más abajo).
+ */
+const GLOBALS_TEMPLATE = `@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@import "../styles/temas/neutro.css";
+`;
+
+describe('el tema del kit de piel (--tema)', () => {
+  it('conoce los tres temas del plan', () => {
+    expect(TEMAS).toEqual(['neutro', 'calido', 'oscuro-vivo']);
+  });
+
+  it('esTema distingue lo conocido de lo inventado', () => {
+    expect(esTema('neutro')).toBe(true);
+    expect(esTema('calido')).toBe(true);
+    expect(esTema('oscuro-vivo')).toBe(true);
+    expect(esTema('minimalista')).toBe(false);
+  });
+
+  it('lee el tema que globals.css importa hoy', () => {
+    expect(leerTemaActual(GLOBALS_TEMPLATE)).toBe('neutro');
+    expect(leerTemaActual(GLOBALS_TEMPLATE.replace('neutro', 'calido'))).toBe('calido');
+  });
+
+  it('sin @import reconocible, asume neutro en vez de romper', () => {
+    expect(leerTemaActual('@import "tailwindcss";\n')).toBe('neutro');
+  });
+
+  it('escribe el tema pedido', () => {
+    const salida = escribirTema(GLOBALS_TEMPLATE, 'oscuro-vivo');
+    expect(salida).toContain('@import "../styles/temas/oscuro-vivo.css";');
+    expect(leerTemaActual(salida)).toBe('oscuro-vivo');
+  });
+
+  it('es idempotente: escribir el mismo tema no cambia el archivo', () => {
+    const una = escribirTema(GLOBALS_TEMPLATE, 'calido');
+    expect(escribirTema(una, 'calido')).toBe(una);
+  });
+
+  it('un tema que no existe es un error explícito, no un archivo roto', () => {
+    // @ts-expect-error -- justo lo que se prueba: un nombre inventado.
+    expect(() => escribirTema(GLOBALS_TEMPLATE, 'minimalista')).toThrow(/minimalista/);
+  });
+
+  it('avisa en vez de escribir cualquier cosa si no encuentra el @import', () => {
+    expect(() => escribirTema('body { color: red; }\n', 'calido')).toThrow(/globals\.css/);
+  });
+
+  it('el globals.css real importa uno de los tres temas', () => {
+    const real = readFileSync(path.join('src', 'app', 'globals.css'), 'utf8');
+    expect(TEMAS as readonly string[]).toContain(leerTemaActual(real));
   });
 });
 
