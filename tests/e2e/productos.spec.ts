@@ -82,3 +82,52 @@ test("crear producto con markdown, duplicarlo y desactivar la copia en masa", as
 
   await expect(page.getByTestId(TESTIDS.adminBulkBar)).toHaveCount(0);
 });
+
+/**
+ * Destacados (O14 dejó `isFeatured` en el dominio; S17 dibuja el toggle) —
+ * fable/plan-crecimiento.md §6.1 A/G.
+ *
+ * Verifica contra `/admin/productos?destacados=1` (`force-dynamic`, siempre
+ * fresco) y no contra la home pública: `saveProduct` no revalidea `/` —a
+ * diferencia de `crearCategoria`/`editarCategoria`, que sí llaman
+ * `revalidatePath("/", "layout")`— así que la home queda con el ISR viejo
+ * (`revalidate = 300`) hasta el próximo pedido de esa ruta después de la
+ * ventana. Documentado en `KNOWN-ISSUES.md` con el arreglo (agregar el mismo
+ * `revalidatePath` a `src/app/actions/admin-products.ts`, fuera del alcance
+ * de S17 — `src/app/actions/**` es límite duro).
+ */
+test("marcar un producto como destacado lo muestra en el filtro del panel", async ({ page }) => {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  const ownerPassword = process.env.OWNER_PASSWORD;
+  if (!ownerEmail || !ownerPassword) {
+    throw new Error(
+      "Faltan OWNER_EMAIL/OWNER_PASSWORD en el entorno del test — son los mismos que usó " +
+        "`pnpm create-owner` (o `POST /api/setup/init`) para sembrar la cuenta del dueño."
+    );
+  }
+
+  const nombreProducto = `Destacado E2E ${Date.now()}`;
+
+  await page.goto("/admin/login?next=%2Fadmin%2Fproductos%2Fnuevo");
+  await page.getByTestId(TESTIDS.adminLoginEmail).fill(ownerEmail);
+  await page.getByTestId(TESTIDS.adminLoginPassword).fill(ownerPassword);
+  await page.getByTestId(TESTIDS.adminLoginSubmit).click();
+  await page.waitForURL(/\/admin\/productos\/nuevo$/);
+
+  await page.getByTestId(TESTIDS.adminProductNameInput).fill(nombreProducto);
+  await page.getByTestId(TESTIDS.adminProductFeaturedToggle).check();
+
+  await page.getByTestId(TESTIDS.adminProductSaveSubmit).click();
+  await page.waitForURL(/\/admin\/productos\/\d+$/);
+  const productId = page.url().split("/").pop();
+
+  // El filtro "sólo destacados" (`listAdminProducts({ featured: true })`)
+  // lo trae, y la fila muestra el chip — ubicado por `data-id`, nunca por el
+  // nombre que este mismo spec inventó (NEW-STORE.md §5).
+  await page.goto("/admin/productos?destacados=1");
+  const row = page
+    .locator(`[data-testid="${TESTIDS.adminProductRowSelect}"][data-id="${productId}"]`)
+    .locator("xpath=ancestor::li[1]");
+  await expect(row).toBeVisible();
+  await expect(row.getByTestId(TESTIDS.adminProductFeaturedChip)).toBeVisible();
+});

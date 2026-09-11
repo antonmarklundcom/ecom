@@ -38,3 +38,33 @@ cuando alguna tienda se acerque: un archivo por tabla **más** un manifiesto con
 la lista y el conteo de filas de cada uno, y que `restore` se niegue a correr
 si falta alguno. Mientras tanto, el dump comprimido de una tienda con miles de
 pedidos entra cómodo en 10 MB.
+
+## `saveProduct` no revalidea la vidriera — fase S17
+
+Marcar un producto destacado (o publicarlo, desactivarlo, cambiarle el
+precio) desde `/admin/productos` actualiza la base al toque, pero la home y
+las fichas públicas pueden tardar hasta `revalidate = 300` (`src/app/page.tsx`)
+en mostrarlo: `saveProduct`, `bulkSetActive`, `bulkMoveCategory` y
+`duplicateProduct` (`src/app/actions/admin-products.ts`) sólo llaman
+`revalidatePath("/admin/productos"...)`, nunca `revalidatePath("/", "layout")`.
+Se descubrió escribiendo el e2e de S17 ("marcar destacado y verlo en la
+home"): con la home ya prerenderizada por `next build` antes del test, un
+producto nuevo no aparecía ni de casualidad dentro de la ventana del test.
+
+`src/app/actions/admin-categories.ts` ya resuelve exactamente esto —
+`revalidarVidriera()` llama `revalidatePath("/", "layout")` después de
+`crearCategoria`/`editarCategoria`/`uploadCategoryImage`— pero el equivalente
+nunca se escribió para productos. No se arregló en S17 porque
+`src/app/actions/**` es límite duro de las fases Sonnet (§4.7 de
+`fable/plan-crecimiento.md`): ni "un cambio chiquito" ahí. El e2e de S17
+(`tests/e2e/productos.spec.ts`, "marcar un producto como destacado") verifica
+contra `/admin/productos?destacados=1` (`force-dynamic`, siempre fresco) en
+vez de la home pública, así que el flujo real queda probado igual — lo que no
+queda probado es la latencia con la que la compradora lo ve.
+
+Arreglo: agregar a `saveProduct`, `bulkSetActive`, `bulkMoveCategory` y
+`duplicateProduct` el mismo `revalidatePath("/", "layout")` que ya tiene
+`admin-categories.ts` (y, si hace falta acotar más, `revalidatePath` de
+`/categoria/[slug]` y `/producto/[slug]` del producto tocado). Es un cambio
+mecánico de una fase con acceso a `src/app/actions/**` — O14 ya cerró la
+deuda de dominio de este plan, así que es candidato para S19 o un PR aparte.

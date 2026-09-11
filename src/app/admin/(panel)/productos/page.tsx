@@ -32,11 +32,14 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   const rawSort = first(query.orden);
   const sort = isAdminProductSort(rawSort) ? rawSort : "recientes";
   const rawPage = Number(first(query.pagina) ?? 1);
+  // == S17 == Filtro "sólo destacados". Ausente = todos, igual que hoy.
+  const featured = first(query.destacados) === "1" ? true : undefined;
 
   const [result, categories] = await Promise.all([
     listAdminProducts({
       search,
       categoryId,
+      featured,
       sort,
       page: Number.isFinite(rawPage) ? rawPage : 1,
     }),
@@ -48,6 +51,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
     if (search) params.set("q", search);
     if (categoryId) params.set("categoria", String(categoryId));
     if (sort !== "recientes") params.set("orden", sort);
+    if (featured) params.set("destacados", "1");
     if (page > 1) params.set("pagina", String(page));
     const qs = params.toString();
     return qs === "" ? "/admin/productos" : `/admin/productos?${qs}`;
@@ -78,6 +82,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             una categoría la perdería y devolvería el catálogo entero. */}
         {categoryId ? <input type="hidden" name="categoria" value={String(categoryId)} /> : null}
         {sort !== "recientes" ? <input type="hidden" name="orden" value={sort} /> : null}
+        {featured ? <input type="hidden" name="destacados" value="1" /> : null}
         <button type="submit" className="border-border rounded-lg border px-4 text-sm">
           {t("panel.filtros.buscar")}
         </button>
@@ -91,6 +96,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
         categoryId={categoryId}
         sort={sort}
         search={search}
+        featured={featured ?? false}
       />
 
       {result.rows.length === 0 ? (
@@ -116,6 +122,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             publishedAt: product.publishedAt ? product.publishedAt.toISOString() : null,
             imageCloudinaryId: product.imageCloudinaryId,
             imageAlt: product.imageAlt,
+            isFeatured: product.isFeatured,
           }))}
           categories={categories.map((category) => ({ id: category.id, name: category.name }))}
           canBulkPrice={can(actor.role, "precios.masivo")}

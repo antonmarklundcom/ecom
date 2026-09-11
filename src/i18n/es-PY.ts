@@ -1519,13 +1519,8 @@ export const esPY = {
 
   "panel.categoria.descripcion": "Descripción",
   "panel.categoria.descripcion.placeholder": "Texto para la página de la categoría (opcional).",
-  "panel.categoria.foto": "ID de la foto en Cloudinary",
-  "panel.categoria.foto.ayuda":
-    "Subí la foto a la carpeta \"categorias/\" del panel multimedia y pegá acá el public_id. Vacío = sin foto.",
+  "panel.categoria.foto": "Foto de portada",
   "panel.categoria.foto.alt": "Descripción de la foto (alt)",
-  "panel.categoria.cambiarPresentacion": "Cambiar descripción o foto",
-  "panel.categoria.presentacionAyuda":
-    "Esta lista no muestra la descripción ni la foto que ya tiene cargadas la categoría — sólo lo que escribas acá se guarda. Dejalo destildado para no tocar lo que ya tiene.",
 
   "panel.reembolso.titulo": "Reembolso parcial",
   "panel.reembolso.pagado": "Pagado",
@@ -1666,4 +1661,54 @@ export const esPY = {
     "Con las cantidades nuevas el cupón ya no llegaba al mínimo, así que quedó sin descuento.",
   "wa.edicion.limite": "Podés pagarlo hasta las {limite}.",
   "wa.edicion.link": "Mirá el detalle acá: {url}",
+
+  // -------------------------------------------------------------------------
+  // == S17 == Panel y vidriera: dibujar lo que O14–O16 dejaron
+  // (fable/plan-crecimiento.md §6.1)
+  // -------------------------------------------------------------------------
+
+  // Destacados (A): O14 dejó `isFeatured` en `saveProduct`/`listAdminProducts`.
+  "panel.producto.destacado": "Destacado en la home",
+  "panel.producto.destacadoAyuda":
+    "Aparece en la fila de destacados de la portada, antes que el resto del catálogo.",
+  "panel.productos.destacadoChip": "Destacado",
+  "panel.filtros.destacados": "Sólo destacados",
+
+  // Foto de categoría (B): antes era un ID de Cloudinary pegado a mano.
+  "panel.categoria.foto.vacia": "Todavía no tiene foto.",
+  "panel.categoria.foto.subida": "Foto actualizada.",
+
+  // Editar un pedido antes del pago (D): O16 dejó el dominio y la acción.
+  "panel.pedido.editar.titulo": "Editar pedido",
+  "panel.pedido.editar.abrir": "Editar pedido",
+  "panel.pedido.editar.motivoTarjeta":
+    "Con tarjeta no se edita: el monto ya está comprometido en Pagopar. Cancelalo y que la compradora lo haga de nuevo.",
+  "panel.pedido.editar.motivoPagado": "Este pedido ya tiene el pago acreditado: no se edita.",
+  "panel.pedido.editar.motivoEstado": "Sólo se puede editar un pedido que todavía está esperando el pago.",
+  "panel.pedido.editar.items": "Cantidades",
+  "panel.pedido.editar.quitar": "Quitar",
+  "panel.pedido.editar.ciudad": "Ciudad",
+  "panel.pedido.editar.direccion": "Dirección",
+  "panel.pedido.editar.referencia": "Referencia",
+  "panel.pedido.editar.envio": "Forma de entrega",
+  "panel.pedido.editar.sinEnvios": "No hay una forma de entrega que acepte el medio de pago de este pedido.",
+  "panel.pedido.editar.motivo": "Motivo de la edición",
+  "panel.pedido.editar.motivo.placeholder": "Ej: la compradora pidió bajar una unidad",
+  "panel.pedido.editar.motivoCorto": "Contá en pocas palabras por qué lo estás editando.",
+  "panel.pedido.editar.guardar": "Guardar cambios",
+  "panel.pedido.editar.guardado": "Pedido editado.",
+  "panel.pedido.editar.resumen": "Total: {antes} → {despues}",
+  "panel.pedido.editar.cuponQuitado":
+    "Con las cantidades nuevas el cupón {codigo} ya no llegaba al mínimo, así que quedó sin descuento.",
+  "panel.pedido.editar.avisar": "Avisar por WhatsApp",
+
+  // Timeline (E): la línea del recordatorio de pago (O15) en la ficha.
+  "panel.pedido.recordatorioEnviado": "Recordatorio de pago enviado el {fecha}",
+
+  // `src/app/admin/error.tsx` (F): el mismo boundary genérico no distinguía
+  // un error de checkout de un error del panel.
+  "admin.error.titulo": "Algo falló en el panel",
+  "admin.error.texto":
+    "No se pudo cargar esta pantalla. Podés reintentar o volver al inicio del panel — el pedido o el producto no se tocaron.",
+  "admin.error.volver": "Volver a /admin",
 } as const satisfies Record<string, string>;

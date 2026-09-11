@@ -7,6 +7,7 @@ import {
   ADMIN_PRODUCT_SORT_LABEL,
   type AdminProductSort,
 } from "@/lib/admin-product-sort";
+import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 const TODAS = "";
@@ -29,15 +30,18 @@ export function ProductFilters({
   categoryId,
   sort,
   search,
+  featured = false,
 }: {
   categories: Category[];
   categoryId: number | undefined;
   sort: AdminProductSort;
   search: string | undefined;
+  // == S17 == Filtro "sólo destacados" (`isFeatured`, O14).
+  featured?: boolean;
 }) {
   const router = useRouter();
 
-  const go = (patch: { categoria?: string; orden?: string }): void => {
+  const go = (patch: { categoria?: string; orden?: string; destacados?: boolean }): void => {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
 
@@ -46,6 +50,9 @@ export function ProductFilters({
 
     const orden = patch.orden ?? sort;
     if (orden !== "recientes") params.set("orden", orden);
+
+    const destacados = patch.destacados ?? featured;
+    if (destacados) params.set("destacados", "1");
 
     const qs = params.toString();
     router.push(qs === "" ? "/admin/productos" : `/admin/productos?${qs}`);
@@ -87,6 +94,17 @@ export function ProductFilters({
           </option>
         ))}
       </select>
+
+      {/* == S17 == */}
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          data-testid={TESTIDS.adminProductFeaturedFilter}
+          checked={featured}
+          onChange={(event) => go({ destacados: event.target.checked })}
+        />
+        {t("panel.filtros.destacados")}
+      </label>
     </div>
   );
 }

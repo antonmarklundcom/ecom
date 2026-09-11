@@ -127,6 +127,35 @@ export const TESTIDS = {
   adminRefundAmount: "admin-refund-amount",
   adminRefundReason: "admin-refund-reason",
   adminRefundConfirm: "admin-refund-confirm",
+
+  // == S17 ==
+  /** Checkbox "Destacado en la home" (`product-form.tsx`). */
+  adminProductFeaturedToggle: "admin-product-featured-toggle",
+  /** Chip que marca un producto destacado en el listado (`product-list.tsx`). */
+  adminProductFeaturedChip: "admin-product-featured-chip",
+  /** Filtro "sólo destacados" del listado (`product-filters.tsx`). */
+  adminProductFeaturedFilter: "admin-product-featured-filter",
+  /** `<input type="file">` real de la foto de categoría (`categories-manager.tsx`). */
+  adminCategoryImageInput: "admin-category-image-input",
+  /** Botón "Editar pedido" en la ficha (`pedidos/[id]/page.tsx`), cuando es editable. */
+  adminEditOrderOpen: "admin-edit-order-open",
+  /** El total del pedido en la ficha del panel, con el valor vigente. */
+  adminOrderTotal: "admin-order-total",
+  /**
+   * Cantidad por línea en el formulario de edición (`edit-order-form.tsx`),
+   * con `data-order-item-id`.
+   */
+  adminEditOrderQty: "admin-edit-order-qty",
+  adminEditOrderReason: "admin-edit-order-reason",
+  adminEditOrderSubmit: "admin-edit-order-submit",
+  /** El resumen "total antes → después" que deja la acción del servidor. */
+  adminEditOrderResult: "admin-edit-order-result",
+  /** Aviso de que el cupón se quitó al re-cotizar (`couponRemoved`). */
+  adminEditOrderCuponQuitado: "admin-edit-order-cupon-quitado",
+  /** Botón "Avisar por WhatsApp" con el texto prearmado de la acción. */
+  adminEditOrderWhatsapp: "admin-edit-order-whatsapp",
+  /** El total en la página pública del pedido (`/pedido/[orderNumber]`). */
+  pedidoTotal: "pedido-total",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];
