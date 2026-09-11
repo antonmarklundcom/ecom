@@ -195,7 +195,16 @@ export default async function OrderPage({
           <dt className="text-muted-foreground">{t("pedido.envio")}</dt>
           <dd className="text-right tabular-nums">{formatGs(order.shippingPyg)}</dd>
           <dt className="font-medium">{t("pedido.total")}</dt>
-          <dd className="text-right font-semibold tabular-nums">{formatGs(order.totalPyg)}</dd>
+          {/* == S17 == data-testid nuevo: el total de la compradora vuelve a
+              cambiar cuando el staff edita el pedido antes de que se pague
+              (O16), y el e2e de la edición necesita leerlo sin adivinar el
+              markup. */}
+          <dd
+            data-testid={TESTIDS.pedidoTotal}
+            className="text-right font-semibold tabular-nums"
+          >
+            {formatGs(order.totalPyg)}
+          </dd>
           <dt className="text-muted-foreground text-xs">{t("pedido.iva10")}</dt>
           <dd className="text-muted-foreground text-right text-xs tabular-nums">
             {formatGs(order.iva10Pyg)}

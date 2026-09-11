@@ -22,6 +22,8 @@ export type ProductListRow = {
   publishedAt: string | null;
   imageCloudinaryId: string | null;
   imageAlt: string | null;
+  // == S17 == Chip de destacado en el listado.
+  isFeatured: boolean;
 };
 
 /**
@@ -119,7 +121,18 @@ export function ProductList({
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <span className="font-medium">{product.name}</span>
+                  <span className="font-medium">
+                    {product.name}
+                    {/* == S17 == */}
+                    {product.isFeatured ? (
+                      <span
+                        data-testid={TESTIDS.adminProductFeaturedChip}
+                        className="bg-primary/10 text-primary ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+                      >
+                        {t("panel.productos.destacadoChip")}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="text-sm tabular-nums">
                     {product.minPricePyg === null
                       ? t("panel.productos.sinPrecio")

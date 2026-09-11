@@ -38,6 +38,9 @@ export default async function AdminCategoriesPage() {
             publicados: category.publicados,
             esPrimera: index === 0,
             esUltima: index === categories.length - 1,
+            description: category.description,
+            imageCloudinaryId: category.imageCloudinaryId,
+            imageAlt: category.imageAlt,
           }))}
         />
       </div>
