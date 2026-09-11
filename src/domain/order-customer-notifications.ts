@@ -5,6 +5,7 @@ import { orderEvents, orders, type OrderStatus } from "@/db/schema";
 import { TIENDA } from "@/config/tienda";
 import { t } from "@/i18n";
 import { formatGs } from "@/lib/money";
+import { formatDateTimePY } from "@/lib/py";
 
 import { resolveMessageSender, type MessageSender } from "./messaging";
 import { motivoDeAviso, withTimeout } from "./notify-timing";
@@ -21,6 +22,12 @@ import { log, mensajeDe } from '@/lib/log';
  * del pedido. Acá se agregan tres avisos que salen solos, en el momento en
  * que cambian: **confirmado** (el pedido quedó registrado), **pagado** (la
  * plata entró, por el camino que sea) y **enviado** (salió a reparto).
+ *
+ * O15 suma un cuarto que no lo dispara una transición sino el reloj:
+ * **recordatorio**, cuando al pedido sin pagar le quedan menos de 6 h de
+ * reserva. Comparte el texto y el interruptor de plantilla con los otros tres;
+ * quién lo elige y cómo no se manda dos veces vive en
+ * `src/domain/payment-reminders.ts`.
  *
  * Misma filosofía que O2, y por eso comparten `notify-timing.ts`:
  *
@@ -45,12 +52,18 @@ import { log, mensajeDe } from '@/lib/log';
 
 const AVISO_TIMEOUT_MS = 10_000;
 
-export type CustomerNoticeKind = "confirmado" | "pagado" | "enviado";
+export type CustomerNoticeKind = "confirmado" | "pagado" | "enviado" | "recordatorio";
 
 const TEMPLATE_ENV_VAR: Record<CustomerNoticeKind, string> = {
   confirmado: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO",
   pagado: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO",
   enviado: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO",
+  // O15. No lo dispara una transición sino el cron, y por eso su idempotencia
+  // no vive en `order_events` como la de los otros tres sino en una columna
+  // propia (`orders.payment_reminder_sent_at`): el cron corre cada 15 minutos
+  // y una fila de evento no se puede pedir "sólo si no existe" en una sola
+  // sentencia. El detalle está en `src/domain/payment-reminders.ts`.
+  recordatorio: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO",
 };
 
 /** El nombre de la plantilla de Meta para este aviso, o `null` si no se cargó. */
@@ -101,6 +114,11 @@ export type CustomerNoticeOrder = {
   trackingCarrier?: string | null;
   trackingCode?: string | null;
   trackingUrl?: string | null;
+  /**
+   * Hasta cuándo puede pagar (O15). Sólo lo usa el recordatorio; los otros
+   * tres avisos salen de un pedido que ya no está esperando plata.
+   */
+  reservedUntil?: Date | null;
 };
 
 /**
@@ -133,6 +151,20 @@ export function customerNoticeBody(
     return [
       t("wa.cliente.pagado", { nombre, numero: order.orderNumber, total }),
       t("wa.cliente.verPedido", { url }),
+    ].join("\n");
+  }
+
+  if (kind === "recordatorio") {
+    // La hora límite va en hora de Asunción y con todas las letras: "hasta
+    // las 18:40" es lo único accionable del mensaje. Si el pedido no tuviera
+    // `reserved_until` —no debería: el recordatorio se elige justamente por
+    // esa columna— sale el aviso sin la línea del plazo antes que con una
+    // fecha inventada.
+    const limite = order.reservedUntil ? formatDateTimePY(order.reservedUntil) : null;
+    return [
+      t("wa.cliente.recordatorio", { nombre, numero: order.orderNumber, total }),
+      ...(limite ? [t("wa.cliente.recordatorio.limite", { limite })] : []),
+      t("wa.cliente.recordatorio.pagar", { url }),
     ].join("\n");
   }
 
@@ -201,6 +233,7 @@ export async function notifyCustomerOrderEvent(
         trackingCarrier: orders.trackingCarrier,
         trackingCode: orders.trackingCode,
         trackingUrl: orders.trackingUrl,
+        reservedUntil: orders.reservedUntil,
         status: orders.status,
       })
       .from(orders)

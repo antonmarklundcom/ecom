@@ -78,6 +78,10 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkAvisoCliente(env, "confirmado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO"),
     checkAvisoCliente(env, "pagado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO"),
     checkAvisoCliente(env, "enviado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"),
+    // O15. Advertencia, nunca bloqueo: sin esta plantilla la tienda cobra
+    // exactamente igual que antes — lo que pierde son los pedidos que vencen
+    // sin que nadie les haya dicho nada.
+    checkAvisoCliente(env, "recordatorio", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO"),
     checkResumenDiario(env),
     checkBackups(env),
     checkDatabaseUrl(env),
@@ -655,7 +659,7 @@ function checkResumenDiario(env: PreflightEnv): PreflightCheck {
  */
 function checkAvisoCliente(
   env: PreflightEnv,
-  id: "confirmado" | "pagado" | "enviado",
+  id: "confirmado" | "pagado" | "enviado" | "recordatorio",
   templateVar: string,
 ): PreflightCheck {
   const template = value(env, templateVar);
@@ -670,8 +674,12 @@ function checkAvisoCliente(
       id: `aviso_cliente_${id}`,
       severity: "advierte",
       title: titulo,
-      detail: `${templateVar} vacío: la compradora no recibe este aviso. Sin plantilla no sale ` +
-        "ni por la consola de dev — es una decisión de esta tienda, no un default",
+      detail:
+        id === "recordatorio"
+          ? `${templateVar} vacío: las compradoras no reciben recordatorio de pago y el pedido ` +
+            "que se olvidaron vence sin que nadie les haya dicho nada"
+          : `${templateVar} vacío: la compradora no recibe este aviso. Sin plantilla no sale ` +
+            "ni por la consola de dev — es una decisión de esta tienda, no un default",
     };
   }
 

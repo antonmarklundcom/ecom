@@ -561,6 +561,40 @@ en el bundle · reembolso parcial en 0. Quedan las dos que no le tocaban a esta 
 
 **Preguntas para Anton.** Ninguna.
 
+### O15 — Recordatorio de pago antes del vencimiento · 2026-09-11 · `phase/o15`
+
+**Qué existe.** `src/domain/payment-reminders.ts` con `sendPaymentReminders(now)`: toma hasta
+50 pedidos en `pendiente_pago` sin marca cuya reserva vence dentro de las próximas 6 h, marca
+`orders.payment_reminder_sent_at` **antes** de mandar (`UPDATE … WHERE … IS NULL`, y sólo con
+`affectedRows = 1` sale el mensaje) y devuelve `{ candidatos, enviados, fallidos }`. El aviso
+es un `CustomerNoticeKind` más (`recordatorio`), con su plantilla
+`WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO` como único interruptor. `runMaintenance` lo
+llama **después** de vencer pedidos, así que un pedido recién vencido nunca recibe un "podés
+pagar hasta las…"; la ruta de `vencer-pedidos` devuelve y loguea los tres conteos. Preflight
+avisa (advertencia, nunca bloqueo). Sin entrada nueva de cron en el hPanel.
+
+**Decisiones y desvíos.**
+
+1. **La idempotencia no usa `order_events`** como los otros tres avisos a la compradora, sino
+   la columna de O14. El motivo es el disparador: los otros tres cuelgan de una transición que
+   pasa una sola vez por pedido, y éste lo dispara un cron que corre cada 15 minutos. "Insertá
+   la fila sólo si no existe" no es una sentencia; `UPDATE … WHERE … IS NULL` sí, y su
+   `affectedRows` es la carrera ganada o perdida sin ambigüedad.
+2. **`affectedRows` en vez del `UPDATE` + `SELECT` de confirmación** que usa `stock-alerts.ts`.
+   Ese patrón tiene una ventana: dos corridas simultáneas pueden ver las dos la fila ya marcada
+   y creer las dos que ganaron. Acá el header de mysql2 lo dice sin releer nada.
+3. **La ventana se abre en `now`, no antes.** Un pedido cuya reserva ya venció es trabajo de
+   `expireOverdueOrders`, que corrió un renglón más arriba en la misma corrida.
+4. El texto lleva número, total, hora límite en Asunción y el link tokenizado — **ningún dato
+   bancario**: ya están en la página del pedido, que es adonde apunta el link. Sin
+   `reserved_until` (que no debería pasar: es la columna por la que se lo eligió) sale sin la
+   línea del plazo antes que con una fecha inventada.
+5. `tests/integration/cron-route.test.ts` esperaba el JSON exacto de la ruta: se le agregó
+   `paymentReminders` con los tres ceros, que es lo que ve una tienda sin la plantilla.
+
+**Preguntas para Anton.** Ninguna. Para que el recordatorio salga en producción falta la
+plantilla de Meta (§7), que es trabajo suyo y del comercio.
+
 ## 10. Backlog
 
 - Backup por tabla + manifiesto (`KNOWN-ISSUES.md`), cuando una tienda se acerque al límite.

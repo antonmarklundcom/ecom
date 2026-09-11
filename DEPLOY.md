@@ -304,7 +304,7 @@ la resta hecha:
 
 | Ruta | Frecuencia | Hora Asunción | Hora UTC (expresión cron) | Qué hace si falta la variable |
 |---|---|---|---|---|
-| `/api/cron/vencer-pedidos` | cada 15 min | — | `*/15 * * * *` | Sin `CRON_SECRET` (≥16 caracteres), 503: nunca vence nada sin secreto |
+| `/api/cron/vencer-pedidos` | cada 15 min | — | `*/15 * * * *` | Sin `CRON_SECRET` (≥16 caracteres), 503: nunca vence nada sin secreto. Desde O15 manda además los recordatorios de pago; sin su plantilla, no manda ninguno y vence igual |
 | `/api/cron/resumen-diario` | diaria | 08:00 | `0 11 * * *` | Sin `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO`, corre igual y no manda nada (`sent: false`) |
 | `/api/cron/backup` | diaria | 03:00 | `0 6 * * *` | Sin credenciales de Cloudinary, se saltea sola (`skipped: "sin_cloudinary"`) |
 
@@ -318,6 +318,15 @@ más abajo). Detalle de cada una:
 `/api/cron/vencer-pedidos` vence los pedidos sin pago y limpia reservas viejas.
 Sin él, los pedidos muertos quedan para siempre en `pendiente_pago` y el panel
 miente.
+
+Desde O15 la misma corrida manda también el **recordatorio de pago**: a cada
+pedido sin pagar al que le quedan menos de 6 h de reserva le sale un WhatsApp,
+una sola vez, **después** de vencer los que ya se pasaron. No hay entrada nueva
+que agregar acá — es ésta. Necesita
+`WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO` (NEW-STORE.md §4c); sin esa
+variable el cron hace exactamente lo de siempre y no manda nada. La respuesta
+JSON trae `paymentReminders: { candidatos, enviados, fallidos }`, que es por
+dónde mirar si el dueño dice que las compradoras no reciben el aviso.
 
 hPanel → **Advanced → Cron Jobs** → cada 15 minutos:
 

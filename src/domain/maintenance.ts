@@ -5,6 +5,7 @@ import { orders, stockReservations } from "@/db/schema";
 
 import type { Executor } from "./executor";
 import { InvalidTransitionError, transitionOrder } from "./orders";
+import { sendPaymentReminders, type PaymentReminderReport } from "./payment-reminders";
 import { purgeNotifiedStockAlerts } from "./stock-alerts";
 
 /**
@@ -31,6 +32,8 @@ export type ExpiryReport = {
   reservationsDeleted: number;
   /** Suscripciones de aviso de stock ya avisadas y vencidas (O6). */
   stockAlertsPurged: number;
+  /** Recordatorios de pago de esta corrida (O15). */
+  paymentReminders: PaymentReminderReport;
 };
 
 /**
@@ -147,6 +150,10 @@ export async function runMaintenance(now: Date = new Date()): Promise<ExpiryRepo
   // días (O6). Sólo las avisadas: una sin avisar sigue siendo una promesa
   // pendiente, por vieja que sea.
   const stockAlertsPurged = await purgeNotifiedStockAlerts(now);
+  // El recordatorio de pago va **después** de vencer (O15): así un pedido que
+  // se venció en esta misma corrida nunca recibe un "podés pagar hasta las…".
+  // No tira nunca y no agrega una entrada de cron: es el mismo cada 15 min.
+  const paymentReminders = await sendPaymentReminders(now);
 
-  return { expired, skipped, reservationsDeleted, stockAlertsPurged };
+  return { expired, skipped, reservationsDeleted, stockAlertsPurged, paymentReminders };
 }

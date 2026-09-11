@@ -889,6 +889,16 @@ correr dos veces**.
 |---|---|---|
 | **Resumen diario** al dueño (`daily-digest.ts`) | `/api/cron/resumen-diario` | `claimJob('resumen_diario', { onceEvery: 'dia' })`: una corrida exitosa por día calendario de **Asunción**, decidida con `SELECT … FOR UPDATE`. Se mira `last_ok_at` y no `finished_at`, para que un intento fallido a las 8:00 pueda reintentarse a las 8:15. |
 | **"Volvió a haber stock"** a la compradora (`stock-alerts.ts`) | `adjustStock` post-commit cuando la disponibilidad cruza de 0 a >0, la importación con `pisarStock`, y el barrido del cron | `notified_at` se marca **antes** de mandar (`UPDATE … WHERE notified_at IS NULL` + lectura de confirmación, el patrón de `login-tokens.ts`). Un envío que falla deja la fila marcada igual: se pierde un aviso, y eso es preferible a un reintento que le manda diez mensajes a la misma persona. |
+| **Recordatorio de pago** a la compradora (`payment-reminders.ts`, O15) | `runMaintenance`, el cron de `vencer-pedidos` que ya corría cada 15 min — **después** de vencer, así un pedido recién vencido nunca recibe "podés pagar hasta las…" | `orders.payment_reminder_sent_at` se marca **antes** de mandar (`UPDATE … WHERE payment_reminder_sent_at IS NULL`, y sólo con `affectedRows = 1` sale el mensaje). Un envío que falla queda marcado igual, por el mismo motivo: un recordatorio de menos es tolerable, dos son spam. |
+
+El recordatorio sale **una sola vez por pedido**, cuando a un `pendiente_pago`
+le quedan menos de 6 h de `reserved_until`, y lleva número, total, hora límite
+en Asunción y el link tokenizado a su pedido — ningún dato bancario: ésos ya
+están en esa página, y el mensaje no es el lugar para repetirlos. Contra
+entrega no pasa por `pendiente_pago`, así que le llega a quien tiene algo que
+hacer: transferencia y tarjeta abandonada en Pagopar. Sin
+`WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO` la feature está apagada y no
+consulta ni una fila.
 
 El barrido del cron existe por un caso que el disparo post-ajuste no puede
 cubrir: la disponibilidad que libera una **reserva vencida** no tiene ninguna
