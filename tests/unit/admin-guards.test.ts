@@ -178,6 +178,10 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   editarCategoria: 'Owner',
   cambiarEstadoCategoria: 'Owner',
   moverCategoria: 'Owner',
+  // La foto de una categoría es la portada de una sección entera de la
+  // vidriera, y la subida pisa el asset anterior: mismo dueño que el resto del
+  // ABM de categorías.
+  uploadCategoryImage: 'Owner',
 
   // A qué cuenta transfieren las compradoras. Quien lo puede cambiar puede
   // desviar la facturación entera a otra cuenta sin dejar un pedido raro ni un

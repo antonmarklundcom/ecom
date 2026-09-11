@@ -25,22 +25,30 @@ import {
 // ENUMs (TASKS.md §3)
 // ---------------------------------------------------------------------------
 
-export const ORDER_STATUSES = [
-  'pendiente_pago',
-  'esperando_verificacion',
-  'pagado',
-  'preparando',
-  'enviado',
-  'entregado',
-  'rechazado',
-  'vencido',
-  'cancelado',
-  'reembolsado',
-] as const;
-export type OrderStatus = (typeof ORDER_STATUSES)[number];
-
-export const PAYMENT_METHODS = ['transferencia', 'contra_entrega', 'tarjeta'] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+/**
+ * Los valores de enum que el navegador también necesita viven en
+ * `src/db/enums.ts`, sin `drizzle-orm` adentro (el motivo está escrito ahí).
+ * Se re-exportan para que el lado del servidor los siga leyendo del schema.
+ */
+export {
+  COUPON_TYPES,
+  DOC_TYPES,
+  ORDER_STATUSES,
+  PAYMENT_METHODS,
+  type CouponType,
+  type DocType,
+  type OrderStatus,
+  type PaymentMethod,
+} from './enums';
+// El `export ... from` re-exporta pero no trae los bindings a este módulo, y
+// las columnas `mysqlEnum(...)` de abajo los necesitan como valores.
+import {
+  COUPON_TYPES,
+  DOC_TYPES,
+  ORDER_STATUSES,
+  PAYMENT_METHODS,
+  type PaymentMethod,
+} from './enums';
 
 /**
  * Cómo llega el pedido a destino (PLAN.md FASE 3, métodos de envío).
@@ -74,9 +82,6 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const RECEIPT_REVIEWS = ['pending', 'approved', 'rejected'] as const;
 export type ReceiptReview = (typeof RECEIPT_REVIEWS)[number];
-
-export const DOC_TYPES = ['RUC', 'CI', 'NINGUNO'] as const;
-export type DocType = (typeof DOC_TYPES)[number];
 
 /**
  * Los roles viven en `src/lib/roles.ts`, sin dependencias, y se re-exportan
@@ -313,6 +318,24 @@ export const orders = mysqlTable(
 
     paymentMethod: mysqlEnum('payment_method', PAYMENT_METHODS).notNull(),
     reservedUntil: datetime('reserved_until'),
+
+    /**
+     * Cuándo se le mandó a la compradora el recordatorio de "te queda poco
+     * para pagar" (fable/plan-crecimiento.md §2). NULL = todavía no se mandó.
+     *
+     * Es la marca de idempotencia del cron, no una fecha informativa: el
+     * recordatorio se marca **antes** de mandarse, con un
+     * `UPDATE ... WHERE payment_reminder_sent_at IS NULL`, y sólo si esa
+     * escritura afectó una fila sale el mensaje. El modo de falla que evita es
+     * el spam: dos corridas del cron solapadas —o una que reintenta— le
+     * mandarían dos veces el mismo aviso a la misma persona. Un envío que
+     * falla queda marcado igual: un recordatorio de menos es tolerable, dos
+     * no.
+     *
+     * Nullable para siempre: todo pedido anterior a esta columna, y todo
+     * pedido que se paga a tiempo, muere con NULL acá.
+     */
+    paymentReminderSentAt: datetime('payment_reminder_sent_at'),
 
     /**
      * Consentimiento para novedades y promociones.
@@ -703,9 +726,6 @@ export const orderNotes = mysqlTable(
 // ---------------------------------------------------------------------------
 // Cupones (PLAN.md FASE 2, PR G) — cero filas = invisible
 // ---------------------------------------------------------------------------
-
-export const COUPON_TYPES = ['porcentaje', 'monto_fijo'] as const;
-export type CouponType = (typeof COUPON_TYPES)[number];
 
 /**
  * Códigos de descuento.

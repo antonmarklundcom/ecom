@@ -82,16 +82,17 @@ describe('spreadsheetToCsvText', () => {
     );
   });
 
-  // Un `.xlsx` corrupto tira el error crudo de la librería, no
-  // `UnsupportedSpreadsheetError`: el panel lo muestra como error genérico en
-  // vez de "el archivo está dañado". Está anotado en KNOWN-ISSUES.md; lo que
-  // este test cuida es que nunca devuelva un CSV inventado.
-  it('no devuelve CSV cuando el .xlsx está corrupto', async () => {
+  // Un `.xlsx` con el ZIP dañado es el caso aburrido y frecuente: la planilla
+  // se bajó a medias, o la exportó un programa viejo. Tiene que salir como
+  // `UnsupportedSpreadsheetError` con un mensaje en castellano —el panel lo
+  // muestra tal cual— y nunca como un CSV inventado ni como el
+  // `Corrupted zip: ...` crudo de la librería (O14).
+  it('el .xlsx corrupto sale como error en castellano, no como CSV', async () => {
     const zipRoto = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
 
-    await expect(spreadsheetToCsvText('catalogo.xlsx', zipRoto)).rejects.toThrow();
-    await expect(spreadsheetToCsvText('catalogo.xlsx', zipRoto)).rejects.not.toThrow(
+    await expect(spreadsheetToCsvText('catalogo.xlsx', zipRoto)).rejects.toThrow(
       UnsupportedSpreadsheetError,
     );
+    await expect(spreadsheetToCsvText('catalogo.xlsx', zipRoto)).rejects.toThrow(/dañado/);
   });
 });

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { ORDER_STATUSES, PAYMENT_METHODS } from "@/db/schema";
+import { ORDER_STATUSES, PAYMENT_METHODS } from "@/db/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
