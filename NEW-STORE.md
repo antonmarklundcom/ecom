@@ -599,6 +599,58 @@ describe § "Migraciones que llegan por `template:sync`" más abajo.
 
 ### 5. Diseño
 
+#### El kit de temas
+
+El template trae **tres temas** listos, cada uno un archivo en
+`src/styles/temas/` con los mismos tokens de shadcn (oklch) en `:root` y en
+`.dark`:
+
+| Tema | Para quién | Fuentes sugeridas | Redondeo |
+|---|---|---|---|
+| `neutro` (default) | el comercio sin identidad de color definida — fotos y logo hacen el trabajo | `Geist` / `Geist Mono` (las de hoy, sin tocar `layout.tsx`) | `0.625rem` |
+| `calido` | rubros cálidos/artesanales: comida, cuero, decoración, "de campo" | `Fraunces` (títulos) + `Figtree` (cuerpo) | `1rem` |
+| `oscuro-vivo` | tech, gaming, indumentaria urbana — fondo oscuro **fijo** (no depende del modo del celular) con acento saturado | `Sora` (títulos) + `Inter` (cuerpo) | `0.25rem` |
+
+`src/app/globals.css` no define los colores: importa uno solo de estos
+archivos (`@import "../styles/temas/neutro.css";`). **Elegir un tema es
+cambiar esa línea**, a mano o con el wizard:
+
+```bash
+pnpm nueva-tienda --tema calido        # sin terminal interactiva (CI, script)
+pnpm nueva-tienda                      # interactivo: pregunta "¿Tema?" con lo que ya hay como default
+```
+
+Sin `--tema` y sin terminal interactiva (el caso de `pnpm bootstrap:repo` o
+un script), el default es el tema que `globals.css` ya tenía importado —
+`neutro` si todavía no importaba ninguno. El wizard es idempotente: pedir el
+mismo tema dos veces no reescribe el archivo.
+
+Cada archivo de tema lleva en su cabecera para quién es, el par de fuentes
+sugerido y las dos líneas exactas de `src/app/layout.tsx` que hay que
+cambiar para usarlas (las fuentes **siguen viviendo ahí**, vía
+`next/font/google` — el tema sólo trae la sugerencia en un comentario, no
+las cablea).
+
+**Crear un cuarto tema:**
+
+1. Copiar `src/styles/temas/neutro.css` a `src/styles/temas/<nombre>.css`.
+2. Cambiar los valores de `:root` y `.dark` — las **mismas** 19 variables
+   (más `--radius`, sólo en `:root`) tienen que estar en los dos bloques;
+   `tests/unit/temas.test.ts` lo verifica leyendo los `.css`, no confía en
+   memoria, así que un tema con una variable de menos hace fallar el test
+   en vez de dejar un botón invisible en producción.
+3. Escribir la cabecera (para quién, fuentes sugeridas, líneas de
+   `layout.tsx`) — el test también la exige.
+4. Agregar `<nombre>` a la lista `TEMAS` de `scripts/nueva-tienda.ts` para
+   que el wizard lo ofrezca.
+5. `pnpm nueva-tienda --tema <nombre>` para probarlo, y `pnpm build` una vez
+   con el `@import` apuntando a ese archivo (después volver a dejar el tema
+   que la tienda usa).
+
+Nada de esto se lee en runtime: es CSS puro y una línea de `@import`. Ningún
+componente importa el nombre del tema ni cambia de comportamiento según
+cuál esté activo.
+
 #### Del mockup al código
 
 El primer paso de un rediseño por tienda es un mockup de Claude Design: se ve
@@ -608,7 +660,7 @@ esa traducción, para no volver a deducirla en cada sesión:
 
 | Lo que ves en el mockup | Dónde vive en el código | Nota |
 |---|---|---|
-| Paleta: fondo, texto, color principal, bordes | `src/app/globals.css` → `:root` y `.dark` | Tokens de shadcn en **oklch**. Cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
+| Paleta: fondo, texto, color principal, bordes | `src/styles/temas/<tema>.css` → `:root` y `.dark` (`globals.css` sólo importa uno) | Tokens de shadcn en **oklch**. Tres temas listos (§5 "El kit de temas") + `pnpm nueva-tienda --tema`; cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
 | Modo oscuro | mismo archivo, bloque `.dark` | Si sólo tocás `:root`, la tienda queda linda de día y rota de noche. Cambiá los dos o ninguno |
 | Redondeo de botones, cards, inputs | `--radius` en `globals.css` | Un solo número; `--radius-sm/md/lg/xl` salen de ahí |
 | Tipografía (títulos y cuerpo) | `src/app/layout.tsx` | Fuentes de `next/font/google`. Reemplazá `Geist`/`Geist_Mono` manteniendo las variables `--font-geist-sans` / `--font-geist-mono`, que es lo que `globals.css` mapea en `@theme inline` |
@@ -616,7 +668,7 @@ esa traducción, para no volver a deducirla en cada sesión:
 | Portada / hero de la home | `hero` en `src/config/tienda.ts`, y si no alcanza `src/components/home-hero.tsx` | Ver abajo: una portada de temporada no necesita tocar código |
 | Resto de la home: grilla de destacados, categorías, secciones nuevas | `src/app/page.tsx` | Es de la tienda entera |
 | Ficha de producto en la grilla | `src/components/product-card.tsx` | El precio "desde" y el badge de stock salen de `price-tag.tsx` y `stock-badge.tsx` |
-| Foto de producto y sus placeholders | `src/components/product-image.tsx`, `public/placeholders/` | Los placeholders sólo conocen las cuatro categorías del seed |
+| Foto de producto y sus placeholders | `src/components/product-image.tsx`, `public/placeholders/` | Cuatro placeholders dibujados, uno por categoría del seed; cualquier otra categoría cae en `categoria.svg` con su nombre en texto (no en el mismo dibujo de "producto sin foto") |
 | Pie: columnas, contacto, WhatsApp | `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
 | Botón flotante de WhatsApp | `src/components/whatsapp-fab.tsx` | El número sale del entorno (`src/lib/comercio.ts`) |
 | Nombre, título del navegador, tagline, meta description | `src/config/tienda.ts` | **Nunca** en un componente: `tests/unit/marca-centralizada.test.ts` lo bloquea |
@@ -639,10 +691,12 @@ un título, una bajada y un botón. Con `hero: null` (el default) sale la portad
 del template. Es lo que le permite al comercio cambiar su banner de temporada
 solo; todo lo demás de la home se rediseña editando `src/app/page.tsx`.
 
-Todo el color y el radio viven en `src/app/globals.css` (`:root` y `.dark`,
-tokens de shadcn en oklch) y se consumen vía Tailwind. Cambiar la paleta =
-editar esas variables, nada más. La tipografía se cambia en
-`src/app/layout.tsx` (fuentes de `next/font/google`).
+Todo el color y el radio viven en `src/styles/temas/<tema>.css` (`:root` y
+`.dark`, tokens de shadcn en oklch; `globals.css` sólo importa el archivo
+activo) y se consumen vía Tailwind. Cambiar la paleta = elegir un tema
+(§5 "El kit de temas") o editar esas variables directamente, nada más. La
+tipografía se cambia en `src/app/layout.tsx` (fuentes de
+`next/font/google`).
 
 Qué se puede redibujar libremente y qué no:
 
