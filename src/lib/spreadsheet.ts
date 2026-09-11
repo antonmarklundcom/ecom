@@ -73,7 +73,19 @@ export async function spreadsheetToCsvText(filename: string, bytes: Buffer): Pro
     // `Buffer` global de Node), incompatible con la definición de ArrayBuffer
     // de TS moderno: en runtime acepta un `Buffer` de Node sin problema
     // (termina en `JSZip.loadAsync`), sólo el tipado está mal.
-    await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    try {
+      await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    } catch {
+      // Un `.xlsx` es un ZIP, y un ZIP dañado hace tirar a la librería un
+      // `Corrupted zip: ...` en inglés que subía tal cual hasta la pantalla
+      // del panel como "error inesperado". El caso real es aburrido y
+      // frecuente: la planilla se bajó a medias de Drive, o la exportó un
+      // programa viejo. Lo único que el staff necesita saber es que el
+      // archivo está roto y que hay que exportarlo de nuevo.
+      throw new UnsupportedSpreadsheetError(
+        "No pude abrir el archivo Excel: parece estar dañado. Abrilo y exportalo de nuevo como .xlsx, o guardalo como .csv.",
+      );
+    }
     const sheet = workbook.worksheets[0];
     if (!sheet) {
       throw new UnsupportedSpreadsheetError("El archivo Excel no tiene ninguna hoja con datos.");

@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { USER_ROLES, type UserRole } from "@/db/schema";
+import { USER_ROLES, type UserRole } from "@/db/enums";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { t } from "@/i18n";
 

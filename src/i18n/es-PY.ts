@@ -1616,4 +1616,10 @@ export const esPY = {
   "producto.consultaVariante":
     'Hola, quiero consultar por "{producto}" ({variante}, SKU {sku})',
   "producto.consultarWhatsApp": "Consultar por WhatsApp",
+
+  // -------------------------------------------------------------------------
+  // == O14 == Deuda de dominio: destacados, foto de categoría, slug largo,
+  // planilla dañada (fable/plan-crecimiento.md §5.1)
+  // -------------------------------------------------------------------------
+  "adminForm.slugLargo": "El slug no puede pasar los 160 caracteres.",
 } as const satisfies Record<string, string>;

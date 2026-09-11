@@ -41,6 +41,12 @@ export type UnmatchedPayment = {
   provider: string;
   providerRef: string;
   amountPyg: number;
+  /**
+   * Lo que ya se devolvió de este pago (O7). Sin esto, el formulario de
+   * reembolso mostraba "queda por devolver: el total" después de cada recarga
+   * de la pantalla, aunque el servidor tuviera bien la cuenta.
+   */
+  refundedPyg: number;
   /** Total del pedido, para comparar de un vistazo contra lo cobrado. */
   orderTotalPyg: number;
   paidAt: Date;
@@ -69,6 +75,7 @@ export async function findUnmatchedPayments(
       p.provider      AS provider,
       p.provider_ref  AS providerRef,
       p.amount_pyg    AS amountPyg,
+      p.refunded_pyg  AS refundedPyg,
       o.total_pyg     AS orderTotalPyg,
       p.updated_at    AS paidAt
     FROM payments p
@@ -90,9 +97,67 @@ export async function findUnmatchedPayments(
     provider: String(row.provider),
     providerRef: String(row.providerRef),
     amountPyg: Number(row.amountPyg),
+    refundedPyg: Number(row.refundedPyg ?? 0),
     orderTotalPyg: Number(row.orderTotalPyg),
     paidAt: new Date(row.paidAt as string | number | Date),
   }));
+}
+
+export type OrderPayment = {
+  paymentId: number;
+  provider: string;
+  amountPyg: number;
+  /** Acumulado ya devuelto. `amountPyg - refundedPyg` es lo que queda. */
+  refundedPyg: number;
+  paidAt: Date;
+};
+
+/**
+ * El pago cobrado de un pedido, sea cual sea el estado del pedido.
+ *
+ * Es la consulta que le falta a la ficha del pedido para dibujar el formulario
+ * de reembolso donde el caso de uso realmente vive: "la compradora se queda
+ * con dos de tres remeras" pasa sobre un pedido `enviado` o `entregado`, y
+ * `findUnmatchedPayments` los excluye a propósito (ahí la plata no está
+ * colgada).
+ *
+ * `null` = este pedido no tiene un pago cobrado: contra entrega sin cobrar,
+ * transferencia sin verificar, pedido todavía sin pagar. No es un error.
+ *
+ * Un pedido puede tener más de una fila en `payments` (un intento fallido y
+ * después el bueno); se devuelve el `paid` más reciente, que es sobre el que
+ * se devuelve plata.
+ */
+export async function getPaymentForOrder(
+  orderId: number,
+  executor?: Executor,
+): Promise<OrderPayment | null> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      p.id           AS paymentId,
+      p.provider     AS provider,
+      p.amount_pyg   AS amountPyg,
+      p.refunded_pyg AS refundedPyg,
+      p.updated_at   AS paidAt
+    FROM payments p
+    WHERE p.order_id = ${orderId}
+      AND p.status = 'paid'
+    ORDER BY p.updated_at DESC, p.id DESC
+    LIMIT 1
+  `);
+
+  const row = rowsOf(result)[0];
+  if (!row) return null;
+
+  return {
+    paymentId: Number(row.paymentId),
+    provider: String(row.provider),
+    amountPyg: Number(row.amountPyg),
+    refundedPyg: Number(row.refundedPyg ?? 0),
+    paidAt: new Date(row.paidAt as string | number | Date),
+  };
 }
 
 /** Sólo el conteo, para el resumen del panel. */

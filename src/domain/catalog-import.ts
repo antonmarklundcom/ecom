@@ -1,4 +1,4 @@
-import { IVA_RATES, type IvaRate } from "@/db/schema";
+import { IVA_RATES, type IvaRate } from "@/db/enums";
 import { parseCsv } from "@/lib/csv";
 import { slugify } from "@/lib/slug";
 

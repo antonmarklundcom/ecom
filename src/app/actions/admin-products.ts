@@ -58,6 +58,11 @@ const ProductSchema = z.object({
   slug: z
     .string()
     .trim()
+    // El techo no es decorativo: `products.slug` es VARCHAR(160) y un slug más
+    // largo se truncaba en la base, dejando dos productos distintos apuntando
+    // a la misma URL (y el segundo guardado fallando por el índice único con
+    // un error que no explica nada).
+    .max(160, t("adminForm.slugLargo"))
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El slug va en minúsculas y con guiones: remera-azul"),
   name: z.string().trim().min(2, t("adminForm.nombreProducto")).max(200),
   description: z.string().trim().max(5000).optional(),
@@ -67,6 +72,13 @@ const ProductSchema = z.object({
   ivaRate: z.union([z.literal(10), z.literal(5), z.literal(0)]),
   isActive: z.boolean(),
   published: z.boolean(),
+  /**
+   * Destacado de la home. Opcional a propósito: un formulario que no dibuja la
+   * casilla manda `undefined` y `updateProduct` lo lee como "no tocar", así
+   * que guardar el precio de un producto destacado no lo des-destaca de paso.
+   * En el alta, `createProduct` lo resuelve como `false`.
+   */
+  isFeatured: z.boolean().optional(),
 });
 
 export async function saveProduct(
@@ -89,6 +101,7 @@ export async function saveProduct(
       ivaRate: parsed.data.ivaRate,
       isActive: parsed.data.isActive,
       published: parsed.data.published,
+      isFeatured: parsed.data.isFeatured,
     };
 
     const productId = parsed.data.productId;

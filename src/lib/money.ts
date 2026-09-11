@@ -1,4 +1,4 @@
-import { IVA_RATES, type IvaRate } from '@/db/schema';
+import { IVA_RATES, type IvaRate } from '@/db/enums';
 
 /**
  * Dinero en guaraníes. Enteros, siempre.

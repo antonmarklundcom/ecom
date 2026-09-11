@@ -45,6 +45,8 @@ export type AdminProductRow = {
   /** Para elegir la ilustración placeholder cuando todavía no hay foto. */
   categorySlug: string;
   isActive: boolean;
+  /** Si aparece en la fila de destacados de la home (`getFeaturedProducts`). */
+  isFeatured: boolean;
   publishedAt: Date | null;
   variantCount: number;
   minPricePyg: number | null;
@@ -57,6 +59,8 @@ export type AdminProductRow = {
 export type AdminProductFilters = {
   search?: string;
   categoryId?: number;
+  /** `true` = sólo destacados. `undefined` = todos, que es el listado de siempre. */
+  featured?: boolean;
   sort?: AdminProductSort;
   page?: number;
   perPage?: number;
@@ -100,6 +104,7 @@ export async function listAdminProducts(
       categoryName: categories.name,
       categorySlug: categories.slug,
       isActive: products.isActive,
+      isFeatured: products.isFeatured,
       publishedAt: products.publishedAt,
       variantCount: sql<number>`COUNT(${variants.id})`,
       minPricePyg: sql<number | null>`MIN(${variants.pricePyg})`,
@@ -154,6 +159,9 @@ function productWhere(options: AdminProductFilters) {
       ? sql`(${products.name} LIKE ${`%${escapeLike(term)}%`} OR ${products.slug} LIKE ${`%${escapeLike(term)}%`})`
       : undefined,
     options.categoryId ? eq(products.categoryId, options.categoryId) : undefined,
+    // `undefined` no filtra nada: el listado sin el filtro puesto sigue
+    // trayendo destacados y no destacados por igual.
+    options.featured === undefined ? undefined : eq(products.isFeatured, options.featured),
   );
 }
 

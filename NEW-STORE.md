@@ -757,6 +757,12 @@ backfill escrito a mano (`src/db/backfills.ts`) que le arma la fila de ledger
 a cada devolución anterior a esta migración; sin él, la contabilidad de
 `pnpm reconcile` nace en rojo en toda tienda que ya devolvió plata alguna vez.
 
+La `0013` (plan de crecimiento, fase O14) agrega una sola columna,
+`orders.payment_reminder_sent_at`: la marca de que a ese pedido ya se le mandó
+el recordatorio de pago. Nullable, sin backfill — un pedido viejo sin la marca
+es exactamente lo que corresponde. Sin ella, la tienda anda igual; lo que no
+anda es el recordatorio que agrega O15.
+
 Sigue valiendo lo de siempre: Dependabot no mueve nada de esto y las columnas
 no se agregan a mano en el hPanel — la migración es la única fuente.
 
