@@ -100,8 +100,7 @@ export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 export const RESERVATION_STATES = ['held', 'consumed', 'released'] as const;
 export type ReservationState = (typeof RESERVATION_STATES)[number];
 
-export const IVA_RATES = [10, 5, 0] as const;
-export type IvaRate = (typeof IVA_RATES)[number];
+export { IVA_RATES, type IvaRate } from './enums';
 
 /** Whole guaraníes. Never a float, never a decimal. */
 const pyg = (name: string) => bigint(name, { mode: 'number', unsigned: true });

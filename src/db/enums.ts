@@ -42,6 +42,16 @@ export const DOC_TYPES = ['RUC', 'CI', 'NINGUNO'] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 
 /**
+ * Las tasas de IVA. Están acá y no en el schema por el mismo camino que las
+ * demás, sólo que más largo: `src/lib/money.ts` las importa para validar una
+ * tasa, y `money.ts` (el `formatGs` de toda la vidriera) lo importa media
+ * docena de componentes cliente. Una constante de tres números arrastraba el
+ * ORM entero a la home.
+ */
+export const IVA_RATES = [10, 5, 0] as const;
+export type IvaRate = (typeof IVA_RATES)[number];
+
+/**
  * Los roles ya vivían fuera del schema por la misma razón (el proxy corre en
  * el edge). Se re-exportan acá para que el navegador tenga **un** lugar donde
  * buscar los valores de enum.

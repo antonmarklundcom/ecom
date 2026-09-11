@@ -514,6 +514,53 @@ reporte final de §11.
 *(Una entrada fechada por fase, escrita dentro del PR de la fase: id, PR, qué existe,
 decisiones, desvíos, preguntas.)*
 
+### O14 — Deuda de dominio + schema del plan · 2026-09-11 · `phase/o14`
+
+**Qué existe.** `src/db/enums.ts` con los valores de enum que el navegador necesita, sin
+`drizzle-orm` detrás; `schema.ts` los importa y re-exporta, así que ningún archivo de
+servidor cambió un import. La migración `0013` agrega `orders.payment_reminder_sent_at`
+(nullable, sin backfill), que es todo el schema de este plan. `saveProduct` acepta
+`isFeatured` y `listAdminProducts` lo devuelve y lo filtra; `uploadCategoryImage` sube la
+foto de una categoría de verdad (bytes validados, folder `categorias/`, borra el asset
+anterior) y `listAdminCategories` trae descripción, foto y alt para prellenar el
+formulario; `getPaymentForOrder(orderId)` devuelve el pago cobrado de cualquier pedido
+—vivo o no— y `findUnmatchedPayments` trae el `refundedPyg` real; un `.xlsx` dañado sale
+como `UnsupportedSpreadsheetError` en castellano; el slug de producto tiene `.max(160)`,
+el largo exacto de la columna.
+
+**Decisiones y desvíos.**
+
+1. **La fuga de `drizzle-orm` al cliente no salía de los cuatro componentes que nombraba
+   el plan.** Migrarlos a `@/db/enums` no movió el número: el chunk seguía ahí. El
+   camino real era `src/lib/money.ts`, que importaba `IVA_RATES` de `@/db/schema` y es
+   el `formatGs` que usan media docena de componentes cliente — tres números arrastraban
+   el ORM a la home y al checkout. `IVA_RATES` también se mudó a `enums.ts`. Después de
+   eso, cero chunks del cliente con `drizzle` adentro (verificado sobre `.next/static`).
+2. **Techos de `presupuesto.spec.ts` bajados al valor medido**, no al anterior: home
+   203.6 KB, producto 207.8 KB, checkout 202.5 KB (+10% ⇒ 224 / 229 / 223), contra
+   ~220 KB de antes en home y checkout. Los ~17 KB que bajan son exactamente el chunk que
+   `KNOWN-ISSUES.md` tenía documentado.
+3. **El test de presupuesto de la página de producto medía 0.6 KB**, no 260: llegaba a la
+   ficha navegando desde la home, así que los chunks compartidos ya estaban en el caché
+   del navegador y `responseBodySize` volvía 0. Un techo que no podía fallar nunca. Ahora
+   mide en una pestaña nueva —que además es el caso real: la compradora que entra por un
+   link de WhatsApp no tiene nada cacheado—, y por eso su número aparece recién ahora.
+4. **Sin índice compuesto nuevo** para la consulta del recordatorio (§2 lo dejaba
+   opcional): `orders_reserved_until_idx` ya acota la ventana de 6 h a un puñado de filas,
+   y un índice más es una escritura más en cada pedido. Si O15 mide lo contrario, es un
+   cambio de una línea.
+5. `uploadCategoryImage` quedó **owner-only** (`requireOwnerSession`), como el resto del
+   ABM de categorías, y no `staff` como `uploadProductImage`: la foto de una categoría es
+   la portada de una sección entera de la vidriera. No hizo falta capability nueva: es
+   `categorias`, que ya existía.
+
+**Entradas de `KNOWN-ISSUES.md` borradas (6):** `.xlsx` corrupto · destacado sin botón ·
+foto de categoría por `public_id` · formulario de categoría sin prellenar · `@/db/schema`
+en el bundle · reembolso parcial en 0. Quedan las dos que no le tocaban a esta fase
+(MariaDB/`UNSIGNED` y el backup en un solo archivo).
+
+**Preguntas para Anton.** Ninguna.
+
 ## 10. Backlog
 
 - Backup por tabla + manifiesto (`KNOWN-ISSUES.md`), cuando una tienda se acerque al límite.
