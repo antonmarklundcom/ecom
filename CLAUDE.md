@@ -10,10 +10,12 @@ leé:
   §5 mapea qué archivo toca cada parte de un mockup.
 - **ARCH.md** — arquitectura: dominio, estados del pedido, plata, Pagopar.
 - **PLAN.md** / **TASKS.md** — qué falta y en qué fase está.
-- **fable/plan-crecimiento.md** — **el plan activo**: deuda de dominio de
-  `KNOWN-ISSUES.md`, recordatorio de pago, edición de pedido sin pagar, kit de
-  temas, dependencias. Seis fases (O14–S19) en dos ventanas (§11); sale de la
-  revisión `fable/REVIEW.md` (2026-09-11).
+- **fable/plan-crecimiento.md** — deuda de dominio de `KNOWN-ISSUES.md`,
+  recordatorio de pago, edición de pedido sin pagar, kit de temas, dependencias.
+  Seis fases (O14–S19) en dos ventanas (§11), **todas mergeadas — hoy es
+  historial**, igual que `fable/plan-operacion.md` y `fable/plan.md`. Sale de la
+  revisión `fable/REVIEW.md` (2026-09-11), que es **la revisión vigente** hasta
+  que salga la próxima desde `fable/PROMPT.md`.
 - **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
   remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).
   Nueve fases (O5–S13), **todas mergeadas — hoy es historial**, igual que

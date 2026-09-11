@@ -68,3 +68,39 @@ Arreglo: agregar a `saveProduct`, `bulkSetActive`, `bulkMoveCategory` y
 `/categoria/[slug]` y `/producto/[slug]` del producto tocado). Es un cambio
 mecánico de una fase con acceso a `src/app/actions/**` — O14 ya cerró la
 deuda de dominio de este plan, así que es candidato para S19 o un PR aparte.
+S19 no lo tocó: `src/app/actions/**` es fuera de sus "Owns" y ninguna
+dependencia nueva lo exigía para compilar (la única excusa que S19 tenía
+para tocar afuera de docs/config). Sigue abierto.
+
+## `eslint` 10 no anda con `eslint-plugin-react` — fase S19
+
+`eslint-config-next@16.3.4` declara el peer como `eslint: ">=9.0.0"` (acepta
+10 en el papel), pero al correr `pnpm lint` con `eslint@10.10.0` instalado
+tira en runtime: `TypeError: Error while loading rule
+'react/display-name': contextOrFilename.getFilename is not a function`.
+ESLint 10 sacó `context.getFilename()` (deprecado hace rato, removido en
+esta mayor) y `eslint-plugin-react@7.37.5` —que llega transitivo a través de
+`eslint-config-next`, no es una dependencia directa de este repo— todavía lo
+usa. No hay flag ni config que lo esquive: es la regla `react/display-name`
+la que explota apenas lint toca cualquier archivo `.tsx`.
+
+No se fuerza nada: no hay versión de `eslint-plugin-react` publicada que
+arregle esto todavía (depende de que `eslint-config-next` suba el bundle
+completo). Arreglo: subir `eslint` a 10 recién cuando `eslint-config-next`
+libere una versión que declare (y funcione con) `eslint-plugin-react` >= la
+que arregle `getFilename`. Reintentar entonces con `pnpm outdated` +
+`pnpm lint`, no antes.
+
+## `typescript` 7 no anda con `typescript-eslint` — fase S19
+
+`tsc --noEmit` pasa limpio con `typescript@7.0.2` (cero errores en todo el
+repo), pero `pnpm lint` no llega a evaluar ni un archivo:
+`typescript-eslint@8.69.0` tira, en texto explícito, `typescript-eslint does
+not support TS 7.0. […] See also
+https://github.com/typescript-eslint/typescript-eslint/issues/10940 for
+tracking typescript-eslint's support for TS >=7.1`. Es la librería la que
+todavía no se declara compatible, no un error para "adaptar".
+
+Arreglo: reintentar `typescript` 7 cuando `typescript-eslint` cierre el
+issue 10940 y publique una versión que declare soporte para TS >= 7.1 (o la
+serie que sea). Hasta entonces, `typescript` se queda en 5.9.x.

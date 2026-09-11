@@ -11,6 +11,10 @@ Este plan **no reemplaza** los anteriores (quedan como historial). Cuando las se
 estén mergeadas, este archivo pasa a ser historial también y la próxima revisión arranca
 desde `fable/PROMPT.md`.
 
+> **Actualización 2026-09-11 (S19):** las seis fases (O14–S19) están mergeadas — este
+> archivo queda como **historial** a partir de acá. La próxima revisión arranca desde
+> `fable/PROMPT.md`.
+
 **Stack (locked):** Next.js 16 + Drizzle + Hostinger MySQL + Hostinger Node.js + Cloudinary.
 
 **Cómo se corre:** **dos ventanas** (§11), igual que el plan anterior. Una de Opus que
@@ -638,6 +642,68 @@ integración, las diez de §5.3 D incluidas.
 
 **Preguntas para Anton.** Ninguna.
 
+### S17 — Panel y vidriera: dibujar lo que O14–O16 dejaron · 2026-09-11 · `phase/s17`
+
+**Qué existe.** Panel: toggle "Destacado en la home" + chip en el listado + filtro
+`?destacados=1` (`product-form.tsx`, `product-list.tsx`, `product-filters.tsx`); foto de
+categoría con `<input type="file">` real que llama a `uploadCategoryImage`, con el
+formulario de edición prellenado desde `listAdminCategories` (se borró el checkbox "cambiar
+descripción o foto", que ya no hace falta); reembolso parcial montado en la ficha del pedido
+con `getPaymentForOrder` (owner-only) y `refundedPyg` real en "pagos sin pedido vivo";
+`EditOrderForm` nuevo (`src/components/admin/edit-order-form.tsx`) — colapsado por default,
+cantidades por línea con "Quitar", ciudad/dirección/referencia, forma de entrega, motivo
+obligatorio, resumen "total antes → después" y "Avisar por WhatsApp", todo desde la respuesta
+de `editPendingOrderAction`; línea de "Recordatorio de pago enviado" en el timeline cuando
+`payment_reminder_sent_at` no es NULL. Vidriera: `alternates.canonical` en `categoria/[slug]`
+y `producto/[slug]` (sólo con `siteOrigin()`); paginación de categoría con
+`<span aria-disabled>` real en los bordes en vez de un `<Link disabled>` que seguía siendo
+clickeable; `src/app/admin/error.tsx` nuevo con mensaje del panel, reintentar y link a
+`/admin`.
+
+**Decisiones y desvíos.**
+
+1. **`saveProduct` no revalida la home** (`src/app/actions/admin-products.ts` sólo revalida
+   `/admin/productos*`), a diferencia de `admin-categories.ts` (`revalidarVidriera()` llama
+   `revalidatePath("/", "layout")`). Se descubrió escribiendo el e2e de destacados: con la
+   home ya prerenderizada por `next build`, un producto nuevo no aparecía dentro de la
+   ventana del test (ISR de 5 min). `src/app/actions/**` es límite duro de S17 — no se tocó.
+   Entrada nueva en `KNOWN-ISSUES.md` con el diagnóstico y el arreglo (agregar el mismo
+   `revalidatePath` a `saveProduct`/`bulkSetActive`/`bulkMoveCategory`/`duplicateProduct`,
+   candidato a S19 o un PR aparte de maquinaria). El e2e de S17
+   (`tests/e2e/productos.spec.ts`) verifica en cambio contra `/admin/productos?destacados=1`
+   (`force-dynamic`, siempre fresco).
+2. **Reembolso parcial y `refundedPyg` real tocaron dos archivos fuera del "Owns" formal**:
+   `src/app/admin/(panel)/page.tsx` (una línea: pasar `payment.refundedPyg` real a
+   `UnmatchedPayments`) y `src/app/pedido/[orderNumber]/page.tsx` (un `data-testid` nuevo en
+   el `<dd>` del total, para que el e2e de edición lea el total de la compradora sin adivinar
+   el markup). Los dos son piel/wiring de una línea, sin tocar dominio/lib/actions/api; se
+   anotan acá porque el prompt de la fase no los listaba explícitamente.
+3. **El cupón se re-valida sólo por el mínimo de compra** — decisión de O16, no de esta fase;
+   repetido acá porque `EditOrderForm` lo muestra (`couponRemoved` + `removedCouponCode`).
+4. **`EditOrderForm` arranca colapsado** (un botón "Editar pedido" que abre el formulario): la
+   ficha ya tiene mucho para leer antes de llegar a la edición, que es la excepción y no lo
+   primero que se hace al abrir un pedido pendiente de pago.
+5. **Local sin Docker**: se instaló `mariadb-server` por `apt` (igual que S3/O6 en
+   `fable/plan.md` §9) y se usaron bases propias (`ecom_s17`/`ecom_test_s17`, no
+   `ecom`/`ecom_test`) porque S18 corría en paralelo contra la misma instancia de MariaDB
+   compartida por el contenedor — sin esto, `pnpm test` con integración salía con decenas de
+   fallos por FK rotas (dos corridas pisándose la misma base). Anotado por si el orquestador
+   ve algo parecido en otra fase paralela.
+6. **Un e2e existente (`Escape` para cerrar el carrito y agregar una segunda unidad) necesitaba
+   esperar a que el `Sheet` (Radix) terminara de cerrar** antes de reabrirlo — reabrir mientras
+   todavía animaba la salida dejaba el segundo click sin efecto visible. Se agregaron dos
+   `expect(...).toBeVisible()/toBeHidden()` en `tests/e2e/panel.spec.ts` en vez de un
+   `waitForTimeout` a ciegas.
+
+**Suites verdes en local:** `pnpm typecheck && pnpm lint && pnpm test` (1527/1527, integración
+incluida contra MariaDB 10.11) y `pnpm test:e2e` (28/28, con
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE` apuntando al Chromium ya instalado del entorno).
+
+**Preguntas para Anton.** Ninguna que bloquee. Sí una nota: el punto 1 (revalidación de la
+home en `admin-products.ts`) conviene resolverlo pronto — hoy cualquier cambio de catálogo
+(no sólo destacados: publicar, desactivar, cambiar precio) puede tardar hasta 5 minutos en
+verse en la vidriera, y es una asimetría con categorías que ya está resuelta ahí.
+
 ### S18 — Kit de piel: tres temas y la pregunta en `nueva-tienda` · 2026-09-11 · `phase/s18`
 
 **Qué existe.** `src/app/globals.css` deja de definir `:root`/`.dark` y pasa a
@@ -690,6 +756,72 @@ tres temas, cómo elegirlos y cómo crear un cuarto.
 
 **Preguntas para Anton.** Ninguna.
 
+### S19 — Dependencias, DX, docs y reporte final · 2026-09-11 · `phase/s19`
+
+**Qué existe.** Cuatro dependencias subidas, cada una en su propio commit con la suite
+entera (`typecheck`, `lint`, `test`, `build`, `test:e2e`) verde entre medio: menores de
+`pnpm outdated` (react/react-dom 19.3.0, @types/react(-dom) 19.3.0, zod 4.6.1, mysql2 3.24.4,
+lucide-react 1.44.0, @playwright/test 1.63.0, @types/node 22.20.2); `lint-staged` afuera del
+`package.json` (el hook ya era `pnpm typecheck && pnpm lint`, sin cablear nunca a
+lint-staged); `iron-session` 8 → 9; `vitest` 4 → 5. `typescript` 7 y `eslint` 10 se
+intentaron y se revirtieron dentro del tope de 30 minutos (abajo, con el error exacto).
+`pnpm audit`: **0 high** (1 moderate, `esbuild` transitivo vía `drizzle-kit` →
+`@esbuild-kit/esm-loader`, dev-only, ya en el backlog de `KNOWN-ISSUES.md`/§10 desde antes de
+este plan). Docs: README con la tabla de documentos actualizada (`fable/plan-crecimiento.md`
+como historial, `fable/REVIEW.md` como la revisión vigente); CLAUDE.md con el párrafo de
+planes al día (esta ventana cerrada); `PLAN.md` ya tenía la línea de estado correcta, sin
+cambios; `KNOWN-ISSUES.md` con las dos entradas nuevas de abajo y sin nada para borrar (ni
+O14 ni S17/S18 dejaron algo que este PR resuelva: la única entrada que nació en S17 —
+`saveProduct` no revalida la vidriera— sigue abierta porque su arreglo es
+`src/app/actions/**`, fuera de los Owns de S19, y no lo exige ninguna dependencia nueva).
+
+**Decisiones y desvíos.**
+
+1. **`eslint` 10 se revirtió**: `eslint-config-next@16.3.4` declara el peer como
+   `eslint: ">=9.0.0"` (sí lo acepta en el papel), pero la dependencia transitiva
+   `eslint-plugin-react@7.37.5` no soporta la API nueva de ESLint 10 en runtime —
+   `pnpm lint` tira `TypeError: Error while loading rule 'react/display-name':
+   contextOrFilename.getFilename is not a function` (ESLint 10 saca `context.getFilename()`,
+   que ese plugin todavía usa). No hay versión de `eslint-plugin-react` publicada que lo
+   arregle todavía (viene atado a cuando `eslint-config-next` suba su propio bundle). Se
+   revirtió sin tocar nada más — exactamente el caso que el plan preveía en §10.
+2. **`typescript` 7 se revirtió**: `tsc --noEmit` pasa limpio con TS 7.0.2 (cero errores), pero
+   `pnpm lint` no llega a correr — `typescript-eslint@8.69.0` tira en texto explícito:
+   `typescript-eslint does not support TS 7.0. […] See also
+   https://github.com/typescript-eslint/typescript-eslint/issues/10940 for tracking
+   typescript-eslint's support for TS >=7.1`. Es la librería misma la que dice que todavía no
+   lo soporta, no un error ambiguo — nada que "adaptar". Revertido dentro de los primeros ~10
+   minutos del intento (muy por debajo del tope de 30).
+3. **`engines.node` subió a `">=22.13 <25"`** (era `">=20 <25"`): `iron-session` 9 es ESM-only
+   y exige Node 22.13+ (aunque `require()` siga funcionando arriba de esa versión). El
+   entorno de CI y de este build corre 22.22.2, adentro del rango nuevo.
+4. **`getIronSession`/`sealData` no cambiaron de firma** para nuestro uso: v9 sigue aceptando
+   `getIronSession<T>(cookieStore, options)` igual que v8. Los dos cambios de comportamiento
+   del changelog de v9 (sessions no serializan más `lastSeen` como string; `session.user.id`
+   vacío en la primera visita) son del `user`/`lastSeen` que trae el *template* por defecto de
+   la librería — `AdminSession` y `CustomerSession` de este repo son tipos propios que no usan
+   ninguno de los dos campos, así que `src/lib/session.ts` y `src/lib/customer-session.ts`
+   quedaron sin tocar.
+5. **`vitest` 5 no pidió ningún cambio de config**: `@vitejs/plugin-react` ya estaba en 6.1.1
+   (peer `vite: "^8.0.0"`, el mismo rango que pide `vitest@5`), así que `vitest.config.mts` y
+   `vitest.setup.ts` quedaron igual.
+6. **Un e2e salió flaky una sola vez** (`panel.spec.ts` "editar un pedido", timeout de 15 s
+   esperando la navegación del checkout en `confirmarPedido()`, ajeno a cualquier dependencia
+   tocada) durante la corrida del commit de `iron-session`; el rerun inmediato dio 28/28
+   limpio en 7.2 s. No se tocó ningún test — se anota acá para que quede en el registro y no
+   se confunda con una regresión real si vuelve a aparecer.
+7. **Sin backfill de docs nuevo**: se greppeó cada ruta, comando, variable y archivo que
+   nombran README.md, NEW-STORE.md, ARCH.md, DEPLOY.md y CLAUDE.md contra el árbol actual —
+   todos existen. No hizo falta corregir ninguna referencia.
+
+**`pnpm audit`:** 0 `high`, 1 `moderate` (`esbuild` <=0.24.2 vía
+`drizzle-kit > @esbuild-kit/esm-loader > @esbuild-kit/core-utils`, dev-only — GHSA-67mh-4wv8-2f99).
+
+**Preguntas para Anton.** Ninguna que bloquee. Dato para la próxima revisión: `typescript` 7
+y `eslint` 10 quedaron afuera por falta de soporte de `typescript-eslint` y
+`eslint-plugin-react`, no por nada de este repo — conviene reintentarlos recién cuando esas
+dos librerías publiquen una versión que los declare soportados, no antes.
+
 ## 10. Backlog
 
 - Backup por tabla + manifiesto (`KNOWN-ISSUES.md`), cuando una tienda se acerque al límite.
@@ -700,7 +832,8 @@ tres temas, cómo elegirlos y cómo crear un cuarto.
 - Agregar productos a un pedido existente (O16 sólo baja/quita).
 - Repintar los tres managers del panel de 400+ líneas (REVIEW §3, descartado): sólo si una
   tienda pide repintar el panel.
-- Lo que S19 no logre subir (`typescript` 7, `eslint` 10) con su error exacto.
+- Lo que S19 no logre subir (`typescript` 7, `eslint` 10) con su error exacto — ver §9 S19 y
+  `KNOWN-ISSUES.md`.
 
 ## 11. Cómo correrlo — dos ventanas
 
