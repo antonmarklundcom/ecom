@@ -662,7 +662,7 @@ esa traducción, para no volver a deducirla en cada sesión:
 |---|---|---|
 | Paleta: fondo, texto, color principal, bordes | `src/styles/temas/<tema>.css` → `:root` y `.dark` (`globals.css` sólo importa uno) | Tokens de shadcn en **oklch**. Tres temas listos (§5 "El kit de temas") + `pnpm nueva-tienda --tema`; cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
 | Modo oscuro | mismo archivo, bloque `.dark` | Si sólo tocás `:root`, la tienda queda linda de día y rota de noche. Cambiá los dos o ninguno |
-| Redondeo de botones, cards, inputs | `--radius` en `globals.css` | Un solo número; `--radius-sm/md/lg/xl` salen de ahí |
+| Redondeo de botones, cards, inputs | `--radius` en `src/styles/temas/<tema>.css` | Un solo número por tema; `--radius-sm/md/lg/xl` salen de ahí (`globals.css` los mapea en `@theme inline`) |
 | Tipografía (títulos y cuerpo) | `src/app/layout.tsx` | Fuentes de `next/font/google`. Reemplazá `Geist`/`Geist_Mono` manteniendo las variables `--font-geist-sans` / `--font-geist-mono`, que es lo que `globals.css` mapea en `@theme inline` |
 | Barra de arriba: logo, buscador, carrito, menú de categorías | `src/components/site-header.tsx` | Libre. Lo único que no conviene sacar es `CartButton` |
 | Portada / hero de la home | `hero` en `src/config/tienda.ts`, y si no alcanza `src/components/home-hero.tsx` | Ver abajo: una portada de temporada no necesita tocar código |
