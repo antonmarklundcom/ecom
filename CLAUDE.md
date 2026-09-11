@@ -10,10 +10,14 @@ leé:
   §5 mapea qué archivo toca cada parte de un mockup.
 - **ARCH.md** — arquitectura: dominio, estados del pedido, plata, Pagopar.
 - **PLAN.md** / **TASKS.md** — qué falta y en qué fase está.
+- **fable/plan-crecimiento.md** — **el plan activo**: deuda de dominio de
+  `KNOWN-ISSUES.md`, recordatorio de pago, edición de pedido sin pagar, kit de
+  temas, dependencias. Seis fases (O14–S19) en dos ventanas (§11); sale de la
+  revisión `fable/REVIEW.md` (2026-09-11).
 - **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
   remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).
   Nueve fases (O5–S13), **todas mergeadas — hoy es historial**, igual que
-  `fable/plan.md` (revisión en `fable/REVIEW.md`, fases en `fable/prompts/`).
+  `fable/plan.md` (revisión en `fable/REVIEW-2026-09-02.md`, fases en `fable/prompts/`).
   `fable/PROMPT.md` es el prompt que genera la próxima revisión.
 - Operación diaria del panel, backups/restore y la distribución automática a las
   tiendas (`.github/workflows/distribuir.yml` + `tiendas.json`): NEW-STORE.md §4f y

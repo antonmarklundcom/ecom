@@ -3,8 +3,8 @@
 Este archivo queda como historial de la FASE 2, ya cerrada. `fable/plan.md`
 (endurecimiento) y `fable/plan-operacion.md` (la tienda después del
 lanzamiento) son historial también, con las nueve fases de este último
-mergeadas. No hay un plan activo hoy — la próxima revisión arranca desde
-`fable/PROMPT.md`.
+mergeadas. **El plan activo es `fable/plan-crecimiento.md`** (revisión
+`fable/REVIEW.md`, 2026-09-11): seis fases O14–S19 en dos ventanas.
 
 **Stack (locked):** Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js slot** + Cloudinary.
 No Supabase, no Vercel, no Cloudflare. Deploy mechanics live in `DEPLOY.md` and the `nextjs-deploy-hostinger` skill.
