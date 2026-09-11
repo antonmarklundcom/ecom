@@ -1622,4 +1622,16 @@ export const esPY = {
   // planilla dañada (fable/plan-crecimiento.md §5.1)
   // -------------------------------------------------------------------------
   "adminForm.slugLargo": "El slug no puede pasar los 160 caracteres.",
+
+  // -------------------------------------------------------------------------
+  // == O15 == Recordatorio de pago antes del vencimiento
+  // (fable/plan-crecimiento.md §5.2)
+  // -------------------------------------------------------------------------
+  // Sin datos de otras personas y sin datos bancarios: número de pedido, total,
+  // hasta cuándo, y el link tokenizado donde están las instrucciones de pago
+  // que la tienda ya sabe dar.
+  "wa.cliente.recordatorio":
+    "Hola {nombre}! Tu pedido {numero} ({total}) todavía está esperando el pago.",
+  "wa.cliente.recordatorio.limite": "Podés pagarlo hasta las {limite}.",
+  "wa.cliente.recordatorio.pagar": "Pagá o mirá cómo acá: {url}",
 } as const satisfies Record<string, string>;

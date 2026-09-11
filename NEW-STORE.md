@@ -439,6 +439,18 @@ sin ella el formulario "avisame" no se dibuja y el alta se rechaza. Es a
 propósito — guardar suscripciones que después nadie va a poder avisar sería
 prometerle algo a una compradora que la tienda no puede cumplir.
 
+**Una más (O15): el recordatorio de pago.** La que más se paga sola de todas.
+
+| Para qué | Variable | Destino |
+|---|---|---|
+| "Tu pedido todavía está esperando el pago, podés pagarlo hasta las 18:40" — sale una sola vez por pedido, cuando le quedan menos de 6 h de reserva | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO` | el teléfono que dejó cada compradora |
+
+**No necesita una entrada de cron nueva**: viaja en la de `vencer-pedidos` que
+ya está cada 15 minutos (DEPLOY.md §5), y sale después de vencer, así que un
+pedido recién vencido nunca recibe un aviso para pagarlo. Vacía = apagado, y la
+tienda queda exactamente como antes: el pedido que la compradora se olvidó
+vence en silencio. `pnpm preflight` lo dice como advertencia.
+
 ### 4d. ¿En qué idioma habla esta tienda?
 
 Por defecto `es-PY`, y las URLs quedan en español siempre (son parte del
