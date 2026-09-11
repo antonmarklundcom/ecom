@@ -82,3 +82,49 @@ test("crear producto con markdown, duplicarlo y desactivar la copia en masa", as
 
   await expect(page.getByTestId(TESTIDS.adminBulkBar)).toHaveCount(0);
 });
+
+/**
+ * Destacados (O14 dejó `isFeatured` en el dominio; S17 dibuja el toggle) —
+ * fable/plan-crecimiento.md §6.1 A/G: marcar un producto y verlo en la fila
+ * de destacados de la home. Publicado y activo son requisito de la vidriera
+ * (`PUBLISHED()` en `src/db/queries.ts`), no algo especial de "destacado".
+ */
+test("marcar un producto como destacado lo muestra en la home", async ({ page }) => {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  const ownerPassword = process.env.OWNER_PASSWORD;
+  if (!ownerEmail || !ownerPassword) {
+    throw new Error(
+      "Faltan OWNER_EMAIL/OWNER_PASSWORD en el entorno del test — son los mismos que usó " +
+        "`pnpm create-owner` (o `POST /api/setup/init`) para sembrar la cuenta del dueño."
+    );
+  }
+
+  const nombreProducto = `Destacado E2E ${Date.now()}`;
+
+  await page.goto("/admin/login?next=%2Fadmin%2Fproductos%2Fnuevo");
+  await page.getByTestId(TESTIDS.adminLoginEmail).fill(ownerEmail);
+  await page.getByTestId(TESTIDS.adminLoginPassword).fill(ownerPassword);
+  await page.getByTestId(TESTIDS.adminLoginSubmit).click();
+  await page.waitForURL(/\/admin\/productos\/nuevo$/);
+
+  await page.getByTestId(TESTIDS.adminProductNameInput).fill(nombreProducto);
+  // Publicado, para que la vidriera lo vea (`PUBLISHED()`), y destacado, que
+  // es lo que este test prueba.
+  await page.locator('input[name="published"]').check();
+  await page.getByTestId(TESTIDS.adminProductFeaturedToggle).check();
+
+  await page.getByTestId(TESTIDS.adminProductSaveSubmit).click();
+  await page.waitForURL(/\/admin\/productos\/\d+$/);
+
+  const slug = await page
+    .locator('a[href^="/producto/"]')
+    .first()
+    .getAttribute("href")
+    .then((href) => href?.split("/").pop() ?? "");
+  expect(slug).not.toBe("");
+
+  await page.goto("/");
+  await expect(
+    page.locator(`[data-testid="${TESTIDS.productCard}"][data-slug="${slug}"]`)
+  ).toBeVisible();
+});
