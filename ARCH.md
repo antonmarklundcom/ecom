@@ -724,10 +724,11 @@ cupón se quita, el descuento vuelve a 0 y la pantalla lo dice (`couponRemoved`)
 — nunca en silencio. Lo que **no** se re-chequea es vigencia ni usos: ese
 control responde "¿se le puede dar este cupón a alguien ahora?", y acá la
 pregunta es otra; empezando por el uso que este mismo pedido ya consumió, le
-subiría el total a una compradora que sólo pidió mandar una remera menos. Y los
-usos consumidos **no se devuelven** cuando el cupón se quita: es la decisión
-conservadora — devolver un uso es tocar un contador compartido por una
-corrección de mostrador.
+subiría el total a una compradora que sólo pidió mandar una remera menos. Cuando
+el cupón se quita por mínimo de compra, **se devuelve el uso**: se bloquea la
+fila del cupón y se decrementa `times_used` sin bajar de cero, en la misma
+transacción. Si la fila ya no existe, no hay nada que decrementar. Así coincide
+con reconcile, que cuenta los pedidos que siguen apuntando al cupón.
 
 ---
 

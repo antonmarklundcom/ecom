@@ -65,6 +65,6 @@ Copiar tal cual al abrir Claude Code en la carpeta del repo:
 | 02 | `01a09bce-c509-7cd2-b780-5306cdc56f19` | gpt-6-astra / low | OK: el worker no encontró pnpm en su sandbox; manager corrió typecheck, lint y suite (verdes salvo entorno) |
 | 03 | `01a09bdc-a18a-7633-9737-1096af1055ae` | gpt-6-astra / low | OK; manager ajustó una aserción en tests/integration/order-notifications.test.ts (fuera de la lista) que fijaba from NULL |
 | 04 | `01a09be6-da1c-7f03-a22b-4f47e985804e` | gpt-5.6-luna / low | OK: typecheck, lint y tests/unit (763) verdes; worker sin pnpm en sandbox, verificado por el manager |
-| 05 | | | |
+| 05 | `01a09bec-8f22-7633-abef-e8bfe7608876` | gpt-6-astra / low | OK: typecheck, lint, edit-order+coupons (46) y suite verdes salvo entorno; worker sin pnpm en sandbox |
 | 06 | | | |
 | 07 | | | |

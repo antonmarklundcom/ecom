@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  coupons,
   orderEvents,
   orderItems,
   orders,
@@ -18,7 +19,12 @@ import {
   canEditPendingOrder,
   editPendingOrder,
 } from '@/domain/edit-order';
-import { findImpossibleEdges, findTotalMismatches, reconcile } from '@/domain/reconciliation';
+import {
+  findCouponUsageMismatches,
+  findImpossibleEdges,
+  findTotalMismatches,
+  reconcile,
+} from '@/domain/reconciliation';
 import { getAvailability } from '@/domain/stock';
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
@@ -319,6 +325,39 @@ describe.skipIf(!hasTestDb)('editPendingOrder', () => {
     expect(row.discountPyg).toBe(0);
     expect(row.couponId).toBeNull();
     expect(row.totalPyg).toBe(row.subtotalPyg + row.shippingPyg);
+  });
+
+  it.each([
+    { qty: 1, removed: true, timesUsed: 0 },
+    { qty: 2, removed: false, timesUsed: 1 },
+  ])('editar a $qty unidades deja el uso del cupón en $timesUsed', async ({ qty, removed, timesUsed }) => {
+    await createCoupon({ code: 'MINIMO', type: 'monto_fijo', value: 20_000, minOrderPyg: 200_000 });
+    const variantId = await createVariant({ onHand: 10, pricePyg: 100_000 });
+    const order = await placeOrder(
+      input({ items: [{ variantId, qty: 3 }], couponCode: 'MINIMO' }),
+    );
+    const db = getTestDb();
+    const [antes] = await db.select().from(coupons).where(eq(coupons.code, 'MINIMO'));
+    expect(antes?.timesUsed).toBe(1);
+    const [linea] = await db.select().from(orderItems).where(eq(orderItems.orderId, order.orderId));
+
+    const resultado = await editPendingOrder({
+      orderId: order.orderId,
+      actor: ACTOR,
+      items: [{ orderItemId: linea?.id ?? 0, qty }],
+      reason: 'quiere menos unidades',
+    });
+
+    expect(resultado.couponRemoved).toBe(removed);
+    const [despues] = await db.select().from(coupons).where(eq(coupons.code, 'MINIMO'));
+    expect(despues?.timesUsed).toBe(timesUsed);
+    expect(await findCouponUsageMismatches()).toEqual([]);
+    if (removed) {
+      const row = await leer(order.orderId);
+      expect(row.couponId).toBeNull();
+      expect(row.couponCode).toBeNull();
+      expect(row.discountPyg).toBe(0);
+    }
   });
 
   it('el cupón que sigue aplicando se recalcula, no se quita', async () => {
