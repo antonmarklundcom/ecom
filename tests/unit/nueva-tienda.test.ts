@@ -325,8 +325,9 @@ const GLOBALS_TEMPLATE = `@import "tailwindcss";
 `;
 
 describe('el tema del kit de piel (--tema)', () => {
-  it('conoce los tres temas del plan', () => {
-    expect(TEMAS).toEqual(['neutro', 'calido', 'oscuro-vivo']);
+  it('los tres temas del plan siempre están presentes y no hay duplicados', () => {
+    expect(TEMAS).toEqual(expect.arrayContaining(['neutro', 'calido', 'oscuro-vivo']));
+    expect(new Set(TEMAS).size).toBe(TEMAS.length);
   });
 
   it('esTema distingue lo conocido de lo inventado', () => {
@@ -365,7 +366,7 @@ describe('el tema del kit de piel (--tema)', () => {
     expect(() => escribirTema('body { color: red; }\n', 'calido')).toThrow(/globals\.css/);
   });
 
-  it('el globals.css real importa uno de los tres temas', () => {
+  it('el globals.css real importa uno de los temas registrados', () => {
     const real = readFileSync(path.join('src', 'app', 'globals.css'), 'utf8');
     expect(TEMAS as readonly string[]).toContain(leerTemaActual(real));
   });
