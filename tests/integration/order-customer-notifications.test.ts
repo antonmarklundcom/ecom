@@ -68,6 +68,25 @@ describe.skipIf(!hasTestDb)("notifyCustomerOrderEvent", () => {
     expect(evento?.actor).toBe("sistema");
     expect(evento?.actorUserId).toBeNull();
     expect(evento?.toStatus).toBe("pagado");
+    expect(evento?.fromStatus).toBe("pagado");
+  });
+
+  it.each(["ok", "throw"] as const)("usa el estado destino aunque el SELECT lea el anterior (%s)", async (behaviour) => {
+    const orderId = await createOrder({ status: "pendiente_pago" });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await notifyCustomerOrderEvent(orderId, "pagado", {
+      notifier: notifier(fakeSender(behaviour)),
+      status: "pagado",
+    });
+
+    const [evento] = await eventos(orderId);
+    expect(evento?.fromStatus).toBe("pagado");
+    expect(evento?.toStatus).toBe("pagado");
+    expect(evento?.reason).toBe(
+      behaviour === "ok" ? "aviso_cliente_pagado" : "aviso_cliente_pagado_fallido: Meta devolvió 500",
+    );
+    expect(await getStatus(orderId)).toBe("pendiente_pago");
   });
 
   it("un sender que tira no rompe nada: el pedido queda igual y el fallo queda anotado", async () => {

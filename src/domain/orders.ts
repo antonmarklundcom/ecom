@@ -302,12 +302,12 @@ export async function transitionOrder(
   // llama, p. ej. `reviewReceipt`, `retryOrderRevival`, el webhook de
   // Pagopar), esto puede correr una fracción de segundo antes de que esa
   // transacción externa haga commit: `notifyCustomerOrderEvent` usa su propia
-  // conexión (nunca `tx`) y lee `orders` de nuevo, así que en el peor caso
-  // sólo espera el lock de fila hasta que el commit libera la fila — no hay
-  // riesgo de tocar la conexión que está por cerrar esa transacción.
+  // conexión (nunca `tx`). Su SELECT común no espera el lock de fila y puede
+  // leer el snapshot anterior; pasamos el destino para el evento del aviso.
   const kind = result.changed ? CUSTOMER_NOTICE_FOR_STATUS[to] : undefined;
   if (kind) {
     void notifyCustomerOrderEvent(orderId, kind, {
+      status: to,
       note: kind === 'enviado' ? (reason ?? null) : null,
     }).catch((error) => {
       log.error('notifyCustomerOrderEvent rechazó', { error: mensajeDe(error) });

@@ -872,7 +872,7 @@ checkout**: it is fired after the order is committed, without `await`, with its
 own timeout, and `notifyOwnerNewOrder` never throws — the buyer's order can
 never be lost because Meta is down. **Missing variables switch it off**, like
 every other integration here. And **it always leaves a trail**: sent or failed,
-a row lands in `order_events` (`actor: "sistema"`, `from_status NULL`, reason
+a row lands in `order_events` (`actor: "sistema"`, `from_status = to_status`, reason
 `aviso_dueno_enviado` / `aviso_dueno_fallido: …`), because a notification that
 disappears silently is worse than none — the owner would read "no messages" as
 "no orders".
@@ -905,9 +905,11 @@ the notice fires once, centrally, right after `transitionOrder`'s own write
 resolves. When `transitionOrder` runs nested inside a caller's own
 transaction (`options.executor`), that moment is a hair before the caller's
 transaction actually commits; `notifyCustomerOrderEvent` never touches that
-transaction's connection (it opens its own), so the only consequence is that
-its `SELECT` on `orders` blocks on the row lock until the enclosing
-transaction resolves — it cannot corrupt or race the write. `confirmado` has
+transaction's connection (it opens its own). Its ordinary `SELECT` on `orders`
+does not block on the row lock and can read the previous snapshot, so the
+target status is passed as a parameter for the notice's `order_events` row.
+Notices use `from_status = to_status` and the shared `aviso_` reason prefix;
+reconciliation also recognizes historical notices with `from_status NULL`. `confirmado` has
 no transition to hook (the order is born in `pendiente_pago`), so it fires
 from `createOrder()` once its own transaction has actually returned —
 after the real commit, no caveat needed.
