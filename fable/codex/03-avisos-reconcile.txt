@@ -1,0 +1,37 @@
+Task:
+Repo antonmarklundcom/ecom, hallazgos S1 y N1 de fable/REVIEW-2026-09-13. Los avisos por WhatsApp a la compradora (src/domain/order-customer-notifications.ts) y al comercio (src/domain/order-notifications.ts) dejan su rastro con recordOrderEvent sin fromStatus, o sea from_status NULL. Para los avisos pagado y enviado eso produce filas NULL -> pagado y NULL -> enviado, y findImpossibleEdges en src/domain/reconciliation.ts las reporta como arista imposible (la rama WHEN e.from_status IS NULL THEN e.to_status <> 'pendiente_pago'). Toda tienda con esas plantillas configuradas tiene pnpm reconcile en rojo en cada pedido cobrado. Ademas, cuando transitionOrder corre con options.executor, el aviso lee orders antes del commit de la transaccion externa y graba el estado viejo. Hay que escribir esas filas como evento sin transicion (from = to, con prefijo reconocible), pasarle al aviso el estado destino en vez de releerlo, excluirlas en la reconciliacion incluyendo las filas viejas que ya existen con from NULL, y fijarlo con tests.
+
+Files to touch:
+src/domain/order-events.ts
+src/domain/order-customer-notifications.ts
+src/domain/order-notifications.ts
+src/domain/orders.ts
+src/domain/reconciliation.ts
+tests/integration/reconciliation-cross.test.ts
+tests/integration/order-customer-notifications.test.ts
+ARCH.md
+
+Do not touch:
+src/domain/payment-recovery.ts, src/domain/edit-order.ts (sus prefijos y su tratamiento en reconcile quedan como estan). El texto de los mensajes de WhatsApp. Ningun archivo de src/app.
+
+Definition of done:
+src/domain/order-events.ts exporta una constante NOTICE_REASON_PREFIX con valor aviso_ y un comentario que dice que reconcile la usa. Los reasons existentes (aviso_dueno_enviado, aviso_cliente_pagado, aviso_cliente_pagado_fallido, etc.) ya empiezan con ese prefijo; no cambiar sus valores, solo derivarlos de la constante donde sea trivial.
+En order-customer-notifications.ts y order-notifications.ts, cada recordOrderEvent de un aviso pasa fromStatus igual al status que escribe (from = to). notifyCustomerOrderEvent acepta en options un status opcional (OrderStatus); si viene, lo usa para la fila de order_events en vez del leido de la base.
+En src/domain/orders.ts, la llamada a notifyCustomerOrderEvent despues de la transicion pasa status: to.
+En findImpossibleEdges de reconciliation.ts, dentro del CASE y antes de la rama from_status IS NULL, agregar dos ramas que devuelven FALSE: reason LIKE aviso_% (usando la constante importada, con el mismo patron parcialLike/edicionLike) tanto cuando from = to como cuando from_status IS NULL (filas historicas). Comentario explicando las dos formas.
+tests/integration/reconciliation-cross.test.ts: nuevo test: pedido pagado con filas de order_events aviso_cliente_pagado en las dos formas (from NULL y from = to) y aviso_cliente_enviado; findImpossibleEdges devuelve vacio. Otro test: una fila NULL -> pagado con reason que no empieza con aviso_ sigue reportandose.
+tests/integration/order-customer-notifications.test.ts: ajustar o agregar el test que verifica que la fila de exito del aviso pagado queda con from_status = to_status = pagado.
+ARCH.md, seccion 5.2.1, parrafo Where the hook lives: reemplazar la afirmacion de que el SELECT del aviso bloquea sobre el lock de fila por la realidad: un SELECT comun no bloquea y lee el snapshot anterior, por eso el estado destino se pasa por parametro.
+Stay within the listed files. If something outside them must change to satisfy the definition of done, stop and say so instead of changing it.
+
+Commands to run before reporting:
+pnpm typecheck   (working directory: repo root)
+pnpm lint   (working directory: repo root)
+pnpm test   (working directory: repo root, con docker compose up -d y TEST_DATABASE_URL en .env.local)
+Run every listed command. Report FAIL with the error text rather than skipping or substituting another check.
+
+Report format:
+Files changed: each path with a one-line summary of the change.
+Commands run: each command with PASS or FAIL and a one-line result.
+Flagged or not done: anything skipped, blocked, ambiguous, or outside scope, or None.
+Keep the report under 30 lines. No diffs, no file dumps. Never print or write secrets, tokens, or API keys.

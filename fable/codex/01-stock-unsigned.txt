@@ -1,0 +1,30 @@
+Task:
+Repo antonmarklundcom/ecom, bug C2 de fable/REVIEW-2026-09-13 (consumeReservations). En src/domain/orders.ts la funcion consumeReservations descuenta stock con GREATEST(on_hand - qty, 0). La columna variants.on_hand es INT UNSIGNED y en MySQL 8 la resta sin signo tira ER_DATA_OUT_OF_RANGE antes de que GREATEST corra, asi que cobrar un pedido cuya reserva supera el on_hand fisico (pasa despues de un adjustStock negativo o de una importacion con pisarStock) revienta la transaccion. Por el webhook de Pagopar eso deja el pago sin registrar. Hay que hacer la resta segura, cubrirla con un test de integracion y corregir el consejo equivocado de KNOWN-ISSUES.md, que hoy recomienda justamente GREATEST.
+
+Files to touch:
+src/domain/orders.ts
+tests/integration/transition-order.test.ts
+KNOWN-ISSUES.md
+
+Do not touch:
+Cualquier otro archivo de src/domain. No cambiar la firma de transitionOrder ni el orden de locks. No tocar el schema ni drizzle/.
+
+Definition of done:
+En consumeReservations el UPDATE de variants.on_hand usa una expresion que nunca evalua una resta sin signo negativa, por ejemplo IF(on_hand >= qty, on_hand - qty, 0) o GREATEST(CAST(on_hand AS SIGNED) - qty, 0). El comentario de arriba explica por que GREATEST solo no alcanza.
+Nuevo test en tests/integration/transition-order.test.ts, dentro del describe existente: variante con onHand 2, reserveStock de 2 unidades para un pedido pendiente_pago, luego un UPDATE directo (o adjustStock con delta -1) que deja on_hand en 1, luego transitionOrder a pagado. Debe resolver sin error, el pedido queda pagado, on_hand queda en 0 y la reserva queda consumed.
+El test usa los helpers que ya usan los otros tests del archivo (createVariant, createOrder, getOnHand, getStatus, reserveStock).
+En KNOWN-ISSUES.md, en la entrada sobre la resta sin signo, reemplazar la frase que recomienda envolver en GREATEST como hace consumeReservations por la regla correcta: castear a SIGNED antes de restar, o usar IF; GREATEST solo no evita el error porque la resta se evalua antes. Mencionar que consumeReservations tuvo ese bug y se arreglo en esta fase.
+Stay within the listed files. If something outside them must change to satisfy the definition of done, stop and say so instead of changing it.
+
+Commands to run before reporting:
+pnpm typecheck   (working directory: repo root)
+pnpm lint   (working directory: repo root)
+pnpm test -- tests/integration/transition-order.test.ts   (working directory: repo root, con docker compose up -d y TEST_DATABASE_URL en .env.local)
+pnpm test   (working directory: repo root)
+Run every listed command. Report FAIL with the error text rather than skipping or substituting another check.
+
+Report format:
+Files changed: each path with a one-line summary of the change.
+Commands run: each command with PASS or FAIL and a one-line result.
+Flagged or not done: anything skipped, blocked, ambiguous, or outside scope, or None.
+Keep the report under 30 lines. No diffs, no file dumps. Never print or write secrets, tokens, or API keys.

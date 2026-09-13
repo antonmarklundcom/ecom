@@ -1,0 +1,34 @@
+Task:
+Repo antonmarklundcom/ecom, hallazgo S2 de fable/REVIEW-2026-09-13, version minima. Un pedido contra entrega nace pendiente_pago con reserva de 24 h (RESERVATION_TTL_MINUTES en src/domain/stock.ts), el cron lo vence a las 24 h como a cualquier pendiente_pago (src/domain/maintenance.ts) y el recordatorio de pago (src/domain/payment-reminders.ts) le manda a la compradora un mensaje de podes pagar hasta las... aunque paga en mano; el comentario de ese archivo afirma que contra entrega no pasa por pendiente_pago, y si pasa. Arreglo minimo: reserva de 7 dias para contra entrega, sin recordatorio de pago, y el vencimiento sigue existiendo a los 7 dias para que un pedido olvidado no bloquee stock para siempre.
+
+Files to touch:
+src/domain/stock.ts
+src/domain/payment-reminders.ts
+tests/integration/payment-reminders.test.ts
+tests/unit/stock.test.ts
+ARCH.md
+NEW-STORE.md
+
+Do not touch:
+src/domain/maintenance.ts (el vencimiento a los 7 dias es deseado). src/domain/orders.ts. Ningun archivo de src/app. No agregar estados nuevos ni tocar el schema.
+
+Definition of done:
+RESERVATION_TTL_MINUTES.contra_entrega pasa a 7 * 24 * 60 con un comentario: la plata entra en la puerta, dias despues del pedido; 24 h vencia pedidos con el paquete armado.
+La consulta de candidatos de sendPaymentReminders excluye payment_method contra_entrega (ne(orders.paymentMethod, 'contra_entrega')). El comentario 4 de la cabecera del archivo pasa a decir la verdad: contra entrega si pasa por pendiente_pago y se excluye explicitamente porque no tiene nada que pagar antes de recibir.
+tests/integration/payment-reminders.test.ts (si el archivo tiene otro nombre, usar el que cubre sendPaymentReminders): nuevo test: un pedido contra_entrega dentro de la ventana de 6 h no recibe recordatorio ni marca payment_reminder_sent_at; uno de transferencia en la misma situacion si.
+tests/unit/stock.test.ts (o el test unitario que cubra reservationExpiry; si no existe, crearlo con ese nombre): reservationExpiry('contra_entrega') da 7 dias, tarjeta 45 min, transferencia 24 h.
+ARCH.md seccion 2 (Stock: holds) y seccion 5 (Contra entrega): la reserva de contra entrega es de 7 dias y el motivo.
+NEW-STORE.md: donde se explique el recordatorio de pago (seccion 4c, O15), agregar que contra entrega no lo recibe.
+Stay within the listed files. If something outside them must change to satisfy the definition of done, stop and say so instead of changing it.
+
+Commands to run before reporting:
+pnpm typecheck   (working directory: repo root)
+pnpm lint   (working directory: repo root)
+pnpm test   (working directory: repo root, con docker compose up -d y TEST_DATABASE_URL en .env.local)
+Run every listed command. Report FAIL with the error text rather than skipping or substituting another check.
+
+Report format:
+Files changed: each path with a one-line summary of the change.
+Commands run: each command with PASS or FAIL and a one-line result.
+Flagged or not done: anything skipped, blocked, ambiguous, or outside scope, or None.
+Keep the report under 30 lines. No diffs, no file dumps. Never print or write secrets, tokens, or API keys.
