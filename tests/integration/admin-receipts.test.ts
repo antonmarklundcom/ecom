@@ -138,6 +138,46 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     expect(await getOnHand(variantId)).toBe(10);
   });
 
+  it('aprueba un segundo comprobante tras rechazar el primero y descuenta una sola vez', async () => {
+    const db = getTestDb();
+    const { orderId, variantId, receiptId } = await seedOrderWithReceipt({ onHand: 10, qty: 2 });
+    const note = 'el monto transferido no coincide';
+    await reviewReceipt({ receiptId, decision: 'rejected', note, reviewerId, actor: 'admin:x' });
+    expect(await getStatus(orderId)).toBe('rechazado');
+    expect(await getOnHand(variantId)).toBe(10);
+
+    await db.insert(receipts).values({
+      orderId,
+      cloudinaryId: `comprobantes/test-${orderId}-reintento`,
+      mime: 'image/jpeg',
+      bytes: 999,
+      review: 'pending',
+    });
+    const rows = await db.select().from(receipts).where(eq(receipts.orderId, orderId));
+    expect(rows).toHaveLength(2);
+    expect(rows.find((row) => row.id === receiptId)).toMatchObject({ review: 'rejected', note });
+    const second = rows.find((row) => row.id !== receiptId);
+    if (!second) throw new Error('no pude crear el segundo comprobante');
+    expect(second.review).toBe('pending');
+
+    // También debe poder cobrarse desde el panel mientras el pedido sigue rechazado.
+    const result = await reviewReceipt({
+      receiptId: second.id, decision: 'approved', reviewerId, actor: 'admin:x',
+    });
+    expect(result.changed).toBe(true);
+    expect(await getStatus(orderId)).toBe('pagado');
+    expect(await getOnHand(variantId)).toBe(8);
+    const approved = (await db.select().from(receipts).where(eq(receipts.id, second.id)))[0];
+    expect(approved?.review).toBe('approved');
+    const reservations = await db.select().from(stockReservations)
+      .where(eq(stockReservations.orderId, orderId));
+    expect(reservations.map((row) => row.state)).toEqual(['consumed']);
+    await expect(reviewReceipt({
+      receiptId: second.id, decision: 'approved', reviewerId, actor: 'admin:x',
+    })).rejects.toThrow(/ya estaba aprobado/i);
+    expect(await getOnHand(variantId)).toBe(8);
+  });
+
   it('el motivo del rechazo queda guardado en el comprobante', async () => {
     const { receiptId } = await seedOrderWithReceipt();
 

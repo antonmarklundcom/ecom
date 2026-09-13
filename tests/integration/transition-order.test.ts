@@ -188,8 +188,21 @@ describe.skipIf(!hasTestDb)('transitionOrder', () => {
       .where(eq(stockReservations.orderId, orderId));
     expect(reservations.map((r) => r.state)).toEqual(['held']);
 
-    await transitionOrder(orderId, 'pendiente_pago', 'buyer', 'reintento');
-    expect(await getStatus(orderId)).toBe('pendiente_pago');
+    expect(await getStatus(orderId)).toBe('rechazado');
+    expect(await getOnHand(variantId)).toBe(4);
+    await transitionOrder(orderId, 'esperando_verificacion', 'buyer', 'nuevo comprobante');
+    expect(await getStatus(orderId)).toBe('esperando_verificacion');
+    expect(await getOnHand(variantId)).toBe(4);
+    await transitionOrder(orderId, 'pagado', 'admin:test');
+    expect(await getStatus(orderId)).toBe('pagado');
+    expect(await getOnHand(variantId)).toBe(2);
+    await transitionOrder(orderId, 'pagado', 'admin:test');
+    expect(await getOnHand(variantId)).toBe(2);
+    const consumed = await db
+      .select()
+      .from(stockReservations)
+      .where(eq(stockReservations.orderId, orderId));
+    expect(consumed.map((r) => r.state)).toEqual(['consumed']);
   });
 
   it('el camino feliz completo queda registrado en orden', async () => {

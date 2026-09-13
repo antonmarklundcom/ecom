@@ -26,8 +26,8 @@ import { log, mensajeDe } from '@/lib/log';
 export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   pendiente_pago: ['esperando_verificacion', 'pagado', 'vencido', 'cancelado'],
   esperando_verificacion: ['pagado', 'rechazado', 'cancelado'],
-  // Comprobante inválido: el comprador puede reintentar.
-  rechazado: ['pendiente_pago', 'cancelado'],
+  // Reintento de comprobante, dar por cobrado desde el panel, vencimiento por cron o cancelación.
+  rechazado: ['esperando_verificacion', 'pagado', 'vencido', 'cancelado'],
   pagado: ['preparando', 'reembolsado'],
   preparando: ['enviado', 'reembolsado'],
   enviado: ['entregado'],

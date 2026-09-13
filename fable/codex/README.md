@@ -62,7 +62,7 @@ Copiar tal cual al abrir Claude Code en la carpeta del repo:
 | # | Session id | Modelo / effort (del log) | Resultado |
 |---|---|---|---|
 | 01 | `01a09bc6-14ce-7d21-8327-d0668d5ba649` | gpt-6-astra / low | OK: typecheck, lint, transition-order (18) y suite completa verdes salvo fallos de entorno Windows |
-| 02 | | | |
+| 02 | `01a09bce-c509-7cd2-b780-5306cdc56f19` | gpt-6-astra / low | OK: el worker no encontró pnpm en su sandbox; manager corrió typecheck, lint y suite (verdes salvo entorno) |
 | 03 | | | |
 | 04 | | | |
 | 05 | | | |

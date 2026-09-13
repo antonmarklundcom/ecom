@@ -19,8 +19,8 @@ import { purgeNotifiedStockAlerts } from "./stock-alerts";
  * siempre.
  */
 
-/** Se vencen sólo los pedidos donde todavía no entró plata. */
-const EXPIRABLE = ["pendiente_pago"] as const;
+/** Se vencen los pedidos pendiente_pago y rechazado: todavía no entró plata. */
+const EXPIRABLE = ['pendiente_pago', 'rechazado'] as const;
 
 /** Cuánto se guardan las reservas ya resueltas antes de borrarlas. */
 export const RESERVATION_GC_DAYS = 30;

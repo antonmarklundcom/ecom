@@ -663,13 +663,22 @@ exactamente qué pasó.
       │      ▼   │                  │
       │  esperando_verificacion ────┘        ← comprobante subido (SPI/QR)
       │      │
-      │      └──► rechazado ──► pendiente_pago      (comprobante inválido, reintento)
+      │      └──► rechazado ──► esperando_verificacion (nuevo comprobante)
+      │               ├──► pagado                 (cobrado desde el panel)
+      │               ├──► vencido                (cron, reserved_until pasado)
+      │               └──► cancelado              (manual)
       ▼
    vencido   ◄── pasó reserved_until sin pago
       │
       └──► cancelado                          (manual, en cualquier estado pre-pago)
                               pagado ──► reembolsado   (sólo manual)
 ```
+
+Un pedido `rechazado` conserva su reserva para volver a subir un comprobante
+(`→ esperando_verificacion`) o darlo por cobrado desde el panel (`→ pagado`).
+También vence por cron al pasar `reserved_until` (`→ vencido`, igual que
+`pendiente_pago`) o se cancela manualmente (`→ cancelado`); ambos liberan la
+reserva. No vuelve a `pendiente_pago`.
 
 Every transition goes through **one** function, `transitionOrder(orderId, to, actor, reason)`, which:
 1. opens a transaction and `SELECT … FOR UPDATE` on the order,

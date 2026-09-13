@@ -17,9 +17,17 @@ describe('ORDER_TRANSITIONS', () => {
     }
   });
 
-  it('nadie puede volver a pendiente_pago salvo desde rechazado', () => {
+  it('nadie puede volver a pendiente_pago', () => {
     const sources = ORDER_STATUSES.filter((status) => canTransition(status, 'pendiente_pago'));
-    expect(sources).toEqual(['rechazado']);
+    expect(sources).toEqual([]);
+  });
+
+  it('rechazado permite reintentar el comprobante, cobrar, vencer o cancelar', () => {
+    expect(canTransition('rechazado', 'esperando_verificacion')).toBe(true);
+    expect(canTransition('rechazado', 'pagado')).toBe(true);
+    expect(ORDER_TRANSITIONS.rechazado).toEqual([
+      'esperando_verificacion', 'pagado', 'vencido', 'cancelado',
+    ]);
   });
 
   it('un pedido enviado no puede volver a pagado (webhook tardío o repetido)', () => {
