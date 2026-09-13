@@ -269,9 +269,11 @@ Los productos reales entran por dos caminos:
 
 - **Pocos, o de a uno:** el panel, `/admin/productos`.
 - **El catálogo entero de una vez:** `pnpm importar:productos lista.csv`. El
-  comercio ya tiene su lista de precios en Excel; el formato es el mismo que
-  baja el export del panel (una fila por variante: SKU, Producto, Categoría,
-  Variante, Precio (₲), Stock) más columnas opcionales — Descripción, Marca,
+  comercio ya tiene su lista de precios en Excel; las columnas obligatorias son
+  SKU, Producto, Categoría y Precio (₲). Variante y Stock son opcionales:
+  Variante vacía significa variante única y Stock vacío significa 0 al crear,
+  sin tocarlo al reimportar. El formato es el mismo que baja el export del
+  panel (una fila por variante) más columnas opcionales — Descripción, Marca,
   IVA, Precio antes (₲), Slug. Separador `;` o `,`, como venga. Sin `--aplicar`
   es un ensayo que sólo cuenta; los errores salen todos juntos con número de
   línea. Idempotente: re-importar actualiza precios sin duplicar y **no pisa el
@@ -440,6 +442,9 @@ propósito — guardar suscripciones que después nadie va a poder avisar sería
 prometerle algo a una compradora que la tienda no puede cumplir.
 
 **Una más (O15): el recordatorio de pago.** La que más se paga sola de todas.
+
+Contra entrega no recibe este recordatorio: aunque el pedido está en
+`pendiente_pago`, la compradora no tiene nada que pagar antes de recibir.
 
 | Para qué | Variable | Destino |
 |---|---|---|

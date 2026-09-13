@@ -70,6 +70,7 @@ const RefundSchema = PaymentSchema.extend({
    * `refunded_pyg` reales. El navegador no decide plata.
    */
   amountPyg: z.number().int().positive().optional(),
+  allowSettled: z.boolean().optional(),
 });
 
 /**
@@ -106,6 +107,7 @@ export async function markPaymentRefunded(
       paymentId: parsed.data.paymentId,
       reason: parsed.data.reason,
       amountPyg: parsed.data.amountPyg,
+      allowSettled: parsed.data.allowSettled,
       actor: actorLabel(actor),
       actorUserId: actor.userId,
     });

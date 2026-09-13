@@ -42,6 +42,10 @@ import {
 } from "@/lib/admin-guard";
 import { t } from "@/i18n";
 
+function revalidarVidriera() {
+  revalidatePath("/", "layout");
+}
+
 // Import directo del script de seed: mismo `upsertCatalogProducts` que usa
 // `pnpm importar:productos`, no una reimplementación para el panel.
 import { upsertCatalogProducts, type CatalogProductUpsert } from "../../../scripts/seed";
@@ -108,12 +112,14 @@ export async function saveProduct(
     if (productId === undefined) {
       const created = await createProduct(write);
       revalidatePath("/admin/productos");
+      revalidarVidriera();
       return { ok: true, productId: created };
     }
 
     await updateProduct(productId, write);
     revalidatePath("/admin/productos");
     revalidatePath(`/admin/productos/${productId}`);
+    revalidarVidriera();
     return { ok: true, productId };
   } catch (error) {
     return adminActionError("saveProduct", error);
@@ -197,6 +203,7 @@ export async function adjustVariantStock(
     if (parsed.data.productId) revalidatePath(`/admin/productos/${parsed.data.productId}`);
     revalidatePath("/admin/productos");
     revalidatePath("/admin");
+    revalidarVidriera();
     return { ok: true, newOnHand: result.newOnHand };
   } catch (error) {
     return adminActionError("adjustVariantStock", error);
@@ -240,6 +247,7 @@ export async function uploadProductImage(formData: FormData): Promise<AdminActio
     });
 
     revalidatePath(`/admin/productos/${productId}`);
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("uploadProductImage", error);
@@ -266,6 +274,7 @@ export async function removeProductImage(input: unknown): Promise<AdminActionRes
     await deleteProductImage(parsed.data.imageId);
 
     revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("removeProductImage", error);
@@ -441,6 +450,7 @@ export async function bulkSetProductsActive(
     const afectados = await bulkSetActive(parsed.data.productIds, parsed.data.isActive);
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, afectados };
   } catch (error) {
     return adminActionError("bulkSetProductsActive", error);
@@ -461,6 +471,7 @@ export async function bulkMoveProductsCategory(
     const afectados = await bulkMoveCategory(parsed.data.productIds, parsed.data.categoryId);
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, afectados };
   } catch (error) {
     return adminActionError("bulkMoveProductsCategory", error);
@@ -508,6 +519,7 @@ export async function bulkAdjustProductPrices(
     });
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, ...result };
   } catch (error) {
     return adminActionError("bulkAdjustProductPrices", error);
@@ -562,6 +574,7 @@ export async function duplicateProductAction(
     const productId = await duplicateProduct(parsed.data.productId);
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, productId };
   } catch (error) {
     return adminActionError("duplicateProductAction", error);

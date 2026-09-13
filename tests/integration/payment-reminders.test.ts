@@ -84,6 +84,28 @@ describe.skipIf(!hasTestDb)('sendPaymentReminders', () => {
     expect(sender.sent).toHaveLength(1);
   });
 
+  it('excluye contra entrega dentro de las 6 h, pero avisa y marca transferencia', async () => {
+    const now = new Date();
+    const reservedUntil = new Date(now.getTime() + 5 * HOUR);
+    const contraEntrega = await createOrder({ paymentMethod: 'contra_entrega' });
+    const transferencia = await createOrder({
+      paymentMethod: 'transferencia',
+      customerPhone: '+595971999999',
+    });
+    for (const orderId of [contraEntrega, transferencia]) {
+      await getTestDb().update(orders).set({ reservedUntil }).where(eq(orders.id, orderId));
+    }
+    const sender = fakeSender('ok');
+
+    const report = await sendPaymentReminders(now, { notifier: notifier(sender) });
+
+    expect(report).toEqual({ candidatos: 1, enviados: 1, fallidos: 0 });
+    expect(sender.sent).toHaveLength(1);
+    expect(sender.sent[0]?.to).toBe('+595971999999');
+    expect(await marca(contraEntrega)).toBeNull();
+    expect(await marca(transferencia)).not.toBeNull();
+  });
+
   it('un pedido con 10 h por delante todavía no recibe nada', async () => {
     const orderId = await pedidoPorVencer(10);
     const sender = fakeSender('ok');

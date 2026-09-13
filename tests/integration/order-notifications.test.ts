@@ -65,7 +65,7 @@ describe.skipIf(!hasTestDb)('notifyOwnerNewOrder', () => {
     expect(evento?.actor).toBe('sistema');
     expect(evento?.actorUserId).toBeNull();
     // No es una transición: el estado no se movió.
-    expect(evento?.fromStatus).toBeNull();
+    expect(evento?.fromStatus).toBe('pendiente_pago'); // aviso: from = to (S1)
     expect(evento?.toStatus).toBe('pendiente_pago');
   });
 

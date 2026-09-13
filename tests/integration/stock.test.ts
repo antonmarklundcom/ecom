@@ -164,10 +164,10 @@ describe.skipIf(!hasTestDb)('reserveStock', () => {
 });
 
 describe('reservationExpiry', () => {
-  it('24 h para transferencia y contra entrega, 45 min para tarjeta', () => {
+  it('24 h para transferencia, 7 dias para contra entrega, 45 min para tarjeta', () => {
     const from = new Date('2026-03-01T12:00:00Z');
     expect(reservationExpiry('transferencia', from).toISOString()).toBe('2026-03-02T12:00:00.000Z');
-    expect(reservationExpiry('contra_entrega', from).toISOString()).toBe('2026-03-02T12:00:00.000Z');
+    expect(reservationExpiry('contra_entrega', from).toISOString()).toBe('2026-03-08T12:00:00.000Z');
     expect(reservationExpiry('tarjeta', from).toISOString()).toBe('2026-03-01T12:45:00.000Z');
   });
 });

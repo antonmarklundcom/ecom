@@ -17,9 +17,17 @@ describe('ORDER_TRANSITIONS', () => {
     }
   });
 
-  it('nadie puede volver a pendiente_pago salvo desde rechazado', () => {
+  it('nadie puede volver a pendiente_pago', () => {
     const sources = ORDER_STATUSES.filter((status) => canTransition(status, 'pendiente_pago'));
-    expect(sources).toEqual(['rechazado']);
+    expect(sources).toEqual([]);
+  });
+
+  it('rechazado permite reintentar el comprobante, cobrar, vencer o cancelar', () => {
+    expect(canTransition('rechazado', 'esperando_verificacion')).toBe(true);
+    expect(canTransition('rechazado', 'pagado')).toBe(true);
+    expect(ORDER_TRANSITIONS.rechazado).toEqual([
+      'esperando_verificacion', 'pagado', 'vencido', 'cancelado',
+    ]);
   });
 
   it('un pedido enviado no puede volver a pagado (webhook tardío o repetido)', () => {
@@ -37,11 +45,11 @@ describe('ORDER_TRANSITIONS', () => {
 
   it('sólo se reembolsa después de cobrar', () => {
     const refundables = ORDER_STATUSES.filter((status) => canTransition(status, 'reembolsado'));
-    expect(refundables.sort()).toEqual((['pagado', 'preparando'] satisfies OrderStatus[]).sort());
+    expect(refundables.sort()).toEqual((['pagado', 'preparando', 'enviado', 'entregado'] satisfies OrderStatus[]).sort());
   });
 
-  it('entregado, cancelado y reembolsado son terminales', () => {
-    expect(ORDER_TRANSITIONS.entregado).toEqual([]);
+  it('cancelado y reembolsado son terminales; entregado sólo permite reembolsar', () => {
+    expect(ORDER_TRANSITIONS.entregado).toEqual(['reembolsado']);
     expect(ORDER_TRANSITIONS.cancelado).toEqual([]);
     expect(ORDER_TRANSITIONS.reembolsado).toEqual([]);
   });

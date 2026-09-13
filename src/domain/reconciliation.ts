@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 
 import type { Executor } from "./executor";
 import { ORDER_TRANSITIONS } from "./orders";
+import { NOTICE_REASON_PREFIX } from "./order-events";
 import { EDIT_ORDER_REASON_PREFIX } from "./edit-order";
 import { PARTIAL_REFUND_REASON_PREFIX } from "./payment-recovery";
 
@@ -497,6 +498,7 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
   // compila, y el patrón conviene armarlo una sola vez igual.
   const parcialLike = `${PARTIAL_REFUND_REASON_PREFIX}%`;
   const edicionLike = `${EDIT_ORDER_REASON_PREFIX}%`;
+  const avisoLike = `${NOTICE_REASON_PREFIX}%`;
 
   const result = await tx.execute(sql`
     SELECT
@@ -510,6 +512,10 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
     FROM order_events e
     JOIN orders o ON o.id = e.order_id
     WHERE CASE
+      -- Los avisos no son transiciones: hoy guardan from = to; las filas
+      -- históricas guardaban from NULL. Ambas formas se reconocen por el motivo.
+      WHEN e.from_status = e.to_status AND e.reason LIKE ${avisoLike} THEN FALSE
+      WHEN e.from_status IS NULL AND e.reason LIKE ${avisoLike} THEN FALSE
       -- from_status IS NULL es legítimo exactamente una vez por pedido: la
       -- fila que escribe createOrder al nacer. Con cualquier otro destino es
       -- un pedido que apareció ya cobrado. El CASE es necesario además porque

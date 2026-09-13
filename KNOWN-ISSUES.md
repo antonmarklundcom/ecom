@@ -17,9 +17,12 @@ Ya está arreglado donde apareció (`CAST(... AS SIGNED)` en el `ORDER BY` de
 `lowStockVariants`, con su test). Queda anotado porque **la trampa sigue
 puesta para el resto del repo**: toda resta entre dos columnas `UNSIGNED`
 —`on_hand`, `qty`, cualquier `*_pyg`— tiene el mismo problema y la suite local
-no lo va a ver. Al escribir una resta así, castear los dos lados a `SIGNED` o
-envolver en `GREATEST(..., 0)` como hace `consumeReservations`, y no confiar en
-que el verde local signifique algo. Arreglo de fondo, si alguna vez molesta lo
+no lo va a ver. Al escribir una resta así, castear los operandos sin signo a
+`SIGNED` antes de restar, o usar `IF(on_hand >= qty, on_hand - qty, 0)`.
+`GREATEST(..., 0)` solo no evita el error porque la resta se evalúa antes.
+`consumeReservations` tuvo ese bug y se arregló en esta fase (C2 de la revisión
+2026-09-13), con un test de integración para una reserva mayor al stock físico.
+No confiar en que el verde local signifique algo. Arreglo de fondo, si alguna vez molesta lo
 suficiente: correr la suite contra MySQL 8 en local (Docker) en vez de MariaDB.
 
 ## El backup se sube como un solo archivo — fase O8
@@ -38,39 +41,6 @@ cuando alguna tienda se acerque: un archivo por tabla **más** un manifiesto con
 la lista y el conteo de filas de cada uno, y que `restore` se niegue a correr
 si falta alguno. Mientras tanto, el dump comprimido de una tienda con miles de
 pedidos entra cómodo en 10 MB.
-
-## `saveProduct` no revalidea la vidriera — fase S17
-
-Marcar un producto destacado (o publicarlo, desactivarlo, cambiarle el
-precio) desde `/admin/productos` actualiza la base al toque, pero la home y
-las fichas públicas pueden tardar hasta `revalidate = 300` (`src/app/page.tsx`)
-en mostrarlo: `saveProduct`, `bulkSetActive`, `bulkMoveCategory` y
-`duplicateProduct` (`src/app/actions/admin-products.ts`) sólo llaman
-`revalidatePath("/admin/productos"...)`, nunca `revalidatePath("/", "layout")`.
-Se descubrió escribiendo el e2e de S17 ("marcar destacado y verlo en la
-home"): con la home ya prerenderizada por `next build` antes del test, un
-producto nuevo no aparecía ni de casualidad dentro de la ventana del test.
-
-`src/app/actions/admin-categories.ts` ya resuelve exactamente esto —
-`revalidarVidriera()` llama `revalidatePath("/", "layout")` después de
-`crearCategoria`/`editarCategoria`/`uploadCategoryImage`— pero el equivalente
-nunca se escribió para productos. No se arregló en S17 porque
-`src/app/actions/**` es límite duro de las fases Sonnet (§4.7 de
-`fable/plan-crecimiento.md`): ni "un cambio chiquito" ahí. El e2e de S17
-(`tests/e2e/productos.spec.ts`, "marcar un producto como destacado") verifica
-contra `/admin/productos?destacados=1` (`force-dynamic`, siempre fresco) en
-vez de la home pública, así que el flujo real queda probado igual — lo que no
-queda probado es la latencia con la que la compradora lo ve.
-
-Arreglo: agregar a `saveProduct`, `bulkSetActive`, `bulkMoveCategory` y
-`duplicateProduct` el mismo `revalidatePath("/", "layout")` que ya tiene
-`admin-categories.ts` (y, si hace falta acotar más, `revalidatePath` de
-`/categoria/[slug]` y `/producto/[slug]` del producto tocado). Es un cambio
-mecánico de una fase con acceso a `src/app/actions/**` — O14 ya cerró la
-deuda de dominio de este plan, así que es candidato para S19 o un PR aparte.
-S19 no lo tocó: `src/app/actions/**` es fuera de sus "Owns" y ninguna
-dependencia nueva lo exigía para compilar (la única excusa que S19 tenía
-para tocar afuera de docs/config). Sigue abierto.
 
 ## `eslint` 10 no anda con `eslint-plugin-react` — fase S19
 

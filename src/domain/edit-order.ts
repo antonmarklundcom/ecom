@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { coupons, orderItems, orders, payments, stockReservations } from '@/db/schema';
@@ -422,9 +422,9 @@ type CuponEditado = { discountPyg: number; removed: boolean };
  * re-chequea. El monto se recalcula siempre: un 10 % sobre un subtotal nuevo
  * es otro número.
  *
- * Los usos consumidos no se devuelven, ni cuando el cupón se quita: es la
- * decisión conservadora (ARCH.md §4) — devolver un uso es tocar un contador
- * compartido por una corrección de mostrador.
+ * Al quitar el cupón por mínimo de compra se devuelve el uso con su fila
+ * bloqueada, en esta misma transacción: reconcile compara `times_used` con
+ * los pedidos que siguen apuntando al cupón.
  */
 async function revalidarCupon(
   tx: Executor,
@@ -433,13 +433,17 @@ async function revalidarCupon(
 ): Promise<CuponEditado> {
   if (!order.couponId) return { discountPyg: 0, removed: false };
 
-  const filas = await tx.select().from(coupons).where(eq(coupons.id, order.couponId)).limit(1);
+  const filas = await tx.select().from(coupons).where(eq(coupons.id, order.couponId)).limit(1).for('update');
   const cupon = filas[0];
   // El cupón se borró de la tabla desde que se compró: no hay con qué
   // recalcular el descuento, así que se quita y se dice.
   if (!cupon) return { discountPyg: 0, removed: true };
 
   if (cupon.minOrderPyg !== null && subtotalPyg < cupon.minOrderPyg) {
+    await tx
+      .update(coupons)
+      .set({ timesUsed: sql`GREATEST(CAST(${coupons.timesUsed} AS SIGNED) - 1, 0)` })
+      .where(eq(coupons.id, cupon.id));
     return { discountPyg: 0, removed: true };
   }
 

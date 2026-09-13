@@ -25,7 +25,7 @@ describe.skipIf(!hasTestDb)('expireOverdueOrders', () => {
     await closeTestDb();
   });
 
-  async function overdueOrder(options: { reservedUntil: Date; status?: 'pendiente_pago' | 'pagado' }) {
+  async function overdueOrder(options: { reservedUntil: Date; status?: 'pendiente_pago' | 'pagado' | 'rechazado' }) {
     const db = getTestDb();
     const orderId = await createOrder({ status: options.status ?? 'pendiente_pago' });
     await db
@@ -65,6 +65,30 @@ describe.skipIf(!hasTestDb)('expireOverdueOrders', () => {
     expect(rows.map((row) => row.state)).toEqual(['released']);
 
     // Vencer no descuenta stock físico: nunca entró plata.
+    expect(await getOnHand(variantId)).toBe(10);
+    expect(await getAvailability(variantId)).toBe(10);
+  });
+
+  it('vence un pedido rechazado fuera de plazo y libera su reserva', async () => {
+    const variantId = await createVariant({ onHand: 10 });
+    const orderId = await overdueOrder({
+      reservedUntil: new Date(Date.now() - HOUR), status: 'rechazado',
+    });
+    const vigente = await overdueOrder({
+      reservedUntil: new Date(Date.now() + HOUR), status: 'rechazado',
+    });
+    await reserveStock(orderId, [{ variantId, qty: 4 }], {
+      expiresAt: new Date(Date.now() + HOUR),
+    });
+    expect(await getAvailability(variantId)).toBe(6);
+
+    const result = await expireOverdueOrders();
+    expect(result.expired).toEqual([orderId]);
+    expect(await getStatus(orderId)).toBe('vencido');
+    expect(await getStatus(vigente)).toBe('rechazado');
+    const rows = await getTestDb().select().from(stockReservations)
+      .where(eq(stockReservations.orderId, orderId));
+    expect(rows.map((row) => row.state)).toEqual(['released']);
     expect(await getOnHand(variantId)).toBe(10);
     expect(await getAvailability(variantId)).toBe(10);
   });

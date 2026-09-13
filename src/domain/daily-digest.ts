@@ -96,9 +96,10 @@ export type DailyDigest = {
 };
 
 /** Estados que cuentan como "todavía no entró la plata" para el resumen. */
-const SIN_PAGAR: readonly ('pendiente_pago' | 'esperando_verificacion')[] = [
+const SIN_PAGAR: readonly ('pendiente_pago' | 'esperando_verificacion' | 'rechazado')[] = [
   'pendiente_pago',
   'esperando_verificacion',
+  'rechazado',
 ];
 
 /** A partir de cuántas horas un pedido sin pagar entra al resumen. */

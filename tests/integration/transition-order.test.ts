@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { InvalidTransitionError, OrderNotFoundError, getOrderEvents, transitionOrder } from '@/domain/orders';
 import { reserveStock } from '@/domain/stock';
-import { stockReservations } from '@/db/schema';
+import { stockReservations, variants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
@@ -94,6 +94,28 @@ describe.skipIf(!hasTestDb)('transitionOrder', () => {
     expect(await getOrderEvents(orderId)).toHaveLength(1);
   });
 
+  it('→ pagado consume la reserva aunque el stock físico haya bajado', async () => {
+    const db = getTestDb();
+    const variantId = await createVariant({ onHand: 2 });
+    const orderId = await createOrder({ status: 'pendiente_pago' });
+    await reserveStock(orderId, [{ variantId, qty: 2 }], { expiresAt: inOneDay() });
+
+    await db.update(variants).set({ onHand: 1 }).where(eq(variants.id, variantId));
+    expect(await getOnHand(variantId)).toBe(1);
+
+    await expect(transitionOrder(orderId, 'pagado', 'webhook:pagopar')).resolves.toMatchObject({
+      changed: true,
+    });
+
+    expect(await getStatus(orderId)).toBe('pagado');
+    expect(await getOnHand(variantId)).toBe(0);
+    const reservations = await db
+      .select()
+      .from(stockReservations)
+      .where(eq(stockReservations.orderId, orderId));
+    expect(reservations.map((r) => r.state)).toEqual(['consumed']);
+  });
+
   it('doble → pagado desde estados distintos tampoco descuenta dos veces', async () => {
     const variantId = await createVariant({ onHand: 5 });
     const orderId = await createOrder({ status: 'pendiente_pago' });
@@ -166,8 +188,21 @@ describe.skipIf(!hasTestDb)('transitionOrder', () => {
       .where(eq(stockReservations.orderId, orderId));
     expect(reservations.map((r) => r.state)).toEqual(['held']);
 
-    await transitionOrder(orderId, 'pendiente_pago', 'buyer', 'reintento');
-    expect(await getStatus(orderId)).toBe('pendiente_pago');
+    expect(await getStatus(orderId)).toBe('rechazado');
+    expect(await getOnHand(variantId)).toBe(4);
+    await transitionOrder(orderId, 'esperando_verificacion', 'buyer', 'nuevo comprobante');
+    expect(await getStatus(orderId)).toBe('esperando_verificacion');
+    expect(await getOnHand(variantId)).toBe(4);
+    await transitionOrder(orderId, 'pagado', 'admin:test');
+    expect(await getStatus(orderId)).toBe('pagado');
+    expect(await getOnHand(variantId)).toBe(2);
+    await transitionOrder(orderId, 'pagado', 'admin:test');
+    expect(await getOnHand(variantId)).toBe(2);
+    const consumed = await db
+      .select()
+      .from(stockReservations)
+      .where(eq(stockReservations.orderId, orderId));
+    expect(consumed.map((r) => r.state)).toEqual(['consumed']);
   });
 
   it('el camino feliz completo queda registrado en orden', async () => {

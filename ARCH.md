@@ -357,8 +357,17 @@ rastro en la historia del pedido, con `from = to` y el prefijo
 `devolución parcial ₲`, y el control de aristas imposibles reconoce ese prefijo
 en vez de reportarlo (la constante la comparten `payment-recovery.ts` y
 `reconciliation.ts`, justamente para que no se puedan separar). Sólo el
-movimiento que **completa** el total marca `status = 'refunded'` y hace la
-transición de pedido de siempre.
+movimiento que **completa** el total marca `payments.status = 'refunded'`.
+Con `refundPayment({ allowSettled: true, ... })`, desde la ficha y sólo para
+owner, lleva un pedido `pagado`, `preparando`, `enviado` o `entregado` a
+`reembolsado`, con el motivo `pago devuelto: <reason>`. El ledger, el pago y
+la transición se escriben en una sola transacción. `allowSettled` es `false`
+por defecto: la lista de pagos colgados sigue rechazando el total si el
+pedido revivió. Para pedidos fuera de la cadena del cobro, el total sigue
+llevando a `cancelado`. **Sólo se entra a `reembolsado` por `refundPayment`**:
+`advanceOrder` lo rechaza y los botones de cambio de estado no lo ofrecen.
+El stock no vuelve solo; la mercadería devuelta se repone con un ajuste de
+stock manual, auditado.
 
 #### `price_adjustments`: por qué los precios también tienen auditoría (O7)
 
@@ -627,7 +636,7 @@ compradora ponga su ciudad puede no existir ninguna respuesta verdadera, y
 disponible(variant) = on_hand − SUM(reservations.qty WHERE state='held' AND expires_at > NOW())
 ```
 
-A **hold** is placed when the order is created (45 min for Pagopar, 24 h for bank transfer / COD). It expires on its own — availability is computed live, so a failed cron job can never strand inventory. A nightly job only garbage-collects old rows.
+A **hold** is placed when the order is created (45 min for Pagopar, 24 h for bank transfer, 7 days for COD). COD money arrives at the door, days after the order; a 24 h hold expired orders whose packages were already prepared. The hold still expires after 7 days so forgotten orders cannot block stock forever. Availability is computed live, so a failed cron job can never strand inventory. A nightly job only garbage-collects old rows.
 
 Overselling is prevented at the write: the reservation insert runs inside a transaction that does `SELECT … FOR UPDATE` on the variant row and re-checks availability before committing.
 
@@ -663,13 +672,28 @@ exactamente qué pasó.
       │      ▼   │                  │
       │  esperando_verificacion ────┘        ← comprobante subido (SPI/QR)
       │      │
-      │      └──► rechazado ──► pendiente_pago      (comprobante inválido, reintento)
+      │      └──► rechazado ──► esperando_verificacion (nuevo comprobante)
+      │               ├──► pagado                 (cobrado desde el panel)
+      │               ├──► vencido                (cron, reserved_until pasado)
+      │               └──► cancelado              (manual)
       ▼
    vencido   ◄── pasó reserved_until sin pago
       │
       └──► cancelado                          (manual, en cualquier estado pre-pago)
-                              pagado ──► reembolsado   (sólo manual)
+       pagado | preparando | enviado | entregado ──► reembolsado
+                                    (sólo refundPayment, pasando por el ledger)
 ```
+
+Un pedido `rechazado` conserva su reserva para volver a subir un comprobante
+(`→ esperando_verificacion`) o darlo por cobrado desde el panel (`→ pagado`).
+También vence por cron al pasar `reserved_until` (`→ vencido`, igual que
+`pendiente_pago`) o se cancela manualmente (`→ cancelado`); ambos liberan la
+reserva. No vuelve a `pendiente_pago`.
+
+Las cuatro aristas a `reembolsado` sólo se recorren desde `refundPayment`,
+al completar el total en el ledger (sección 2). No son cambios de estado
+directos del panel. Para un pedido ya despachado, la devolución no repone
+stock: la mercadería que vuelve requiere un ajuste manual, auditado.
 
 Every transition goes through **one** function, `transitionOrder(orderId, to, actor, reason)`, which:
 1. opens a transaction and `SELECT … FOR UPDATE` on the order,
@@ -715,10 +739,11 @@ cupón se quita, el descuento vuelve a 0 y la pantalla lo dice (`couponRemoved`)
 — nunca en silencio. Lo que **no** se re-chequea es vigencia ni usos: ese
 control responde "¿se le puede dar este cupón a alguien ahora?", y acá la
 pregunta es otra; empezando por el uso que este mismo pedido ya consumió, le
-subiría el total a una compradora que sólo pidió mandar una remera menos. Y los
-usos consumidos **no se devuelven** cuando el cupón se quita: es la decisión
-conservadora — devolver un uso es tocar un contador compartido por una
-corrección de mostrador.
+subiría el total a una compradora que sólo pidió mandar una remera menos. Cuando
+el cupón se quita por mínimo de compra, **se devuelve el uso**: se bloquea la
+fila del cupón y se decrementa `times_used` sin bajar de cero, en la misma
+transacción. Si la fila ya no existe, no hay nada que decrementar. Así coincide
+con reconcile, que cuenta los pedidos que siguen apuntando al cupón.
 
 ---
 
@@ -847,7 +872,7 @@ refund, and pretending the order is alive would be worse than saying nothing.
 4. One-tap WhatsApp button: `https://wa.me/595XXXXXXXXX?text=` + `encodeURIComponent(message)`. Message contains order number, total, and the tokenized order URL. Keep under ~1500 chars — long deeplinks truncate on iOS.
 5. Owner checks the receipt against the bank statement in `/admin`, clicks **Aprobar** → `transitionOrder(→ pagado)`, which also writes the `payments` row (below).
 
-**Contra entrega (COD)** uses the same states, minus the receipt: the owner confirms on delivery. Worth having on day one — cash on delivery is still a large share of PY e-commerce.
+**Contra entrega (COD)** starts in `pendiente_pago`, minus the receipt: the owner confirms on delivery. Its reservation lasts **7 days**, because money arrives at the door days after ordering; 24 h expired orders with packages already prepared. Forgotten orders still expire after 7 days to release stock. COD receives no payment reminder because nothing is due before delivery.
 
 ### 5.2 The owner hears about the order from the server, not from the buyer
 
@@ -863,7 +888,7 @@ checkout**: it is fired after the order is committed, without `await`, with its
 own timeout, and `notifyOwnerNewOrder` never throws — the buyer's order can
 never be lost because Meta is down. **Missing variables switch it off**, like
 every other integration here. And **it always leaves a trail**: sent or failed,
-a row lands in `order_events` (`actor: "sistema"`, `from_status NULL`, reason
+a row lands in `order_events` (`actor: "sistema"`, `from_status = to_status`, reason
 `aviso_dueno_enviado` / `aviso_dueno_fallido: …`), because a notification that
 disappears silently is worse than none — the owner would read "no messages" as
 "no orders".
@@ -896,9 +921,11 @@ the notice fires once, centrally, right after `transitionOrder`'s own write
 resolves. When `transitionOrder` runs nested inside a caller's own
 transaction (`options.executor`), that moment is a hair before the caller's
 transaction actually commits; `notifyCustomerOrderEvent` never touches that
-transaction's connection (it opens its own), so the only consequence is that
-its `SELECT` on `orders` blocks on the row lock until the enclosing
-transaction resolves — it cannot corrupt or race the write. `confirmado` has
+transaction's connection (it opens its own). Its ordinary `SELECT` on `orders`
+does not block on the row lock and can read the previous snapshot, so the
+target status is passed as a parameter for the notice's `order_events` row.
+Notices use `from_status = to_status` and the shared `aviso_` reason prefix;
+reconciliation also recognizes historical notices with `from_status NULL`. `confirmado` has
 no transition to hook (the order is born in `pendiente_pago`), so it fires
 from `createOrder()` once its own transaction has actually returned —
 after the real commit, no caveat needed.
@@ -927,8 +954,8 @@ El recordatorio sale **una sola vez por pedido**, cuando a un `pendiente_pago`
 le quedan menos de 6 h de `reserved_until`, y lleva número, total, hora límite
 en Asunción y el link tokenizado a su pedido — ningún dato bancario: ésos ya
 están en esa página, y el mensaje no es el lugar para repetirlos. Contra
-entrega no pasa por `pendiente_pago`, así que le llega a quien tiene algo que
-hacer: transferencia y tarjeta abandonada en Pagopar. Sin
+entrega sí pasa por `pendiente_pago`, pero se excluye explícitamente porque no
+tiene nada que pagar antes de recibir: el aviso es para transferencia y tarjeta abandonada en Pagopar. Sin
 `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO` la feature está apagada y no
 consulta ni una fila.
 

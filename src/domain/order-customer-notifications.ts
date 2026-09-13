@@ -10,7 +10,7 @@ import { formatDateTimePY } from "@/lib/py";
 import { resolveMessageSender, type MessageSender } from "./messaging";
 import { motivoDeAviso, withTimeout } from "./notify-timing";
 import { firstName, buyerOrderUrl } from "./order-messages";
-import { recordOrderEvent } from "./order-events";
+import { NOTICE_REASON_PREFIX, recordOrderEvent } from "./order-events";
 import { log, mensajeDe } from '@/lib/log';
 
 /**
@@ -198,7 +198,7 @@ export function customerNoticeBody(
 
 /** El motivo que queda en `order_events` cuando el aviso sale bien. */
 function reasonOk(kind: CustomerNoticeKind): string {
-  return `aviso_cliente_${kind}`;
+  return `${NOTICE_REASON_PREFIX}cliente_${kind}`;
 }
 
 /**
@@ -206,12 +206,13 @@ function reasonOk(kind: CustomerNoticeKind): string {
  *
  * Se la llama sin `await` desde `createOrder()` (kind "confirmado") y desde
  * el hook post-transición de `transitionOrder()` (kind "pagado" / "enviado"),
- * después de que la escritura que dispara el aviso ya quedó comprometida.
+ * Con una transacción externa, el hook pasa el estado destino porque el
+ * SELECT puede leer el snapshot anterior al commit.
  */
 export async function notifyCustomerOrderEvent(
   orderId: number,
   kind: CustomerNoticeKind,
-  options: { notifier?: CustomerNotifier | null; note?: string | null } = {},
+  options: { notifier?: CustomerNotifier | null; note?: string | null; status?: OrderStatus } = {},
 ): Promise<void> {
   try {
     const notifier = options.notifier === undefined ? resolveCustomerNotifier(kind) : options.notifier;
@@ -227,9 +228,8 @@ export async function notifyCustomerOrderEvent(
         totalPyg: orders.totalPyg,
         shippingMethodName: orders.shippingMethodName,
         // El seguimiento se lee de la fila y no se recibe por parámetro: para
-        // cuando esto corre, `transitionOrder` ya commiteó el UPDATE que lo
-        // escribió, y leerlo acá hace que el aviso diga la verdad aunque lo
-        // dispare otro camino.
+        // una transacción externa puede seguir sin commit y este SELECT
+        // común puede ver todavía el snapshot anterior.
         trackingCarrier: orders.trackingCarrier,
         trackingCode: orders.trackingCode,
         trackingUrl: orders.trackingUrl,
@@ -242,6 +242,8 @@ export async function notifyCustomerOrderEvent(
 
     // El pedido puede no estar si alguien llamó a esto con un id inventado.
     if (!order) return;
+
+    const status = options.status ?? order.status;
 
     // Idempotencia: si ya está la fila de éxito de este aviso para este
     // pedido, no se manda de nuevo (p. ej. dos disparos del mismo hook).
@@ -261,7 +263,8 @@ export async function notifyCustomerOrderEvent(
       );
       await recordOrderEvent({
         orderId,
-        status: order.status as OrderStatus,
+        status,
+        fromStatus: status,
         actor: "sistema",
         reason: reasonOk(kind),
       });
@@ -269,9 +272,10 @@ export async function notifyCustomerOrderEvent(
       log.error(`notifyCustomerOrderEvent(${kind}): no se pudo avisar del pedido`, { error: mensajeDe(error) });
       await recordOrderEvent({
         orderId,
-        status: order.status as OrderStatus,
+        status,
+        fromStatus: status,
         actor: "sistema",
-        reason: `aviso_cliente_${kind}_fallido: ${motivoDeAviso(error)}`.slice(0, 500),
+        reason: `${reasonOk(kind)}_fallido: ${motivoDeAviso(error)}`.slice(0, 500),
       });
     }
   } catch (error) {
