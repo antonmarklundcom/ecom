@@ -647,7 +647,9 @@ las cablea).
 3. Escribir la cabecera (para quién, fuentes sugeridas, líneas de
    `layout.tsx`) — el test también la exige.
 4. Agregar `<nombre>` a la lista `TEMAS` de `scripts/nueva-tienda.ts` para
-   que el wizard lo ofrezca.
+   que el wizard lo ofrezca. Los dos tests unitarios, `tests/unit/temas.test.ts`
+   y `tests/unit/nueva-tienda.test.ts`, leen `TEMAS` de ese archivo: agregar
+   el nombre ahí mantiene ambos en verde si el CSS cumple los requisitos anteriores.
 5. `pnpm nueva-tienda --tema <nombre>` para probarlo, y `pnpm build` una vez
    con el `@import` apuntando a ese archivo (después volver a dejar el tema
    que la tienda usa).

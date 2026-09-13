@@ -3,8 +3,10 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { TEMAS } from '../../scripts/nueva-tienda';
+
 /**
- * Kit de piel (plan-crecimiento §6.2): los tres temas tienen que definir
+ * Kit de piel (plan-crecimiento §6.2): todos los temas tienen que definir
  * exactamente el mismo conjunto de variables CSS en `:root` y en `.dark`.
  * Una variable que le falte a un tema no rompe el build —Tailwind no avisa
  * de una custom property que no existe— pero deja un botón o un texto
@@ -12,8 +14,6 @@ import { describe, expect, it } from 'vitest';
  * reales, no de memoria: es la única forma de que el test detecte un tema
  * nuevo que se escribió incompleto.
  */
-
-const TEMAS = ['neutro', 'calido', 'oscuro-vivo'] as const;
 
 function leerTema(nombre: string): string {
   return readFileSync(
@@ -46,7 +46,7 @@ function variables(bloqueCss: string): string[] {
 describe('kit de piel: paridad de variables entre temas', () => {
   const porTema = Object.fromEntries(TEMAS.map((tema) => [tema, leerTema(tema)]));
 
-  it('los tres archivos existen y no están vacíos', () => {
+  it('todos los archivos existen y no están vacíos', () => {
     for (const tema of TEMAS) {
       expect(porTema[tema]?.length ?? 0, `${tema}.css está vacío`).toBeGreaterThan(0);
     }
@@ -59,7 +59,7 @@ describe('kit de piel: paridad de variables entre temas', () => {
     }
   });
 
-  it('los tres :root definen exactamente el mismo conjunto de variables', () => {
+  it('todos los :root definen exactamente el mismo conjunto de variables', () => {
     const [primero, ...resto] = TEMAS;
     const base = new Set(variables(bloque(porTema[primero] ?? '', ':root') ?? ''));
     expect(base.size, 'neutro.css:root no tiene variables').toBeGreaterThan(0);
@@ -70,7 +70,7 @@ describe('kit de piel: paridad de variables entre temas', () => {
     }
   });
 
-  it('los tres .dark definen exactamente el mismo conjunto de variables', () => {
+  it('todos los .dark definen exactamente el mismo conjunto de variables', () => {
     const [primero, ...resto] = TEMAS;
     const base = new Set(variables(bloque(porTema[primero] ?? '', '.dark') ?? ''));
     expect(base.size, 'neutro.css .dark no tiene variables').toBeGreaterThan(0);
