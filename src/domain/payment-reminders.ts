@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, lte } from 'drizzle-orm';
+import { and, eq, gte, isNull, lte, ne } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { orders } from '@/db/schema';
@@ -37,9 +37,10 @@ import {
  * 3. **Después de vencer, nunca antes.** `runMaintenance` vence primero y
  *    recién después llama acá, así que un pedido que se venció en esta misma
  *    corrida jamás recibe un "podés pagar hasta las...".
- * 4. **Sólo `pendiente_pago`.** Contra entrega no pasa por ese estado, así que
- *    el aviso les llega a quienes tienen algo que hacer: transferencia y
- *    tarjeta abandonada en Pagopar.
+ * 4. **Sólo `pendiente_pago`, excluyendo contra entrega.** Contra entrega sí
+ *    pasa por ese estado y se excluye explícitamente porque no tiene nada que
+ *    pagar antes de recibir. El aviso es para transferencia y tarjeta abandonada
+ *    en Pagopar.
  */
 
 /** Cuánto antes del vencimiento sale el aviso. */
@@ -93,6 +94,7 @@ export async function sendPaymentReminders(
       .where(
         and(
           eq(orders.status, 'pendiente_pago'),
+          ne(orders.paymentMethod, 'contra_entrega'),
           isNull(orders.paymentReminderSentAt),
           // La ventana se abre en `now` y no en el pasado a propósito: un
           // pedido cuya reserva ya venció es trabajo de `expireOverdueOrders`,

@@ -9,7 +9,8 @@ import type { Executor } from './executor';
 /** Cuánto dura la reserva según el medio de pago (ARCH.md §2 "Stock: holds"). */
 export const RESERVATION_TTL_MINUTES = {
   transferencia: 24 * 60,
-  contra_entrega: 24 * 60,
+  // La plata entra en la puerta, días después del pedido; 24 h vencía pedidos con el paquete armado.
+  contra_entrega: 7 * 24 * 60,
   tarjeta: 45,
 } as const;
 

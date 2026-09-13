@@ -443,6 +443,9 @@ prometerle algo a una compradora que la tienda no puede cumplir.
 
 **Una más (O15): el recordatorio de pago.** La que más se paga sola de todas.
 
+Contra entrega no recibe este recordatorio: aunque el pedido está en
+`pendiente_pago`, la compradora no tiene nada que pagar antes de recibir.
+
 | Para qué | Variable | Destino |
 |---|---|---|
 | "Tu pedido todavía está esperando el pago, podés pagarlo hasta las 18:40" — sale una sola vez por pedido, cuando le quedan menos de 6 h de reserva | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO` | el teléfono que dejó cada compradora |

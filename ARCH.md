@@ -627,7 +627,7 @@ compradora ponga su ciudad puede no existir ninguna respuesta verdadera, y
 disponible(variant) = on_hand − SUM(reservations.qty WHERE state='held' AND expires_at > NOW())
 ```
 
-A **hold** is placed when the order is created (45 min for Pagopar, 24 h for bank transfer / COD). It expires on its own — availability is computed live, so a failed cron job can never strand inventory. A nightly job only garbage-collects old rows.
+A **hold** is placed when the order is created (45 min for Pagopar, 24 h for bank transfer, 7 days for COD). COD money arrives at the door, days after the order; a 24 h hold expired orders whose packages were already prepared. The hold still expires after 7 days so forgotten orders cannot block stock forever. Availability is computed live, so a failed cron job can never strand inventory. A nightly job only garbage-collects old rows.
 
 Overselling is prevented at the write: the reservation insert runs inside a transaction that does `SELECT … FOR UPDATE` on the variant row and re-checks availability before committing.
 
@@ -857,7 +857,7 @@ refund, and pretending the order is alive would be worse than saying nothing.
 4. One-tap WhatsApp button: `https://wa.me/595XXXXXXXXX?text=` + `encodeURIComponent(message)`. Message contains order number, total, and the tokenized order URL. Keep under ~1500 chars — long deeplinks truncate on iOS.
 5. Owner checks the receipt against the bank statement in `/admin`, clicks **Aprobar** → `transitionOrder(→ pagado)`, which also writes the `payments` row (below).
 
-**Contra entrega (COD)** uses the same states, minus the receipt: the owner confirms on delivery. Worth having on day one — cash on delivery is still a large share of PY e-commerce.
+**Contra entrega (COD)** starts in `pendiente_pago`, minus the receipt: the owner confirms on delivery. Its reservation lasts **7 days**, because money arrives at the door days after ordering; 24 h expired orders with packages already prepared. Forgotten orders still expire after 7 days to release stock. COD receives no payment reminder because nothing is due before delivery.
 
 ### 5.2 The owner hears about the order from the server, not from the buyer
 
@@ -939,8 +939,8 @@ El recordatorio sale **una sola vez por pedido**, cuando a un `pendiente_pago`
 le quedan menos de 6 h de `reserved_until`, y lleva número, total, hora límite
 en Asunción y el link tokenizado a su pedido — ningún dato bancario: ésos ya
 están en esa página, y el mensaje no es el lugar para repetirlos. Contra
-entrega no pasa por `pendiente_pago`, así que le llega a quien tiene algo que
-hacer: transferencia y tarjeta abandonada en Pagopar. Sin
+entrega sí pasa por `pendiente_pago`, pero se excluye explícitamente porque no
+tiene nada que pagar antes de recibir: el aviso es para transferencia y tarjeta abandonada en Pagopar. Sin
 `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO` la feature está apagada y no
 consulta ni una fila.
 
