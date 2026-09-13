@@ -17,9 +17,12 @@ Ya está arreglado donde apareció (`CAST(... AS SIGNED)` en el `ORDER BY` de
 `lowStockVariants`, con su test). Queda anotado porque **la trampa sigue
 puesta para el resto del repo**: toda resta entre dos columnas `UNSIGNED`
 —`on_hand`, `qty`, cualquier `*_pyg`— tiene el mismo problema y la suite local
-no lo va a ver. Al escribir una resta así, castear los dos lados a `SIGNED` o
-envolver en `GREATEST(..., 0)` como hace `consumeReservations`, y no confiar en
-que el verde local signifique algo. Arreglo de fondo, si alguna vez molesta lo
+no lo va a ver. Al escribir una resta así, castear los operandos sin signo a
+`SIGNED` antes de restar, o usar `IF(on_hand >= qty, on_hand - qty, 0)`.
+`GREATEST(..., 0)` solo no evita el error porque la resta se evalúa antes.
+`consumeReservations` tuvo ese bug y se arregló en esta fase (C2 de la revisión
+2026-09-13), con un test de integración para una reserva mayor al stock físico.
+No confiar en que el verde local signifique algo. Arreglo de fondo, si alguna vez molesta lo
 suficiente: correr la suite contra MySQL 8 en local (Docker) en vez de MariaDB.
 
 ## El backup se sube como un solo archivo — fase O8

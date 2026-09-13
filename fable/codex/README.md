@@ -61,7 +61,7 @@ Copiar tal cual al abrir Claude Code en la carpeta del repo:
 
 | # | Session id | Modelo / effort (del log) | Resultado |
 |---|---|---|---|
-| 01 | | | |
+| 01 | `01a09bc6-14ce-7d21-8327-d0668d5ba649` | gpt-6-astra / low | OK: typecheck, lint, transition-order (18) y suite completa verdes salvo fallos de entorno Windows |
 | 02 | | | |
 | 03 | | | |
 | 04 | | | |

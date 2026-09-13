@@ -448,9 +448,10 @@ async function consumeReservations(tx: Executor, orderId: number): Promise<void>
   for (const reservation of held) {
     await tx
       .update(variants)
-      // GREATEST(...,0): on_hand es UNSIGNED. Si un ajuste manual de stock dejó
-      // menos de lo reservado, preferimos 0 antes que abortar el cobro.
-      .set({ onHand: sql`GREATEST(${variants.onHand} - ${reservation.qty}, 0)` })
+      // on_hand es UNSIGNED: GREATEST solo no alcanza porque la resta se evalúa
+      // antes y puede fallar. Casteamos a SIGNED para dejar 0 si un ajuste de
+      // stock dejó menos de lo reservado, sin abortar el cobro.
+      .set({ onHand: sql`GREATEST(CAST(${variants.onHand} AS SIGNED) - ${reservation.qty}, 0)` })
       .where(eq(variants.id, reservation.variantId));
 
     await tx
