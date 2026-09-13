@@ -732,6 +732,8 @@ export const esPY = {
   "adminError.pago.nadaQueDevolver": "Ese pago no está acreditado: no hay nada que devolver todavía.",
   "adminError.pago.pedidoRevivio":
     "Ese pedido volvió a estar vivo ({estado}) desde que abriste esta pantalla. Recargá y mirá el pedido antes de marcar una devolución.",
+  "adminError.pedido.reembolsoPorFormulario":
+    "La devolución se registra desde el formulario de devolución del pedido, no como cambio de estado.",
 
   // Validación de los formularios del panel.
   "adminError.revisaDatos": "Revisá los datos.",

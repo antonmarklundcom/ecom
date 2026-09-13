@@ -67,4 +67,4 @@ Copiar tal cual al abrir Claude Code en la carpeta del repo:
 | 04 | `01a09be6-da1c-7f03-a22b-4f47e985804e` | gpt-5.6-luna / low | OK: typecheck, lint y tests/unit (763) verdes; worker sin pnpm en sandbox, verificado por el manager |
 | 05 | `01a09bec-8f22-7633-abef-e8bfe7608876` | gpt-6-astra / low | OK: typecheck, lint, edit-order+coupons (46) y suite verdes salvo entorno; worker sin pnpm en sandbox |
 | 06 | `01a09bf5-89a9-77a3-aff6-6e2c43301fda` (2 turnos) | gpt-6-astra / low | OK: paró bien por tests/integration/stock.test.ts (fuera de lista), autorizado en resume; typecheck, lint y suite verdes salvo entorno |
-| 07 | | | |
+| 07 | `01a09c00-6e78-7f52-884f-6119584485cf` | gpt-6-astra / high | OK: typecheck, lint, suite y build verdes salvo entorno; manager revirtió la quita de `transicion.reembolsado` en order-labels.ts (rompía el test de claves muertas de i18n) |

@@ -2,11 +2,13 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { orderEvents, payments, refunds } from '@/db/schema';
+import { createOrder as placeOrder } from '@/domain/create-order';
+import { transitionOrder } from '@/domain/orders';
 import { PaymentRecoveryError, refundPayment } from '@/domain/payment-recovery';
 import { reconcile } from '@/domain/reconciliation';
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
-import { createAdminUser, createOrder, getStatus } from '../helpers/factories';
+import { createAdminUser, createOrder, createVariant, getOnHand, getStatus } from '../helpers/factories';
 
 /**
  * Reembolsos parciales con ledger (O7, plan-operacion §5.3 A).
@@ -52,6 +54,97 @@ async function pago(paymentId: number) {
     .where(eq(payments.id, paymentId));
   return fila!;
 }
+
+async function pedidoCobrado(status: 'pagado' | 'preparando' | 'enviado' | 'entregado') {
+  const variantId = await createVariant({ onHand: 3, pricePyg: 100_000 });
+  const order = await placeOrder({
+    items: [{ variantId, qty: 1 }],
+    customerName: 'Ana López',
+    customerPhone: '0981123456',
+    docType: 'NINGUNO',
+    isConsumidorFinal: true,
+    shipCity: 'Asunción',
+    shipAddress: 'Av. Mcal. López 1234',
+    paymentMethod: 'contra_entrega',
+  });
+  // El cobro manual escribe el pago real y consume la reserva.
+  for (const to of ['pagado', 'preparando', 'enviado', 'entregado'] as const) {
+    await transitionOrder(order.orderId, to, ACTOR);
+    if (to === status) break;
+  }
+  const [payment] = await getTestDb().select().from(payments)
+    .where(eq(payments.orderId, order.orderId));
+  return { orderId: order.orderId, paymentId: payment!.id, totalPyg: order.totalPyg, variantId };
+}
+
+describe.skipIf(!hasTestDb)('devolución total desde la ficha del pedido', () => {
+  beforeEach(resetTables);
+  afterAll(closeTestDb);
+
+  it.each(['pagado', 'preparando', 'enviado', 'entregado'] as const)(
+    'reembolsa %s con ledger, evento y reconcile sin hallazgos, sin reponer stock',
+    async (status) => {
+      const { orderId, paymentId, totalPyg, variantId } = await pedidoCobrado(status);
+      const userId = await createAdminUser({ email: 'due@tienda.py' });
+      const stockBefore = await getOnHand(variantId);
+
+      await expect(refundPayment({
+        paymentId, reason: MOTIVO, actor: ACTOR, actorUserId: userId, allowSettled: true,
+      })).resolves.toMatchObject({ changed: true, fullyRefunded: true, orderStatus: 'reembolsado' });
+
+      const ledger = await getTestDb().select().from(refunds).where(eq(refunds.paymentId, paymentId));
+      expect(ledger).toHaveLength(1);
+      expect(ledger[0]).toMatchObject({ amountPyg: totalPyg, reason: MOTIVO, actorUserId: userId });
+      expect(await pago(paymentId)).toMatchObject({ status: 'refunded', refundedPyg: totalPyg });
+      expect(await getStatus(orderId)).toBe('reembolsado');
+      const events = await getTestDb().select().from(orderEvents).where(eq(orderEvents.orderId, orderId));
+      const devoluciones = events.filter((event) => event.reason?.startsWith('pago devuelto:'));
+      expect(devoluciones).toHaveLength(1);
+      expect(devoluciones[0]).toMatchObject({
+        fromStatus: status, toStatus: 'reembolsado', reason: `pago devuelto: ${MOTIVO}`, actorUserId: userId,
+      });
+      expect(await getOnHand(variantId)).toBe(stockBefore);
+      expect(await reconcile()).toEqual({ ok: true, totalMismatches: [], lineMismatches: [], crossChecks: [] });
+    },
+  );
+
+  it.each([undefined, false])('sin allowSettled (%s) conserva pedidoRevivio y no escribe', async (allowSettled) => {
+    const { orderId, paymentId } = await pedidoCobrado('entregado');
+    const eventsBefore = await getTestDb().select().from(orderEvents).where(eq(orderEvents.orderId, orderId));
+    await expect(refundPayment({ paymentId, reason: MOTIVO, actor: ACTOR, allowSettled }))
+      .rejects.toMatchObject({ code: 'adminError.pago.pedidoRevivio' });
+    expect(await getStatus(orderId)).toBe('entregado');
+    expect(await pago(paymentId)).toMatchObject({ status: 'paid', refundedPyg: 0 });
+    expect(await getTestDb().select().from(refunds)).toEqual([]);
+    expect(await getTestDb().select().from(orderEvents).where(eq(orderEvents.orderId, orderId))).toEqual(eventsBefore);
+  });
+
+  it('dos totales concurrentes escriben una sola devolución y el segundo devuelve changed false', async () => {
+    const { orderId, paymentId, totalPyg } = await pedidoCobrado('entregado');
+    const results = await Promise.all([
+      refundPayment({ paymentId, amountPyg: totalPyg, reason: MOTIVO, actor: ACTOR, allowSettled: true }),
+      refundPayment({ paymentId, amountPyg: totalPyg, reason: MOTIVO, actor: ACTOR, allowSettled: true }),
+    ]);
+    expect(results.map((result) => result.changed).sort()).toEqual([false, true]);
+    expect(await getTestDb().select().from(refunds).where(eq(refunds.paymentId, paymentId))).toHaveLength(1);
+    expect(await pago(paymentId)).toMatchObject({ status: 'refunded', refundedPyg: totalPyg });
+    expect(await getStatus(orderId)).toBe('reembolsado');
+    const events = await getTestDb().select().from(orderEvents).where(eq(orderEvents.orderId, orderId));
+    expect(events.filter((event) => event.toStatus === 'reembolsado')).toHaveLength(1);
+    expect((await reconcile()).ok).toBe(true);
+  });
+
+  it('un parcial seguido del saldo total reembolsa el pedido entregado', async () => {
+    const { orderId, paymentId, totalPyg } = await pedidoCobrado('entregado');
+    await refundPayment({ paymentId, amountPyg: 25_000, reason: MOTIVO, actor: ACTOR, allowSettled: true });
+    expect(await getStatus(orderId)).toBe('entregado');
+    await refundPayment({ paymentId, reason: MOTIVO, actor: ACTOR, allowSettled: true });
+    const ledger = await getTestDb().select().from(refunds).where(eq(refunds.paymentId, paymentId));
+    expect(ledger.map((row) => row.amountPyg).sort((a, b) => a - b)).toEqual([25_000, totalPyg - 25_000]);
+    expect(await getStatus(orderId)).toBe('reembolsado');
+    expect((await reconcile()).ok).toBe(true);
+  });
+});
 
 describe.skipIf(!hasTestDb)('reembolso parcial', () => {
   beforeEach(resetTables);

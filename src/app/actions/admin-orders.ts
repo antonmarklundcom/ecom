@@ -58,6 +58,10 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
       return { ok: false, error: t("adminError.noEntendi.pedido") };
     }
 
+    if (parsed.data.to === "reembolsado") {
+      return { ok: false, error: t("adminError.pedido.reembolsoPorFormulario") };
+    }
+
     // El destino es lo que decide el permiso: los tres roles usan esta misma
     // acción, y el vendedor sólo puede despachar (ARCH.md §1).
     assertCanTransitionTo(actor, parsed.data.to);

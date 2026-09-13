@@ -45,11 +45,11 @@ describe('ORDER_TRANSITIONS', () => {
 
   it('sólo se reembolsa después de cobrar', () => {
     const refundables = ORDER_STATUSES.filter((status) => canTransition(status, 'reembolsado'));
-    expect(refundables.sort()).toEqual((['pagado', 'preparando'] satisfies OrderStatus[]).sort());
+    expect(refundables.sort()).toEqual((['pagado', 'preparando', 'enviado', 'entregado'] satisfies OrderStatus[]).sort());
   });
 
-  it('entregado, cancelado y reembolsado son terminales', () => {
-    expect(ORDER_TRANSITIONS.entregado).toEqual([]);
+  it('cancelado y reembolsado son terminales; entregado sólo permite reembolsar', () => {
+    expect(ORDER_TRANSITIONS.entregado).toEqual(['reembolsado']);
     expect(ORDER_TRANSITIONS.cancelado).toEqual([]);
     expect(ORDER_TRANSITIONS.reembolsado).toEqual([]);
   });

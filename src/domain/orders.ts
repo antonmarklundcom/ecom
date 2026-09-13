@@ -30,8 +30,10 @@ export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatu
   rechazado: ['esperando_verificacion', 'pagado', 'vencido', 'cancelado'],
   pagado: ['preparando', 'reembolsado'],
   preparando: ['enviado', 'reembolsado'],
-  enviado: ['entregado'],
-  entregado: [],
+  // Devolución total de un pedido ya despachado; el stock no vuelve solo:
+  // la mercadería devuelta se repone con un ajuste de stock manual, auditado.
+  enviado: ['entregado', 'reembolsado'],
+  entregado: ['reembolsado'],
   // `vencido → pagado` es la recuperación del pago tardío (ARCH.md §4.1): el
   // cron venció el pedido y el aviso de Pagopar llegó un segundo después. La
   // arista existe, pero entrar a `pagado` re-asegura el stock primero, así que

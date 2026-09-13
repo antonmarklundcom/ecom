@@ -51,7 +51,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
     // Sugerencias de courier en el paso de despacho — nombres nada más, no
     // hace falta la ficha completa del método.
     listAdminShippingMethods(),
-    // Reembolso parcial (O14 + S17): el pago cobrado de este pedido, sin
+    // Reembolso total o parcial: el pago cobrado de este pedido, sin
     // importar su estado — un pedido `enviado` con pago es justo el caso de
     // uso (ver `getPaymentForOrder`).
     getPaymentForOrder(order.id),
@@ -80,7 +80,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
 
   const verPrecios = can(actor.role, "precios");
   const verComprobantes = can(actor.role, "comprobantes");
-  // == S17 == Reembolso parcial (owner-only, como el resto de "pagos sin
+  // == S17 == Reembolso total o parcial (owner-only, como el resto de "pagos sin
   // pedido vivo") y edición de pedido (owner/staff, capability `pedidos.editar`
   // de O16). `editability.editable` ya viene resuelto por `getAdminOrder` —
   // acá sólo se decide si el rol puede *ver* el botón; el servidor vuelve a
@@ -100,7 +100,8 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   // chequear las dos cosas del lado del servidor (`assertCanTransitionTo` +
   // `transitionOrder`), así que un botón fabricado a mano no mueve nada.
   const nextStatuses = ORDER_TRANSITIONS[order.status].filter(
-    (status) => actor.role !== "vendedor" || VENDEDOR_TRANSITIONS.includes(status)
+    (status) => status !== "reembolsado" &&
+      (actor.role !== "vendedor" || VENDEDOR_TRANSITIONS.includes(status))
   );
 
   return (
@@ -280,7 +281,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         ) : null}
       </section>
 
-      {/* == S17 == Reembolso parcial en la ficha (O14 dejó `getPaymentForOrder`
+      {/* == S17 == Reembolso total o parcial en la ficha (O14 dejó `getPaymentForOrder`
           + `refundedPyg`): mismo componente que usa "pagos sin pedido vivo",
           owner-only como el resto del ABM de plata. Sin pago acreditado no
           hay nada que devolver, así que la sección ni se dibuja. */}
@@ -293,6 +294,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               orderNumber={order.orderNumber}
               amountPyg={payment.amountPyg}
               refundedPygInicial={payment.refundedPyg}
+              allowSettled
             />
           </div>
         </section>
@@ -411,7 +413,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
           // manda a alguien a buscar un problema que no existe: el pedido
           // terminó, o este rol no despacha desde acá.
           <p className="text-muted-foreground mt-2 text-sm">
-            {ORDER_TRANSITIONS[order.status].length === 0
+            {ORDER_TRANSITIONS[order.status].filter((status) => status !== "reembolsado").length === 0
               ? t("panel.pedido.estadoFinal")
               : t("panel.pedido.sinPermiso")}
           </p>

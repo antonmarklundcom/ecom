@@ -357,8 +357,17 @@ rastro en la historia del pedido, con `from = to` y el prefijo
 `devolución parcial ₲`, y el control de aristas imposibles reconoce ese prefijo
 en vez de reportarlo (la constante la comparten `payment-recovery.ts` y
 `reconciliation.ts`, justamente para que no se puedan separar). Sólo el
-movimiento que **completa** el total marca `status = 'refunded'` y hace la
-transición de pedido de siempre.
+movimiento que **completa** el total marca `payments.status = 'refunded'`.
+Con `refundPayment({ allowSettled: true, ... })`, desde la ficha y sólo para
+owner, lleva un pedido `pagado`, `preparando`, `enviado` o `entregado` a
+`reembolsado`, con el motivo `pago devuelto: <reason>`. El ledger, el pago y
+la transición se escriben en una sola transacción. `allowSettled` es `false`
+por defecto: la lista de pagos colgados sigue rechazando el total si el
+pedido revivió. Para pedidos fuera de la cadena del cobro, el total sigue
+llevando a `cancelado`. **Sólo se entra a `reembolsado` por `refundPayment`**:
+`advanceOrder` lo rechaza y los botones de cambio de estado no lo ofrecen.
+El stock no vuelve solo; la mercadería devuelta se repone con un ajuste de
+stock manual, auditado.
 
 #### `price_adjustments`: por qué los precios también tienen auditoría (O7)
 
@@ -671,7 +680,8 @@ exactamente qué pasó.
    vencido   ◄── pasó reserved_until sin pago
       │
       └──► cancelado                          (manual, en cualquier estado pre-pago)
-                              pagado ──► reembolsado   (sólo manual)
+       pagado | preparando | enviado | entregado ──► reembolsado
+                                    (sólo refundPayment, pasando por el ledger)
 ```
 
 Un pedido `rechazado` conserva su reserva para volver a subir un comprobante
@@ -679,6 +689,11 @@ Un pedido `rechazado` conserva su reserva para volver a subir un comprobante
 También vence por cron al pasar `reserved_until` (`→ vencido`, igual que
 `pendiente_pago`) o se cancela manualmente (`→ cancelado`); ambos liberan la
 reserva. No vuelve a `pendiente_pago`.
+
+Las cuatro aristas a `reembolsado` sólo se recorren desde `refundPayment`,
+al completar el total en el ledger (sección 2). No son cambios de estado
+directos del panel. Para un pedido ya despachado, la devolución no repone
+stock: la mercadería que vuelve requiere un ajuste manual, auditado.
 
 Every transition goes through **one** function, `transitionOrder(orderId, to, actor, reason)`, which:
 1. opens a transaction and `SELECT … FOR UPDATE` on the order,

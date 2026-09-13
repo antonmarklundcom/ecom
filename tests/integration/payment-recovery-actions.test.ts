@@ -1,9 +1,12 @@
 import { randomBytes } from "node:crypto";
 
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { orderEvents, payments, variants } from "../../src/db/schema";
+import { orderEvents, orders, payments, refunds, variants } from "../../src/db/schema";
+import { advanceOrder } from "@/app/actions/admin-orders";
+import { markPaymentRefunded } from "@/app/actions/admin-payments";
+import { t } from "@/i18n";
 import { createOrder as placeOrder } from "../../src/domain/create-order";
 import { StockUnavailableError, transitionOrder } from "../../src/domain/orders";
 import {
@@ -13,7 +16,15 @@ import {
   retryOrderRevival,
 } from "../../src/domain/payment-recovery";
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from "../helpers/db";
-import { createVariant, getOnHand, getStatus } from "../helpers/factories";
+import { createAdminUser, createVariant, getOnHand, getStatus } from "../helpers/factories";
+
+// Sólo sustituimos la cookie y la caché de Next; permisos, dominio y DB reales.
+const session = vi.hoisted(() => ({ userId: 0, email: 'due@tienda.py', role: 'owner' }));
+vi.mock('@/lib/session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/session')>()),
+  getSession: vi.fn(async () => session),
+}));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 /**
  * Las dos acciones sobre "Pagos sin pedido vivo" (ARCH.md §4.1).
@@ -83,6 +94,50 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
   async function eventsOf(orderId: number) {
     return getTestDb().select().from(orderEvents).where(eq(orderEvents.orderId, orderId));
   }
+
+  it.each(['pagado', 'preparando', 'enviado', 'entregado'] as const)(
+    'advanceOrder rechaza reembolsado desde %s sin tocar pedido, pago, ledger ni eventos',
+    async (status) => {
+      const { orderId, paymentId } = await pagoColgado({ onHand: 2 });
+      await retryOrderRevival({ paymentId, actor: 'admin:test' });
+      if (status !== 'pagado') {
+        for (const to of ['preparando', 'enviado', 'entregado'] as const) {
+          await transitionOrder(orderId, to, 'admin:test');
+          if (to === status) break;
+        }
+      }
+      session.userId = await createAdminUser();
+      session.role = 'owner';
+      const orderBefore = await getTestDb().select().from(orders).where(eq(orders.id, orderId));
+      const paymentBefore = await getTestDb().select().from(payments).where(eq(payments.id, paymentId));
+      const eventsBefore = await eventsOf(orderId);
+
+      expect(await advanceOrder({ orderId, to: 'reembolsado', reason: 'devolución total' }))
+        .toEqual({ ok: false, error: t('adminError.pedido.reembolsoPorFormulario') });
+      expect(await getTestDb().select().from(orders).where(eq(orders.id, orderId))).toEqual(orderBefore);
+      expect(await getTestDb().select().from(payments).where(eq(payments.id, paymentId))).toEqual(paymentBefore);
+      expect(await eventsOf(orderId)).toEqual(eventsBefore);
+      expect(await getTestDb().select().from(refunds)).toEqual([]);
+    },
+  );
+
+  it('markPaymentRefunded valida allowSettled, conserva owner-only y pasa la opción al dominio', async () => {
+    const { orderId, paymentId } = await pagoColgado({ onHand: 2 });
+    await retryOrderRevival({ paymentId, actor: 'admin:test' });
+    session.userId = await createAdminUser();
+    session.role = 'staff';
+    const input = { paymentId, reason: 'devolución total', allowSettled: true };
+    expect(await markPaymentRefunded(input)).toMatchObject({ ok: false, error: 'Sólo el dueño puede hacer esto' });
+    expect(await getTestDb().select().from(refunds)).toEqual([]);
+    session.role = 'owner';
+    expect(await markPaymentRefunded({ ...input, allowSettled: 'true' }))
+      .toEqual({ ok: false, error: t('adminError.noEntendi.devolucion') });
+    expect(await markPaymentRefunded({ paymentId, reason: input.reason }))
+      .toEqual({ ok: false, error: t('adminError.pago.pedidoRevivio', { estado: 'pagado' }) });
+    expect(await markPaymentRefunded(input)).toMatchObject({ ok: true, changed: true, fullyRefunded: true });
+    expect(await getStatus(orderId)).toBe('reembolsado');
+    expect(await getTestDb().select().from(refunds).where(eq(refunds.paymentId, paymentId))).toHaveLength(1);
+  });
 
   // ---------------------------------------------------------------------------
   // Reintentar la revitalización
