@@ -583,51 +583,37 @@ export async function lowStockVariants(
   executor?: Executor,
 ): Promise<LowStockVariant[]> {
   const tx = executor ?? getDb();
+  // Qualify correlated columns explicitly, as in the image subqueries above.
+  const held = sql`COALESCE((
+    SELECT SUM(sr.\`qty\`) FROM \`stock_reservations\` AS sr
+    WHERE sr.\`variant_id\` = \`variants\`.\`id\`
+      AND sr.\`state\` = 'held' AND sr.\`expires_at\` > NOW()
+  ), 0)`;
+  // UNSIGNED subtraction can underflow in MySQL; cast both operands.
+  const available = sql<number>`CAST(${variants.onHand} AS SIGNED) - CAST(${held} AS SIGNED)`;
+  const reorderPoint = sql<number>`COALESCE(${variants.reorderPoint}, ${threshold})`;
   const rows = await tx
     .select({
       variantId: variants.id,
       sku: variants.sku,
       label: variants.label,
-      onHand: variants.onHand,
+      available,
       productName: products.name,
-      reorderPoint: sql<number>`COALESCE(${variants.reorderPoint}, ${threshold})`,
+      reorderPoint,
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
-    .where(and(eq(variants.isActive, true), eq(products.isActive, true)))
-    // Por "cuánto le falta para su propio umbral", no por stock crudo: con
-    // umbrales distintos, la variante con menos unidades no es la más urgente.
-    //
-    // Los dos `CAST(... AS SIGNED)` no son decorativos: `on_hand` y
-    // `reorder_point` son **INT UNSIGNED**, y la resta se hace en aritmética
-    // sin signo. MySQL 8 tira `ER_DATA_OUT_OF_RANGE` en cuanto `on_hand <
-    // reorder_point` —que es exactamente el caso que esta consulta busca— y
-    // MariaDB, peor, devuelve la vuelta al revés sin decir nada. Es el mismo
-    // motivo del `GREATEST(..., 0)` de `consumeReservations`.
-    .orderBy(
-      asc(
-        sql`CAST(${variants.onHand} AS SIGNED) - CAST(COALESCE(${variants.reorderPoint}, ${threshold}) AS SIGNED)`,
-      ),
-    )
-    // Se traen de más porque el filtro real es sobre la disponibilidad, que se
-    // calcula recién después de restar las reservas.
-    .limit(limit * 5);
+    .where(and(
+      eq(variants.isActive, true),
+      eq(products.isActive, true),
+      sql`${available} <= ${reorderPoint}`,
+    ))
+    .orderBy(asc(sql`CAST((${available}) AS SIGNED) - CAST(${reorderPoint} AS SIGNED)`))
+    .limit(limit);
 
-  const held = await heldQtyMap(
-    rows.map((row) => row.variantId),
-    tx,
-  );
-
-  return rows
-    .map((row) => ({
-      variantId: row.variantId,
-      sku: row.sku,
-      label: row.label,
-      productName: row.productName,
-      available: Math.max(0, row.onHand - (held.get(row.variantId) ?? 0)),
-      reorderPoint: Number(row.reorderPoint),
-    }))
-    .filter((row) => row.available <= row.reorderPoint)
-    .sort((a, b) => a.available - a.reorderPoint - (b.available - b.reorderPoint))
-    .slice(0, limit);
+  return rows.map((row) => ({
+    ...row,
+    available: Math.max(0, Number(row.available)),
+    reorderPoint: Number(row.reorderPoint),
+  }));
 }

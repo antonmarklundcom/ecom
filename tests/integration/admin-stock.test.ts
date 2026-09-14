@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { stockAdjustments } from '../../src/db/schema';
+import { stockAdjustments, variants } from '../../src/db/schema';
 import { adjustStock, listStockAdjustments, lowStockVariants } from '../../src/domain/admin-products';
 import { reserveStock } from '../../src/domain/stock';
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
@@ -128,6 +128,24 @@ describe.skipIf(!hasTestDb)('lowStockVariants', () => {
 
   afterAll(async () => {
     await closeTestDb();
+  });
+
+  it('orders and limits by availability across the full catalog', async () => {
+    for (let i = 0; i < 30; i += 1) {
+      const variantId = await createVariant({ onHand: 100 });
+      await getTestDb().update(variants).set({ reorderPoint: 5 }).where(eq(variants.id, variantId));
+    }
+    const variantId = await createVariant({ onHand: 100 });
+    await getTestDb().update(variants).set({ reorderPoint: 5 }).where(eq(variants.id, variantId));
+    await reserveStock(await createOrder(), [{ variantId, qty: 97 }], {
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
+
+    const low = await lowStockVariants(5, 20);
+    expect(low).toHaveLength(1);
+    expect(low[0]).toMatchObject({ variantId, available: 3, reorderPoint: 5 });
+    // A one-row limit also catches the old limit * 5 candidate window.
+    expect((await lowStockVariants(5, 1))[0]).toMatchObject({ variantId, available: 3 });
   });
 
   it('mide sobre lo disponible, no sobre lo físico', async () => {

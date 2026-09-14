@@ -4,7 +4,7 @@ import type { MessageKey, Params } from "@/i18n";
 import { DomainError } from "./errors";
 
 import { getDb } from "@/db";
-import { receipts } from "@/db/schema";
+import { orders, receipts } from "@/db/schema";
 
 import type { Executor } from "./executor";
 
@@ -88,14 +88,27 @@ export async function recordReceipt(
   input: { orderId: number; cloudinaryId: string; mime: string; bytes: number },
   executor?: Executor
 ): Promise<void> {
-  const tx = executor ?? getDb();
-  await tx.insert(receipts).values({
-    orderId: input.orderId,
-    cloudinaryId: input.cloudinaryId,
-    mime: input.mime,
-    bytes: input.bytes,
-    review: "pending",
-  });
+  const run = async (tx: Executor): Promise<void> => {
+    await tx.select({ id: orders.id }).from(orders)
+      .where(eq(orders.id, input.orderId)).for("update");
+    // Current read, even if the caller already established a REPEATABLE READ snapshot.
+    const existing = await tx.select({ id: receipts.id }).from(receipts)
+      .where(eq(receipts.orderId, input.orderId)).for("update");
+    if (existing.length >= RECEIPT_MAX_PER_ORDER) {
+      throw new ReceiptError("error.comprobante.demasiados", {
+        maximo: RECEIPT_MAX_PER_ORDER,
+      });
+    }
+    await tx.insert(receipts).values({
+      orderId: input.orderId,
+      cloudinaryId: input.cloudinaryId,
+      mime: input.mime,
+      bytes: input.bytes,
+      review: "pending",
+    });
+  };
+  if (executor) return run(executor);
+  return getDb().transaction(run);
 }
 
 export async function listReceipts(orderId: number, executor?: Executor) {

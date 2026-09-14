@@ -65,6 +65,7 @@ export async function uploadReceipt(formData: FormData): Promise<UploadReceiptRe
       }
     );
 
+    // Rechecks the cap under the order lock after the early upload check.
     await recordReceipt({
       orderId: order.id,
       cloudinaryId: uploaded.public_id,
