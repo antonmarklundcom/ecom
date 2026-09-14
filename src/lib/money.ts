@@ -24,6 +24,14 @@ export function assertGs(value: number, label = 'monto'): number {
   return value;
 }
 
+export function assertGsNonNegative(value: number, label = 'monto'): number {
+  assertGs(value, label);
+  if (value < 0) {
+    throw new MoneyError(`${label} no puede ser negativo`);
+  }
+  return value;
+}
+
 const GROUPER = new Intl.NumberFormat('es-PY', {
   maximumFractionDigits: 0,
   useGrouping: true,

@@ -26,8 +26,10 @@ import { log, mensajeDe } from '@/lib/log';
  *   POST /api/webhooks/pagopar?token=sha1(PRIVATE_KEY + hash_pedido)
  *
  * Esta ruta es pública y mueve pedidos a `pagado`. Lo único que la separa de
- * cualquiera en internet es esa firma, así que el orden importa: firma →
- * idempotencia → monto → transición. Nada de trabajo antes de la firma.
+ * cualquiera en internet es esa firma, así que el orden importa: configuración →
+ * rate limit por IP → cuerpo parseable → firma → recién después idempotencia,
+ * monto y transición. Los dos chequeos baratos antes de la firma no cuestan
+ * nada y protegen la criptografía de una avalancha de solicitudes.
  *
  * Presupuesto de respuesta: Pagopar reintenta si tardamos más de ~5 s
  * (ARCH.md §4). Ver `DEADLINE_MS`.

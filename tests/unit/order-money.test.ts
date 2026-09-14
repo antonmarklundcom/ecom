@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { sumOrderMoney } from '@/domain/order-totals';
-import { ivaIncluded } from '@/lib/money';
+import { MoneyError, ivaIncluded } from '@/lib/money';
 
 /**
  * La aritmética del pedido, pura (O16).
@@ -14,6 +14,13 @@ import { ivaIncluded } from '@/lib/money';
  */
 
 describe('sumOrderMoney', () => {
+  it('rechaza un descuento negativo', () => {
+    expect(() => sumOrderMoney([{ lineTotalPyg: 100_000, ivaRate: 10 }], {
+      discountPyg: -1,
+      shippingPyg: 0,
+    })).toThrow(MoneyError);
+  });
+
   it('total = subtotal − descuento + envío, la identidad que verifica reconcile', () => {
     const money = sumOrderMoney(
       [

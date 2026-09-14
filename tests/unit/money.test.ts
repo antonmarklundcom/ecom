@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MoneyError, assertGs, formatGs, formatGsPlain, ivaBreakdown, ivaIncluded, lineTotal } from '@/lib/money';
+import { MoneyError, assertGs, assertGsNonNegative, formatGs, formatGsPlain, ivaBreakdown, ivaIncluded, lineTotal } from '@/lib/money';
 
 describe('formatGs', () => {
   it('formatea con separador de miles paraguayo', () => {
@@ -31,6 +31,23 @@ describe('assertGs', () => {
 
   it('explota con floats — un céntimo no existe en guaraníes', () => {
     expect(() => assertGs(1000.01, 'total')).toThrow(/entero en guaraníes/);
+  });
+});
+
+describe('assertGsNonNegative', () => {
+  it('acepta cero y enteros positivos', () => {
+    expect(assertGsNonNegative(0)).toBe(0);
+    expect(assertGsNonNegative(1000)).toBe(1000);
+  });
+
+  it('rechaza negativos con MoneyError y la etiqueta', () => {
+    expect(() => assertGsNonNegative(-1, 'descuento')).toThrow(MoneyError);
+    expect(() => assertGsNonNegative(-1, 'descuento')).toThrow('descuento no puede ser negativo');
+  });
+
+  it('rechaza floats igual que assertGs', () => {
+    expect(() => assertGsNonNegative(1000.01)).toThrow(MoneyError);
+    expect(() => assertGsNonNegative(1000.01)).toThrow(/entero en guaraníes/);
   });
 });
 

@@ -1,4 +1,4 @@
-import { assertGs, ivaBreakdown, ivaIncluded } from "@/lib/money";
+import { assertGsNonNegative, ivaBreakdown, ivaIncluded } from "@/lib/money";
 
 import { priceCart, type CartInput, type PricedCart } from "./cart";
 import {
@@ -110,13 +110,13 @@ export function sumOrderMoney(
   lines: readonly MoneyLine[],
   amounts: { discountPyg: number; shippingPyg: number },
 ): OrderMoney {
-  const subtotalPyg = assertGs(
+  const subtotalPyg = assertGsNonNegative(
     lines.reduce((sum, line) => sum + line.lineTotalPyg, 0),
     "subtotal_pyg",
   );
-  const discountPyg = assertGs(amounts.discountPyg, "discount_pyg");
-  const shippingPyg = assertGs(amounts.shippingPyg, "shipping_pyg");
-  const totalPyg = assertGs(subtotalPyg - discountPyg + shippingPyg, "total_pyg");
+  const discountPyg = assertGsNonNegative(amounts.discountPyg, "discount_pyg");
+  const shippingPyg = assertGsNonNegative(amounts.shippingPyg, "shipping_pyg");
+  const totalPyg = assertGsNonNegative(subtotalPyg - discountPyg + shippingPyg, "total_pyg");
 
   const shares = distributeDiscount(
     lines.map((line) => line.lineTotalPyg),
@@ -166,7 +166,7 @@ export async function computeOrderTotals(
     expectedPrices: options.expectedPrices,
   });
 
-  const subtotalPyg = assertGs(cart.subtotalPyg, "subtotal_pyg");
+  const subtotalPyg = assertGsNonNegative(cart.subtotalPyg, "subtotal_pyg");
 
   // 2. El cupón, si mandaron uno. Se valida contra el subtotal **ya
   //    re-preciado**: el mínimo de compra tiene que mirar lo que se va a
@@ -194,7 +194,7 @@ export async function computeOrderTotals(
     }
   }
 
-  const discountPyg = assertGs(coupon?.discountPyg ?? 0, "discount_pyg");
+  const discountPyg = assertGsNonNegative(coupon?.discountPyg ?? 0, "discount_pyg");
 
   // 3. Envío por zona. El umbral de envío gratis se mira contra el subtotal
   //    **sin** descontar, y es una decisión, no un descuido: si el descuento
@@ -218,7 +218,7 @@ export async function computeOrderTotals(
 
   // Con rechazo no hay precio que afirmar: se deja el de la zona **sólo para
   // dibujar** y `createOrder` tira antes de escribir nada (ver más abajo).
-  const shippingPyg = assertGs(
+  const shippingPyg = assertGsNonNegative(
     shippingMethod ? shippingMethod.shippingPyg : shipping.shippingPyg,
     "shipping_pyg",
   );
