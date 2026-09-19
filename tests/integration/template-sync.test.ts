@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { gitEn, parseBaseline } from '../../scripts/template-shared';
+import { commitsClasificados, gitEn, parseBaseline } from '../../scripts/template-shared';
 import { ejecutarSync } from '../../scripts/template-sync';
 
 /**
@@ -115,6 +115,40 @@ function armarEscenario() {
 }
 
 describe('template:sync contra git de verdad', () => {
+  it('trae los commits del PR sin listar ni traer el merge y avanza el baseline', () => {
+    const { template, tienda, c0 } = armarEscenario();
+    gitEn(template, ['checkout', '-B', 'main', c0]);
+    gitEn(template, ['checkout', '-b', 'arreglo-maquinaria']);
+    escribir(template, 'src/domain/stock.ts', 'inicio\nmedio\nfin-pr\n');
+    const arreglo = commit(template, 'Arreglo de maquinaria del PR');
+    gitEn(template, ['checkout', 'main']);
+    gitEn(template, ['merge', '--no-ff', 'arreglo-maquinaria', '-m', 'Merge pull request de maquinaria']);
+    const merge = gitEn(template, ['rev-parse', 'HEAD']).trim();
+    gitEn(tienda, ['fetch', 'template', 'main']);
+
+    const pendientes = commitsClasificados(tienda, c0, 'template/main');
+    expect(pendientes.map((commit) => commit.sha)).toEqual([arreglo]);
+    expect(pendientes.some((commit) => commit.sha === merge)).toBe(false);
+    expect(pendientes[0]?.maquinaria).toBe(true);
+
+    const resultado = ejecutarSync(tienda, {
+      remoto: 'template',
+      rama: 'main',
+      dryRun: false,
+      hasta: null,
+      sinTests: true,
+    });
+
+    expect(resultado.estado).toBe('completado');
+    expect(readFileSync(join(tienda, 'src/domain/stock.ts'), 'utf8')).toBe('inicio-tienda\nmedio\nfin-pr\n');
+    expect(gitEn(tienda, ['log', '--format=%B'])).toContain(arreglo);
+    expect(gitEn(tienda, ['log', '--format=%H %s'])).not.toContain(merge);
+    expect(gitEn(tienda, ['log', '--format=%s'])).not.toContain('Merge pull request de maquinaria');
+    expect(gitEn(tienda, ['log', '--merges', '--format=%H']).trim()).toBe('');
+    expect(parseBaseline(readFileSync(join(tienda, '.template-baseline'), 'utf8'))).toBe(merge);
+    expect(gitEn(tienda, ['rev-parse', 'template/main']).trim()).toBe(merge);
+  });
+
   it('trae sólo la maquinaria, resuelve fable/ solo, y para en un conflicto real de src/', () => {
     const { tienda, c1, c2, c4 } = armarEscenario();
 

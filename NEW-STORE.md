@@ -754,7 +754,7 @@ template. Si arreglás un bug de checkout acá, las tiendas ya creadas no se
 enteran.
 
 `pnpm template:diff` te dice qué le falta a **esta** tienda; `pnpm
-template:sync` lo trae. El flujo completo:
+template:sync` lo trae. Los merge commits de PR no se listan ni se traen: viajan sus commits individuales. El flujo completo:
 
 ```bash
 git remote add template git@github.com:antonmarklundcom/ecom.git   # una vez
