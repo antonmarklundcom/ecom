@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { TIENDA, cuentasClientesHabilitadas } from '@/config/tienda';
+import { MARCA_PLACEHOLDER, TIENDA, cuentasClientesHabilitadas } from '@/config/tienda';
 
 import { exportedAsyncFunctions, listSourceFiles, readCode } from '../helpers/source';
 
@@ -28,7 +28,8 @@ import { exportedAsyncFunctions, listSourceFiles, readCode } from '../helpers/so
 const FLAG = /cuentasClientesHabilitadas\s*\(/;
 
 describe('flags apagados = la tienda de hoy', () => {
-  it('el default que se instala tiene las cuentas de cliente apagadas', () => {
+  // El default se verifica solo en el template; cada tienda decide si prende cuentas.
+  it.skipIf(TIENDA.nombre !== MARCA_PLACEHOLDER)('el default que se instala tiene las cuentas de cliente apagadas', () => {
     expect(TIENDA.cuentasClientes).toBe(false);
     expect(cuentasClientesHabilitadas()).toBe(false);
   });

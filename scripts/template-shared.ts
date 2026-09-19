@@ -140,13 +140,15 @@ export function remotoExiste(cwd: string, remoto: string): boolean {
  * mixtos, más nuevo primero (el orden que da `git log`).
  */
 export function commitsClasificados(cwd: string, baseline: string, ref: string): Commit[] {
+  // Los merges de PR no se cherry-pickean: requieren -m y sus commits ya viajan
+  // por su propio SHA; se excluyen tanto de la lista como de la clasificación.
   const shasQueTocan = (rutas: readonly string[]): string[] =>
-    parseCommits(gitEn(cwd, ['log', '--format=%H %s', `${baseline}..${ref}`, '--', ...rutas])).map(
+    parseCommits(gitEn(cwd, ['log', '--no-merges', '--format=%H %s', `${baseline}..${ref}`, '--', ...rutas])).map(
       (commit) => commit.sha,
     );
 
   return clasificar(
-    parseCommits(gitEn(cwd, ['log', '--format=%H %s', `${baseline}..${ref}`])),
+    parseCommits(gitEn(cwd, ['log', '--no-merges', '--format=%H %s', `${baseline}..${ref}`])),
     shasQueTocan(MAQUINARIA),
     shasQueTocan(MIXTOS),
   );
