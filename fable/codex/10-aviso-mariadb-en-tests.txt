@@ -1,0 +1,23 @@
+Task: KNOWN-ISSUES.md seccion sobre la resta sin signo (fase O6) explica que MySQL 8 tira ER_DATA_OUT_OF_RANGE donde MariaDB devuelve basura en silencio, y que por eso el verde local contra MariaDB no significa nada. Hoy la suite no dice contra que motor corre. Hacer que tests/global-setup.ts, despues de conectarse con admin, consulte SELECT VERSION() y, si el resultado contiene MariaDB (sin distinguir mayusculas), imprima con console.warn un aviso de una o dos lineas: que la suite corre contra MariaDB, que las restas entre columnas UNSIGNED no van a fallar aca aunque fallen en MySQL 8 y en CI, y que vea KNOWN-ISSUES.md. Solo aviso, nunca falla. Ademas corregir la entrada de KNOWN-ISSUES: el parrafo final dice que el arreglo de fondo seria correr la suite contra MySQL 8 en local con Docker, pero docker-compose.yml ya usa la imagen mysql:8; reescribir ese parrafo diciendo que docker compose ya es MySQL 8, que la trampa solo aplica cuando TEST_DATABASE_URL apunta a una MariaDB nativa, y que la suite ahora lo avisa al arrancar.
+
+Files to touch:
+  tests/global-setup.ts
+  KNOWN-ISSUES.md (solo el ultimo parrafo de la entrada de O6)
+
+Do not touch: src/**, scripts/**, docker-compose.yml, cualquier otro test
+
+Definition of done:
+  - Sin TEST_DATABASE_URL el comportamiento es identico al de hoy (mismo warn de que se saltan los tests de integracion, sin consulta de version)
+  - Con TEST_DATABASE_URL contra MySQL 8 no se imprime nada nuevo
+  - La consulta de version va dentro de un try/catch: un fallo ahi no puede tumbar la suite
+  - No se imprime la URL de la base ni credenciales
+
+Commands to run before reporting (en la raiz del repo):
+  pnpm typecheck
+  pnpm lint
+  pnpm test
+
+Report format:
+  Files changed: cada path con una linea
+  Commands run: cada comando con PASS o FAIL y una linea de resultado
+  Flagged or not done: lo que quedo afuera o ambiguo, o None

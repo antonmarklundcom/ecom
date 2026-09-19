@@ -1,0 +1,23 @@
+Task: tests/unit/flags-apagados.test.ts afirma que TIENDA.cuentasClientes es false leyendo el config real del checkout. NEW-STORE.md seccion 4b le dice a la tienda que ponga cuentasClientes: true para prender las cuentas de cliente, y desde ese commit pnpm test y el CI de esa tienda quedan en rojo para siempre. El test tiene que verificar el default del template, no la decision de la tienda. tests/unit/preflight.test.ts (alrededor de la linea 320) ya resuelve el mismo problema: calcula la expectativa segun si el checkout sigue siendo el template, comparando TIENDA.nombre con MARCA_PLACEHOLDER. Copiar ese criterio.
+
+Files to touch:
+  tests/unit/flags-apagados.test.ts (el primer it corre solo si TIENDA.nombre === MARCA_PLACEHOLDER, con it.skipIf o equivalente y un comentario corto de por que; el resto del archivo, que verifica que toda la rama /cuenta consulta el flag, sigue corriendo siempre)
+
+Do not touch: src/**, scripts/**, cualquier otro test
+
+Definition of done:
+  - Con el config del template sin tocar, el test sigue afirmando cuentasClientes false y cuentasClientesHabilitadas() false
+  - Simulado a mano un rename (cambiar nombre y cuentasClientes: true en src/config/tienda.ts, correr el archivo, y revertir con git checkout src/config/tienda.ts), el primer it se saltea y los demas siguen verdes
+  - src/config/tienda.ts queda sin cambios al terminar (git status lo confirma)
+
+Commands to run before reporting (en la raiz del repo):
+  pnpm typecheck
+  pnpm lint
+  pnpm exec vitest run tests/unit/flags-apagados.test.ts
+  pnpm test
+  git status --short
+
+Report format:
+  Files changed: cada path con una linea
+  Commands run: cada comando con PASS o FAIL y una linea de resultado
+  Flagged or not done: lo que quedo afuera o ambiguo, o None

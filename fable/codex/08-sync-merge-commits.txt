@@ -1,0 +1,25 @@
+Task: pnpm template:sync se rompe en el primer merge commit del template. commitsClasificados en scripts/template-shared.ts lista los commits con git log baseline..ref -- <rutas>, y eso incluye los merge commits de PR (por ejemplo 42ae4ca, Merge pull request #107). template-sync.ts los cherry-pickea sin -m y git responde: commit ... is a merge but no -m option was given. El sync lo reporta como fallo desconocido, deja aplicados los commits anteriores y no mueve el baseline. Los commits reales del PR ya vienen por su propio SHA, asi que el merge commit no aporta ningun diff propio: hay que dejarlo afuera de la lista. Lo mismo arregla la lista de git cherry-pick que imprime template:diff.
+
+Files to touch:
+  scripts/template-shared.ts (agregar --no-merges a los dos git log de commitsClasificados; comentario de dos lineas explicando por que)
+  tests/integration/template-sync.test.ts (nuevo caso: el template tiene una rama con un commit de maquinaria mergeada a main con git merge --no-ff; la tienda sincroniza y el resultado es que el commit real se aplica, el merge commit no aparece en pendientes, y el baseline avanza a la punta de template/main)
+  NEW-STORE.md (una frase en la seccion Arreglos que aparecen despues: los merge commits de PR no se listan ni se traen, viajan sus commits)
+
+Do not touch: src/domain/**, src/lib/**, src/app/**, scripts/template-sync.ts salvo que sea imprescindible (si lo es, decilo en Flagged), drizzle/**, .github/**
+
+Definition of done:
+  - En un repo de prueba armado como armarEscenario pero con un merge --no-ff, ejecutarSync termina con estado ok y git log de la tienda no contiene el merge commit
+  - El test nuevo falla si se saca --no-merges (verificalo a mano una vez y volvelo a poner)
+  - Los tres tests existentes de tests/integration/template-sync.test.ts siguen verdes
+  - pnpm test tests/unit/template-diff.test.ts y tests/unit/template-sync.test.ts verdes
+
+Commands to run before reporting (en la raiz del repo):
+  pnpm typecheck
+  pnpm lint
+  pnpm exec vitest run tests/integration/template-sync.test.ts tests/unit/template-diff.test.ts tests/unit/template-sync.test.ts
+  pnpm test
+
+Report format:
+  Files changed: cada path con una linea
+  Commands run: cada comando con PASS o FAIL y una linea de resultado
+  Flagged or not done: lo que quedo afuera o ambiguo, o None
