@@ -68,3 +68,32 @@ Copiar tal cual al abrir Claude Code en la carpeta del repo:
 | 05 | `01a09bec-8f22-7633-abef-e8bfe7608876` | gpt-6-astra / low | OK: typecheck, lint, edit-order+coupons (46) y suite verdes salvo entorno; worker sin pnpm en sandbox |
 | 06 | `01a09bf5-89a9-77a3-aff6-6e2c43301fda` (2 turnos) | gpt-6-astra / low | OK: paró bien por tests/integration/stock.test.ts (fuera de lista), autorizado en resume; typecheck, lint y suite verdes salvo entorno |
 | 07 | `01a09c00-6e78-7f52-884f-6119584485cf` | gpt-6-astra / high | OK: typecheck, lint, suite y build verdes salvo entorno; manager revirtió la quita de `transicion.reembolsado` en order-labels.ts (rompía el test de claves muertas de i18n) |
+
+## Auditoría del template (2026-09-19)
+
+Segunda tanda, salida de `fable/TEMPLATE-REVIEW.md`. Mismo proceso; Codex CLI tampoco
+tenía sesión ni clave en el contenedor de la nube, así que se corre desde la PC. Rama
+de esta tanda: `claude/keen-babbage-772ht4`.
+
+| # | Archivo | Arregla | Tier | Depende de | Mira Anton antes de mergear |
+|---|---|---|---|---|---|
+| 08 | `08-sync-merge-commits.txt` | T1 (sync muere en merge commits) | normal (`gpt-6-astra` low) | — | sí: toca `scripts/` (maquinaria del sync) |
+| 09 | `09-flags-test-tienda-renombrada.txt` | T2 (test rojo al prender cuentas) | normal | — | no |
+| 10 | `10-aviso-mariadb-en-tests.txt` | T3 (aviso de MariaDB) | normal | — | no |
+| 11 | `11-distribuir-solo-en-el-template.txt` | T4 (runner por push en cada tienda) | cheap (`gpt-5.6-luna` low) | — | sí: es CI |
+| 12 | `12-docs-revision-vigente.txt` | T5 (docs: revisión vigente, URL del remoto) | cheap | — | no |
+
+Los cinco son independientes; 08 primero porque es el que bloquea a las tiendas hoy.
+Auditoría extra de 08: además de la suite, repetir a mano la prueba que lo encontró —
+tienda de prueba con `.template-baseline` en un commit anterior a `42ae4ca` (#107),
+remoto `template` apuntando al checkout local, `pnpm template:sync --sin-tests` en una
+rama: tiene que terminar en verde y el `git log` de la tienda no debe contener el merge.
+T6 (bootstrap copia `fable/` y `tiendas.json`) no tiene despacho: es una pregunta.
+
+| # | Session id | Modelo / effort (del log) | Resultado |
+|---|---|---|---|
+| 08 | | | |
+| 09 | | | |
+| 10 | | | |
+| 11 | | | |
+| 12 | | | |
