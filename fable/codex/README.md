@@ -82,6 +82,7 @@ de esta tanda: `claude/keen-babbage-772ht4`.
 | 10 | `10-aviso-mariadb-en-tests.txt` | T3 (aviso de MariaDB) | normal | — | no |
 | 11 | `11-distribuir-solo-en-el-template.txt` | T4 (runner por push en cada tienda) | cheap (`gpt-5.6-luna` low) | — | sí: es CI |
 | 12 | `12-docs-revision-vigente.txt` | T5 (docs: revisión vigente, URL del remoto) | cheap | — | no |
+| 13 | `13-sync-docs-mixtos.txt` | T7 (sync choca en KNOWN-ISSUES.md por piel salteada; ver fable/HANDOFF-SONNET-2026-09-19.md) | normal | 08 | sí: toca `scripts/` |
 
 Los cinco son independientes; 08 primero porque es el que bloquea a las tiendas hoy.
 Auditoría extra de 08: además de la suite, repetir a mano la prueba que lo encontró —
@@ -97,3 +98,4 @@ T6 (bootstrap copia `fable/` y `tiendas.json`) no tiene despacho: es una pregunt
 | 10 | pendiente | | no despachado en esta tanda: Fable paró a pedido de Anton, sigue Sonnet 5 + Codex |
 | 11 | pendiente | | idem. Es CI: lo mira Anton antes de mergear |
 | 12 | pendiente | | idem |
+| 13 | pendiente | | nuevo, T7 |
