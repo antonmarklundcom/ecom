@@ -92,8 +92,8 @@ T6 (bootstrap copia `fable/` y `tiendas.json`) no tiene despacho: es una pregunt
 
 | # | Session id | Modelo / effort (del log) | Resultado |
 |---|---|---|---|
-| 08 | | | |
-| 09 | | | |
-| 10 | | | |
-| 11 | | | |
-| 12 | | | |
+| 08 | 01a0b9f4-09be-7712-88e8-3056756892f6 | gpt-6-astra / low | commit 9e8720e. typecheck, lint y 831 unitarios PASS. Repro manual: 4 merge commits salteados, sync verde, baseline al tip. Pendiente revisión de Anton (toca scripts/) |
+| 09 | 01a0ba01-025d-7301-bd8d-85cc6758df30 | gpt-6-astra / low | typecheck, lint y 831 unitarios PASS. Rename simulado: 1 test salteado, el resto verde |
+| 10 | pendiente | | no despachado en esta tanda: Fable paró a pedido de Anton, sigue Sonnet 5 + Codex |
+| 11 | pendiente | | idem. Es CI: lo mira Anton antes de mergear |
+| 12 | pendiente | | idem |
