@@ -5,10 +5,15 @@ updates:
   # solo a las tiendas ya creadas. Esto al menos mantiene al día el template,
   # que es de donde salen las tiendas nuevas y de donde se cherry-pickean los
   # arreglos con `pnpm template:diff`.
+  #
+  # Mensual y no semanal: cada PR de Dependabot corre el CI (minutos de
+  # Actions en repo privado). Una tienda no tiene este archivo —`pnpm
+  # nueva-tienda` lo borra, ver SOLO_TEMPLATE en scripts/template-shared.ts—:
+  # sus dependencias llegan con template:sync.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
     groups:
       minor-and-patch:
@@ -19,4 +24,4 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"

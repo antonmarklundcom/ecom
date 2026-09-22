@@ -1,0 +1,4 @@
+# Gate local, 0 minutos de Actions: CI sólo corre en PRs (ver ci.yml), así que
+# lo que se rompe acá se ve antes de subirlo. Sin TEST_DATABASE_URL los tests de
+# integración se saltean solos; con --no-verify se saltea el hook entero.
+pnpm test
