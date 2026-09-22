@@ -9,6 +9,8 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 
+import { esSoloTemplate } from './template-shared';
+
 /**
  * `pnpm bootstrap:repo --destino ../lenceria` — meter el template dentro de un
  * repo que **ya existe y ya tiene algo adentro**.
@@ -91,6 +93,8 @@ export function debeExcluir(rutaRelativa: string): boolean {
   const partes = rutaRelativa.split('/');
   if (partes.some((parte) => (EXCLUIR_NOMBRE as readonly string[]).includes(parte))) return true;
   if ((EXCLUIR_RUTA as readonly string[]).includes(rutaRelativa)) return true;
+  // `fable/`, Dependabot: del template, no de la tienda (SOLO_TEMPLATE).
+  if (esSoloTemplate(rutaRelativa) || esSoloTemplate(`${rutaRelativa}/`)) return true;
 
   const nombre = partes[partes.length - 1] ?? '';
   if (esArchivoDeEntorno(nombre)) return true;

@@ -189,6 +189,19 @@ describe('clasificarConflicto', () => {
     expect(clasificarConflicto('.github/workflows/deploy.yaml')).toBe('usar-template');
   });
 
+  it('Dependabot, como fable/, es del template y se descarta', () => {
+    expect(clasificarConflicto('.github/dependabot.yml')).toBe('eliminar');
+  });
+
+  it('los docs del template (KNOWN-ISSUES.md y compañía) toman la versión del template', () => {
+    for (const archivo of ['KNOWN-ISSUES.md', 'ARCH.md', 'NEW-STORE.md', 'CHANGELOG.md']) {
+      expect(clasificarConflicto(archivo), archivo).toBe('usar-template');
+    }
+    // El README y el CLAUDE.md sí son de la tienda.
+    expect(clasificarConflicto('README.md')).toBe('manual');
+    expect(clasificarConflicto('CLAUDE.md')).toBe('manual');
+  });
+
   it('cualquier otra cosa es manual — la señal de parar', () => {
     for (const archivo of ['src/domain/stock.ts', 'src/components/checkout-form.tsx', 'package.json']) {
       expect(clasificarConflicto(archivo), archivo).toBe('manual');
