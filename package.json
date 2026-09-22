@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",
+    "test:unit": "vitest run --project ui --project unit",
     "test:e2e": "next build && playwright test",
     "db:push": "drizzle-kit push && tsx scripts/post-push.ts",
     "db:seed": "tsx scripts/seed.ts",

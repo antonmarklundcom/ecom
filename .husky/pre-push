@@ -1,4 +1,6 @@
-# Gate local, 0 minutos de Actions: CI sólo corre en PRs (ver ci.yml), así que
-# lo que se rompe acá se ve antes de subirlo. Sin TEST_DATABASE_URL los tests de
-# integración se saltean solos; con --no-verify se saltea el hook entero.
-pnpm test
+# Gate local, 0 minutos de Actions. Sólo los unitarios (ui + unit, en
+# paralelo, ~15 s): los de integración necesitan MySQL y corren en CI. Con un
+# `.env.local` que apunta a una base de tests apagada, `pnpm test` entero se
+# caía en 2 s por ECONNREFUSED y bloqueaba el push; esto no toca la base.
+# Con --no-verify se saltea el hook entero.
+pnpm test:unit

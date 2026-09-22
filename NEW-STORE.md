@@ -679,7 +679,9 @@ otro label no dispara nada); pedilo siempre que el PR toque checkout,
 primer PR de distribución.
 
 El gate de cada día es local y gratis: `pre-commit` corre `typecheck` + `lint`
-y `pre-push` corre `pnpm test` (husky, se instala con `pnpm install`).
+y `pre-push` corre `pnpm test:unit` (los unitarios, en paralelo, ~15 s; husky,
+se instala con `pnpm install`). `pnpm test` corre todo, integración incluida
+(necesita MySQL: `docker compose up -d`).
 
 **Una vez por cuenta de GitHub, a mano:** Settings → Billing → Spending limit
 en `$0` (al llegar al límite los jobs se frenan, no se cobra), y mirar

@@ -19,13 +19,24 @@ export default defineConfig({
           include: ["src/**/*.test.{ts,tsx}", "src/**/__tests__/**/*.{ts,tsx}"],
         },
       },
-      // Dominio y datos: Node puro contra MySQL. jsdom acá sólo rompe mysql2.
+      // Unitarios en Node puro: sin base, en paralelo. Es lo que corre el
+      // hook pre-push (`pnpm test:unit`), así que tiene que ser rápido.
       {
         resolve: { alias },
         test: {
-          name: "domain",
+          name: "unit",
           environment: "node",
-          include: ["tests/**/*.test.ts"],
+          include: ["tests/unit/**/*.test.ts"],
+          testTimeout: 30_000,
+        },
+      },
+      // Dominio y datos contra MySQL. jsdom acá sólo rompe mysql2.
+      {
+        resolve: { alias },
+        test: {
+          name: "integration",
+          environment: "node",
+          include: ["tests/integration/**/*.test.ts"],
           globalSetup: ["tests/global-setup.ts"],
           // Las suites de integración comparten una sola base: sin esto, una
           // trunca tablas mientras otra las usa.
