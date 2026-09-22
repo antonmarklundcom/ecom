@@ -77,7 +77,7 @@ jobs:
       - name: Sin TIENDAS_TOKEN, aviso y salgo
         if: steps.leer.outputs.tiendas != '[]' && steps.token.outputs.hay != 'true'
         run: |
-          echo "::warning::tiendas.json tiene entradas pero no hay secrets.TIENDAS_TOKEN configurado en este repo. Nada se distribuye hasta que Anton lo cargue (necesita contents:write + pull-requests:write sobre esas tiendas)."
+          echo "::warning::tiendas.json tiene entradas pero no hay secrets.TIENDAS_TOKEN configurado en este repo. Nada se distribuye hasta que Anton lo cargue: un token fine-grained con acceso a cada tienda y permisos Contents, Pull requests y Workflows en read and write (NEW-STORE.md § La distribución automática del template)."
 
   distribuir:
     needs: preparar
@@ -98,11 +98,10 @@ jobs:
       - name: Checkout del template
         uses: actions/checkout@v4
         with:
-          # Historia completa: la tienda cherry-pickea commits arbitrariamente
-          # viejos (desde su `.template-baseline`) y un clon shallow (depth 1,
-          # el default) no los tiene — este checkout es el remoto `template`
-          # de cada tienda, así que sin esto todo `git log baseline..ref` del
-          # lado de la tienda vería un solo commit.
+          # Historia completa: la tienda se compara contra su
+          # `.template-baseline`, que puede ser un commit arbitrariamente viejo,
+          # y un clon shallow (depth 1, el default) no lo tiene — este checkout
+          # es el remoto `template` de cada tienda.
           fetch-depth: 0
 
       - name: Asegurar una rama local "main" para servir de remoto
@@ -113,79 +112,70 @@ jobs:
         # actual sin quejarse si ya existe.
         run: git checkout -B main
 
-      # `pnpm`/`node` en el PATH para el resto del job — el `pnpm install` de
-      # verdad corre más abajo, adentro del checkout de la tienda: es ahí
-      # donde hace falta `tsx` (para `template-sync.ts`) y `gh`/`git` corren
-      # sobre ese working tree. El checkout del template no necesita sus
-      # propias dependencias instaladas — sólo se copian dos `.ts` sueltos
-      # (ver el paso de abajo) y un `.mjs` sin dependencias externas.
+      # `pnpm`/`node` y las dependencias del template: `template-sync.ts` corre
+      # desde acá (la versión de este tag), con la tienda como directorio de
+      # trabajo. Antes se copiaba el script adentro de la tienda y se corría
+      # la copia; el commit de esa copia chocaba con el mismo archivo cuando
+      # llegaba en la sincronización, y además corría `pnpm install` del lado
+      # de la tienda (código de la tienda con el token en el entorno).
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+
+      - name: Dependencias del template
+        run: pnpm install --frozen-lockfile
 
       - name: Clonar la tienda
+        id: clonar
         env:
           TIENDAS_TOKEN: ${{ secrets.TIENDAS_TOKEN }}
         run: |
           set -euo pipefail
           repo="${{ matrix.tienda.repo }}"
-          git clone "https://x-access-token:${TIENDAS_TOKEN}@github.com/${repo}.git" tienda
+          if ! git clone "https://x-access-token:${TIENDAS_TOKEN}@github.com/${repo}.git" tienda; then
+            echo "::error::No pude clonar ${repo}. ¿Existe, y TIENDAS_TOKEN tiene acceso a ese repo y no venció? (un token fine-grained lista los repos uno por uno: cada tienda nueva hay que sumarla)"
+            exit 1
+          fi
           cd tienda
           git config user.name "ecom-template-bot"
           git config user.email "actions@users.noreply.github.com"
           git remote add template "$GITHUB_WORKSPACE"
+          base=$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's#^origin/##')
+          echo "base=$base" >> "$GITHUB_OUTPUT"
 
-      - name: Preparar la rama y sincronizar
+      - name: Sincronizar
         id: sync
-        env:
-          TIENDAS_TOKEN: ${{ secrets.TIENDAS_TOKEN }}
         run: |
           set -euo pipefail
           cd tienda
+          # Una sola rama por tienda: cada versión actualiza el mismo PR.
+          echo "rama=template/sync" >> "$GITHUB_OUTPUT"
 
-          rama="template/$(date -u +%Y-%m-%d)-${GITHUB_SHA:0:8}"
-          echo "rama=$rama" >> "$GITHUB_OUTPUT"
-          git checkout -B "$rama"
-
-          # Bootstrap: `template:sync` necesita su propia versión más nueva
-          # (--json, --rama-destino) para poder correr desde este workflow,
-          # sin importar hace cuánto la tienda sincronizó por última vez. Se
-          # copian los dos archivos de scripts/** tal cual están en el
-          # template y, si difieren, se commitean sueltos: si el commit real
-          # que los agregó viaja después en este mismo cherry-pick, el
-          # cherry-pick da "vacío" (contenido idéntico) y se saltea solo —
-          # mismo camino que un commit ya aplicado.
-          cp "$GITHUB_WORKSPACE/scripts/template-sync.ts" scripts/template-sync.ts
-          cp "$GITHUB_WORKSPACE/scripts/template-shared.ts" scripts/template-shared.ts
-          if [ -n "$(git status --porcelain -- scripts/template-sync.ts scripts/template-shared.ts)" ]; then
-            git add scripts/template-sync.ts scripts/template-shared.ts
-            git -c core.editor=true commit -m "Actualizar scripts/template-sync.ts para poder distribuir (bootstrap de CI)"
-          fi
-
-          pnpm install --frozen-lockfile || pnpm install
-
-          salida=$(pnpm exec tsx scripts/template-sync.ts --sin-tests --json --rama-destino "$rama" 2>sync-stderr.log) || true
+          salida=$("$GITHUB_WORKSPACE/node_modules/.bin/tsx" "$GITHUB_WORKSPACE/scripts/template-sync.ts" \
+            --sin-tests --json --commitear-conflictos --rama-destino template/sync 2>sync-stderr.log) || true
           echo "$salida" | tail -n 1 > sync-resultado.json
           cat sync-stderr.log >&2 || true
           echo "--- resultado ---"
           cat sync-resultado.json
 
       - name: Empujar la rama y abrir (o actualizar) el PR
-        if: always() && steps.sync.outcome != 'skipped'
         env:
           GH_TOKEN: ${{ secrets.TIENDAS_TOKEN }}
         run: |
           set -euo pipefail
           cd tienda
-          repo="${{ matrix.tienda.repo }}"
-          rama="${{ steps.sync.outputs.rama }}"
+          version=""
+          if [ "${{ github.ref_type }}" = "tag" ]; then version="${{ github.ref_name }}"; fi
 
           node "$GITHUB_WORKSPACE/scripts/ci/armar-pr-tiendas.mjs" \
-            --repo "$repo" --rama "$rama" --resultado sync-resultado.json --sha "$GITHUB_SHA"
+            --repo "${{ matrix.tienda.repo }}" --rama "${{ steps.sync.outputs.rama }}" \
+            --base "${{ steps.clonar.outputs.base }}" --resultado sync-resultado.json \
+            --sha "$GITHUB_SHA" --version "$version" --email-bot "actions@users.noreply.github.com"
 
       - name: Sin novedades para esta tienda o error sin nada para mostrar
         if: failure()
         run: |
-          echo "::error::La distribución a ${{ matrix.tienda.repo }} no terminó bien. Mirá el paso 'Preparar la rama y sincronizar' de arriba."
+          echo "::error::La distribución a ${{ matrix.tienda.repo }} no terminó bien. Mirá los pasos 'Clonar la tienda' y 'Sincronizar' de arriba."

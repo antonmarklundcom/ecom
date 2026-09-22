@@ -28,6 +28,7 @@
     "template:diff": "tsx scripts/template-diff.ts",
     "template:sync": "tsx scripts/template-sync.ts",
     "template:probar-tienda": "tsx scripts/probar-tienda-nueva.ts",
+    "template:ensayar-distribucion": "tsx scripts/ensayar-distribucion.ts",
     "setup:doctor": "tsx scripts/doctor.ts",
     "bootstrap:repo": "tsx scripts/bootstrap-into-repo.ts",
     "restore": "tsx scripts/restore-backup.ts"

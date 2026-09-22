@@ -601,40 +601,59 @@ tienda no levanta ni un runner.
 template tiene que:**
 
 1. Agregarla a `tiendas.json` en la raíz del template. `repo` es lo único que
-   usa el workflow; el resto es el **registro de tiendas** —dónde vive cada
-   una— y es opcional, pero con muchas tiendas es lo que evita buscar en tres
-   paneles a qué slot de Hostinger o a qué base apunta cuál:
+   usa el workflow; `dominio` y `notas` son opcionales y sirven de registro:
 
    ```json
    [
      {
        "repo": "antonmarklundcom/mi-tienda",
        "dominio": "mitienda.com.py",
-       "hosting": "Hostinger, cuenta 2, slot Node 3",
-       "base": "u123_mitienda",
        "notas": "cuentas de cliente prendidas; Pagopar en sandbox"
      }
    ]
    ```
 
-   Nada de secretos acá (claves, contraseñas, `DATABASE_URL` completa): este
-   archivo se commitea.
+   Nada de secretos ni de datos de infraestructura acá: el template es
+   público. Ni claves ni `DATABASE_URL`, pero tampoco el nombre de la base o
+   del usuario de Hostinger (`u123_…` es la mitad de un login), ni la cuenta
+   o el slot. Eso va a un lugar privado (el gestor de contraseñas, o un repo
+   privado de notas). `tests/unit/tiendas-json.test.ts` rechaza campos que no
+   sean esos tres. `tiendas.json` es `SOLO_TEMPLATE`: una tienda nueva no
+   hereda la lista.
 
-2. Tener cargado el secret `TIENDAS_TOKEN` en el repo del template: un PAT de
-   GitHub con `contents:write` + `pull-requests:write` sobre esa(s) tienda(s).
-   Sin el secret, el workflow se salta solo y lo dice en el log — no hace
-   nada a medias.
+2. Tener cargado el secret `TIENDAS_TOKEN` en el repo del template: un token
+   **fine-grained** de GitHub (Settings → Developer settings → Fine-grained
+   tokens) con acceso a cada tienda y estos permisos de repositorio en
+   **Read and write**: **Contents**, **Pull requests** y **Workflows**
+   (Workflows porque la maquinaria incluye `.github/workflows/*`: sin ese
+   permiso GitHub rechaza el push). Issues en Read and write es opcional:
+   deja que el workflow cree el label `ci-completo` en la tienda. Un token
+   fine-grained lista los repos uno por uno —**cada tienda nueva hay que
+   sumarla al token**— y vence: cuando vence, el paso "Clonar la tienda"
+   falla y lo dice. Sin el secret, el workflow se salta solo y lo dice en el
+   log — no hace nada a medias.
 
-El PR que abre en la tienda trae **sólo lo que `template:sync` clasifica como
-maquinaria** (los mismos límites de siempre: `fable/` se descarta, el
-lockfile se regenera, los workflows de CI y los docs del template se quedan
-con la versión del template). Si `template:sync` se para en un conflicto real, el PR igual se
-abre —**en draft**—, con lo que sí entró limpio más el commit, el archivo y
-los pasos para terminarlo a mano en el cuerpo. El CI de cada tienda decide si
-se mergea; nadie mergea por ella. Los commits de piel (S9, S10, S11 de este
-mismo plan, o cualquier rediseño) **no viajan por acá** — siguen siendo
-`git cherry-pick` a mano si la tienda no rediseñó esa pantalla, tal como
-describe § "Migraciones que llegan por `template:sync`" más abajo.
+3. Que la tienda tenga `.template-baseline` (el commit del template desde el
+   que se creó o hasta el que se sincronizó). Sin él, la distribución a esa
+   tienda falla con "No hay .template-baseline": correr una vez
+   `pnpm template:diff --marcar` en la tienda sobre un commit conocido.
+
+El PR que abre en la tienda es exactamente `pnpm template:sync` (ver
+"Arreglos que aparecen después"), corrido desde el template: archivo por
+archivo, con la piel de la tienda intacta y la lista de qué se trajo, qué se
+fusionó, qué cambio de la tienda pisó el template y qué quedó sin tocar en el
+cuerpo del PR. Siempre la misma rama, `template/sync`: una versión nueva
+actualiza el PR abierto en vez de abrir otro, y si alguien ya empujó
+commits a mano a esa rama (resolviendo un conflicto), el workflow no la pisa
+y lo avisa. Si quedó un conflicto de verdad, el PR sale **en draft** con los
+marcadores (`<<<<<<<`) commiteados y la lista de archivos: se resuelven en
+esa misma rama. El CI de cada tienda decide si se mergea; nadie mergea por
+ella.
+
+**Ensayo gratis antes de publicar:** `pnpm template:ensayar-distribucion`
+hace lo mismo que el workflow contra cada tienda de `tiendas.json` (clon
+temporal, nada se empuja) y, con `--verificar`, corre `typecheck`, `lint` y
+los unitarios de cada tienda ya sincronizada. 0 minutos de Actions.
 
 ### CI y minutos de Actions
 
@@ -819,60 +838,71 @@ template. Si arreglás un bug de checkout acá, las tiendas ya creadas no se
 enteran.
 
 `pnpm template:diff` te dice qué le falta a **esta** tienda; `pnpm
-template:sync` lo trae. Los merge commits de PR no se listan ni se traen: viajan sus commits individuales. El flujo completo:
+template:sync` lo trae. Lo normal es no correrlo a mano: cada versión del
+template le abre un PR a cada tienda (ver § "La distribución automática del
+template"). A mano, el flujo completo es:
 
 ```bash
 git remote add template https://github.com/antonmarklundcom/ecom.git   # una vez
 git checkout -b poner-al-dia-template   # nunca sobre main
-pnpm template:sync                      # trae la maquinaria, commit por commit
-pnpm template:diff                      # ¿queda algo marcado con ~? revisalo a mano
+pnpm template:sync                      # trae la maquinaria, en un commit
 git push -u origin poner-al-dia-template && gh pr create   # o el flujo de PR que uses
 ```
 
-`template:sync` cherry-pickea, del más viejo al más nuevo, **sólo** los
-commits marcados como maquinaria (ver `template:diff` abajo) — nunca toca
-`main` directamente. Resuelve solo los tres conflictos que se repiten en toda
-sincronización real: descarta `fable/` del lado del template (las tiendas no
-tienen el plan de endurecimiento), regenera `pnpm-lock.yaml` con `pnpm install
---lockfile-only` en vez de tocarlo a mano, y en los workflows de
-`.github/workflows/*.yml` se queda con la versión del template. Los docs del
-template que una tienda no reescribe (`KNOWN-ISSUES.md`, `ARCH.md`,
-`NEW-STORE.md`, `CHANGELOG.md`) también se quedan con la versión del template:
-chocan sólo porque commits de piel salteados los editaron antes. Y si un
-cherry-pick trae algo de `fable/` o `.github/dependabot.yml` (son sólo del
-template), el commit final lo saca. Con cualquier
-otro conflicto —en `src/`, casi siempre porque vos y el template tocaron la
-misma línea— **para en seco**, deja todo lo demás ya aplicado y te dice qué
-commit, qué archivo y cómo seguir (`git cherry-pick --continue` y volver a
-correr `pnpm template:sync`, que retoma solo desde ahí). Al final corre
-`pnpm typecheck && pnpm lint && pnpm test`: si algo falla, los commits quedan
-aplicados pero `.template-baseline` no se mueve, para que puedas arreglar y
-reintentar sin perder lo ya traído.
+`template:sync` trabaja **archivo por archivo**, no commit por commit: para
+cada archivo que el template cambió entre el `.template-baseline` de la
+tienda y la última versión, compara la versión del template en el baseline,
+la de la tienda y la del template ahora, y decide:
+
+| Caso | Qué hace |
+|---|---|
+| La tienda nunca lo tocó (maquinaria o piel) | queda el del template: nuevo, cambiado o borrado |
+| `KNOWN-ISSUES.md`, `ARCH.md`, `NEW-STORE.md`, `CHANGELOG.md` | queda el del template |
+| Maquinaria cambiada de los dos lados | merge de 3 vías; si toca la misma línea, **conflicto** |
+| `package.json` cambiado de los dos lados | merge por clave; si los dos cambiaron la misma (una dependencia), gana el template y se lista |
+| Un test cambiado de los dos lados | gana el del template (va con la maquinaria que prueba) y se lista |
+| Maquinaria que la tienda no tiene y el template cambió | vuelve (la maquinaria no se saca por tienda) |
+| Piel o docs que la tienda cambió o borró (home, `product-card`, `README.md`, `CLAUDE.md`…) | queda lo de la tienda; se lista |
+| Mixtos (`checkout-form.tsx`, `src/app/admin`) que la tienda cambió | queda lo de la tienda; se listan aparte para mirar la lógica nueva a mano |
+| `fable/`, `.github/dependabot.yml`, `tiendas.json` | nunca viajan (y se sacan si una tienda vieja los tiene) |
+| `pnpm-lock.yaml` | el del template si las dependencias quedaron iguales; si no, se regenera |
+
+Maquinaria acá es `src/domain`, `src/lib`, `src/db`, `src/app/api`,
+`src/app/actions`, `scripts`, `drizzle`, `.github/workflows`, `tests`,
+`.husky`, más `package.json`, los configs de la raíz y el diccionario
+`src/i18n/es-PY.ts` (sus textos son tuyos, pero la maquinaria usa sus claves:
+fusionarlo deja tus textos y suma las claves nuevas).
+
+Todo termina en **un** commit con el `.template-baseline` nuevo adentro. Si
+hubo conflictos, no commitea: deja todo lo demás aplicado, los archivos en
+conflicto con los marcadores de siempre y el baseline ya escrito. Resolvés,
+`git add -A`, `git commit`, y listo. Al final corre `pnpm typecheck && pnpm
+lint && pnpm test` (salvo `--sin-tests`): si algo falla, el commit ya está y
+lo arreglás en uno aparte.
 
 ```bash
-pnpm template:sync --dry-run        # qué traería, sin tocar nada
-pnpm template:sync --hasta <sha>    # parar en un commit dado
+pnpm template:sync --dry-run        # qué haría con cada archivo, sin tocar nada
+pnpm template:sync --hasta <sha>    # sincronizar hasta un commit dado del template
 pnpm template:sync --sin-tests      # no correr typecheck/lint/test al final
 ```
 
-Si preferís el camino manual (o `template:sync` te frenó en un conflicto y
-querés ver el resto antes de reintentar), `pnpm template:diff` sigue
-sirviendo solo:
+Hasta v1.0.0 esto era un cherry-pick por commit. Con tiendas reales se
+frenaba en el primer commit que tocaba algo que la tienda había cambiado
+(un `CLAUDE.md` propio, un test adaptado a su piel, un archivo que nunca
+trajo) aunque el resultado final no chocara con nada.
+
+`pnpm template:diff` sigue sirviendo para mirar qué commits del template no
+están acá:
 
 ```bash
 pnpm template:diff              # qué commits del template no están acá
-git cherry-pick <sha> <sha>     # los que quieras traer a mano
 pnpm template:diff --marcar     # "ya me puse al día"
 ```
 
-Marca con `*` los que tocan la maquinaria (`src/domain`, `src/lib`, `src/db`,
-`src/app/api`, `src/app/actions`, `scripts`, `drizzle`, `.github/workflows`):
-ésos los quiere toda tienda, y son los que trae `template:sync`. El resto
-suele ser piel que vos reescribiste, y cherry-pickearlo te pisa el rediseño.
-Con `~` marca `src/components/checkout-form.tsx` y `src/app/admin`: markup
-tuyo con lógica compartida adentro, así que ahí leé el diff en vez de
-cherry-pickear — ni `template:diff` ni `template:sync` lo tocan solos. Las
-*actions* de admin sí van con `*` — ahí está la plata.
+Marca con `*` los que tocan la maquinaria: ésos los quiere toda tienda. Con
+`~` marca `src/components/checkout-form.tsx` y `src/app/admin`: markup tuyo
+con lógica compartida adentro, así que ahí leé el diff. Las *actions* de
+admin sí van con `*` — ahí está la plata.
 
 **Trampa:** un repo hecho con "Use this template" **no comparte historia** con
 el original, así que `git log HEAD..template/main` lista todo y no sirve. Por
@@ -885,7 +915,7 @@ antes de tocar `template:sync`.
 ### Migraciones que llegan por `template:sync`
 
 Una migración del template es **maquinaria**: viaja marcada con `*` y
-`template:sync` la trae sola con el commit que la creó. Después del sync, en
+`template:sync` la trae sola (`drizzle/` entero, con su `_journal.json`). Después del sync, en
 esta tienda hay que aplicarla como cualquier otra —`pnpm db:push` en local,
 `POST /api/setup/init` en el servidor (DEPLOY.md)— y `pnpm db:generate` tiene
 que quedar sin drift.

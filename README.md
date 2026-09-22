@@ -67,7 +67,8 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm bootstrap:repo --destino ../tienda` | mete el template en un repo que **ya existe y ya tiene algo adentro** (excluye `.git`, no borra nada, se puede correr de nuevo). `--dry-run` primero — NEW-STORE.md §1b |
 | `pnpm setup:doctor` | ¿esta máquina puede correr `pnpm nueva-tienda`? Node, pnpm, Docker, los remotos, y si `main` se quedó atrás de otras ramas. `--skip-docker` en un contenedor o sesión en la nube — NEW-STORE.md §1 |
 | `pnpm template:diff` | qué arreglos del template le faltan a esta tienda (`--marcar` para fijar el punto de partida) — NEW-STORE.md |
-| `pnpm template:sync` | trae a esta tienda la maquinaria del template, commit por commit — NEW-STORE.md |
+| `pnpm template:sync` | trae a esta tienda la maquinaria del template, archivo por archivo en un commit — NEW-STORE.md |
+| `pnpm template:ensayar-distribucion` | (template) ensaya la distribución contra cada tienda de `tiendas.json`, sin empujar nada — NEW-STORE.md |
 | `pnpm template:probar-tienda` | arma una tienda nueva desde HEAD en un worktree temporal (wizard + typecheck + unitarios): se corre antes de publicar una versión — CHANGELOG.md |
 | `pnpm db:generate` | genera la migración de un cambio de schema |
 | `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |

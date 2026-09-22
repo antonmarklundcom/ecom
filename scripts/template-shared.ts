@@ -24,7 +24,51 @@ export const MAQUINARIA = [
   'scripts',
   'drizzle',
   '.github/workflows',
+  // Los tests de la maquinaria viajan con ella: un arreglo que sólo tocó un
+  // test (T2, 554083c) nunca llegaba a las tiendas, que quedaban en rojo.
+  'tests',
+  '.husky',
 ] as const;
+
+/**
+ * Archivos sueltos que son maquinaria aunque no vivan en una de las carpetas
+ * de arriba: dependencias, compilación, lint, tests, y el diccionario de
+ * textos. Cuentan como maquinaria para `template:sync` (se fusionan, y un
+ * choque es un conflicto a resolver, no piel que la tienda se queda), no para
+ * la lista de `template:diff`, donde diferirían en toda tienda.
+ *
+ * `src/i18n/es-PY.ts` es el caso raro: los textos son piel (cada tienda los
+ * reescribe), pero las **claves** son contrato — la maquinaria llama a
+ * `t("error.avisoStock.apagado")` y una tienda que se quedaba con su
+ * diccionario viejo no compilaba. Fusionar deja los textos de la tienda y
+ * suma las claves nuevas.
+ */
+export const ARCHIVOS_MAQUINARIA = [
+  'package.json',
+  'pnpm-workspace.yaml',
+  'tsconfig.json',
+  'next.config.ts',
+  'eslint.config.mjs',
+  'drizzle.config.ts',
+  'playwright.config.ts',
+  'vitest.config.mts',
+  'vitest.setup.ts',
+  'src/proxy.ts',
+  'src/instrumentation.ts',
+  'src/i18n/es-PY.ts',
+] as const;
+
+/** ¿`ruta` es maquinaria (carpeta de `MAQUINARIA` o archivo de `ARCHIVOS_MAQUINARIA`)? */
+export function esMaquinaria(ruta: string): boolean {
+  return (
+    MAQUINARIA.some((carpeta) => ruta === carpeta || ruta.startsWith(`${carpeta}/`)) ||
+    (ARCHIVOS_MAQUINARIA as readonly string[]).includes(ruta)
+  );
+}
+
+export function esMixto(ruta: string): boolean {
+  return MIXTOS.some((entrada) => ruta === entrada || ruta.startsWith(`${entrada}/`));
+}
 
 /**
  * Mixtos: markup que cada tienda rediseña, con lógica compartida adentro.
@@ -49,14 +93,16 @@ export const MIXTOS = ['src/components/checkout-form.tsx', 'src/app/admin'] as c
 /**
  * Lo que sólo tiene sentido en el repo del template y una tienda no debe
  * arrastrar: `fable/` son los planes y revisiones con que se construyó el
- * template (una IA en la tienda los lee como tareas propias), y Dependabot
+ * template (una IA en la tienda los lee como tareas propias), Dependabot
  * abriría PRs de dependencias en cada tienda cuando éstas ya llegan con
- * template:sync. `pnpm nueva-tienda` los borra, `bootstrap:repo` no los copia
- * y `template:sync` los saca si un cherry-pick los vuelve a traer.
+ * template:sync, y `tiendas.json` es el registro de tiendas del template (cada
+ * tienda nueva heredaba la lista entera). `pnpm nueva-tienda` los borra,
+ * `bootstrap:repo` no los copia y `template:sync` nunca los trae (y los saca
+ * si una tienda vieja los tiene).
  *
  * Una entrada que termina en `/` es una carpeta entera.
  */
-export const SOLO_TEMPLATE = ['fable/', '.github/dependabot.yml'] as const;
+export const SOLO_TEMPLATE = ['fable/', '.github/dependabot.yml', 'tiendas.json'] as const;
 
 export function esSoloTemplate(ruta: string): boolean {
   return SOLO_TEMPLATE.some((entrada) =>
