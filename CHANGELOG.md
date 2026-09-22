@@ -38,6 +38,27 @@ Migración: no.
   saca.
 - `template:sync` resuelve solo los conflictos en `KNOWN-ISSUES.md`, `ARCH.md`,
   `NEW-STORE.md` y `CHANGELOG.md` quedándose con el template (T7).
+- **`template:sync` trabaja archivo por archivo** (baseline → versión nueva), no
+  commit por commit: en las tres tiendas reales el cherry-pick se frenaba en el
+  primer commit que tocaba algo que la tienda había cambiado. Ahora la piel que
+  la tienda cambió queda, la maquinaria se fusiona (`package.json` por clave),
+  los tests cambiados de los dos lados toman el del template, `src/i18n/es-PY.ts`
+  se fusiona (textos de la tienda + claves nuevas), y todo queda en un commit.
+  `tests/` y `.husky/` pasan a ser maquinaria (un arreglo que sólo tocaba un
+  test no llegaba a las tiendas).
+- `distribuir.yml`: corre el `template-sync.ts` del template contra la tienda
+  (ya no copia el script adentro, que chocaba consigo mismo, ni corre
+  `pnpm install` de la tienda con el token en el entorno); una sola rama
+  `template/sync` por tienda (no un PR nuevo por corrida) que no pisa commits
+  hechos a mano; base = default branch de la tienda; un conflicto abre el PR en
+  draft con los marcadores commiteados (antes no abría nada); crea el label
+  `ci-completo` en la tienda. `TIENDAS_TOKEN` necesita además **Workflows:
+  write** (NEW-STORE.md).
+- `tiendas.json` es `SOLO_TEMPLATE` (una tienda nueva no hereda la lista), sólo
+  acepta `repo`, `dominio` y `notas`, y un test rechaza credenciales o datos de
+  la base de Hostinger.
+- Nuevo `pnpm template:ensayar-distribucion [--verificar]`: la distribución
+  contra cada tienda de `tiendas.json` en clones temporales, sin empujar nada.
 - La suite avisa si corre contra MariaDB (T3).
 - `pnpm template:probar-tienda`.
 - `tiendas.json` acepta campos de registro por tienda (dominio, hosting, notas).
