@@ -657,22 +657,26 @@ los unitarios de cada tienda ya sincronizada. 0 minutos de Actions.
 
 ### CI y minutos de Actions
 
-En un repo **privado** cada minuto de GitHub Actions se descuenta de la cuenta
-(Linux 1x; los públicos no pagan), y `ci.yml` viaja a todas las tiendas. Diez
-tiendas corriendo el CI completo en cada push se comían el mes en días. Por eso:
+`ci.yml` viaja a todas las tiendas y cuesta distinto según el repo: en uno
+**público** los runners estándar de GitHub son gratis y sin límite; en uno
+**privado** cada minuto se descuenta de la cuenta (Linux 1x), y diez tiendas
+privadas corriendo todo en cada push se comían el mes en días. Cada job mira
+si el repo es privado y se adapta solo:
 
-| Qué | Cuándo corre |
-|---|---|
-| `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | cada PR contra `main`, salvo PRs de sólo docs (`*.md`, `fable/`) |
-| `e2e` (Playwright) | label `ci-completo` en el PR, corrida manual (Actions → CI → Run workflow), o un PR de distribución del template (rama `template/…`) |
-| `lighthouse` | sólo corrida manual |
-| `distribuir.yml`, `pnpm-al-dia.yml` | sólo en el repo del template |
-| push a `main` | nada: ya corrió en su PR |
+| Qué | Repo público | Repo privado |
+|---|---|---|
+| `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | cada PR y cada push a `main` | cada PR |
+| `e2e` (Playwright) | cada PR y cada push a `main` | label `ci-completo`, corrida manual (Actions → CI → Run workflow), o un PR de distribución (rama `template/…`) |
+| `lighthouse` | cada push a `main`, o a mano | sólo a mano |
+| `distribuir.yml`, `pnpm-al-dia.yml` | sólo en el repo del template | sólo en el repo del template |
 
-Un push nuevo al mismo PR cancela la corrida anterior. Para pedir el e2e en un
-PR, poné el label `ci-completo` **antes** del próximo push (el label solo no
-dispara una corrida), o corrélo a mano sobre la rama. Pedilo siempre que el PR
-toque checkout, `/admin`, o saque/mueva un `data-testid`.
+En los dos casos, un PR de sólo docs (`*.md`, `fable/`) no corre nada, y un
+push nuevo al mismo PR cancela la corrida anterior. En un repo privado,
+poner el label `ci-completo` dispara la corrida con e2e al toque (cualquier
+otro label no dispara nada); pedilo siempre que el PR toque checkout,
+`/admin`, o saque/mueva un `data-testid`. El label se crea una vez por repo
+(Issues → Labels → New label, `ci-completo`); en las tiendas lo crea el
+primer PR de distribución.
 
 El gate de cada día es local y gratis: `pre-commit` corre `typecheck` + `lint`
 y `pre-push` corre `pnpm test` (husky, se instala con `pnpm install`).
