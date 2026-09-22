@@ -14,8 +14,11 @@ leé:
   recordatorio de pago, edición de pedido sin pagar, kit de temas, dependencias.
   Seis fases (O14–S19) en dos ventanas (§11), **todas mergeadas — hoy es
   historial**, igual que `fable/plan-operacion.md` y `fable/plan.md`. Sale de la
-  revisión `fable/REVIEW.md` (2026-09-11), que es **la revisión vigente** hasta
-  que salga la próxima desde `fable/PROMPT.md`.
+  revisión `fable/REVIEW.md` (2026-09-11). La última revisión de maquinaria es
+  `fable/REVIEW-2026-09-13.md` (ya aplicada, #109) y la auditoría del template
+  como fábrica de tiendas es `fable/TEMPLATE-REVIEW.md` (2026-09-19, T1–T7, todos
+  cerrados). La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
+  en el template: una tienda no lo tiene (`pnpm nueva-tienda` lo borra).
 - **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
   remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).
   Nueve fases (O5–S13), **todas mergeadas — hoy es historial**, igual que

@@ -322,7 +322,7 @@ function main(): void {
     '\nSeguí desde NEW-STORE.md §1:\n' +
       `  cd ${opciones.destino}\n` +
       '  git status                 # mirá qué entró antes de commitear\n' +
-      '  git remote add template git@github.com:antonmarklundcom/ecom.git\n' +
+      '  git remote add template https://github.com/antonmarklundcom/ecom.git\n' +
       '  pnpm install && pnpm setup:doctor && pnpm nueva-tienda\n',
   );
 }
