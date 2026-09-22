@@ -29,7 +29,7 @@ jobs:
       tiendas: ${{ steps.leer.outputs.tiendas }}
       hay_token: ${{ steps.token.outputs.hay }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Leer tiendas.json
         id: leer
@@ -96,7 +96,7 @@ jobs:
       # la raíz sin nada especial, y deja un solo checkout para usar como
       # remoto `template` de cada tienda (clonada aparte, en `./tienda`).
       - name: Checkout del template
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Historia completa: la tienda se compara contra su
           # `.template-baseline`, que puede ser un commit arbitrariamente viejo,
