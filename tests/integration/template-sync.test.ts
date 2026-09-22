@@ -190,6 +190,60 @@ describe('template:sync contra git de verdad', () => {
     expect(conflicto).toBe('src/domain/stock.ts');
   });
 
+  it('un conflicto en KNOWN-ISSUES.md por piel salteada se queda con el template y sigue', () => {
+    // El caso de #108/#109: un commit de piel edita KNOWN-ISSUES.md (no se
+    // trae), y después uno de maquinaria edita el mismo doc. Sin el contexto
+    // del de piel, el cherry-pick choca aunque la tienda nunca tocó el doc.
+    const template = repoTemporal('template-sync-template');
+    identidadGit(template);
+    escribir(template, 'src/domain/stock.ts', 'stock v1\n');
+    escribir(template, 'KNOWN-ISSUES.md', '# Known\n\n## A\nuno\n');
+    const c0 = commit(template, 'C0 inicial');
+    gitEn(template, ['branch', '-M', 'main']);
+
+    escribir(template, 'KNOWN-ISSUES.md', '# Known\n\n## A\nuno, corregido por piel\n');
+    commit(template, 'Piel: toca el doc');
+
+    escribir(template, 'KNOWN-ISSUES.md', '# Known\n\n## A\nuno, resuelto por maquinaria\n');
+    escribir(template, 'src/domain/stock.ts', 'stock v2\n');
+    const maquinaria = commit(template, 'Maquinaria: arreglo + doc');
+
+    // Un archivo nuevo en fable/ no choca con nada: llega con el cherry-pick y
+    // el sync lo tiene que sacar igual.
+    escribir(template, 'fable/nuevo.md', 'plan\n');
+    escribir(template, 'scripts/otro.ts', 'export const otro = 1;\n');
+    commit(template, 'Maquinaria + plan nuevo en fable/');
+
+    const tienda = repoTemporal('template-sync-tienda');
+    identidadGit(tienda);
+    escribir(tienda, 'src/domain/stock.ts', 'stock v1\n');
+    escribir(tienda, 'KNOWN-ISSUES.md', '# Known\n\n## A\nuno\n');
+    commit(tienda, 'C0 tienda');
+    gitEn(tienda, ['remote', 'add', 'template', template]);
+    gitEn(tienda, ['fetch', 'template', 'main']);
+    writeFileSync(join(tienda, '.template-baseline'), `${c0}\n`);
+    commit(tienda, 'Marcar baseline');
+
+    const resultado = ejecutarSync(tienda, {
+      remoto: 'template',
+      rama: 'main',
+      dryRun: false,
+      hasta: null,
+      sinTests: true,
+    });
+
+    expect(resultado.estado).toBe('completado');
+    expect(readFileSync(join(tienda, 'KNOWN-ISSUES.md'), 'utf8')).toBe(
+      '# Known\n\n## A\nuno, resuelto por maquinaria\n',
+    );
+    expect(readFileSync(join(tienda, 'src/domain/stock.ts'), 'utf8')).toBe('stock v2\n');
+    expect(gitEn(tienda, ['log', '--format=%B'])).toContain(maquinaria);
+    expect(gitEn(tienda, ['ls-files', '--', 'fable']).trim()).toBe('');
+    expect(readFileSync(join(tienda, 'scripts/otro.ts'), 'utf8')).toBe('export const otro = 1;\n');
+    const cabeza = gitEn(tienda, ['rev-parse', 'template/main']).trim();
+    expect(parseBaseline(readFileSync(join(tienda, '.template-baseline'), 'utf8'))).toBe(cabeza);
+  });
+
   it('con el cherry-pick a medio resolver, avisa que hay que terminarlo a mano', () => {
     const { tienda } = armarEscenario();
 

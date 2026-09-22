@@ -1,17 +1,37 @@
 name: CI
 
+# Minutos de Actions (NEW-STORE.md § "CI y minutos de Actions"): en un repo
+# privado cada minuto se factura a la cuenta, y este archivo viaja a TODAS las
+# tiendas. Por eso:
+#
+#   - Sólo en PRs, nunca también en `push` a main: el merge ya corrió en su PR,
+#     y correrlo de nuevo en main duplicaba cada cambio.
+#   - Un PR que sólo toca docs no corre nada (`paths-ignore`).
+#   - Un push nuevo al mismo PR cancela la corrida anterior (`concurrency`).
+#   - `checks` (typecheck, lint, unitarios + integración contra MySQL, build)
+#     corre siempre. `e2e` (Playwright) sólo cuando se pide: label
+#     `ci-completo` en el PR, corrida manual desde la pestaña Actions, o un PR
+#     de distribución del template (rama `template/…`), que es donde llega
+#     maquinaria nueva a una tienda. `lighthouse` sólo en corrida manual.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "fable/**"
+      - "LICENSE"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
     runs-on: ubuntu-latest
     # Un paso que se cuelga no puede comerse el runner (ni los logs, que
     # recién quedan disponibles cuando el job termina).
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     # Los tests de dominio (transitionOrder, reservas, contador de pedidos)
     # corren contra MySQL de verdad: FOR UPDATE y las transacciones no se
@@ -93,8 +113,15 @@ jobs:
   # compradora en un navegador, no lo que asume un test unitario. Corre
   # después de `checks` — sin typecheck/lint/unitarios verdes no vale la pena
   # pagar el minuto extra de un navegador.
+  #
+  # Es el job más caro (navegador + build + base sembrada), así que no corre en
+  # cada PR: ver el comentario de arriba de todo para cómo pedirlo.
   e2e:
     needs: checks
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-completo') ||
+      startsWith(github.head_ref, 'template/')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -183,8 +210,11 @@ jobs:
   # presupuesto de JS de `tests/e2e/presupuesto.spec.ts` (arriba, en `e2e`),
   # medido con bytes reales, no con un puntaje que cambia con la carga del
   # runner. Este job es sólo una alarma temprana.
+  # Sólo en corrida manual: es una alarma sin poder de bloqueo, y no vale
+  # los minutos en cada PR.
   lighthouse:
     needs: e2e
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true

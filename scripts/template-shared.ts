@@ -46,6 +46,32 @@ export const MAQUINARIA = [
  */
 export const MIXTOS = ['src/components/checkout-form.tsx', 'src/app/admin'] as const;
 
+/**
+ * Lo que sólo tiene sentido en el repo del template y una tienda no debe
+ * arrastrar: `fable/` son los planes y revisiones con que se construyó el
+ * template (una IA en la tienda los lee como tareas propias), y Dependabot
+ * abriría PRs de dependencias en cada tienda cuando éstas ya llegan con
+ * template:sync. `pnpm nueva-tienda` los borra, `bootstrap:repo` no los copia
+ * y `template:sync` los saca si un cherry-pick los vuelve a traer.
+ *
+ * Una entrada que termina en `/` es una carpeta entera.
+ */
+export const SOLO_TEMPLATE = ['fable/', '.github/dependabot.yml'] as const;
+
+export function esSoloTemplate(ruta: string): boolean {
+  return SOLO_TEMPLATE.some((entrada) =>
+    entrada.endsWith('/') ? ruta.startsWith(entrada) : ruta === entrada,
+  );
+}
+
+/**
+ * Docs del template que una tienda no reescribe. Un conflicto ahí no es una
+ * decisión de la tienda sino falta de contexto: commits de piel salteados
+ * editaron el mismo doc antes que el commit de maquinaria que se está trayendo
+ * (así chocó `KNOWN-ISSUES.md` en #109). Gana la versión del template.
+ */
+export const DOCS_DEL_TEMPLATE = ['KNOWN-ISSUES.md', 'ARCH.md', 'NEW-STORE.md', 'CHANGELOG.md'] as const;
+
 export const BASELINE_FILE = '.template-baseline';
 
 export type Commit = { sha: string; asunto: string; maquinaria: boolean; mixto: boolean };

@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { MARCA_PLACEHOLDER } from '../../src/config/tienda';
+
 import {
   bloqueHPanel,
   completarEnv,
@@ -18,6 +20,7 @@ import {
   normalizarWhatsApp,
   parseFlags,
   reescribirTienda,
+  soloTemplateABorrar,
   sugerirTitulo,
   TEMAS,
   type DatosTienda,
@@ -389,5 +392,19 @@ describe('el título se sugiere a partir del nombre', () => {
     expect(sugerirTitulo('TiendaPY — Comprá online en Paraguay', '  ')).toBe(
       'TiendaPY — Comprá online en Paraguay',
     );
+  });
+});
+
+describe('soloTemplateABorrar', () => {
+  const todo = () => true;
+
+  it('en una tienda con nombre propio, borra fable/ y Dependabot si existen', () => {
+    expect(soloTemplateABorrar('La Esquina', todo)).toEqual(['fable', '.github/dependabot.yml']);
+    expect(soloTemplateABorrar('La Esquina', (ruta) => ruta === 'fable')).toEqual(['fable']);
+  });
+
+  it('con el nombre del template (o vacío) no borra nada: sigue siendo el template', () => {
+    expect(soloTemplateABorrar(MARCA_PLACEHOLDER, todo)).toEqual([]);
+    expect(soloTemplateABorrar('  ', todo)).toEqual([]);
   });
 });

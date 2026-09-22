@@ -95,6 +95,7 @@ T6 (bootstrap copia `fable/` y `tiendas.json`) no tiene despacho: es una pregunt
 |---|---|---|---|
 | 08 | 01a0b9f4-09be-7712-88e8-3056756892f6 | gpt-6-astra / low | commit 9e8720e. typecheck, lint y 831 unitarios PASS. Repro manual: 4 merge commits salteados, sync verde, baseline al tip. Pendiente revisión de Anton (toca scripts/) |
 | 09 | 01a0ba01-025d-7301-bd8d-85cc6758df30 | gpt-6-astra / low | typecheck, lint y 831 unitarios PASS. Rename simulado: 1 test salteado, el resto verde |
+| 10–13 | — (Claude Code en la nube, sin Codex) | — | PR #115, junto con T6 y el recorte de minutos de Actions. 10: aviso de MariaDB en `global-setup.ts`. 11: `distribuir.yml` y `pnpm-al-dia.yml` sólo en el template. 12: docs + remoto unificado a `https://` (anda en la nube y en CI sin llave SSH; no a `git@` como decía el prompt). 13: `DOCS_DEL_TEMPLATE` en `template-shared.ts`, test de integración que falla sin el arreglo. T6: `SOLO_TEMPLATE` (`fable/`, Dependabot) |
 | 10 | pendiente | | no despachado en esta tanda: Fable paró a pedido de Anton, sigue Sonnet 5 + Codex |
 | 11 | pendiente | | idem. Es CI: lo mira Anton antes de mergear |
 | 12 | pendiente | | idem |

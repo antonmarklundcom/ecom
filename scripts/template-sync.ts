@@ -7,9 +7,12 @@ import {
   commitsClasificados,
   type Commit,
   contenidoBaseline,
+  DOCS_DEL_TEMPLATE,
+  esSoloTemplate,
   gitEn,
   parseBaseline,
   remotoExiste,
+  SOLO_TEMPLATE,
 } from './template-shared';
 
 /**
@@ -147,14 +150,33 @@ export function cortarHasta(ordenados: Commit[], hasta: string | null): Commit[]
 export type AccionConflicto = 'eliminar' | 'lockfile' | 'usar-template' | 'manual';
 
 /**
- * Los tres conflictos aburridos que se repiten en cada sync (ver el comentario
- * de arriba), y todo lo demás cae en "manual" — que es la señal de parar.
+ * Los conflictos aburridos que se repiten en cada sync (ver el comentario de
+ * arriba), y todo lo demás cae en "manual" — que es la señal de parar.
+ * `DOCS_DEL_TEMPLATE` (KNOWN-ISSUES.md y compañía) toma el lado del template:
+ * la tienda no los edita, así que un conflicto ahí es sólo contexto perdido
+ * por commits de piel salteados, no una decisión suya.
  */
 export function clasificarConflicto(archivo: string): AccionConflicto {
-  if (archivo.startsWith('fable/')) return 'eliminar';
+  if (esSoloTemplate(archivo)) return 'eliminar';
   if (archivo === 'pnpm-lock.yaml') return 'lockfile';
   if (archivo.startsWith('.github/workflows/') && /\.ya?ml$/.test(archivo)) return 'usar-template';
+  if ((DOCS_DEL_TEMPLATE as readonly string[]).includes(archivo)) return 'usar-template';
   return 'manual';
+}
+
+/**
+ * Lo de `SOLO_TEMPLATE` que está versionado en la tienda. Un cherry-pick que
+ * agrega un archivo nuevo en `fable/` no choca (la tienda no tenía nada ahí)
+ * y lo trae; esto lo encuentra para sacarlo en el commit del baseline. En una
+ * tienda vieja, creada antes de que existiera `SOLO_TEMPLATE`, también saca
+ * lo que heredó.
+ */
+function soloTemplateVersionado(cwd: string): string[] {
+  const rutas = SOLO_TEMPLATE.map((entrada) => entrada.replace(/\/$/, ''));
+  return gitEn(cwd, ['ls-files', '--', ...rutas])
+    .split('\n')
+    .map((linea) => linea.trim())
+    .filter((linea) => linea !== '');
 }
 
 export function necesitaInstall(archivosTocados: readonly string[]): boolean {
@@ -483,6 +505,8 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
   const objetivo = opciones.hasta ? pendientes[pendientes.length - 1]!.sha : cabezaTemplate;
   writeFileSync(join(cwd, BASELINE_FILE), contenidoBaseline(objetivo));
   gitEn(cwd, ['add', '--', BASELINE_FILE]);
+  const soloTemplate = soloTemplateVersionado(cwd);
+  if (soloTemplate.length > 0) gitEn(cwd, ['rm', '-r', '-q', '--', ...soloTemplate]);
   gitEn(cwd, [
     '-c',
     'core.editor=true',

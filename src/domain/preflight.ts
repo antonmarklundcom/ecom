@@ -501,6 +501,14 @@ function checkCloudinary(env: PreflightEnv): PreflightCheck {
   };
 }
 
+/**
+ * El número que `.env.example` traía de ejemplo hasta 2026-09. Una tienda
+ * con un `.env.local` copiado de esa época lo tiene cargado y con forma
+ * válida, así que el chequeo de formato lo dejaba pasar: los compradores
+ * terminaban escribiéndole a un WhatsApp ajeno.
+ */
+export const WHATSAPP_DE_EJEMPLO = "+595981123456";
+
 /** El aviso al dueño llega por WhatsApp; sin número, no llega. */
 function checkWhatsApp(env: PreflightEnv): PreflightCheck {
   const phone = value(env, "WHATSAPP_NUMBER");
@@ -511,6 +519,16 @@ function checkWhatsApp(env: PreflightEnv): PreflightCheck {
       severity: "bloquea",
       title: "WhatsApp del comercio",
       detail: "WHATSAPP_NUMBER vacío: el comprador no tiene botón para avisar del pedido",
+    };
+  }
+  if (phone.replace(/[^\d+]/g, "") === WHATSAPP_DE_EJEMPLO) {
+    return {
+      id: "whatsapp",
+      severity: "bloquea",
+      title: "WhatsApp del comercio",
+      detail:
+        "WHATSAPP_NUMBER es el número de ejemplo del template, no el del comercio: " +
+        "los compradores le escribirían a un WhatsApp ajeno",
     };
   }
   if (!/^\+595\d{9}$/.test(phone)) {

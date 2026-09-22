@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
@@ -10,6 +10,7 @@ import { stdin, stdout } from 'node:process';
 // importarlo daría `nombre` ya resuelto, y este script necesita distinguir
 // "sigue siendo la constante del template" de "la tienda se llama así".
 import { MARCA_PLACEHOLDER } from '../src/config/tienda';
+import { SOLO_TEMPLATE } from './template-shared';
 
 /**
  * `pnpm nueva-tienda` — de "Use this template" a una tienda que corre.
@@ -655,6 +656,10 @@ async function main(): Promise<void> {
   console.log(
     `  ${GLOBALS_FILE}: ${temaCambia ? `tema → ${crudos.tema}` : `sin cambios (tema ${crudos.tema})`}`,
   );
+  const aBorrar = soloTemplateABorrar(datos.nombre, existsSync);
+  if (aBorrar.length > 0) {
+    console.log(`  ${aBorrar.join(', ')}: se borra (es del template, no de la tienda)`);
+  }
 
   if (dryRun) {
     console.log('\n  --dry-run: no se escribió nada.\n');
@@ -668,6 +673,7 @@ async function main(): Promise<void> {
   }
   writeFileSync(ENV_FILE, env.contenido);
   if (temaCambia) writeFileSync(GLOBALS_FILE, globalsNuevo);
+  for (const ruta of aBorrar) rmSync(ruta, { recursive: true, force: true });
 
   imprimirHPanel(env.contenido, aEscribir);
   marcarBaseline();
@@ -681,6 +687,19 @@ async function main(): Promise<void> {
       '    docker compose up -d && pnpm db:push && pnpm db:seed && pnpm create-owner\n' +
       '    pnpm preflight\n',
   );
+}
+
+/**
+ * Lo de `SOLO_TEMPLATE` (`fable/`, Dependabot) que hay que borrar al volver
+ * esto una tienda: los planes del template leídos por una IA en la tienda
+ * parecen tareas pendientes, y Dependabot abriría PRs (y minutos de CI) que
+ * ya llegan por template:sync. Sólo cuando la tienda tiene nombre propio: con
+ * el nombre del template sigue siendo el template, y ahí no se borra nada.
+ */
+export function soloTemplateABorrar(nombre: string, existe: (ruta: string) => boolean): string[] {
+  const limpio = nombre.trim();
+  if (limpio === '' || limpio === MARCA_PLACEHOLDER) return [];
+  return SOLO_TEMPLATE.map((entrada) => entrada.replace(/\/$/, '')).filter(existe);
 }
 
 /** El valor de una clave en un `.env`, o `''`. */

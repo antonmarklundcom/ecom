@@ -7,6 +7,20 @@ el original. No copies carpetas a mano y no hagas fork.
 La idea del template: **la maquinaria ya está hecha y no se toca**. Por tienda
 sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
+## En una página
+
+1. GitHub → **Use this template** → repo **privado** nuevo para la tienda.
+2. `git clone` · `pnpm install` · `git remote add template https://github.com/antonmarklundcom/ecom.git`
+3. `pnpm setup:doctor` → `pnpm nueva-tienda` (marca, WhatsApp **real**, dominio,
+   tema; borra `fable/` y Dependabot, que son del template) → commit + push.
+4. En el repo nuevo: crear el label `ci-completo` (Issues → Labels) para pedir
+   el e2e cuando haga falta. Ver § "CI y minutos de Actions".
+5. Base, catálogo y dueño (§4) · diseño (§5) · cuentas de terceros (tabla de
+   abajo) · deploy (DEPLOY.md).
+6. `pnpm preflight` en verde → recién ahí se cobra (§6).
+7. En el template: agregar la tienda a `tiendas.json` (con dominio y dónde está
+   hosteada) para que le lleguen las versiones nuevas.
+
 ---
 
 **Los pasos de la base de datos corrélos en tu máquina, en una terminal.**
@@ -26,7 +40,7 @@ pueda levantar.
 
 ```bash
 git clone <tu-repo> && cd <tu-repo> && pnpm install
-git remote add template git@github.com:antonmarklundcom/ecom.git
+git remote add template https://github.com/antonmarklundcom/ecom.git
 pnpm setup:doctor              # ¿Node, pnpm, Docker y los remotos están listos?
 pnpm nueva-tienda        # seis preguntas: marca, WhatsApp, dominio
 docker compose up -d && pnpm db:push && pnpm db:seed && pnpm create-owner
@@ -88,7 +102,7 @@ cuadra, o si querés saber por qué el wizard hace lo que hace.
 3. Agregá el remoto del template **ahora**, no el día que lo necesites:
 
    ```bash
-   git remote add template git@github.com:antonmarklundcom/ecom.git
+   git remote add template https://github.com/antonmarklundcom/ecom.git
    ```
 
    `pnpm nueva-tienda` (paso 2) corre `template:diff --marcar` solo y deja
@@ -154,7 +168,7 @@ Después de la copia, el resto del camino es el mismo:
 ```bash
 cd ../lenceria
 git status                 # mirá qué entró antes de commitear
-git remote add template git@github.com:antonmarklundcom/ecom.git
+git remote add template https://github.com/antonmarklundcom/ecom.git
 pnpm install
 pnpm setup:doctor          # acá te va a avisar si `main` se quedó atrás
 pnpm nueva-tienda
@@ -570,21 +584,41 @@ del template. Lo que sigue es sólo dónde encontrarlo:
 
 ### La distribución automática del template (S13)
 
-Cada push a `main` de `antonmarklundcom/ecom` dispara
-`.github/workflows/distribuir.yml` en el template, que le abre (o actualiza)
-un PR de maquinaria a cada tienda listada en la raíz de `tiendas.json` — el
-mismo `pnpm template:sync` de arriba, corrido por una acción en vez de a mano.
-Es lo que hace que el paso 1 de "Arreglos que aparecen después" deje de ser
-manual.
+Publicar una versión del template (un tag `v*`, ver CHANGELOG.md) —o correrlo
+a mano desde la pestaña Actions— dispara `.github/workflows/distribuir.yml` en
+el template, que le abre (o actualiza) un PR de maquinaria a cada tienda
+listada en la raíz de `tiendas.json` — el mismo `pnpm template:sync` de arriba,
+corrido por una acción en vez de a mano. Es lo que hace que el paso 1 de
+"Arreglos que aparecen después" deje de ser manual. Un push a `main` ya no
+distribuye: cada PR de distribución corre el CI de la tienda (incluido el e2e,
+porque es donde llega maquinaria nueva), así que se agrupan por versión.
+
+El workflow viaja a las tiendas con el resto del repo, pero **sólo corre en el
+repo del template** (`if: github.repository == 'antonmarklundcom/ecom'`): en una
+tienda no levanta ni un runner.
 
 **Para que una tienda reciba estos PRs, alguien con acceso al repo del
 template tiene que:**
 
-1. Agregarla a `tiendas.json` en la raíz del template:
+1. Agregarla a `tiendas.json` en la raíz del template. `repo` es lo único que
+   usa el workflow; el resto es el **registro de tiendas** —dónde vive cada
+   una— y es opcional, pero con muchas tiendas es lo que evita buscar en tres
+   paneles a qué slot de Hostinger o a qué base apunta cuál:
 
    ```json
-   [{ "repo": "antonmarklundcom/mi-tienda" }]
+   [
+     {
+       "repo": "antonmarklundcom/mi-tienda",
+       "dominio": "mitienda.com.py",
+       "hosting": "Hostinger, cuenta 2, slot Node 3",
+       "base": "u123_mitienda",
+       "notas": "cuentas de cliente prendidas; Pagopar en sandbox"
+     }
+   ]
    ```
+
+   Nada de secretos acá (claves, contraseñas, `DATABASE_URL` completa): este
+   archivo se commitea.
 
 2. Tener cargado el secret `TIENDAS_TOKEN` en el repo del template: un PAT de
    GitHub con `contents:write` + `pull-requests:write` sobre esa(s) tienda(s).
@@ -593,14 +627,45 @@ template tiene que:**
 
 El PR que abre en la tienda trae **sólo lo que `template:sync` clasifica como
 maquinaria** (los mismos límites de siempre: `fable/` se descarta, el
-lockfile se regenera, los workflows de CI se quedan con la versión del
-template). Si `template:sync` se para en un conflicto real, el PR igual se
+lockfile se regenera, los workflows de CI y los docs del template se quedan
+con la versión del template). Si `template:sync` se para en un conflicto real, el PR igual se
 abre —**en draft**—, con lo que sí entró limpio más el commit, el archivo y
 los pasos para terminarlo a mano en el cuerpo. El CI de cada tienda decide si
 se mergea; nadie mergea por ella. Los commits de piel (S9, S10, S11 de este
 mismo plan, o cualquier rediseño) **no viajan por acá** — siguen siendo
 `git cherry-pick` a mano si la tienda no rediseñó esa pantalla, tal como
 describe § "Migraciones que llegan por `template:sync`" más abajo.
+
+### CI y minutos de Actions
+
+En un repo **privado** cada minuto de GitHub Actions se descuenta de la cuenta
+(Linux 1x; los públicos no pagan), y `ci.yml` viaja a todas las tiendas. Diez
+tiendas corriendo el CI completo en cada push se comían el mes en días. Por eso:
+
+| Qué | Cuándo corre |
+|---|---|
+| `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | cada PR contra `main`, salvo PRs de sólo docs (`*.md`, `fable/`) |
+| `e2e` (Playwright) | label `ci-completo` en el PR, corrida manual (Actions → CI → Run workflow), o un PR de distribución del template (rama `template/…`) |
+| `lighthouse` | sólo corrida manual |
+| `distribuir.yml`, `pnpm-al-dia.yml` | sólo en el repo del template |
+| push a `main` | nada: ya corrió en su PR |
+
+Un push nuevo al mismo PR cancela la corrida anterior. Para pedir el e2e en un
+PR, poné el label `ci-completo` **antes** del próximo push (el label solo no
+dispara una corrida), o corrélo a mano sobre la rama. Pedilo siempre que el PR
+toque checkout, `/admin`, o saque/mueva un `data-testid`.
+
+El gate de cada día es local y gratis: `pre-commit` corre `typecheck` + `lint`
+y `pre-push` corre `pnpm test` (husky, se instala con `pnpm install`).
+
+**Una vez por cuenta de GitHub, a mano:** Settings → Billing → Spending limit
+en `$0` (al llegar al límite los jobs se frenan, no se cobra), y mirar
+Billing → Actions una vez por mes, que desglosa por repo. En una tienda que no
+va a recibir cambios por un tiempo: Settings → Actions → Disable actions.
+
+Si en tu repo la protección de `main` exige el check `checks`, un PR de sólo
+docs se queda esperándolo (no corre): mergealo como admin, o no marques
+`checks` como obligatorio.
 
 ### 5. Diseño
 
@@ -757,7 +822,7 @@ enteran.
 template:sync` lo trae. Los merge commits de PR no se listan ni se traen: viajan sus commits individuales. El flujo completo:
 
 ```bash
-git remote add template git@github.com:antonmarklundcom/ecom.git   # una vez
+git remote add template https://github.com/antonmarklundcom/ecom.git   # una vez
 git checkout -b poner-al-dia-template   # nunca sobre main
 pnpm template:sync                      # trae la maquinaria, commit por commit
 pnpm template:diff                      # ¿queda algo marcado con ~? revisalo a mano
@@ -770,7 +835,12 @@ commits marcados como maquinaria (ver `template:diff` abajo) — nunca toca
 sincronización real: descarta `fable/` del lado del template (las tiendas no
 tienen el plan de endurecimiento), regenera `pnpm-lock.yaml` con `pnpm install
 --lockfile-only` en vez de tocarlo a mano, y en los workflows de
-`.github/workflows/*.yml` se queda con la versión del template. Con cualquier
+`.github/workflows/*.yml` se queda con la versión del template. Los docs del
+template que una tienda no reescribe (`KNOWN-ISSUES.md`, `ARCH.md`,
+`NEW-STORE.md`, `CHANGELOG.md`) también se quedan con la versión del template:
+chocan sólo porque commits de piel salteados los editaron antes. Y si un
+cherry-pick trae algo de `fable/` o `.github/dependabot.yml` (son sólo del
+template), el commit final lo saca. Con cualquier
 otro conflicto —en `src/`, casi siempre porque vos y el template tocaron la
 misma línea— **para en seco**, deja todo lo demás ya aplicado y te dice qué
 commit, qué archivo y cómo seguir (`git cherry-pick --continue` y volver a

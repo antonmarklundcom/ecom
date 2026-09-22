@@ -22,11 +22,11 @@ Fable no vuelve a correr hasta la próxima revisión.
 |---|---|---|
 | T1 · codex 08 · sync salta merge commits | hecho y auditado (repro manual verde) | `9e8720e` |
 | T2 · codex 09 · flags test en tienda renombrada | hecho y auditado | `554083c` |
-| T3 · codex 10 · aviso MariaDB | **pendiente** | |
-| T4 · codex 11 · distribuir.yml sólo en el template | **pendiente**, CI: lo mira Anton | |
-| T5 · codex 12 · docs revisión vigente + URL remoto | **pendiente** | |
-| T7 · codex 13 · sync choca en docs mixtos | **pendiente**, nuevo | |
-| T6 · bootstrap copia `fable/` | pregunta para Anton, sin despacho | |
+| T3 · codex 10 · aviso MariaDB | hecho en PR #115 (sin Codex) | |
+| T4 · codex 11 · distribuir.yml sólo en el template | hecho en PR #115 | |
+| T5 · codex 12 · docs revisión vigente + URL remoto | hecho en PR #115 (remoto → `https://`) | |
+| T7 · codex 13 · sync choca en docs mixtos | hecho en PR #115 | |
+| T6 · bootstrap copia `fable/` | hecho en PR #115: `SOLO_TEMPLATE` | |
 
 ## Hallazgo T7 (salió del repro de 08)
 

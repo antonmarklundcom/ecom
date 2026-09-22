@@ -3,9 +3,14 @@ name: Distribuir a las tiendas
 # plan-operacion.md §6.5: el template le empuja un PR a cada tienda creada
 # con "Use this template" (tiendas.json) cada vez que llega maquinaria nueva
 # a `main`. Cada tienda decide si lo mergea — su propio CI es el que manda.
+#
+# Corre al publicar una versión del template (tag `v*`, ver CHANGELOG.md) o a
+# mano, no en cada push a main: cada corrida abre un PR en cada tienda, y cada
+# uno de esos PRs corre el CI de esa tienda. Agrupar los arreglos en versiones
+# es lo que mantiene los minutos de Actions bajo control con muchas tiendas.
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
@@ -14,6 +19,10 @@ jobs:
   # sin TIENDAS_TOKEN no debe aparecer como "0 jobs corridos", tiene que
   # decir por qué en el log — es justamente lo que se prueba en este repo).
   preparar:
+    # Este archivo viaja a cada tienda (Use this template, bootstrap:repo,
+    # template:sync), pero sólo tiene sentido en el template: en una tienda no
+    # debe levantar ni un runner.
+    if: github.repository == 'antonmarklundcom/ecom'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:

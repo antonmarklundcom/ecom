@@ -41,6 +41,21 @@ export async function setup(): Promise<void> {
     connectTimeout: 15_000,
   });
 
+  // MariaDB no reproduce el error de resta UNSIGNED de MySQL 8: devuelve
+  // basura en silencio donde MySQL 8 (y CI) tira. Sólo un aviso, nunca falla.
+  try {
+    const [filas] = await admin.query('SELECT VERSION() AS version');
+    const version = String((filas as Array<{ version?: unknown }>)[0]?.version ?? '');
+    if (/mariadb/i.test(version)) {
+      console.warn(
+        '⚠ La suite corre contra MariaDB: una resta entre columnas UNSIGNED no va a fallar acá ' +
+          'aunque falle en MySQL 8 y en CI. Ver KNOWN-ISSUES.md (resta sin signo).',
+      );
+    }
+  } catch {
+    // sin versión no hay aviso; la suite sigue igual
+  }
+
   // Sin esto, cualquier lock trabado deja la suite colgada: el default de
   // lock_wait_timeout en MySQL es de un año. Que falle en un minuto y con un
   // mensaje claro. Requiere SUPER — si no lo tenemos, seguimos igual.
