@@ -18,7 +18,9 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
-| [fable/REVIEW.md](./fable/REVIEW.md) | **La revisión vigente** de Fable (2026-09-11): diagnóstico completo sobre el que salió `fable/plan-crecimiento.md`. La próxima revisión de Fable arranca desde `fable/PROMPT.md` |
+| [fable/REVIEW.md](./fable/REVIEW.md) | Revisión de Fable (2026-09-11): diagnóstico completo sobre el que salió `fable/plan-crecimiento.md`. La última de maquinaria es [fable/REVIEW-2026-09-13.md](./fable/REVIEW-2026-09-13.md), ya aplicada (#109); la próxima arranca desde `fable/PROMPT.md` |
+| [fable/TEMPLATE-REVIEW.md](./fable/TEMPLATE-REVIEW.md) | Auditoría del template como fábrica de tiendas (2026-09-19): wizard, bootstrap, `template:sync`, CI. Hallazgos T1–T7, todos cerrados |
+| [CHANGELOG.md](./CHANGELOG.md) | Versiones del template (`v*`): qué trae cada una y si pide migración. Publicar una versión dispara la distribución a las tiendas |
 | [fable/plan-crecimiento.md](./fable/plan-crecimiento.md) | Plan de deuda de dominio de `KNOWN-ISSUES.md`, recordatorio de pago antes del vencimiento, edición de un pedido sin pagar, kit de tres temas y dependencias. Seis fases O14–S19 en dos ventanas, **todas mergeadas — historial**, igual que `fable/plan-operacion.md` y `fable/plan.md` |
 | [fable/plan-operacion.md](./fable/plan-operacion.md) | Plan de la tienda después del lanzamiento (tracking, notas, remito, resumen diario, backups, acciones masivas, vidriera, CI, distribución a las tiendas). Nueve fases O5–S13, todas mergeadas — **historial**, igual que `fable/plan.md` |
 | [fable/plan.md](./fable/plan.md) | Plan de endurecimiento anterior (revisión en `fable/REVIEW-2026-09-02.md`), mergeado completo — historial |
@@ -66,6 +68,7 @@ reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
 | `pnpm setup:doctor` | ¿esta máquina puede correr `pnpm nueva-tienda`? Node, pnpm, Docker, los remotos, y si `main` se quedó atrás de otras ramas. `--skip-docker` en un contenedor o sesión en la nube — NEW-STORE.md §1 |
 | `pnpm template:diff` | qué arreglos del template le faltan a esta tienda (`--marcar` para fijar el punto de partida) — NEW-STORE.md |
 | `pnpm template:sync` | trae a esta tienda la maquinaria del template, commit por commit — NEW-STORE.md |
+| `pnpm template:probar-tienda` | arma una tienda nueva desde HEAD en un worktree temporal (wizard + typecheck + unitarios): se corre antes de publicar una versión — CHANGELOG.md |
 | `pnpm db:generate` | genera la migración de un cambio de schema |
 | `pnpm preflight` | qué falta para cobrar plata de verdad (webhook sin confirmar, `CRON_SECRET`, `PAGOPAR_MODE` en producción); sale con código 1 si algo es inseguro |
 
