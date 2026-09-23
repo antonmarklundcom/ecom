@@ -76,3 +76,15 @@ todavía no se declara compatible, no un error para "adaptar".
 Arreglo: reintentar `typescript` 7 cuando `typescript-eslint` cierre el
 issue 10940 y publique una versión que declare soporte para TS >= 7.1 (o la
 serie que sea). Hasta entonces, `typescript` se queda en 5.9.x.
+
+## Presupuesto de JS: producto y checkout subieron el techo — 2026-09-23
+
+`tests/e2e/presupuesto.spec.ts` bloqueó el PR de reseñas y favoritos por
+0,2–0,3 KB: producto 229.2 KB > 229, checkout 223.3 KB > 223. Lo nuevo en el
+cliente es el link de favoritos del header (en todas las páginas, con su store
+de `zustand/persist`) y el corazón de la ficha y la tarjeta. Según la regla del
+spec, el techo pasó al valor medido + 10% (producto 252, checkout 246) en vez de
+achicar código desde el test. Si se quiere recuperar ese margen, el candidato es
+cargar `wishlist-header-link` con `next/dynamic` (no hace falta en el primer
+render) — fase aparte.
+
