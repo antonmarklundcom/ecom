@@ -18,6 +18,21 @@ describe("rateLimit", () => {
     expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
   });
 
+  it("la limpieza periódica respeta la ventana de cada clave, no la de quien la dispara", () => {
+    const largo = { limit: 3, windowMs: 15 * 60 * 1000 };
+    const corto = { limit: 30, windowMs: 60 * 1000 };
+    const start = Date.now();
+
+    for (let i = 0; i < 3; i += 1) rateLimit("login:email:x", largo, start);
+    expect(rateLimit("login:email:x", largo, start).ok).toBe(false);
+
+    // Dos minutos después, una búsqueda pública (ventana de 60 s) dispara la
+    // limpieza. Los intentos de login siguen dentro de sus 15 minutos.
+    rateLimit("busqueda:1.2.3.4", corto, start + 2 * 60 * 1000);
+
+    expect(rateLimit("login:email:x", largo, start + 2 * 60 * 1000 + 1).ok).toBe(false);
+  });
+
   it("cuenta por clave: una IP no bloquea a otra", () => {
     const now = Date.now();
     for (let i = 0; i < 5; i += 1) rateLimit("ip:1.1.1.1", OPTIONS, now);

@@ -163,4 +163,29 @@ describe('onRequestError', () => {
     ) as { reqId: string };
     expect(cuerpo.reqId).toBe('req-abc');
   });
+
+  it('ni el log ni el reporte llevan la query: ahí viajan el token del pedido y el secreto del cron', async () => {
+    vi.stubEnv('ERROR_REPORT_URL', 'https://hooks.example.com/x');
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('ok', { status: 200 }));
+
+    // Next llena `path` con `req.url`: ruta **y** query.
+    await onRequestError(new Error('x'), {
+      path: '/pedido/PY-000123?t=token-secreto-del-pedido',
+      method: 'POST',
+    });
+    await onRequestError(new Error('y'), { path: '/api/cron/backup?secret=secreto-del-cron' });
+
+    const salida = [
+      ...logSpy.mock.calls.map((llamada) => llamada.map(String).join(' ')),
+      ...fetchSpy.mock.calls.map((llamada) => String((llamada[1] as RequestInit).body)),
+    ].join('\n');
+    expect(salida).not.toContain('token-secreto-del-pedido');
+    expect(salida).not.toContain('secreto-del-cron');
+    expect(salida).toContain('/pedido/PY-000123');
+    expect(salida).toContain('/api/cron/backup');
+  });
 });
