@@ -219,7 +219,12 @@ async function countCustomerUses(
   // el pedido que el checkout de al lado acaba de commitear, y el mismo
   // WhatsApp se lleva el descuento dos veces. Una lectura con candado lee lo
   // último commiteado — el mismo truco que `heldQtyForUpdate` en stock.ts.
-  const rows = options.locking ? await query.for('share') : await query;
+  //
+  // `FOR UPDATE` y no `FOR SHARE`: MariaDB (la base de Hostinger) no conoce
+  // `FOR SHARE` y la consulta entera falla, o sea el checkout con un cupón
+  // con tope por cliente. Para leer lo último commiteado alcanza cualquiera de
+  // los dos, y el candado del cupón ya serializa a los que compiten.
+  const rows = options.locking ? await query.for('update') : await query;
 
   return Number(rows[0]?.n ?? 0);
 }

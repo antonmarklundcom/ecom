@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "2cc78a33-d01a-4bef-8362-70c18e322723",
+  "id": "cf7bfbe0-5dd4-4563-9b23-b57c7ea5bb93",
   "prevId": "a9615473-3f01-471c-a9ef-3e8095d29dcf",
   "tables": {
     "bank_details": {
@@ -1019,7 +1019,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "cascade"
         },
         "order_return_items_variant_id_variants_id_fk": {

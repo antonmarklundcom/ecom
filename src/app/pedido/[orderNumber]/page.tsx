@@ -307,7 +307,9 @@ export default async function OrderPage({
       <section className="mt-6">
         <h2 className="font-medium">{t("pedido.seguimiento")}</h2>
         <ol className="mt-2 space-y-2 text-sm">
-          {events.map((event) => (
+          {/* Sólo los cambios de estado: los eventos internos que no mueven el
+              estado (avisos por WhatsApp, devoluciones) repetirían la fila. */}
+          {events.filter((event) => event.fromStatus !== event.toStatus).map((event) => (
             <li key={event.id} className="flex gap-3">
               <span className="text-muted-foreground w-36 shrink-0 tabular-nums">
                 {formatDateTimePY(event.createdAt)}

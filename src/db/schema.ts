@@ -784,7 +784,11 @@ export const orderReturnItems = mysqlTable(
       .references(() => orderReturns.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
     orderItemId: int('order_item_id')
       .notNull()
-      .references(() => orderItems.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+      // CASCADE y no RESTRICT: la fila ya cuelga del pedido por `return_id`, y
+      // con dos caminos de borrado (pedido → devolución → ítem y pedido →
+      // línea → ítem) un RESTRICT depende del orden en que InnoDB recorra las
+      // cascadas para dejar borrar un pedido o no.
+      .references(() => orderItems.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
     variantId: int('variant_id')
       .notNull()
       .references(() => variants.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
