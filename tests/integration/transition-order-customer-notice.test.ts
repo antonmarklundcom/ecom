@@ -82,8 +82,12 @@ describe.skipIf(!hasTestDb)("transitionOrder → aviso a la compradora", () => {
     expect(body.template.name).toBe("cliente_pagado");
     expect(body.template.components[0].parameters[0].text).toContain("₲ 250.000");
 
-    const rows = await eventos(orderId);
-    expect(rows.some((r) => r.reason === "aviso_cliente_pagado")).toBe(true);
+    // El evento se escribe después de que `fetch` responde, en el mismo
+    // disparo sin await: esperarlo igual que al fetch, no leerlo una vez.
+    await vi.waitFor(
+      async () => expect((await eventos(orderId)).some((r) => r.reason === "aviso_cliente_pagado")).toBe(true),
+      { timeout: 2000, interval: 20 },
+    );
   });
 
   it("sin la plantilla de ese aviso, no manda nada aunque el resto de WhatsApp Cloud esté listo", async () => {
@@ -114,8 +118,12 @@ describe.skipIf(!hasTestDb)("transitionOrder → aviso a la compradora", () => {
     expect(body.template.name).toBe("cliente_enviado");
     expect(body.template.components[0].parameters[0].text).toContain("Seguimiento: XYZ987");
 
-    const rows = await eventos(orderId);
-    expect(rows.some((r) => r.reason === "aviso_cliente_enviado")).toBe(true);
+    // El evento se escribe después de que `fetch` responde, en el mismo
+    // disparo sin await: esperarlo igual que al fetch, no leerlo una vez.
+    await vi.waitFor(
+      async () => expect((await eventos(orderId)).some((r) => r.reason === "aviso_cliente_enviado")).toBe(true),
+      { timeout: 2000, interval: 20 },
+    );
   });
 
   it("una transición que no cambia nada (webhook repetido) no dispara un segundo aviso", async () => {
