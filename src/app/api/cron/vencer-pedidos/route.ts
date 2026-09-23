@@ -1,3 +1,4 @@
+import { recordJobRun } from "@/domain/job-runs";
 import { runMaintenance } from "@/domain/maintenance";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
 import { log, mensajeDe } from '@/lib/log';
@@ -50,6 +51,13 @@ async function handle(request: Request): Promise<Response> {
       recordatoriosFallidos: report.paymentReminders.fallidos,
     });
 
+    // El latido que mira el resumen del panel: si falta, el cron del hPanel
+    // no está configurado (o dejó de andar) y nadie más se entera.
+    await recordJobRun("vencer_pedidos", {
+      ok: true,
+      payload: { vencidos: report.expired.length, recordatorios: report.paymentReminders.enviados },
+    });
+
     return cronJson({
       ok: true,
       expired: report.expired.length,
@@ -59,6 +67,9 @@ async function handle(request: Request): Promise<Response> {
     });
   } catch (error) {
     log.error('cron: falló la corrida', { error: mensajeDe(error) });
+    // Si la base está caída esto también falla: el aviso del panel igual
+    // salta, porque mira el último éxito.
+    await recordJobRun("vencer_pedidos", { ok: false, error: mensajeDe(error) }).catch(() => {});
     return cronJson({ error: "internal_error" }, 500);
   }
 }

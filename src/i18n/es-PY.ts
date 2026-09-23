@@ -1289,6 +1289,10 @@ export const esPY = {
   "panel.resumen.sinZonas.ayuda":
     "Sin zonas, el checkout cobra ₲0 de envío a cualquier ciudad y el costo lo pagás vos en cada pedido. Cargá al menos Asunción y una zona Interior sin ciudades, que haga de comodín.",
   "panel.resumen.sinZonas.link": "Cargar las zonas de envío →",
+  "panel.resumen.cronNunca": "El cron de vencimientos nunca corrió",
+  "panel.resumen.cronParado": "El cron de vencimientos no corre desde el {cuando}",
+  "panel.resumen.cron.ayuda":
+    "Sin él, los pedidos sin pagar no vencen, el stock queda reservado para siempre y no sale ningún recordatorio de pago. Se configura en el hPanel → Avanzado → Cron Jobs, cada 15 minutos (DEPLOY.md §5).",
 
   "panel.resumen.ventasHoy": "Ventas de hoy",
   "panel.resumen.ventasMes": "Ventas del mes",

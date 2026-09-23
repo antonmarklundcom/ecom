@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { jobRuns } from '@/db/schema';
-import { claimJob, finishJob, getJobRun } from '@/domain/job-runs';
+import { claimJob, cronAtrasado, finishJob, getJobRun, recordJobRun } from '@/domain/job-runs';
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
 
@@ -184,5 +184,34 @@ describe.skipIf(!hasTestDb)('finishJob', () => {
 
     const [fila] = await getTestDb().select().from(jobRuns).where(eq(jobRuns.job, 'backup'));
     expect(fila?.lastError).toHaveLength(500);
+  });
+});
+
+/**
+ * El latido de `vencer-pedidos`: el cron que vence pedidos, libera stock y
+ * manda recordatorios. Sin cron configurado en el hPanel nada falla a la
+ * vista; el resumen del panel lo avisa con esto.
+ */
+describe.skipIf(!hasTestDb)('recordJobRun y cronAtrasado', () => {
+  beforeEach(resetTables);
+  afterAll(closeTestDb);
+
+  it('nunca corrió → atrasado; una corrida buena lo pone al día', async () => {
+    expect(cronAtrasado(await getJobRun('vencer_pedidos'))).toBe(true);
+
+    await recordJobRun('vencer_pedidos', { ok: true, payload: { vencidos: 0 } });
+    const run = await getJobRun('vencer_pedidos');
+    expect(run?.lastOkAt).not.toBeNull();
+    expect(cronAtrasado(run)).toBe(false);
+  });
+
+  it('un fallo no mueve el último éxito, y dos horas sin éxito es atrasado', async () => {
+    const hace3h = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    await recordJobRun('vencer_pedidos', { ok: true, now: hace3h });
+    await recordJobRun('vencer_pedidos', { ok: false, error: 'ECONNREFUSED' });
+
+    const run = await getJobRun('vencer_pedidos');
+    expect(run?.lastError).toBe('ECONNREFUSED');
+    expect(cronAtrasado(run)).toBe(true);
   });
 });

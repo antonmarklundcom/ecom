@@ -5,6 +5,7 @@ import { UnmatchedPayments } from "@/components/admin/unmatched-payments";
 import { listOrders } from "@/domain/admin-orders";
 import { getDashboardSummary, salesTrend, topProducts } from "@/domain/admin-dashboard";
 import { lowStockVariants } from "@/domain/admin-products";
+import { cronAtrasado, getJobRun } from "@/domain/job-runs";
 import { countActiveDemoProducts, countActiveShippingZones } from "@/domain/launch-checks";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
 import { getDatosBancarios } from "@/lib/comercio";
@@ -21,7 +22,8 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboardPage() {
   const actor = await requireCapabilityPage("dashboard");
 
-  const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas] = await Promise.all([
+  const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas, cron] =
+    await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
     lowStockVariants(3, 8),
@@ -31,6 +33,7 @@ export default async function AdminDashboardPage() {
     getDatosBancarios(),
     countActiveDemoProducts(),
     countActiveShippingZones(),
+    getJobRun("vencer_pedidos"),
   ]);
 
   return (
@@ -78,6 +81,22 @@ export default async function AdminDashboardPage() {
           <Link href="/admin/envios" className="mt-2 inline-block text-sm font-medium underline">
             {t("panel.resumen.sinZonas.link")}
           </Link>
+        </section>
+      ) : null}
+
+      {/*
+        El cron de vencimientos (DEPLOY.md §5) no se ve fallar: sin él, los
+        pedidos sin pagar no vencen, el stock queda reservado y no sale ningún
+        recordatorio de pago. Sólo al dueño: es quien tiene el hPanel.
+      */}
+      {cronAtrasado(cron) && can(actor.role, "usuarios") ? (
+        <section className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
+          <h2 className="font-medium">
+            {cron?.lastOkAt
+              ? t("panel.resumen.cronParado", { cuando: formatDateTimePY(cron.lastOkAt) })
+              : t("panel.resumen.cronNunca")}
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">{t("panel.resumen.cron.ayuda")}</p>
         </section>
       ) : null}
 
