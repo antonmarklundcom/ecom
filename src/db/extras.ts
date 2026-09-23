@@ -16,6 +16,7 @@ export const ORDER_NOTES_ACTOR_FK = 'order_notes_actor_fk';
 export const REFUNDS_ACTOR_FK = 'refunds_actor_fk';
 export const PRICE_ADJUSTMENTS_ACTOR_FK = 'price_adjustments_actor_fk';
 export const PRODUCT_REVIEWS_MODERATOR_FK = 'product_reviews_moderator_fk';
+export const ORDER_RETURNS_ACTOR_FK = 'order_returns_actor_fk';
 
 export async function applySchemaExtras(pool: Pool): Promise<string[]> {
   const applied: string[] = [];
@@ -137,6 +138,8 @@ export async function applySchemaExtras(pool: Pool): Promise<string[]> {
     [ORDER_NOTES_ACTOR_FK, 'order_notes'],
     [REFUNDS_ACTOR_FK, 'refunds'],
     [PRICE_ADJUSTMENTS_ACTOR_FK, 'price_adjustments'],
+    // Devoluciones de mercadería: append-only como `refunds`, misma regla.
+    [ORDER_RETURNS_ACTOR_FK, 'order_returns'],
   ] as const) {
     const [rows] = await pool.query<never>(
       `SELECT COUNT(*) AS n FROM information_schema.table_constraints

@@ -464,6 +464,22 @@ async function adjustStockInner(input: StockAdjustment): Promise<{
   previousOnHand: number;
   newOnHand: number;
 }> {
+  return getDb().transaction(async (tx) => applyStockAdjustment(tx, input));
+}
+
+/**
+ * El corazón de `adjustStock`, **adentro de la transacción de quien llama**.
+ *
+ * Existe para que otro movimiento de inventario auditado —la devolución de
+ * mercadería (`src/domain/returns.ts`)— escriba el mismo `stock_adjustments`
+ * con las mismas reglas y en su propia transacción, sin copiar esto. No
+ * dispara el aviso de "volvió el stock": eso va después del commit, y lo
+ * hace quien llama (ver `adjustStock`).
+ */
+export async function applyStockAdjustment(
+  tx: Executor,
+  input: StockAdjustment,
+): Promise<{ previousOnHand: number; newOnHand: number }> {
   const reason = input.reason.trim();
   if (reason.length < ADJUSTMENT_MIN_REASON) {
     throw new AdminInputError("adminError.stock.sinMotivo");
@@ -472,40 +488,38 @@ async function adjustStockInner(input: StockAdjustment): Promise<{
     throw new AdminInputError("adminError.stock.deltaCero");
   }
 
-  return getDb().transaction(async (tx) => {
-    const locked = await tx
-      .select({ id: variants.id, onHand: variants.onHand })
-      .from(variants)
-      .where(eq(variants.id, input.variantId))
-      .for("update");
+  const locked = await tx
+    .select({ id: variants.id, onHand: variants.onHand })
+    .from(variants)
+    .where(eq(variants.id, input.variantId))
+    .for("update");
 
-    const variant = locked[0];
-    if (!variant) throw new AdminInputError("adminError.producto.varianteNoExiste");
+  const variant = locked[0];
+  if (!variant) throw new AdminInputError("adminError.producto.varianteNoExiste");
 
-    // `on_hand` es UNSIGNED: restar de más haría wrap-around a un número
-    // gigante en vez de fallar. Se corta acá.
-    const newOnHand = variant.onHand + input.delta;
-    if (newOnHand < 0) {
-      throw new AdminInputError("adminError.stock.negativo", {
-        cantidad: Math.abs(input.delta),
-        stock: variant.onHand,
-      });
-    }
-
-    await tx.update(variants).set({ onHand: newOnHand }).where(eq(variants.id, variant.id));
-
-    await tx.insert(stockAdjustments).values({
-      variantId: variant.id,
-      delta: input.delta,
-      previousOnHand: variant.onHand,
-      newOnHand,
-      reason: reason.slice(0, 300),
-      actor: input.actor,
-      actorUserId: input.actorUserId ?? null,
+  // `on_hand` es UNSIGNED: restar de más haría wrap-around a un número
+  // gigante en vez de fallar. Se corta acá.
+  const newOnHand = variant.onHand + input.delta;
+  if (newOnHand < 0) {
+    throw new AdminInputError("adminError.stock.negativo", {
+      cantidad: Math.abs(input.delta),
+      stock: variant.onHand,
     });
+  }
 
-    return { previousOnHand: variant.onHand, newOnHand };
+  await tx.update(variants).set({ onHand: newOnHand }).where(eq(variants.id, variant.id));
+
+  await tx.insert(stockAdjustments).values({
+    variantId: variant.id,
+    delta: input.delta,
+    previousOnHand: variant.onHand,
+    newOnHand,
+    reason: reason.slice(0, 300),
+    actor: input.actor,
+    actorUserId: input.actorUserId ?? null,
   });
+
+  return { previousOnHand: variant.onHand, newOnHand };
 }
 
 /** Historial de ajustes de una variante, para la ficha del producto. */

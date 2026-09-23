@@ -131,4 +131,6 @@ const KNOWN_DOMAIN_ERRORS = [
   "TrackingNotAllowedError",
   // Reseñas: "esa reseña ya no existe", "la respuesta es muy larga".
   "ReviewError",
+  // Devoluciones: "de esa línea se pueden devolver 1 como máximo".
+  "ReturnError",
 ];

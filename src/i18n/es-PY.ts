@@ -1793,4 +1793,52 @@ export const esPY = {
   "panel.resenas.rechazada": "Reseña rechazada.",
   "panel.resenas.respuestaGuardada": "Respuesta guardada.",
   "adminError.noEntendi.resena": "No entendí qué hacer con esa reseña.",
+
+  // -------------------------------------------------------------------------
+  // Devoluciones de mercadería (`src/domain/returns.ts`): qué volvió y si va
+  // al stock. La plata sigue por el reembolso, aparte.
+  // -------------------------------------------------------------------------
+  "error.devolucion.sinMotivo": "Contá en pocas palabras por qué vuelve la mercadería.",
+  "error.devolucion.motivoLargo": "El motivo puede tener hasta {maximo} caracteres.",
+  "error.devolucion.sinItems": "Elegí al menos una unidad que vuelva.",
+  "error.devolucion.cantidad": "Las cantidades tienen que ser enteras y mayores que cero.",
+  "error.devolucion.lineaRepetida": "Una línea del pedido aparece dos veces en la devolución.",
+  "error.devolucion.pedidoNoExiste": "Ese pedido no existe.",
+  "error.devolucion.estado":
+    "Sólo se registra una devolución de un pedido enviado, entregado o reembolsado. Antes de eso, editalo o cancelalo.",
+  "error.devolucion.lineaAjena": "Esa línea no es de este pedido.",
+  "error.devolucion.demasiado": "De {producto} se pueden devolver {queda} como máximo.",
+  "adminError.noEntendi.mercaderia": "No entendí la devolución. Revisá las cantidades.",
+
+  "panel.nav.devoluciones": "Devoluciones",
+  "panel.devoluciones.meta": "Devoluciones",
+  "panel.devoluciones.titulo": "Devoluciones",
+  "panel.devoluciones.bajada":
+    "Las últimas mercaderías que volvieron. La plata, si se devolvió, está en el reembolso de cada pedido.",
+  "panel.devoluciones.vacio": "Todavía no se registró ninguna devolución.",
+  "panel.devoluciones.item": "{n}× {producto}",
+  "panel.devoluciones.repuesto": "volvió al stock",
+  "panel.devoluciones.noRepuesto": "no volvió al stock",
+  "panel.devoluciones.motivo": "Motivo: {motivo}",
+
+  // Ficha del pedido.
+  "panel.pedido.devoluciones": "Devoluciones",
+  "panel.pedido.devoluciones.ninguna": "Este pedido no tiene devoluciones.",
+  "panel.pedido.devoluciones.noCorresponde":
+    "Se registra una devolución cuando el pedido ya salió (enviado, entregado o reembolsado).",
+  "panel.pedido.devoluciones.nueva": "Registrar una devolución",
+  "panel.pedido.devoluciones.cantidad": "Vuelven",
+  "panel.pedido.devoluciones.deTotal": "de {n}",
+  "panel.pedido.devoluciones.alStock": "Volver al stock",
+  "panel.pedido.devoluciones.motivo": "Motivo",
+  "panel.pedido.devoluciones.motivoPlaceholder": "Ej: cambio de talle, llegó fallado",
+  "panel.pedido.devoluciones.registrar": "Registrar devolución",
+  "panel.pedido.devoluciones.registrando": "Registrando…",
+  "panel.pedido.devoluciones.registrada": "Devolución registrada.",
+  "panel.pedido.devoluciones.nadaQueDevolver": "Ya se devolvió todo lo de este pedido.",
+  "panel.pedido.devoluciones.reembolso": "¿Hay que devolver plata? Usá el reembolso de este pedido.",
+
+  // Página pública del pedido, con el pedido entregado.
+  "pedido.cambio.link": "¿Querés cambiar o devolver algo?",
+  "pedido.cambio.waMensaje": "¡Hola! Quiero cambiar o devolver algo de mi pedido {numero}.",
 } as const satisfies Record<string, string>;

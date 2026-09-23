@@ -66,6 +66,14 @@ export default async function OrderPage({
     })
   );
 
+  // "¿Querés cambiar o devolver algo?": sólo con el pedido entregado, y por
+  // el mismo armador de links que el botón flotante (`comercioWaLink`): sin
+  // WHATSAPP_NUMBER devuelve null y no se dibuja nada.
+  const cambioWaHref =
+    order.status === "entregado"
+      ? comercioWaLink(t("pedido.cambio.waMensaje", { numero: order.orderNumber }))
+      : null;
+
   // PLAN 3.6: mensaje pre-armado con nro. de pedido, total y la URL
   // tokenizada — bien por debajo del límite de ~1500 caracteres de waLink()
   // (ARCH.md §5 punto 4).
@@ -233,6 +241,20 @@ export default async function OrderPage({
           <p className="text-muted-foreground mt-1 text-sm">{t("pedido.resenas.bajada")}</p>
           <ReviewForms orderNumber={order.orderNumber} token={token} items={reviewable} />
         </section>
+      ) : null}
+
+      {cambioWaHref ? (
+        <p className="mt-4 text-sm">
+          <a
+            href={cambioWaHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid={TESTIDS.pedidoCambioLink}
+            className="text-muted-foreground hover:text-foreground underline"
+          >
+            {t("pedido.cambio.link")}
+          </a>
+        </p>
       ) : null}
 
       <section className="mt-6">

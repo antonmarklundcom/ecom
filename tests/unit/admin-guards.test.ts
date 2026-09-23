@@ -215,6 +215,10 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   // `productos`. Crear o editar una reseña no es una acción de nadie.
   moderarResena: 'Staff',
   responderResena: 'Staff',
+
+  // Devoluciones de mercadería: mueven stock, no plata. Mismos roles que el
+  // ajuste de stock; el reembolso sigue siendo `markPaymentRefunded` (Owner).
+  registrarDevolucion: 'Staff',
 };
 
 describe('cada acción llama al guard que le corresponde', () => {

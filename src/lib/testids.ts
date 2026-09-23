@@ -172,6 +172,17 @@ export const TESTIDS = {
   productReviewsSection: "product-reviews-section",
   /** Una fila de `/admin/resenas`, con `data-review-id`. */
   adminReviewRow: "admin-review-row",
+
+  // Devoluciones de mercadería.
+  /** El bloque "Devoluciones" de la ficha del pedido, con las ya registradas. */
+  adminReturnsBlock: "admin-returns-block",
+  adminReturnForm: "admin-return-form",
+  /** Cantidad por línea (`return-form.tsx`), con `data-order-item-id`. */
+  adminReturnQty: "admin-return-qty",
+  adminReturnReason: "admin-return-reason",
+  adminReturnSubmit: "admin-return-submit",
+  /** El link "¿Querés cambiar o devolver algo?" de la página del pedido. */
+  pedidoCambioLink: "pedido-cambio-link",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];

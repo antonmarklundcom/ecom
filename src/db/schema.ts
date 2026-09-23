@@ -731,6 +731,74 @@ export const orderNotes = mysqlTable(
 );
 
 /**
+ * Devoluciones de mercadería: qué volvió de un pedido y si se repuso al stock.
+ *
+ * Append-only, como `refunds` y `stock_adjustments`: una devolución no se
+ * edita ni se borra. Si se cargó de más, la corrección es otro movimiento
+ * (un ajuste de stock con su motivo), y las dos filas quedan para contar la
+ * historia completa.
+ *
+ * **No es plata.** El reembolso vive en `refunds` y se registra aparte, con
+ * su propio formulario y su propio permiso (owner). Una devolución de
+ * mercadería puede no tener reembolso —un cambio por otro talle— y un
+ * reembolso puede no tener mercadería que vuelva —un paquete perdido—: atar
+ * las dos cosas obligaría a inventar una de las mitades.
+ *
+ * `ON DELETE CASCADE` contra el pedido: sin pedido, la devolución no dice
+ * nada. El stock que se repuso ya quedó contado en `stock_adjustments`.
+ */
+export const orderReturns = mysqlTable(
+  'order_returns',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    orderId: int('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    /** Obligatorio por diseño, igual que en `stock_adjustments`. */
+    reason: varchar('reason', { length: 500 }).notNull(),
+    actor: varchar('actor', { length: 120 }).notNull(),
+    /** La FK consultable; ver el comentario largo en `stock_adjustments`. */
+    actorUserId: int('actor_user_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('order_returns_order_idx').on(t.orderId),
+    index('order_returns_created_idx').on(t.createdAt),
+  ],
+);
+
+/**
+ * Las líneas de una devolución: cuántas unidades de qué línea del pedido, y
+ * si volvieron al stock (una prenda manchada vuelve, pero no se vende).
+ *
+ * `RESTRICT` contra `order_items` y `variants`, como `order_items` contra
+ * `variants`: una línea que alguna vez se devolvió no puede desaparecer
+ * debajo del registro.
+ */
+export const orderReturnItems = mysqlTable(
+  'order_return_items',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    returnId: int('return_id')
+      .notNull()
+      .references(() => orderReturns.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    orderItemId: int('order_item_id')
+      .notNull()
+      .references(() => orderItems.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    variantId: int('variant_id')
+      .notNull()
+      .references(() => variants.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    /** ≥ 1, y nunca más de lo pedido menos lo ya devuelto de esa línea. */
+    qty: int('qty', { unsigned: true }).notNull(),
+    restocked: boolean('restocked').notNull(),
+  },
+  (t) => [
+    index('order_return_items_return_idx').on(t.returnId),
+    index('order_return_items_order_item_idx').on(t.orderItemId),
+  ],
+);
+
+/**
  * Reseñas de producto, sólo de compras verificadas (ver `src/domain/reviews.ts`).
  *
  * Cada fila cuelga de un **pedido entregado** y no de una persona: es lo que
@@ -1203,6 +1271,10 @@ export const BACKUP_TABLES = [
   'order_notes',
   // Cuelga de `products` y de `orders`.
   'product_reviews',
+  // Devoluciones: la cabecera cuelga de `orders`, las líneas de ella, de
+  // `order_items` y de `variants`.
+  'order_returns',
+  'order_return_items',
   'payments',
   'refunds',
   'receipts',

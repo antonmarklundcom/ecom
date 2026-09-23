@@ -307,6 +307,8 @@ export const PRIMARY_KEY: Record<BackupTable, string | null> = {
   order_events: 'id',
   order_notes: 'id',
   product_reviews: 'id',
+  order_returns: 'id',
+  order_return_items: 'id',
   payments: 'id',
   refunds: 'id',
   receipts: 'id',

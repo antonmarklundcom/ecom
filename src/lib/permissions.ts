@@ -93,6 +93,12 @@ export const CAPABILITIES = [
    * (`src/domain/reviews.ts`).
    */
   "resenas",
+  /**
+   * Registrar una devolución de mercadería: qué volvió de un pedido y si va
+   * al stock. Mismos roles que `stock`, porque eso es lo que mueve. **No es
+   * `reembolsos`**: la plata que sale se registra aparte, owner-only.
+   */
+  "devoluciones",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -121,6 +127,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     "productos",
     "resenas",
     "stock",
+    "devoluciones",
     "clientes",
     // El encargado supervisa el turno: es el que necesita saber quién marcó
     // ese pedido como entregado un domingo. Lo que no puede es repartir
