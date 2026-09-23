@@ -252,7 +252,7 @@ inicializa sola con un curl.
 4. **Verificá**:
 
    ```bash
-   curl -fsS https://DOMAIN/api/health   # {"ok":true,"db":true}
+   curl -fsS https://DOMAIN/api/health   # {"ok":true,"db":true,"cron":…}
    ```
 
    El `preflight` ya vino en la respuesta del paso 3 (mirá `blocking` y los
@@ -447,8 +447,10 @@ el logger los redacta por nombre de campo.
 curl -fsS https://TU-DOMINIO/api/health
 ```
 
-Tiene que devolver `{"ok":true,"db":true}`. `db:false` significa que la app
-levantó pero no llega a MySQL — volvé al punto 3 con `pnpm db:check`.
+Tiene que devolver `{"ok":true,"db":true,"cron":true}`. `db:false` significa
+que la app levantó pero no llega a MySQL — volvé al punto 3 con `pnpm
+db:check`. `cron:false` es que `vencer-pedidos` todavía no corrió (o no corre
+desde hace 2 h): revisá el punto 5 — recién configurado, esperá 15 minutos.
 
 Y desde tu máquina, apuntando al entorno real:
 
@@ -532,7 +534,11 @@ Stack, Hetrix): apuntalo a `https://TU-DOMINIO/api/health` cada 5 minutos.
 > monitor que sólo mira el 200 te va a decir que todo anda mientras la tienda no
 > puede vender nada.
 
-En el monitor, entonces: alertar si la respuesta **no contiene** `"db":true`.
+En el monitor, entonces: alertar si la respuesta **no contiene**
+`"db":true,"cron":true`. El `cron` es el otro silencio: `false` si
+`vencer-pedidos` no corrió en las últimas 2 horas (§5) — sin él no vence
+ningún pedido sin pagar, el stock queda reservado y no sale ningún
+recordatorio de pago.
 
 Con varias tiendas, uno por tienda y con el nombre del comercio en la alerta:
 a las 3 de la mañana no vas a adivinar cuál de las cuatro se cayó.

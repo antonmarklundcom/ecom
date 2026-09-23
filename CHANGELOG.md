@@ -77,7 +77,8 @@ Migración: no.
   `job_runs`, y el resumen del panel le avisa al dueño si nunca corrió o si
   lleva más de 2 h sin correr. Sin ese cron los pedidos sin pagar no vencen,
   el stock queda reservado y no sale ningún recordatorio — sin nada roto a la
-  vista.
+  vista. `/api/health` suma `"cron"`: el monitor de DEPLOY.md §8 ahora
+  busca `"db":true,"cron":true`.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 

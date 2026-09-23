@@ -1,9 +1,10 @@
 import { getPool } from '@/db';
+import { cronAtrasado, getJobRun } from '@/domain/job-runs';
 
 /**
  * Prueba de humo post-deploy (DEPLOY.md §6).
  *
- *   curl -fsS https://TU-DOMINIO/api/health   →   {"ok":true,"db":true}
+ *   curl -fsS https://TU-DOMINIO/api/health   →   {"ok":true,"db":true,"cron":true}
  *
  * Separa las dos preguntas que el deploy confunde todo el tiempo: **¿levantó
  * la app?** (llegó una respuesta) y **¿llega a MySQL?** (`db`). `db:false` con
@@ -12,7 +13,7 @@ import { getPool } from '@/db';
  *
  * Va sin autenticar a propósito: tiene que poder llamarla el monitoreo de
  * Hostinger, un uptime checker o vos desde el celular, sin secretos dando
- * vueltas. Por eso la respuesta son dos booleanos y nada más: ni versiones, ni
+ * vueltas. Por eso la respuesta son booleanos y nada más: ni versiones, ni
  * nombre de la base, ni el error de MySQL. Un atacante no aprende nada acá que
  * no sepa por mirar si el sitio carga.
  */
@@ -27,10 +28,17 @@ export const dynamic = 'force-dynamic';
  */
 const DB_TIMEOUT_MS = 3_000;
 
+/**
+ * `cron`: ¿corrió `vencer-pedidos` en las últimas 2 h? Es el otro silencio que
+ * un monitor tiene que ver: sin ese cron no vence ningún pedido sin pagar, el
+ * stock queda reservado y no sale ningún recordatorio (DEPLOY.md §5). Con la
+ * base caída no se puede saber, y se contesta `false`.
+ */
 export async function GET(): Promise<Response> {
   const db = await dbResponde();
+  const cron = db ? await cronAlDia() : false;
 
-  return new Response(JSON.stringify({ ok: true, db }), {
+  return new Response(JSON.stringify({ ok: true, db, cron }), {
     status: 200,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   });
@@ -47,6 +55,14 @@ async function dbResponde(): Promise<boolean> {
     // Sin log: esta ruta la puede llamar cualquiera, y un endpoint público que
     // escribe una línea por request es una forma barata de llenar el disco del
     // slot de Hostinger.
+    return false;
+  }
+}
+
+async function cronAlDia(): Promise<boolean> {
+  try {
+    return !cronAtrasado(await getJobRun('vencer_pedidos'));
+  } catch {
     return false;
   }
 }
