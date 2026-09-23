@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { products, variants } from "@/db/schema";
+import { categories, products, variants } from "@/db/schema";
 import { assertGs, ivaBreakdown, lineTotal } from "@/lib/money";
 
 import type { CartIssue } from "@/lib/cart-issues";
@@ -76,9 +76,12 @@ export async function priceCart(
       name: products.name,
       ivaRate: products.ivaRate,
       productActive: products.isActive,
+      publishedAt: products.publishedAt,
+      categoryActive: categories.isActive,
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
+    .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(
       and(
         inArray(
@@ -100,7 +103,17 @@ export async function priceCart(
   for (const item of wanted) {
     const row = byVariant.get(item.variantId);
 
-    if (!row || !row.variantActive || !row.productActive) {
+    // El mismo criterio que la vidriera (`PUBLISHED` en src/db/queries.ts):
+    // lo que no se puede ver tampoco se puede comprar con un carrito viejo o
+    // un POST armado a mano — un producto cargado para el lanzamiento del
+    // viernes no se vende el jueves.
+    if (
+      !row ||
+      !row.variantActive ||
+      !row.productActive ||
+      row.publishedAt === null ||
+      !row.categoryActive
+    ) {
       issues.push({
         type: "no_disponible",
         variantId: item.variantId,

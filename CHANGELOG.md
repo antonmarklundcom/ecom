@@ -35,6 +35,11 @@ Migración: no.
   `time_zone = '+00:00'`. Con la hora del servidor (Hostinger: `SYSTEM`), las
   reservas vencían antes de nacer o duraban horas de más. CI corre MySQL a
   -03:00 para que no vuelva.
+- **Checkout:** no vende productos sin publicar ni de una categoría apagada
+  (un carrito viejo o un POST armado a mano los compraba). El tope de un
+  cupón por cliente ya no se pasa con dos checkouts simultáneos del mismo
+  WhatsApp. Y editar un pedido sin bajarle el subtotal (corregir la
+  dirección) ya no le quita el cupón si el comercio subió el mínimo después.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 

@@ -314,6 +314,27 @@ describe.skipIf(!hasTestDb)('concurrencia: el cupón de un solo uso', () => {
     expect(conDescuento).toHaveLength(1);
   });
 
+  it('el mismo WhatsApp en dos checkouts simultáneos no pasa el tope por cliente', async () => {
+    // Sin tope global: lo único que frena es `maxUsesPerCustomer`. La cuenta
+    // de usos tiene que leer lo último commiteado (lectura con candado), no la
+    // foto de la transacción, que se tomó antes de esperar el candado.
+    await unCupon({ type: 'monto_fijo', value: 10_000, maxUsesPerCustomer: 1 });
+    const variantId = await createVariant({ onHand: 10, pricePyg: 100_000 });
+
+    const resultados = await Promise.allSettled(
+      Array.from({ length: 3 }, () =>
+        createOrder(input({ items: [{ variantId, qty: 1 }], couponCode: 'BIENVENIDA' })),
+      ),
+    );
+
+    expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const conDescuento = await getTestDb()
+      .select()
+      .from(orders)
+      .where(sql`${orders.discountPyg} > 0`);
+    expect(conDescuento).toHaveLength(1);
+  });
+
   it('cinco simultáneos con tope de dos: gastan exactamente dos', async () => {
     await unCupon({ type: 'monto_fijo', value: 10_000, maxUses: 2 });
     const variantId = await createVariant({ onHand: 50, pricePyg: 100_000 });

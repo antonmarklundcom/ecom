@@ -327,6 +327,27 @@ describe.skipIf(!hasTestDb)('editPendingOrder', () => {
     expect(row.totalPyg).toBe(row.subtotalPyg + row.shippingPyg);
   });
 
+  it('un mínimo subido después de la compra no le quita el cupón a una edición que no baja el subtotal', async () => {
+    await createCoupon({ code: 'DESC10', type: 'porcentaje', value: 10, minOrderPyg: 200_000 });
+    const variantId = await createVariant({ onHand: 10, pricePyg: 100_000 });
+    const order = await placeOrder(input({ items: [{ variantId, qty: 3 }], couponCode: 'DESC10' }));
+    expect((await leer(order.orderId)).discountPyg).toBe(30_000);
+
+    // El comercio sube el mínimo para los pedidos que vienen.
+    await getTestDb().update(coupons).set({ minOrderPyg: 400_000 }).where(eq(coupons.code, 'DESC10'));
+
+    // Y a esta compradora sólo se le corrige la dirección.
+    const resultado = await editPendingOrder({
+      orderId: order.orderId,
+      actor: ACTOR,
+      shipping: { city: 'Asunción', address: 'Otra calle 123' },
+      reason: 'corrigió la dirección',
+    });
+
+    expect(resultado.couponRemoved).toBe(false);
+    expect((await leer(order.orderId)).discountPyg).toBe(30_000);
+  });
+
   it.each([
     { qty: 1, removed: true, timesUsed: 0 },
     { qty: 2, removed: false, timesUsed: 1 },

@@ -3,10 +3,10 @@ import { eq } from "drizzle-orm";
 
 import { priceCart } from "@/domain/cart";
 import { reserveStock } from "@/domain/stock";
-import { products, variants } from "@/db/schema";
+import { categories, products, variants } from "@/db/schema";
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from "../helpers/db";
-import { createOrder, createProduct, createVariant } from "../helpers/factories";
+import { createCategory, createOrder, createProduct, createVariant } from "../helpers/factories";
 
 const inOneDay = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -82,6 +82,30 @@ describe.skipIf(!hasTestDb)("priceCart", () => {
 
     expect(cart.lines).toHaveLength(0);
     expect(cart.issues).toHaveLength(3);
+  });
+
+  it("no vende lo que la vidriera no muestra: sin publicar o de una categoría apagada", async () => {
+    const db = getTestDb();
+
+    const borrador = await createProduct();
+    const deBorrador = await createVariant({ onHand: 5, productId: borrador });
+    await db.update(products).set({ publishedAt: null }).where(eq(products.id, borrador));
+
+    const categoriaApagada = await createCategory();
+    const deCategoriaApagada = await createVariant({
+      onHand: 5,
+      productId: await createProduct(categoriaApagada),
+    });
+    await db.update(categories).set({ isActive: false }).where(eq(categories.id, categoriaApagada));
+
+    // Un carrito viejo en localStorage, o un POST armado a mano con el id.
+    const cart = await priceCart([
+      { variantId: deBorrador, qty: 1 },
+      { variantId: deCategoriaApagada, qty: 1 },
+    ]);
+
+    expect(cart.lines).toHaveLength(0);
+    expect(cart.issues.map((issue) => issue.type)).toEqual(["no_disponible", "no_disponible"]);
   });
 
   it("junta líneas repetidas de la misma variante", async () => {
