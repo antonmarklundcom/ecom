@@ -42,6 +42,8 @@ export type SitemapEntry = {
 export type SitemapInput = {
   categories: { slug: string }[];
   products: { slug: string; updatedAt: Date | null }[];
+  /** Las páginas de políticas prendidas (`/envios`, `/terminos`…), por slug. */
+  pages?: string[];
 };
 
 /**
@@ -89,6 +91,11 @@ export function buildSitemap(origin: URL, input: SitemapInput): SitemapEntry[] {
       ...(product.updatedAt ? { lastModified: product.updatedAt } : {}),
       changeFrequency: "weekly" as const,
       priority: 0.6,
+    })),
+    ...(input.pages ?? []).map((slug) => ({
+      url: `${base}/${slug}`,
+      changeFrequency: "monthly" as const,
+      priority: 0.3,
     })),
   ];
 }
@@ -167,9 +174,17 @@ export function productJsonLd(input: {
   rating?: { average: number; count: number };
   /** Las aprobadas más nuevas primero; se publican las 5 primeras. */
   reviews?: ProductReviewLd[];
+  /**
+   * Envío y devoluciones, tal como los cargó el dueño en `/admin/ajustes`
+   * (sección "Envíos y devoluciones"). Lo que falta no se inventa: ver
+   * `offerShippingLd` y `returnPolicyLd`.
+   */
+  merchant?: MerchantPoliciesLd;
 }): JsonLd {
   const url = input.origin ? `${input.origin.origin}/producto/${input.slug}` : undefined;
   const conResenas = input.rating !== undefined && input.rating.count >= 1;
+  const shippingDetails = input.merchant ? offerShippingLd(input.merchant) : null;
+  const returnPolicy = input.merchant ? returnPolicyLd(input.merchant) : null;
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -189,6 +204,8 @@ export function productJsonLd(input: {
       url,
       availability:
         variant.available > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      ...(shippingDetails ? { shippingDetails } : {}),
+      ...(returnPolicy ? { hasMerchantReturnPolicy: returnPolicy } : {}),
     })),
     ...(conResenas && input.rating
       ? {
@@ -235,4 +252,138 @@ function reviewLd(review: ProductReviewLd): JsonLd {
 function isoDatePY(date: Date): string {
   const [dia, mes, anio] = formatDatePY(date).split("/");
   return `${anio}-${mes}-${dia}`;
+}
+
+/**
+ * Los datos de envío y devolución que Google pide en cada `Offer` (Merchant
+ * listings). Todos opcionales: `null` = el dueño no lo cargó.
+ */
+export type MerchantPoliciesLd = {
+  handlingDaysMin: number | null;
+  handlingDaysMax: number | null;
+  transitDaysMin: number | null;
+  transitDaysMax: number | null;
+  shippingFromPyg: number | null;
+  acceptsReturns: boolean | null;
+  returnDays: number | null;
+  returnFees: "cliente" | "gratis" | null;
+  returnMethod: "envio" | "local" | "ambos" | null;
+};
+
+/**
+ * `OfferShippingDetails`, **sólo** con el precio "desde" y los dos rangos de
+ * días completos. Un envío a medias (precio sin plazos) Google lo marca como
+ * error, y un plazo inventado es una promesa que la tienda no hizo.
+ */
+export function offerShippingLd(m: MerchantPoliciesLd): JsonLd | null {
+  const completo =
+    m.shippingFromPyg !== null &&
+    m.handlingDaysMin !== null &&
+    m.handlingDaysMax !== null &&
+    m.transitDaysMin !== null &&
+    m.transitDaysMax !== null;
+  if (!completo) return null;
+
+  return {
+    "@type": "OfferShippingDetails",
+    shippingRate: { "@type": "MonetaryAmount", value: m.shippingFromPyg, currency: "PYG" },
+    shippingDestination: { "@type": "DefinedRegion", addressCountry: "PY" },
+    deliveryTime: {
+      "@type": "ShippingDeliveryTime",
+      handlingTime: {
+        "@type": "QuantitativeValue",
+        minValue: m.handlingDaysMin,
+        maxValue: m.handlingDaysMax,
+        unitCode: "DAY",
+      },
+      transitTime: {
+        "@type": "QuantitativeValue",
+        minValue: m.transitDaysMin,
+        maxValue: m.transitDaysMax,
+        unitCode: "DAY",
+      },
+    },
+  };
+}
+
+/**
+ * `MerchantReturnPolicy`, **sólo** si el dueño contestó "¿aceptás
+ * devoluciones?". Con "sí" hace falta la cantidad de días: sin ella no hay
+ * ventana que publicar y se omite entera antes que inventar una.
+ */
+export function returnPolicyLd(m: MerchantPoliciesLd): JsonLd | null {
+  if (m.acceptsReturns === null) return null;
+
+  if (m.acceptsReturns === false) {
+    return {
+      "@type": "MerchantReturnPolicy",
+      applicableCountry: "PY",
+      returnPolicyCategory: "https://schema.org/MerchantReturnNotPermitted",
+    };
+  }
+
+  if (m.returnDays === null || m.returnDays <= 0) return null;
+
+  const metodos = {
+    envio: "https://schema.org/ReturnByMail",
+    local: "https://schema.org/ReturnInStore",
+  } as const;
+
+  return {
+    "@type": "MerchantReturnPolicy",
+    applicableCountry: "PY",
+    returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+    merchantReturnDays: m.returnDays,
+    ...(m.returnFees === "gratis"
+      ? { returnFees: "https://schema.org/FreeReturn" }
+      : m.returnFees === "cliente"
+        ? { returnFees: "https://schema.org/ReturnFeesCustomerResponsibility" }
+        : {}),
+    ...(m.returnMethod === "ambos"
+      ? { returnMethod: [metodos.envio, metodos.local] }
+      : m.returnMethod
+        ? { returnMethod: metodos[m.returnMethod] }
+        : {}),
+  };
+}
+
+/**
+ * `Organization` de la home: quién es la tienda y cómo contactarla. Sin
+ * origen configurado **no sale**: `url` es lo que identifica a la
+ * organización, y un JSON-LD sin ella (o con un dominio adivinado) es peor
+ * que ninguno. Mismo criterio que la `url` de `productJsonLd`.
+ */
+export function organizationJsonLd(input: {
+  origin: URL | null;
+  name: string;
+  /** Ya normalizado (`+595…`). */
+  telephone?: string | null;
+  email?: string | null;
+  /** Perfiles de redes (`https://…`). */
+  sameAs?: string[];
+}): JsonLd | null {
+  if (!input.origin) return null;
+
+  const contacto =
+    input.telephone || input.email
+      ? {
+          contactPoint: {
+            "@type": "ContactPoint",
+            contactType: "customer service",
+            ...(input.telephone ? { telephone: input.telephone } : {}),
+            ...(input.email ? { email: input.email } : {}),
+            areaServed: "PY",
+          },
+        }
+      : {};
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: input.name,
+    url: `${input.origin.origin}/`,
+    ...(input.email ? { email: input.email } : {}),
+    ...contacto,
+    ...(input.sameAs && input.sameAs.length > 0 ? { sameAs: input.sameAs } : {}),
+  };
 }

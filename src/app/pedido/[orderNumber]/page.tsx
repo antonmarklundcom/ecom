@@ -14,7 +14,7 @@ import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import { REVIEWABLE_ORDER_STATUS, listReviewableItems } from "@/domain/reviews";
 import { t } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
-import { comercioWaLink, getDatosBancarios } from "@/lib/comercio";
+import { getDatosBancarios, waLinkPublico } from "@/lib/comercio";
 import { formatGs, formatGsPlain } from "@/lib/money";
 import { ORDER_STATUS_LABEL_COMPRADOR } from "@/lib/order-labels";
 import { formatDateTimePY } from "@/lib/py";
@@ -59,7 +59,9 @@ export default async function OrderPage({
     puedeCalificar ? listReviewableItems(order.id) : Promise.resolve([]),
   ]);
 
-  const waHref = comercioWaLink(
+  // Los links de acá van al WhatsApp **público** (`/admin/ajustes` o
+  // `WHATSAPP_NUMBER`): es la compradora escribiéndole a la tienda.
+  const waHref = await waLinkPublico(
     t("pedido.consultaWhatsApp", {
       numero: order.orderNumber,
       total: formatGs(order.totalPyg),
@@ -67,11 +69,11 @@ export default async function OrderPage({
   );
 
   // "¿Querés cambiar o devolver algo?": sólo con el pedido entregado, y por
-  // el mismo armador de links que el botón flotante (`comercioWaLink`): sin
-  // WHATSAPP_NUMBER devuelve null y no se dibuja nada.
+  // el mismo armador de links que el botón flotante (`waLinkPublico`): sin
+  // número configurado devuelve null y no se dibuja nada.
   const cambioWaHref =
     order.status === "entregado"
-      ? comercioWaLink(t("pedido.cambio.waMensaje", { numero: order.orderNumber }))
+      ? await waLinkPublico(t("pedido.cambio.waMensaje", { numero: order.orderNumber }))
       : null;
 
   // PLAN 3.6: mensaje pre-armado con nro. de pedido, total y la URL
@@ -79,7 +81,7 @@ export default async function OrderPage({
   // (ARCH.md §5 punto 4).
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const buyerUrl = `${siteUrl}${orderUrl(order.orderNumber, order.accessToken)}`;
-  const comprobanteWaHref = comercioWaLink(
+  const comprobanteWaHref = await waLinkPublico(
     t("pedido.comprobante.waMensaje", {
       numero: order.orderNumber,
       total: formatGs(order.totalPyg),

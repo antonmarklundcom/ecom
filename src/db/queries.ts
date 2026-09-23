@@ -18,6 +18,7 @@ import { getDb } from "@/db";
 import { categories, orderItems, orders, productImages, products, variants } from "@/db/schema";
 
 import type { Executor } from "@/domain/executor";
+import { getRatingSummaries, type RatingSummary } from "@/domain/reviews";
 import { heldQtyMap } from "@/domain/stock";
 
 export type CatalogVariant = {
@@ -45,6 +46,12 @@ export type CatalogProduct = {
   categorySlug: string;
   image: CatalogImage | null;
   variants: CatalogVariant[];
+  /**
+   * Promedio y cantidad de reseñas **aprobadas**, sólo si tiene al menos una.
+   * Opcional: quien arma un `CatalogProduct` a mano (tests, el feed) no tiene
+   * por qué traerlo, y la tarjeta sin esto se dibuja como siempre.
+   */
+  rating?: RatingSummary;
 };
 
 export type CatalogProductDetail = CatalogProduct & {
@@ -93,8 +100,9 @@ type ProductRow = {
 };
 
 /**
- * Completa cada producto con su imagen principal, sus variantes y la
- * disponibilidad en vivo. Tres queries acotadas por ids, no N+1.
+ * Completa cada producto con su imagen principal, sus variantes, la
+ * disponibilidad en vivo y el resumen de reseñas aprobadas. Cuatro queries
+ * acotadas por ids (la de reseñas, agrupada), no N+1.
  */
 async function hydrate(tx: Executor, rows: ProductRow[]): Promise<CatalogProduct[]> {
   if (rows.length === 0) return [];
@@ -131,6 +139,8 @@ async function hydrate(tx: Executor, rows: ProductRow[]): Promise<CatalogProduct
     tx
   );
 
+  const ratings = await getRatingSummaries(productIds, tx);
+
   const variantsByProduct = new Map<number, CatalogVariant[]>();
   for (const row of variantRows) {
     const list = variantsByProduct.get(row.productId) ?? [];
@@ -162,6 +172,7 @@ async function hydrate(tx: Executor, rows: ProductRow[]): Promise<CatalogProduct
     categorySlug: row.categorySlug,
     image: imagesByProduct.get(row.id)?.[0] ?? null,
     variants: variantsByProduct.get(row.id) ?? [],
+    ...(ratings.has(row.id) ? { rating: ratings.get(row.id) } : {}),
   }));
 }
 

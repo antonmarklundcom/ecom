@@ -3,12 +3,15 @@ import type React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { TIENDA } from "@/config/tienda";
+import { AnnouncementBar } from "@/components/announcement-bar";
 import { Analytics } from "@/components/analytics";
 import { CartSheet } from "@/components/cart-sheet";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { WhatsAppFab } from "@/components/whatsapp-fab";
 import { Toaster } from "@/components/ui/sonner";
+import { getStoreSettings } from "@/domain/store-settings";
+import { linkSeguro } from "@/domain/store-settings-schema";
 import { idiomaActivo } from "@/i18n";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
@@ -23,28 +26,39 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  // Sin esto, la URL de la imagen de Open Graph sale relativa y ningún
-  // scraper la resuelve: el link compartido queda sin foto (ver lib/site-url).
-  metadataBase: siteOrigin() ?? undefined,
-  title: {
-    default: TIENDA.titulo,
-    template: `%s · ${TIENDA.nombre}`,
-  },
-  description: TIENDA.descripcion,
-  openGraph: {
-    type: "website",
-    locale: TIENDA.ogLocale,
-    siteName: TIENDA.nombre,
-  },
-  // La imagen sale de `opengraph-image.tsx` (o de la del producto, que la
-  // pisa); acá sólo se pide que se muestre grande y no como miniatura.
-  twitter: { card: "summary_large_image" },
-};
+/**
+ * `generateMetadata` y no un `metadata` fijo: el título y la descripción de la
+ * home se editan en `/admin/ajustes` ("Marca y portada"). Vacíos, mandan
+ * `TIENDA.titulo` y `TIENDA.descripcion`, como siempre.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { marca } = await getStoreSettings();
 
-export default function RootLayout({
+  return {
+    // Sin esto, la URL de la imagen de Open Graph sale relativa y ningún
+    // scraper la resuelve: el link compartido queda sin foto (ver lib/site-url).
+    metadataBase: siteOrigin() ?? undefined,
+    title: {
+      default: marca.seoTitulo ?? TIENDA.titulo,
+      template: `%s · ${TIENDA.nombre}`,
+    },
+    description: marca.seoDescripcion ?? TIENDA.descripcion,
+    openGraph: {
+      type: "website",
+      locale: TIENDA.ogLocale,
+      siteName: TIENDA.nombre,
+    },
+    // La imagen sale de `opengraph-image.tsx` (o de la del producto, que la
+    // pisa); acá sólo se pide que se muestre grande y no como miniatura.
+    twitter: { card: "summary_large_image" },
+  };
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const { anuncio } = await getStoreSettings();
+
   // El idioma **efectivo** y no el que dice el config: si `TIENDA.lang` apunta
   // a un catálogo que no existe, los textos salen en es-PY y el `lang` del
   // HTML tiene que decir es-PY. Un lector de pantalla leyendo español con
@@ -55,6 +69,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        {/* Apagada o sin texto no se monta nada (y en /admin se esconde sola). */}
+        {anuncio.activo && anuncio.texto ? (
+          <AnnouncementBar texto={anuncio.texto} href={linkSeguro(anuncio.href)} />
+        ) : null}
         <SiteHeader />
         <div className="flex-1">{children}</div>
         <SiteFooter />

@@ -125,6 +125,13 @@ export function cloudinaryConfigured(): boolean {
  */
 export const CLOUDINARY_BANK_FOLDER = `${folderPrefix()}banco`;
 
+/**
+ * Carpeta **pública** de la foto de portada de la home, la que el dueño sube
+ * desde `/admin/ajustes`. Separada de `productos/` para que un backup o una
+ * limpieza del catálogo no se la lleve puesta.
+ */
+export const CLOUDINARY_HERO_FOLDER = `${folderPrefix()}portadas`;
+
 /** Carpeta privada: comprobantes de pago, sólo accesibles vía URL firmada. */
 export const CLOUDINARY_RECEIPTS_FOLDER = `${folderPrefix()}comprobantes`;
 

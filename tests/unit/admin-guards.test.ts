@@ -196,6 +196,14 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   subirQrBancario: 'Owner',
   quitarQrBancario: 'Owner',
 
+  // Ajustes de la tienda: el WhatsApp al que escriben las compradoras, la
+  // portada y lo que la tienda promete en sus políticas. Quien los cambia
+  // puede mandar a las clientas a otro número; no se delega, como el banco.
+  guardarAjustes: 'Owner',
+  restaurarAjustes: 'Owner',
+  subirImagenPortada: 'Owner',
+  quitarImagenPortada: 'Owner',
+
   // El flete es plata que entra en cada pedido, y el error se cobra en
   // silencio: no rompe nada, no deja log, y se descubre al cerrar el mes.
   crearZonaEnvio: 'Owner',

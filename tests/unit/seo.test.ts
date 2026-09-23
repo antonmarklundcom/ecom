@@ -8,7 +8,9 @@ import {
   breadcrumbJsonLd,
   buildSitemap,
   itemListJsonLd,
+  organizationJsonLd,
   productJsonLd,
+  type MerchantPoliciesLd,
 } from "../../src/lib/seo";
 
 /**
@@ -102,7 +104,19 @@ describe("robots.txt", () => {
   it("cubre todas las rutas de nivel uno que no son públicas", async () => {
     // `feed.xml`: el catálogo para Google Merchant y Meta (src/lib/product-feed.ts),
     // los mismos datos públicos que las fichas.
-    const publicas = new Set(["buscar", "categoria", "producto", "feed.xml"]);
+    // Las páginas de políticas (`/admin/ajustes` → páginas): texto de la
+    // tienda, sin datos de nadie, y justamente lo que Google tiene que leer.
+    const publicas = new Set([
+      "buscar",
+      "categoria",
+      "producto",
+      "feed.xml",
+      "envios",
+      "devoluciones",
+      "preguntas-frecuentes",
+      "terminos",
+      "privacidad",
+    ]);
     const raiz = path.join(process.cwd(), "src/app");
     const entries = await readdir(raiz, { withFileTypes: true });
 
@@ -266,5 +280,190 @@ describe("productJsonLd · reseñas verificadas", () => {
       expect(jsonLd).not.toHaveProperty("aggregateRating");
       expect(jsonLd).not.toHaveProperty("review");
     }
+  });
+});
+
+describe("productJsonLd · envío y devoluciones (ajustes de la tienda)", () => {
+  const base = {
+    origin: new URL("https://tienda.com.py"),
+    slug: "remera",
+    name: "Remera",
+    images: [],
+    variants: [
+      { sku: "R-S", label: "S", pricePyg: 90_000, available: 2 },
+      { sku: "R-M", label: "M", pricePyg: 90_000, available: 1 },
+    ],
+  };
+
+  const vacio: MerchantPoliciesLd = {
+    handlingDaysMin: null,
+    handlingDaysMax: null,
+    transitDaysMin: null,
+    transitDaysMax: null,
+    shippingFromPyg: null,
+    acceptsReturns: null,
+    returnDays: null,
+    returnFees: null,
+    returnMethod: null,
+  };
+
+  const envio: MerchantPoliciesLd = {
+    ...vacio,
+    handlingDaysMin: 0,
+    handlingDaysMax: 1,
+    transitDaysMin: 1,
+    transitDaysMax: 3,
+    shippingFromPyg: 25_000,
+  };
+
+  type Offer = Record<string, unknown> & {
+    shippingDetails?: Record<string, unknown>;
+    hasMerchantReturnPolicy?: Record<string, unknown>;
+  };
+  const offers = (merchant: MerchantPoliciesLd): Offer[] =>
+    (productJsonLd({ ...base, merchant }) as { offers: Offer[] }).offers;
+
+  it("sin nada cargado no agrega ni envío ni política de devolución", () => {
+    for (const offer of offers(vacio)) {
+      expect(offer).not.toHaveProperty("shippingDetails");
+      expect(offer).not.toHaveProperty("hasMerchantReturnPolicy");
+    }
+    // Y sin `merchant`, igual que antes de esta sección.
+    const sin = productJsonLd(base) as { offers: Offer[] };
+    expect(sin.offers[0]).not.toHaveProperty("shippingDetails");
+  });
+
+  it("con precio y los dos rangos, cada Offer lleva OfferShippingDetails en PYG a PY", () => {
+    for (const offer of offers(envio)) {
+      expect(offer.shippingDetails).toEqual({
+        "@type": "OfferShippingDetails",
+        shippingRate: { "@type": "MonetaryAmount", value: 25_000, currency: "PYG" },
+        shippingDestination: { "@type": "DefinedRegion", addressCountry: "PY" },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+          transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 3, unitCode: "DAY" },
+        },
+      });
+    }
+  });
+
+  it("un envío a medias no se publica: falta un rango o falta el precio", () => {
+    expect(offers({ ...envio, transitDaysMax: null })[0]).not.toHaveProperty("shippingDetails");
+    expect(offers({ ...envio, shippingFromPyg: null })[0]).not.toHaveProperty("shippingDetails");
+  });
+
+  it("envío gratis (₲0) sí es un dato y se publica", () => {
+    const [offer] = offers({ ...envio, shippingFromPyg: 0 });
+    expect(offer?.shippingDetails).toMatchObject({ shippingRate: { value: 0, currency: "PYG" } });
+  });
+
+  it("acepta devoluciones: ventana finita, días, costo y método", () => {
+    const [offer] = offers({
+      ...vacio,
+      acceptsReturns: true,
+      returnDays: 7,
+      returnFees: "cliente",
+      returnMethod: "envio",
+    });
+    expect(offer?.hasMerchantReturnPolicy).toEqual({
+      "@type": "MerchantReturnPolicy",
+      applicableCountry: "PY",
+      returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+      merchantReturnDays: 7,
+      returnFees: "https://schema.org/ReturnFeesCustomerResponsibility",
+      returnMethod: "https://schema.org/ReturnByMail",
+    });
+  });
+
+  it("devolución gratis y en los dos lugares: FreeReturn y los dos métodos", () => {
+    const [offer] = offers({
+      ...vacio,
+      acceptsReturns: true,
+      returnDays: 30,
+      returnFees: "gratis",
+      returnMethod: "ambos",
+    });
+    expect(offer?.hasMerchantReturnPolicy).toMatchObject({
+      returnFees: "https://schema.org/FreeReturn",
+      returnMethod: ["https://schema.org/ReturnByMail", "https://schema.org/ReturnInStore"],
+    });
+  });
+
+  it("sin costo ni método cargados, esos campos se omiten", () => {
+    const [offer] = offers({ ...vacio, acceptsReturns: true, returnDays: 10, returnMethod: "local" });
+    expect(offer?.hasMerchantReturnPolicy).not.toHaveProperty("returnFees");
+    expect(offer?.hasMerchantReturnPolicy).toMatchObject({
+      returnMethod: "https://schema.org/ReturnInStore",
+    });
+  });
+
+  it("no acepta devoluciones: MerchantReturnNotPermitted, sin días", () => {
+    const [offer] = offers({ ...vacio, acceptsReturns: false, returnDays: 7 });
+    expect(offer?.hasMerchantReturnPolicy).toEqual({
+      "@type": "MerchantReturnPolicy",
+      applicableCountry: "PY",
+      returnPolicyCategory: "https://schema.org/MerchantReturnNotPermitted",
+    });
+  });
+
+  it("acepta devoluciones pero sin días: no inventa una ventana", () => {
+    expect(offers({ ...vacio, acceptsReturns: true })[0]).not.toHaveProperty(
+      "hasMerchantReturnPolicy",
+    );
+  });
+});
+
+describe("organizationJsonLd", () => {
+  it("sin origen configurado no sale", () => {
+    expect(organizationJsonLd({ origin: null, name: "Tienda" })).toBeNull();
+  });
+
+  it("con origen: nombre, url, contacto y redes", () => {
+    expect(
+      organizationJsonLd({
+        origin: new URL("https://tienda.com.py/algo"),
+        name: "Tienda",
+        telephone: "+595981123456",
+        email: "hola@tienda.com.py",
+        sameAs: ["https://instagram.com/tienda"],
+      }),
+    ).toEqual({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Tienda",
+      url: "https://tienda.com.py/",
+      email: "hola@tienda.com.py",
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer service",
+        telephone: "+595981123456",
+        email: "hola@tienda.com.py",
+        areaServed: "PY",
+      },
+      sameAs: ["https://instagram.com/tienda"],
+    });
+  });
+
+  it("sin teléfono ni email ni redes, sólo nombre y url", () => {
+    const jsonLd = organizationJsonLd({ origin: new URL("https://tienda.com.py"), name: "Tienda" });
+    expect(jsonLd).not.toHaveProperty("contactPoint");
+    expect(jsonLd).not.toHaveProperty("sameAs");
+    expect(jsonLd).not.toHaveProperty("email");
+  });
+});
+
+describe("sitemap · páginas de políticas", () => {
+  it("suma las páginas prendidas con URL absoluta", () => {
+    const entries = buildSitemap(new URL("https://tienda.com.py"), {
+      categories: [],
+      products: [],
+      pages: ["envios", "terminos"],
+    });
+    expect(entries.map((entry) => entry.url)).toEqual([
+      "https://tienda.com.py/",
+      "https://tienda.com.py/envios",
+      "https://tienda.com.py/terminos",
+    ]);
   });
 });

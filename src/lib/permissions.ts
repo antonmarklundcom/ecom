@@ -99,6 +99,14 @@ export const CAPABILITIES = [
    * `reembolsos`**: la plata que sale se registra aparte, owner-only.
    */
   "devoluciones",
+  /**
+   * Los ajustes de la tienda (`/admin/ajustes`): la portada, el anuncio, el
+   * contacto público, las páginas de políticas, lo que se le dice a Google
+   * sobre envíos y devoluciones. Es la cara de la tienda entera y el número
+   * al que escriben las compradoras — quien lo cambia puede mandarlas a otro
+   * WhatsApp. Owner, como el banco.
+   */
+  "ajustes",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

@@ -56,7 +56,7 @@ export type DumpStats = { tables: number; rows: number };
  * La paginación va por **clave primaria** y no por `OFFSET`: con `OFFSET`, una
  * fila insertada a mitad del dump corre el resto y una fila se salta o se
  * duplica. Todas las tablas de `BACKUP_TABLES` tienen `id` autoincremental
- * salvo `counters` (PK `name`), `setup_state`, `bank_details` y `job_runs`,
+ * salvo `counters` (PK `name`), `setup_state`, `bank_details`, `store_settings` y `job_runs`,
  * que son de una o dos filas y se traen enteras.
  */
 export async function* dumpRows(
@@ -288,6 +288,7 @@ export const PRIMARY_KEY: Record<BackupTable, string | null> = {
   setup_state: null,
   job_runs: null,
   bank_details: null,
+  store_settings: null,
   users: 'id',
   customers: 'id',
   categories: 'id',

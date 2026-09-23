@@ -133,4 +133,6 @@ const KNOWN_DOMAIN_ERRORS = [
   "ReviewError",
   // Devoluciones: "de esa línea se pueden devolver 1 como máximo".
   "ReturnError",
+  // Ajustes de la tienda: "el link tiene que empezar con https://".
+  "StoreSettingsError",
 ];
