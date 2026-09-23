@@ -149,11 +149,13 @@ SSH muere con los ulimits del hosting compartido. Esta ruta hace el setup
 curl -X POST https://TU-DOMINIO/api/setup/init \
   -H "Authorization: Bearer $SETUP_SECRET" \
   -H "content-type: application/json" \
-  -d '{"seed":true,"owner":{"email":"...","password":"..."}}'
+  -d '{"owner":{"email":"...","password":"..."},"zonas":[…]}'
 ```
 
 Corre las migraciones versionadas de `./drizzle` (no `db:push`, no drizzle-kit
-en runtime), aplica los extras, siembra el catálogo de ejemplo y crea al dueño.
+en runtime), aplica los extras, carga las zonas de envío y crea al dueño
+(DEPLOY.md §4 tiene el cuerpo completo; `"seed": true` siembra el catálogo de
+ejemplo, sólo para demos).
 Migrar es idempotente y corre en cada llamada, así que la misma ruta sirve de
 corredor de migraciones en los deploys siguientes; sembrar y tocar al dueño se
 cierran con la marca de `setup_state` y piden `{"force":true}` para reabrirse.

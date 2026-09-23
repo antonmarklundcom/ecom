@@ -213,30 +213,39 @@ inicializa sola con un curl.
    curl -X POST https://DOMAIN/api/setup/init \
      -H "Authorization: Bearer $SETUP_SECRET" \
      -H "content-type: application/json" \
-     -d '{"seed":true,"owner":{"email":"...","password":"..."}}'
+     -d @setup.json
    ```
 
-   Corre las migraciones de `./drizzle`, aplica los extras (FULLTEXT, FK
-   self-ref, contador de pedidos), siembra el catálogo de ejemplo y crea la
-   cuenta del dueño. Responde con el resultado de cada paso **y con el reporte
-   completo de `pnpm preflight`**, medido contra el entorno de este servidor —
-   que es el único que importa.
-
-   Si ya tenés las zonas de envío reales de la tienda, van en el mismo cuerpo y
-   te ahorran cargarlas a mano desde `/admin/envios`:
+   con un `setup.json` así (el dueño y las zonas de envío reales):
 
    ```json
    {
-     "seed": true,
      "owner": { "email": "...", "password": "..." },
      "zonas": [
        { "slug": "asuncion", "name": "Asunción", "cities": ["Asunción"], "pricePyg": 25000, "freeThresholdPyg": 500000 },
-       { "slug": "interior", "name": "Interior", "cities": [], "pricePyg": 80000 }
+       { "slug": "gran-asuncion", "name": "Gran Asunción", "cities": ["San Lorenzo", "Fernando de la Mora", "Luque", "Lambaré", "Capiatá", "Ñemby", "Mariano Roque Alonso", "Villa Elisa", "Limpio"], "pricePyg": 35000, "freeThresholdPyg": 700000 },
+       { "slug": "interior", "name": "Interior", "cities": [], "pricePyg": 60000 }
      ]
    }
    ```
 
-   Upsert por `slug`, así que repetir la llamada actualiza en vez de duplicar.
+   **Las zonas no son opcionales:** sin ninguna activa, el envío sale **gratis a
+   todo el país** (el resumen del panel lo avisa). Precios de ejemplo — poné
+   los tuyos; también se ajustan después en `/admin/envios`.
+
+   Corre las migraciones de `./drizzle`, aplica los extras (FULLTEXT, FK
+   self-ref, contador de pedidos) y crea la cuenta del dueño. **Sin
+   `"seed": true` en una tienda real:** eso siembra el catálogo de ejemplo
+   (auriculares, termos, remeras, con stock de mentira) y queda a la venta al
+   lado del tuyo. Es para una demo o un staging; si ya lo sembraste, el
+   resumen del panel te avisa cuántos quedan activos. El catálogo real entra
+   por `/admin/productos` → Importar planilla.
+
+   Responde con el resultado de cada paso **y con el reporte completo de `pnpm
+   preflight`**, medido contra el entorno de este servidor — que es el único
+   que importa.
+
+   Las zonas son upsert por `slug`, así que repetir la llamada actualiza en vez de duplicar.
    **No borra las zonas que no vengan en la lista**: borrar una zona que la
    tienda usa no se ofrece por HTTP.
 
