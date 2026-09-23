@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
+import { RECEIPT_MAX_BYTES } from "@/lib/upload-limits";
 
 export function ReceiptUpload({
   orderNumber,
@@ -40,8 +41,24 @@ export function ReceiptUpload({
         data.set("orderNumber", orderNumber);
         data.set("token", token);
 
+        // El servidor lo vuelve a validar (`validateReceipt`); esto es para no
+        // mandar 20 MB por un 3G para recibir el mismo "no".
+        const file = data.get("file");
+        if (file instanceof File && file.size > RECEIPT_MAX_BYTES) {
+          setError(t("error.comprobante.pesado"));
+          return;
+        }
+
         startTransition(async () => {
-          const result = await uploadReceipt(data);
+          let result;
+          try {
+            result = await uploadReceipt(data);
+          } catch {
+            // Un corte de red o un 413 no pasa por el `return` de la acción:
+            // sin esto, la compradora caía en la pantalla de error del sitio.
+            setError(t("error.comprobante.generico"));
+            return;
+          }
           if (!result.ok) {
             setError(result.error);
             return;

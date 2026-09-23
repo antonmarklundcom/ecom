@@ -42,6 +42,33 @@ test("compra de invitado con transferencia llega a la página del pedido", async
 });
 
 /**
+ * Un comprobante de 2 MB —la foto normal de un celular— tiene que llegar a la
+ * server action. Con el límite por defecto de Next (1 MB) el body se cortaba
+ * antes con un 413 y la compradora veía la pantalla de error: nunca podía
+ * pagar por transferencia con una foto.
+ *
+ * El archivo es basura con nombre `.png` a propósito: el único que puede
+ * responder "Subí una foto…" es `validateReceipt`, adentro de la acción. Si el
+ * body no pasa, ese texto no aparece.
+ */
+test("un comprobante de 2 MB llega a la acción (no lo corta el límite de Next)", async ({
+  page,
+}) => {
+  await realizarCompra(page);
+
+  await page.locator('input[name="file"]').setInputFiles({
+    name: "comprobante.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(2 * 1024 * 1024, "x"),
+  });
+  await page.getByRole("button", { name: "Enviar comprobante" }).click();
+
+  await expect(
+    page.getByText("Subí una foto (JPG o PNG) o un PDF del comprobante.")
+  ).toBeVisible({ timeout: 15_000 });
+});
+
+/**
  * Formas de entrega en un navegador de verdad (FASE 3).
  *
  * Lo que se prueba es la promesa entera de la feature en la única pantalla
