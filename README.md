@@ -18,6 +18,7 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
 | [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
+| `fable/…` (las filas de abajo) | Sólo existen en el template: `pnpm nueva-tienda` borra `fable/` en cada tienda, así que ahí estos links no llevan a ningún lado |
 | [fable/REVIEW.md](./fable/REVIEW.md) | Revisión de Fable (2026-09-11): diagnóstico completo sobre el que salió `fable/plan-crecimiento.md`. La última de maquinaria es [fable/REVIEW-2026-09-13.md](./fable/REVIEW-2026-09-13.md), ya aplicada (#109); la próxima arranca desde `fable/PROMPT.md` |
 | [fable/TEMPLATE-REVIEW.md](./fable/TEMPLATE-REVIEW.md) | Auditoría del template como fábrica de tiendas (2026-09-19): wizard, bootstrap, `template:sync`, CI. Hallazgos T1–T7, todos cerrados |
 | [CHANGELOG.md](./CHANGELOG.md) | Versiones del template (`v*`): qué trae cada una y si pide migración. Publicar una versión dispara la distribución a las tiendas |

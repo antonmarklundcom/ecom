@@ -6,10 +6,11 @@ import {
   readFileSync,
   readdirSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 
-import { esSoloTemplate } from './template-shared';
+import { BASELINE_FILE, contenidoBaseline, esSoloTemplate } from './template-shared';
 
 /**
  * `pnpm bootstrap:repo --destino ../lenceria` — meter el template dentro de un
@@ -231,6 +232,32 @@ function gitSucio(destino: string): boolean | null {
   }
 }
 
+/**
+ * El baseline de un repo que ya existía es el commit del template que se
+ * acaba de copiar — no la punta de `template/main` el día que alguien corra
+ * el wizard (que daría por traídos arreglos que no llegaron). Sólo si el
+ * template está limpio: con cambios sin commitear, lo copiado no es ningún
+ * commit, y un baseline inventado es peor que ninguno.
+ */
+function marcarBaselineDelOrigen(origen: string, destino: string): void {
+  const ruta = join(destino, BASELINE_FILE);
+  if (existsSync(ruta)) {
+    console.log(`\n  ${BASELINE_FILE} ya existía en el destino — no se toca.`);
+    return;
+  }
+  if (gitSucio(origen) !== false) {
+    console.log(
+      `\n  ! No escribí ${BASELINE_FILE}: el template tiene cambios sin commitear (o no es un\n` +
+        '    repo git), así que lo copiado no es ningún commit. Escribí a mano el SHA del\n' +
+        '    template del que copiaste, o volvé a correr esto con el template limpio.',
+    );
+    return;
+  }
+  const sha = execFileSync('git', ['-C', origen, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  writeFileSync(ruta, contenidoBaseline(sha));
+  console.log(`\n  ${BASELINE_FILE} → ${sha.slice(0, 12)} (el commit del template que se copió).`);
+}
+
 function main(): void {
   let opciones: Opciones;
   try {
@@ -317,6 +344,8 @@ function main(): void {
     console.log('\n(dry-run) No se escribió nada. Sacá --dry-run para copiar de verdad.');
     return;
   }
+
+  marcarBaselineDelOrigen(origen, destino);
 
   console.log(
     '\nSeguí desde NEW-STORE.md §1:\n' +

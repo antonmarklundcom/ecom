@@ -11,8 +11,8 @@
 //
 // Una sola rama por tienda (`template/sync`): cada versión nueva reescribe la
 // misma rama y actualiza el mismo PR, en vez de apilar un PR por corrida.
-// Si alguien ya empujó commits a mano a esa rama (resolviendo un conflicto),
-// no se pisan: se avisa y se sale.
+// Si alguien ya empujó commits a mano a esa rama (resolviendo un conflicto)
+// y su PR sigue abierto, no se pisan: se avisa y se sale.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
@@ -59,21 +59,39 @@ function seccionesResumen(resumen) {
   agregar('Fusionados solos (cambios de los dos lados)', resumen.fusionados);
   agregar('Traídos del template', resumen.traidos);
   agregar('Borrados (el template los sacó)', resumen.borrados);
+  agregar(
+    '⚠ Piel de esta tienda que el template borró o renombró — ya no se usa: pasá el diseño al archivo nuevo',
+    resumen.huerfanos,
+  );
   agregar('Piel o docs de esta tienda que no se tocaron', resumen.conservados);
   return partes;
 }
 
-/** ¿La rama remota tiene commits que no hizo el bot? Entonces alguien trabajó ahí. */
+/**
+ * ¿La rama remota tiene commits que no hizo el bot? Entonces alguien trabajó
+ * ahí. Los merge commits no cuentan: "Update branch" de GitHub sólo trae la
+ * base, y la corrida nueva ya arranca de la base.
+ */
 function commitsAMano(base, rama, emailBot) {
   try {
     sh('git', ['fetch', 'origin', rama]);
   } catch {
     return []; // la rama no existe todavía
   }
-  const autores = sh('git', ['log', '--format=%h %ae %s', `origin/${base}..origin/${rama}`])
+  const autores = sh('git', ['log', '--no-merges', '--format=%h %ae %s', `origin/${base}..origin/${rama}`])
     .split('\n')
     .filter((linea) => linea.trim() !== '');
   return autores.filter((linea) => linea.split(' ')[1] !== emailBot);
+}
+
+/** El PR abierto de esa rama en la tienda, o `null`. */
+function prAbierto(repo, rama) {
+  try {
+    const salida = sh('gh', ['pr', 'list', '-R', repo, '--head', rama, '--state', 'open', '--json', 'number,isDraft']);
+    return JSON.parse(salida)[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function main() {
@@ -117,17 +135,24 @@ function main() {
     process.exit(1);
   }
 
-  const aMano = commitsAMano(base, rama, emailBot);
+  const existente = prAbierto(repo, rama);
+
+  // Los commits a mano sólo se cuidan mientras su PR sigue abierto. Un PR
+  // cerrado, o mergeado con squash, deja la rama con commits ajenos que nunca
+  // van a ser ancestros de la base: sin esto, esa tienda no volvía a recibir
+  // ninguna versión y el job igual terminaba en verde.
+  const aMano = existente ? commitsAMano(base, rama, emailBot) : [];
   if (aMano.length > 0) {
     console.log(
-      `::warning::${repo}: la rama ${rama} tiene commits hechos a mano que no voy a pisar:\n` +
+      `::warning::${repo}: el PR #${existente.number} (rama ${rama}) tiene commits hechos a mano que no voy a pisar:\n` +
         aMano.map((linea) => `    ${linea}`).join('\n') +
-        `\nMergeá (o cerrá) ese PR y volvé a correr la distribución para traer lo nuevo.`,
+        `\nMergealo o cerralo y volvé a correr la distribución para traer lo nuevo.`,
     );
     return;
   }
 
-  // `--force`: la rama es del bot (lo acabamos de comprobar) y cada corrida la
+  // `--force`: la rama es del bot, o su PR ya no está abierto (lo acabamos de
+  // comprobar), y cada corrida la
   // rearma entera desde la default branch de la tienda.
   sh('git', ['push', '--force', 'origin', `HEAD:refs/heads/${rama}`]);
 
@@ -158,15 +183,6 @@ function main() {
       'el CI de esta tienda es el que decide si se mergea. Para seguir a mano: `git fetch origin && git checkout ' +
       `${rama}\`, resolver, commitear y pushear a esta misma rama (la próxima distribución no la pisa mientras tenga commits tuyos).`,
   ].join('\n');
-
-  const existente = (() => {
-    try {
-      const salida = sh('gh', ['pr', 'list', '-R', repo, '--head', rama, '--state', 'open', '--json', 'number,isDraft']);
-      return JSON.parse(salida)[0] ?? null;
-    } catch {
-      return null;
-    }
-  })();
 
   if (existente) {
     sh('gh', ['pr', 'edit', String(existente.number), '-R', repo, '--title', titulo, '--body', cuerpo]);

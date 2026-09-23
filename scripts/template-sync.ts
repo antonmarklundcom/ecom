@@ -185,6 +185,12 @@ export type Resumen = {
   reemplazados: string[];
   /** Piel o docs que la tienda cambió: quedan los suyos. Los mixtos, además, en `mixtos`. */
   conservados: string[];
+  /**
+   * Piel que la tienda rediseñó y el template borró o renombró. Queda el
+   * archivo de la tienda, pero nada del template lo importa ya: el rediseño
+   * dejó de verse y en su lugar aparece la versión nueva del template.
+   */
+  huerfanos: string[];
   /** Mixtos (`checkout-form.tsx`, `/admin`) que el template cambió y la tienda tiene distintos. */
   mixtos: string[];
   conflictos: Conflicto[];
@@ -198,6 +204,7 @@ export function resumenVacio(): Resumen {
     fusionados: [],
     reemplazados: [],
     conservados: [],
+    huerfanos: [],
     mixtos: [],
     conflictos: [],
   };
@@ -348,11 +355,14 @@ function treeSucio(cwd: string): boolean {
   return gitEn(cwd, ['status', '--porcelain']).trim() !== '';
 }
 
-function lineas(salida: string): string[] {
-  return salida
-    .split('\n')
-    .map((linea) => linea.trim())
-    .filter((linea) => linea !== '');
+/**
+ * Salida de git con `-z`: rutas separadas por NUL, sin citar. Sin `-z`, git
+ * cita las rutas con caracteres no ASCII (`"src/app/categor\303\255a/…"`), y
+ * esa ruta no aparece en los mapas de blobs (armados con `ls-tree -z`): el
+ * archivo quedaba como "al día" y nunca viajaba.
+ */
+function rutasZ(salida: string): string[] {
+  return salida.split('\0').filter((ruta) => ruta !== '');
 }
 
 /** ruta → blob, de un árbol entero. Un par de cientos de archivos: una sola llamada a git. */
@@ -423,7 +433,7 @@ function tomarDelTemplate(cwd: string, objetivo: string, ruta: string, existeEnT
  */
 function soloTemplateVersionado(cwd: string): string[] {
   const rutas = SOLO_TEMPLATE.map((entrada) => entrada.replace(/\/$/, ''));
-  return lineas(gitEn(cwd, ['ls-files', '--', ...rutas]));
+  return rutasZ(gitEn(cwd, ['ls-files', '-z', '--', ...rutas]));
 }
 
 function mensajeDeError(error: unknown): string {
@@ -545,8 +555,8 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
   // medio es asunto de la tienda aunque le falte: el baseline dice "hasta acá
   // estoy al día", y restaurar un archivo que la tienda nunca tuvo (una
   // función que decidió no usar, sin su dependencia) la deja en rojo.
-  const plan: ArchivoPlan[] = lineas(
-    gitEn(cwd, ['diff', '--name-only', '--no-renames', baseline, objetivo]),
+  const plan: ArchivoPlan[] = rutasZ(
+    gitEn(cwd, ['diff', '--name-only', '-z', '--no-renames', baseline, objetivo]),
   ).map((ruta) => ({
     ruta,
     accion: decidirArchivo(ruta, {
@@ -592,6 +602,10 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
         });
         break;
       case 'conservar':
+        if (v.template === null && v.tienda !== null) {
+          resumen.huerfanos.push(ruta);
+          break;
+        }
         resumen.conservados.push(ruta);
         if (esMixto(ruta)) resumen.mixtos.push(ruta);
         break;
@@ -790,6 +804,7 @@ const ETIQUETAS: Array<[keyof Omit<Resumen, 'conflictos'>, string]> = [
   ['fusionados', 'fusionados solos (cambios de los dos lados)'],
   ['reemplazados', 'cambios tuyos que pisó el template (tests, claves de package.json)'],
   ['conservados', 'tuyos, sin tocar (piel o docs que cambiaste)'],
+  ['huerfanos', 'piel tuya que el template borró o renombró: ya no se usa, pasá tu diseño al archivo nuevo'],
   ['mixtos', 'mixtos: el template cambió su lógica, miralos a mano'],
 ];
 

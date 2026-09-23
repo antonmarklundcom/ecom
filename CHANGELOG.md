@@ -46,6 +46,14 @@ Migración: no.
   ~8 por minuto. Y el log y el reporte de errores (`ERROR_REPORT_URL`) ya no
   llevan la query de la ruta, donde viajan el token del pedido y el secreto
   del cron.
+- **Fábrica de tiendas:** `pnpm nueva-tienda` ya no mueve un
+  `.template-baseline` existente, y el primero lo marca en el commit del que
+  salió la tienda (`template:diff --marcar --origen`), no en la punta de hoy
+  —que daba por traídos arreglos que nunca llegaban—. `bootstrap:repo` marca
+  el commit que copió. La distribución vuelve a abrir PR en una tienda cuyo
+  PR anterior se cerró o se mergeó con squash (antes la salteaba para
+  siempre, en verde). `template:sync` trae rutas con tildes y avisa aparte la
+  piel rediseñada que el template borró o renombró. `.gitattributes` fija LF.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 

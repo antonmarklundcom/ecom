@@ -198,6 +198,32 @@ export function gitEn(cwd: string, args: string[]): string {
   });
 }
 
+/**
+ * El commit del template del que salió esta tienda: el que tiene **el mismo
+ * árbol** que el primer commit de la tienda.
+ *
+ * "Use this template" crea un repo nuevo con un commit inicial propio, sin
+ * historia compartida, pero con el árbol exacto de `main` en ese momento. Ese
+ * es el baseline verdadero; la punta de `template/main` no: marcarla da por
+ * traídos todos los arreglos que el template sumó entre la creación de la
+ * tienda y el día que alguien corrió el wizard, y ninguno llega nunca.
+ *
+ * `null` si no hay coincidencia (una tienda que ya existía, `bootstrap:repo`).
+ */
+export function commitDeOrigen(cwd: string, ref: string): string | null {
+  const raices = gitEn(cwd, ['rev-list', '--max-parents=0', 'HEAD'])
+    .split('\n')
+    .map((linea) => linea.trim())
+    .filter((linea) => linea !== '');
+  const arboles = new Set(raices.map((raiz) => gitEn(cwd, ['rev-parse', `${raiz}^{tree}`]).trim()));
+
+  for (const linea of gitEn(cwd, ['log', '--format=%H %T', ref]).split('\n')) {
+    const [sha, arbol] = linea.trim().split(' ');
+    if (sha && arbol && arboles.has(arbol)) return sha;
+  }
+  return null;
+}
+
 export function remotoExiste(cwd: string, remoto: string): boolean {
   try {
     gitEn(cwd, ['remote', 'get-url', remoto]);

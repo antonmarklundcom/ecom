@@ -1,8 +1,8 @@
 name: Distribuir a las tiendas
 
 # plan-operacion.md §6.5: el template le empuja un PR a cada tienda creada
-# con "Use this template" (tiendas.json) cada vez que llega maquinaria nueva
-# a `main`. Cada tienda decide si lo mergea — su propio CI es el que manda.
+# con "Use this template" (tiendas.json) con la maquinaria nueva de cada
+# versión. Cada tienda decide si lo mergea — su propio CI es el que manda.
 #
 # Corre al publicar una versión del template (tag `v*`, ver CHANGELOG.md) o a
 # mano, no en cada push a main: cada corrida abre un PR en cada tienda, y cada

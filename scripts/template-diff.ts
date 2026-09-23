@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   BASELINE_FILE,
   clasificar,
+  commitDeOrigen,
   commitsClasificados,
   contenidoBaseline,
   gitEn,
@@ -16,10 +17,10 @@ import {
 /**
  * `pnpm template:diff` — ¿qué arreglos del template le faltan a esta tienda?
  *
- * Los repos creados con "Use this template" **no reciben** los commits
- * posteriores del template (NEW-STORE.md). Si arreglás un bug de checkout acá,
- * las tiendas ya creadas no se enteran, y con tres o cuatro andando nadie se
- * acuerda de cuál tiene qué.
+ * Los repos creados con "Use this template" no reciben **solos** los commits
+ * posteriores del template: les llegan como PR `template/sync` cuando se
+ * publica una versión (`distribuir.yml`), o a mano con `pnpm template:sync`.
+ * Esto dice qué les falta mientras tanto.
  *
  * El problema para calcular eso: un repo hecho desde un template **no comparte
  * historia** con el original — arranca de un commit inicial propio. O sea que
@@ -31,6 +32,7 @@ import {
  *
  *   pnpm template:diff              # qué commits del template no están acá
  *   pnpm template:diff --marcar     # "ya me puse al día": guarda el SHA actual
+ *   pnpm template:diff --marcar --origen  # el commit del que salió la tienda
  *
  * Sin baseline todavía, igual sirve: compara los archivos de la maquinaria
  * contra el template y te dice cuáles difieren.
@@ -47,16 +49,22 @@ export type Opciones = {
   remoto: string;
   rama: string;
   marcar: boolean;
+  /** Con `--marcar`: el commit del que salió la tienda, no la punta del template. */
+  origen: boolean;
 };
 
 export function parseArgs(argv: string[]): Opciones {
-  const opciones: Opciones = { remoto: 'template', rama: 'main', marcar: false };
+  const opciones: Opciones = { remoto: 'template', rama: 'main', marcar: false, origen: false };
 
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
 
     if (flag === '--marcar') {
       opciones.marcar = true;
+      continue;
+    }
+    if (flag === '--origen') {
+      opciones.origen = true;
       continue;
     }
     if (flag === '--remoto' || flag === '--rama') {
@@ -104,9 +112,19 @@ function main(): void {
   const cabezaTemplate = git('rev-parse', ref).trim();
 
   if (opciones.marcar) {
-    writeFileSync(BASELINE_FILE, contenidoBaseline(cabezaTemplate));
+    const marca = opciones.origen ? commitDeOrigen(process.cwd(), ref) : cabezaTemplate;
+    if (!marca) {
+      console.error(
+        `\n✗ Ningún commit de ${ref} tiene el árbol del primer commit de esta tienda.\n` +
+          '  Pasa con un repo que ya existía (bootstrap:repo). Buscá a mano de qué commit\n' +
+          `  del template salió y escribilo en ${BASELINE_FILE}.\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    writeFileSync(BASELINE_FILE, contenidoBaseline(marca));
     console.log(
-      `\n✓ ${BASELINE_FILE} apunta a ${cabezaTemplate.slice(0, 12)}.\n` +
+      `\n✓ ${BASELINE_FILE} apunta a ${marca.slice(0, 12)}.\n` +
         '  Commiteá ese archivo: es lo que hace que la próxima corrida sepa desde dónde mirar.\n',
     );
     return;

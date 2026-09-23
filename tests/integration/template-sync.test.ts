@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { gitEn, parseBaseline } from '../../scripts/template-shared';
+import { commitDeOrigen, gitEn, parseBaseline } from '../../scripts/template-shared';
 import { ejecutarSync } from '../../scripts/template-sync';
 
 /**
@@ -250,6 +250,65 @@ describe('template:sync contra git de verdad', () => {
 
     expect(ejecutarSync(tienda, OPCIONES).estado).toBe('completado');
     expect(existe(tienda, 'fable/viejo.md')).toBe(false);
+  });
+
+  it('una ruta con tildes llega igual (git las cita si no se le pide -z)', () => {
+    const { template, tienda } = armarEscenario();
+    escribir(template, 'src/app/categoría/page.tsx', 'categoria v1\n');
+    commit(template, 'C2 ruta con tilde');
+
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe('completado');
+    expect(leer(tienda, 'src/app/categoría/page.tsx')).toBe('categoria v1\n');
+  });
+
+  it('la piel que la tienda rediseñó y el template renombró se avisa aparte', () => {
+    const { template, tienda } = armarEscenario();
+    escribir(tienda, 'src/components/site-header.tsx', 'header de la tienda\n');
+    commit(tienda, 'Header propio');
+    // El template lo suma y la tienda se pone al día hasta ahí.
+    escribir(template, 'src/components/site-header.tsx', 'header v1\n');
+    const conHeader = commit(template, 'C2 header');
+    writeFileSync(join(tienda, '.template-baseline'), `# baseline\n${conHeader}\n`);
+    commit(tienda, 'Baseline con header');
+
+    rmSync(join(template, 'src', 'components', 'site-header.tsx'));
+    escribir(template, 'src/components/header/site-header.tsx', 'header v1\n');
+    commit(template, 'C3 header movido');
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+    expect(resultado.estado).toBe('completado');
+    if (resultado.estado !== 'completado') throw new Error('no debería pasar');
+
+    // El rediseño se queda donde estaba, y el PR lo dice: nada lo importa ya.
+    expect(leer(tienda, 'src/components/site-header.tsx')).toBe('header de la tienda\n');
+    expect(resultado.resumen.huerfanos).toEqual(['src/components/site-header.tsx']);
+    expect(resultado.resumen.conservados).not.toContain('src/components/site-header.tsx');
+  });
+
+  it('el baseline de origen es el commit del template con el árbol del primer commit de la tienda', () => {
+    const template = repoTemporal('origen-template');
+    identidadGit(template);
+    escribir(template, 'a.txt', 'uno\n');
+    commit(template, 'T0');
+    gitEn(template, ['branch', '-M', 'main']);
+    escribir(template, 'b.txt', 'dos\n');
+    const t1 = commit(template, 'T1');
+    escribir(template, 'c.txt', 'tres\n');
+    commit(template, 'T2 (después de crear la tienda)');
+
+    // "Use this template" en T1: un commit inicial propio con el árbol de T1.
+    const tienda = repoTemporal('origen-tienda');
+    identidadGit(tienda);
+    escribir(tienda, 'a.txt', 'uno\n');
+    escribir(tienda, 'b.txt', 'dos\n');
+    commit(tienda, 'Initial commit');
+    escribir(tienda, 'a.txt', 'uno, de la tienda\n');
+    commit(tienda, 'Piel propia');
+    gitEn(tienda, ['remote', 'add', 'template', template]);
+    gitEn(tienda, ['fetch', '-q', 'template', 'main']);
+
+    // No la punta (T2): T2 todavía no llegó a esta tienda.
+    expect(commitDeOrigen(tienda, 'template/main')).toBe(t1);
   });
 
   it('parada en main, no hace nada', () => {
