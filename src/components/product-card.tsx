@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { StockBadge } from "@/components/stock-badge";
+import { WishlistButton } from "@/components/wishlist-button";
 import type { CatalogProduct } from "@/db/queries";
 import { t } from "@/i18n";
 import { TESTIDS } from "@/lib/testids";
@@ -31,12 +32,15 @@ export function ProductCard({
       data-slug={product.slug}
       className="group border-border hover:border-foreground/20 focus-visible:ring-ring flex flex-col rounded-xl border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none"
     >
-      <ProductImage
-        image={product.image}
-        alt={product.name}
-        categorySlug={product.categorySlug}
-        priority={priority}
-      />
+      <div className="relative">
+        <ProductImage
+          image={product.image}
+          alt={product.name}
+          categorySlug={product.categorySlug}
+          priority={priority}
+        />
+        <WishlistButton slug={product.slug} name={product.name} sku={shown?.sku} pricePyg={shown?.pricePyg} />
+      </div>
 
       <div className="mt-3 flex flex-1 flex-col gap-1">
         <p className="text-muted-foreground text-xs">{product.brand ?? product.categoryName}</p>

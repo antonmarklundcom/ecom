@@ -9,6 +9,7 @@ import { ProductDescription } from "@/components/product-description";
 import { ProductImage } from "@/components/product-image";
 import { ProductCard } from "@/components/product-card";
 import { RecentlyViewed } from "@/components/recently-viewed";
+import { WishlistButton } from "@/components/wishlist-button";
 import { getProductBySlug, getRelatedProducts } from "@/db/queries";
 import { stockAlertsEnabled } from "@/domain/stock-alerts";
 import { t } from "@/i18n";
@@ -192,12 +193,22 @@ export default async function ProductPage({ params }: { params: Params }) {
           <p className="text-muted-foreground text-sm">{product.brand ?? product.categoryName}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{product.name}</h1>
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-start gap-3">
             <AddToCart
               product={product}
               stockAlertsEnabled={stockAlertsEnabled()}
               whatsappPhone={whatsappPhone}
               productUrl={productUrl}
+            />
+            <WishlistButton
+              slug={product.slug}
+              name={product.name}
+              sku={
+                (product.variants.find((variant) => variant.pricePyg === cheapest) ??
+                  product.variants[0])?.sku
+              }
+              pricePyg={cheapest ?? product.variants[0]?.pricePyg}
+              size="inline"
             />
           </div>
 

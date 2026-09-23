@@ -557,6 +557,37 @@ export async function getRelatedProducts(
 }
 
 /**
+ * Productos publicados a partir de una lista de slugs — lo que resuelve
+ * `/favoritos` (guardados en el navegador, `src/lib/wishlist-store.ts`) y una
+ * lista compartida por `?p=`. Mismo `PRODUCT_COLUMNS`/`PUBLISHED()` que el
+ * resto del catálogo: un producto despublicado o de una categoría apagada
+ * desaparece de los favoritos de quien lo guardó, igual que desaparecería de
+ * cualquier otra vidriera.
+ *
+ * Devuelve en el **mismo orden** que `slugs` (más nuevo primero en la lista
+ * de favoritos) — `inArray` no lo garantiza, así que se reordena a mano.
+ */
+export async function getProductsBySlugs(
+  slugs: string[],
+  executor?: Executor
+): Promise<CatalogProduct[]> {
+  if (slugs.length === 0) return [];
+  const tx = executor ?? getDb();
+
+  const rows = await tx
+    .select(PRODUCT_COLUMNS)
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(and(PUBLISHED(), inArray(products.slug, slugs)));
+
+  const hydrated = await hydrate(tx, rows);
+  const bySlug = new Map(hydrated.map((product) => [product.slug, product]));
+  return slugs
+    .map((slug) => bySlug.get(slug))
+    .filter((product): product is CatalogProduct => product !== undefined);
+}
+
+/**
  * Lo publicable en el sitemap: categorías activas y productos publicados.
  *
  * Una sola consulta por tabla y sólo las columnas que el XML usa — el sitemap

@@ -119,6 +119,25 @@ export const esPY = {
   "cantidad.agregarUno": "Agregar uno",
 
   // -------------------------------------------------------------------------
+  // Favoritos (sin cuenta, en el navegador)
+  // -------------------------------------------------------------------------
+  "favoritos.guardar": "Guardar en favoritos",
+  "favoritos.quitar": "Quitar de favoritos",
+  "favoritos.agregado": "Guardado en favoritos",
+  "favoritos.quitado": "Sacado de favoritos",
+  "favoritos.abrir": "Favoritos",
+  "favoritos.abrirCon": "Favoritos ({n})",
+  "favoritos.titulo": "Tus favoritos",
+  "favoritos.tituloCompartido": "Favoritos que te compartieron",
+  "favoritos.vacio": "Todavía no guardaste ningún producto.",
+  "favoritos.vacio.ayuda": "Tocá el corazón de un producto para guardarlo acá.",
+  "favoritos.vacio.irAlInicio": "Ver el catálogo",
+  "favoritos.compartirWhatsApp": "Compartir por WhatsApp",
+  "favoritos.compartirWhatsApp.texto": "¡Mirá lo que guardé en favoritos!",
+  "favoritos.guardarTodos": "Guardar todos en mis favoritos",
+  "favoritos.meta": "Favoritos",
+
+  // -------------------------------------------------------------------------
   // Envío gratis
   // -------------------------------------------------------------------------
   "envioGratis.alcanzado": "¡Tenés envío gratis!",

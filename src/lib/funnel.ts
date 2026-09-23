@@ -13,13 +13,14 @@
  * `gtag`/`fbq` no existen y esto no hace nada.
  */
 
-export type FunnelEvent = "view_item" | "add_to_cart" | "begin_checkout";
+export type FunnelEvent = "view_item" | "add_to_cart" | "add_to_wishlist" | "begin_checkout";
 
 export type FunnelItem = { id: string; name: string; pricePyg: number; qty: number };
 
 const META_EVENT: Record<FunnelEvent, string> = {
   view_item: "ViewContent",
   add_to_cart: "AddToCart",
+  add_to_wishlist: "AddToWishlist",
   begin_checkout: "InitiateCheckout",
 };
 
