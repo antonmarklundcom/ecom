@@ -428,7 +428,7 @@ type CuponEditado = { discountPyg: number; removed: boolean };
  */
 async function revalidarCupon(
   tx: Executor,
-  order: { couponId: number | null; discountPyg: number },
+  order: { couponId: number | null; discountPyg: number; subtotalPyg: number },
   subtotalPyg: number,
 ): Promise<CuponEditado> {
   if (!order.couponId) return { discountPyg: 0, removed: false };
@@ -439,7 +439,13 @@ async function revalidarCupon(
   // recalcular el descuento, así que se quita y se dice.
   if (!cupon) return { discountPyg: 0, removed: true };
 
-  if (cupon.minOrderPyg !== null && subtotalPyg < cupon.minOrderPyg) {
+  // Sólo una edición que **baja** el subtotal puede dejarlo bajo el mínimo.
+  // El mínimo se puede cambiar después de usado el cupón (el código, el tipo
+  // y el valor no): sin esta condición, corregir la dirección de un pedido
+  // de ₲300.000 le quitaba el descuento porque el comercio había subido el
+  // mínimo a ₲400.000 para los pedidos nuevos.
+  const bajaElSubtotal = subtotalPyg < order.subtotalPyg;
+  if (bajaElSubtotal && cupon.minOrderPyg !== null && subtotalPyg < cupon.minOrderPyg) {
     await tx
       .update(coupons)
       .set({ timesUsed: sql`GREATEST(CAST(${coupons.timesUsed} AS SIGNED) - 1, 0)` })
