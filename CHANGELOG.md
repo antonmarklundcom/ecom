@@ -60,6 +60,10 @@ Migración: no.
 - **Feed de productos `/feed.xml`** para Google Merchant Center y el
   catálogo de Meta: fichas gratuitas en Google Shopping y anuncios de
   catálogo e Instagram Shopping sin cargar productos a mano (NEW-STORE.md §7).
+- **Embudo para GA4 y Meta:** `view_item`/`ViewContent` en la ficha,
+  `add_to_cart`/`AddToCart` al agregar y `begin_checkout`/`InitiateCheckout`
+  en el checkout, con el SKU como id (el mismo `g:id` del feed). Sin
+  medidores configurados no carga ni manda nada.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { AddToCart } from "@/components/add-to-cart";
+import { FunnelEvent } from "@/components/funnel-event";
 import { ProductDescription } from "@/components/product-description";
 import { ProductImage } from "@/components/product-image";
 import { ProductCard } from "@/components/product-card";
@@ -11,6 +12,7 @@ import { RecentlyViewed } from "@/components/recently-viewed";
 import { getProductBySlug, getRelatedProducts } from "@/db/queries";
 import { stockAlertsEnabled } from "@/domain/stock-alerts";
 import { t } from "@/i18n";
+import { analyticsActivo } from "@/lib/analytics";
 import { comercioWaLink, comercioWhatsApp } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
@@ -256,6 +258,25 @@ export default async function ProductPage({ params }: { params: Params }) {
           imageAlt: product.images[0]?.alt ?? null,
         }}
       />
+
+      {/* "Vio el producto" para GA4/Meta (src/lib/funnel.ts), con el SKU de
+          la variante más barata — el mismo id que el feed. */}
+      {analyticsActivo() && product.variants[0] ? (
+        <FunnelEvent
+          event="view_item"
+          items={[
+            {
+              id: (
+                product.variants.find((variant) => variant.pricePyg === cheapest) ??
+                product.variants[0]
+              ).sku,
+              name: product.name,
+              pricePyg: cheapest ?? product.variants[0].pricePyg,
+              qty: 1,
+            },
+          ]}
+        />
+      ) : null}
     </main>
   );
 }

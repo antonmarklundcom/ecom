@@ -10,6 +10,7 @@ import { PriceTag } from "@/components/price-tag";
 import { Button } from "@/components/ui/button";
 import { VariantInquiryLink } from "@/components/variant-inquiry-link";
 import { useCart } from "@/lib/cart-store";
+import { sendFunnelEvent } from "@/lib/funnel";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
 import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
@@ -133,9 +134,14 @@ export function AddToCart({
                 name: product.name,
                 variantLabel: selected.label,
                 unitPricePyg: selected.pricePyg,
+                sku: selected.sku,
               },
               qty
             );
+            // Para GA4 / Meta (src/lib/funnel.ts). Sin medidores no hace nada.
+            sendFunnelEvent("add_to_cart", [
+              { id: selected.sku, name: product.name, pricePyg: selected.pricePyg, qty },
+            ]);
             toast.success(t("producto.agregado"), {
               description: `${product.name} — ${selected.label}`,
             });

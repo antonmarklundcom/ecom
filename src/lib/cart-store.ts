@@ -23,6 +23,13 @@ export type CartLine = {
   name: string;
   variantLabel: string;
   unitPricePyg: number;
+  /**
+   * El SKU, para los eventos de medición (`src/lib/funnel.ts`): Meta y Google
+   * cruzan el evento con el catálogo del feed por este id (`g:id`). Opcional:
+   * un carrito guardado antes de que existiera no lo tiene hasta el próximo
+   * `sync`.
+   */
+  sku?: string;
 };
 
 export type CartState = {
@@ -159,6 +166,7 @@ export const useCart = create<CartState>()(
               name: line.name,
               variantLabel: line.variantLabel,
               unitPricePyg: line.unitPricePyg,
+              sku: line.sku,
             })),
             issues: priced.issues,
             freeShipping: priced.freeShipping,
