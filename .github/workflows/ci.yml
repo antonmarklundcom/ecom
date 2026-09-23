@@ -31,8 +31,11 @@ on:
       - "LICENSE"
   workflow_dispatch:
 
+# Un label que no es `ci-completo` va a su propio grupo: si compartiera el
+# del PR, cancelaría la corrida de verdad (`opened`) y quedaría sólo su job
+# salteado. Pasa siempre con Dependabot, que etiqueta el PR apenas lo abre.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'ci-completo' && format('-label-{0}', github.event.label.name) || '' }}
   cancel-in-progress: true
 
 jobs:
