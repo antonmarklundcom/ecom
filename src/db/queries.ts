@@ -586,3 +586,45 @@ export async function getSitemapEntries(executor?: Executor): Promise<{
 
   return { categories: categoryRows, products: productRows };
 }
+
+/**
+ * El catálogo entero para el feed de productos (`/feed.xml`): lo publicado,
+ * con variantes, disponibilidad en vivo y **todas** las fotos. Mismo
+ * `PUBLISHED()` que la vidriera: lo que no se ve, no se anuncia.
+ */
+export async function getFeedProducts(executor?: Executor): Promise<CatalogProductDetail[]> {
+  const tx = executor ?? getDb();
+  const rows = await tx
+    .select(PRODUCT_COLUMNS)
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(PUBLISHED())
+    .orderBy(asc(products.slug));
+  if (rows.length === 0) return [];
+
+  const hydrated = await hydrate(tx, rows);
+  const imageRows = await tx
+    .select({
+      productId: productImages.productId,
+      cloudinaryId: productImages.cloudinaryId,
+      blurDataUrl: productImages.blurDataUrl,
+      alt: productImages.alt,
+    })
+    .from(productImages)
+    .where(inArray(productImages.productId, rows.map((row) => row.id)))
+    .orderBy(asc(productImages.productId), asc(productImages.position));
+
+  const imagesByProduct = new Map<number, CatalogImage[]>();
+  for (const { productId, ...image } of imageRows) {
+    const list = imagesByProduct.get(productId) ?? [];
+    list.push(image);
+    imagesByProduct.set(productId, list);
+  }
+  const descriptions = new Map(rows.map((row) => [row.id, row.description]));
+
+  return hydrated.map((product) => ({
+    ...product,
+    description: descriptions.get(product.id) ?? null,
+    images: imagesByProduct.get(product.id) ?? [],
+  }));
+}

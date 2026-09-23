@@ -302,8 +302,20 @@ export default async function OrderPage({
 
       {/* El evento de venta para GA4/Meta Pixel, una sola vez por navegador.
           Sin medidores configurados no se renderiza — src/lib/analytics.ts. */}
-      {analyticsActivo() ? (
-        <PurchaseEvent orderNumber={order.orderNumber} totalPyg={order.totalPyg} />
+      {/* Un pedido que ya murió (vencido, cancelado, rechazado) no es una
+          venta: si la primera vez que se abre el link ya está así, no se
+          mide — inflaría el ROAS con plata que nunca entró. */}
+      {analyticsActivo() && !["vencido", "cancelado", "rechazado"].includes(order.status) ? (
+        <PurchaseEvent
+          orderNumber={order.orderNumber}
+          totalPyg={order.totalPyg}
+          items={items.map((item) => ({
+            sku: item.skuSnapshot,
+            name: item.nameSnapshot,
+            unitPricePyg: item.unitPricePyg,
+            qty: item.qty,
+          }))}
+        />
       ) : null}
     </main>
   );

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 
 import { CheckoutForm } from "@/components/checkout-form";
+import { BeginCheckoutEvent } from "@/components/funnel-event";
 import { hasUsableCoupons } from "@/domain/coupons";
 import { findCustomerByPhone } from "@/domain/customers";
 import { isPagoparConfigured } from "@/domain/pagopar/config";
 import { listShippingZones } from "@/domain/shipping";
 import { t } from "@/i18n";
+import { analyticsActivo } from "@/lib/analytics";
 import { currentCustomer } from "@/lib/customer-session";
 import { formatPhonePY } from "@/lib/py";
 
@@ -53,6 +55,10 @@ export default async function CheckoutPage() {
           }
         />
       </div>
+
+      {/* "Empezó el checkout" para GA4/Meta (src/lib/funnel.ts), sólo con
+          algún medidor configurado. */}
+      {analyticsActivo() ? <BeginCheckoutEvent /> : null}
     </main>
   );
 }

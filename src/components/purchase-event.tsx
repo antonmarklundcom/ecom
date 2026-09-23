@@ -30,9 +30,16 @@ import { useEffect } from "react";
 export function PurchaseEvent({
   orderNumber,
   totalPyg,
+  items = [],
 }: {
   orderNumber: string;
   totalPyg: number;
+  /**
+   * Las líneas del pedido, con el SKU como id — el mismo `g:id` del feed
+   * (`src/lib/product-feed.ts`): así Meta y Google atribuyen la venta al
+   * producto del catálogo, que es lo que optimizan los anuncios de catálogo.
+   */
+  items?: { sku: string; name: string; unitPricePyg: number; qty: number }[];
 }) {
   useEffect(() => {
     const key = `compra-medida-${orderNumber}`;
@@ -64,10 +71,28 @@ export function PurchaseEvent({
           transaction_id: orderNumber,
           value: totalPyg,
           currency: "PYG",
+          items: items.map((item) => ({
+            item_id: item.sku,
+            item_name: item.name,
+            price: item.unitPricePyg,
+            quantity: item.qty,
+          })),
         });
       }
       if (typeof w.fbq === "function") {
-        w.fbq("track", "Purchase", { value: totalPyg, currency: "PYG" }, { eventID: orderNumber });
+        w.fbq(
+          "track",
+          "Purchase",
+          {
+            value: totalPyg,
+            currency: "PYG",
+            content_type: "product",
+            content_ids: items.map((item) => item.sku),
+            contents: items.map((item) => ({ id: item.sku, quantity: item.qty })),
+            num_items: items.reduce((sum, item) => sum + item.qty, 0),
+          },
+          { eventID: orderNumber },
+        );
       }
       try {
         window.localStorage.setItem(key, "1");
@@ -78,6 +103,10 @@ export function PurchaseEvent({
     }, 500);
 
     return () => window.clearInterval(timer);
+    // `items` llega del servidor y no cambia; con él en la lista, cada render
+    // (un array nuevo) reiniciaría los reintentos. La llave de localStorage es
+    // el número de pedido, que sí está.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderNumber, totalPyg]);
 
   return null;

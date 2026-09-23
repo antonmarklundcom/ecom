@@ -54,6 +54,19 @@ Migración: no.
   PR anterior se cerró o se mergeó con squash (antes la salteaba para
   siempre, en verde). `template:sync` trae rutas con tildes y avisa aparte la
   piel rediseñada que el template borró o renombró. `.gitattributes` fija LF.
+- **SEO:** el `Product` JSON-LD de la ficha lleva `image`, `url` e
+  `itemCondition` (sin imagen Google no da rich result de producto ni listado
+  de comercio). Lo arma `productJsonLd` en `src/lib/seo.ts`.
+- **Feed de productos `/feed.xml`** para Google Merchant Center y el
+  catálogo de Meta: fichas gratuitas en Google Shopping y anuncios de
+  catálogo e Instagram Shopping sin cargar productos a mano (NEW-STORE.md §7).
+- **Embudo para GA4 y Meta:** `view_item`/`ViewContent` en la ficha,
+  `add_to_cart`/`AddToCart` al agregar y `begin_checkout`/`InitiateCheckout`
+  en el checkout, con el SKU como id (el mismo `g:id` del feed). Sin
+  medidores configurados no carga ni manda nada.
+- **Purchase con productos:** el evento de compra de GA4/Meta lleva las
+  líneas con el SKU como id (atribución al catálogo) y no se manda para un
+  pedido que ya está vencido, cancelado o rechazado cuando se abre el link.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 

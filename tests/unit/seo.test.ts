@@ -8,6 +8,7 @@ import {
   breadcrumbJsonLd,
   buildSitemap,
   itemListJsonLd,
+  productJsonLd,
 } from "../../src/lib/seo";
 
 /**
@@ -99,7 +100,9 @@ describe("robots.txt", () => {
    * lo puede ver un buscador?".
    */
   it("cubre todas las rutas de nivel uno que no son públicas", async () => {
-    const publicas = new Set(["buscar", "categoria", "producto"]);
+    // `feed.xml`: el catálogo para Google Merchant y Meta (src/lib/product-feed.ts),
+    // los mismos datos públicos que las fichas.
+    const publicas = new Set(["buscar", "categoria", "producto", "feed.xml"]);
     const raiz = path.join(process.cwd(), "src/app");
     const entries = await readdir(raiz, { withFileTypes: true });
 
@@ -167,5 +170,42 @@ describe("JSON-LD de categoría", () => {
     };
 
     expect(jsonLd.itemListElement[0]!.url).toBe("/producto/remera-azul");
+  });
+});
+
+describe("productJsonLd", () => {
+  const base = {
+    slug: "conjunto-encaje",
+    name: "Conjunto de encaje",
+    description: "Suave",
+    brand: null,
+    variants: [
+      { sku: "CE-S", label: "S", pricePyg: 150_000, available: 3 },
+      { sku: "CE-M", label: "M", pricePyg: 150_000, available: 0 },
+    ],
+  };
+
+  it("lleva imagen, url y condición: sin eso Google no da rich result de producto", () => {
+    const jsonLd = productJsonLd({
+      ...base,
+      origin: new URL("https://tienda.com.py"),
+      images: ["https://res.cloudinary.com/x/image/upload/a.jpg"],
+    }) as { image: string[]; url: string; offers: Array<Record<string, unknown>> };
+
+    expect(jsonLd.image).toEqual(["https://res.cloudinary.com/x/image/upload/a.jpg"]);
+    expect(jsonLd.url).toBe("https://tienda.com.py/producto/conjunto-encaje");
+    expect(jsonLd.offers[0]).toMatchObject({
+      url: "https://tienda.com.py/producto/conjunto-encaje",
+      itemCondition: "https://schema.org/NewCondition",
+      availability: "https://schema.org/InStock",
+      priceCurrency: "PYG",
+    });
+    expect(jsonLd.offers[1]?.availability).toBe("https://schema.org/OutOfStock");
+  });
+
+  it("sin foto ni dominio, omite los campos en vez de inventarlos", () => {
+    const jsonLd = productJsonLd({ ...base, origin: null, images: [] });
+    expect(jsonLd.image).toBeUndefined();
+    expect(jsonLd.url).toBeUndefined();
   });
 });
