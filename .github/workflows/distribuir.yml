@@ -118,7 +118,7 @@ jobs:
       # la copia; el commit de esa copia chocaba con el mismo archivo cuando
       # llegaba en la sincronización, y además corría `pnpm install` del lado
       # de la tienda (código de la tienda con el token en el entorno).
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v7
         with:
