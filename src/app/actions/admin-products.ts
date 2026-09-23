@@ -12,8 +12,10 @@ import {
   updateProduct,
 } from "@/domain/admin-products";
 import {
+  applyCatalogFotos,
   buildCatalogImportPlan,
   ensureCatalogCategories,
+  type CatalogFotoFallida,
   type CatalogImportPlan,
 } from "@/domain/catalog-import-plan";
 import { type CatalogoProducto } from "@/domain/catalog-import";
@@ -302,6 +304,7 @@ export type CatalogImportSummary = {
   variantesActualizar: number;
   categoriasNuevas: string[];
   pisaStock: boolean;
+  fotosNuevas: number;
 };
 
 export type CatalogImportPreviewResult =
@@ -338,6 +341,7 @@ function planSummary(plan: CatalogImportPlan, pisaStock: boolean): CatalogImport
     variantesActualizar: plan.variantesActualizar,
     categoriasNuevas: plan.categoriasNuevas,
     pisaStock,
+    fotosNuevas: plan.fotosNuevas,
   };
 }
 
@@ -364,7 +368,12 @@ export async function previewCatalogImport(formData: FormData): Promise<CatalogI
 }
 
 export type CatalogImportApplyResult =
-  | ({ ok: true } & CatalogImportSummary & { variantesEscritas: number })
+  | ({ ok: true } & CatalogImportSummary & {
+        variantesEscritas: number;
+        fotosSubidas: number;
+        fotosOmitidas: number;
+        fotosFallidas: CatalogFotoFallida[];
+      })
   | { ok: false; errores: string[] };
 
 /**
@@ -417,8 +426,21 @@ export async function applyCatalogImport(formData: FormData): Promise<CatalogImp
       });
     }
 
+    // Las fotos van después del commit del catálogo: una que falla (URL
+    // caída, Cloudinary con hipo) no puede tumbar productos y precios que ya
+    // se guardaron. Se juntan los fallos en `fotosFallidas` en vez de tirar.
+    const fotos = await applyCatalogFotos(plan.productos);
+
     revalidatePath("/admin/productos");
-    return { ok: true, ...planSummary(plan, pisaStock), variantesEscritas };
+    if (fotos.fotosSubidas > 0) revalidarVidriera();
+    return {
+      ok: true,
+      ...planSummary(plan, pisaStock),
+      variantesEscritas,
+      fotosSubidas: fotos.fotosSubidas,
+      fotosOmitidas: fotos.fotosOmitidas,
+      fotosFallidas: fotos.fotosFallidas,
+    };
   } catch (error) {
     const result = adminActionError("applyCatalogImport", error);
     return { ok: false, errores: [result.error] };

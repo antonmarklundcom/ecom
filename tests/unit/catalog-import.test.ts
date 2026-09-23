@@ -184,3 +184,85 @@ describe('parseCatalogo', () => {
     expect(parseCatalogo(`${ENCABEZADO}\n`).errores).toHaveLength(1);
   });
 });
+
+describe('parseCatalogo — columna Fotos', () => {
+  it('acepta una o varias URLs https:// separadas por | y las suma sin duplicar', () => {
+    const { productos, errores } = parseCatalogo(
+      `${ENCABEZADO};Fotos\n` +
+        'A-1;Producto A;Hogar;Único;100000;5;https://cdn.test/a1.jpg|https://cdn.test/a2.jpg\n',
+    );
+
+    expect(errores).toEqual([]);
+    expect(productos[0]!.fotos).toEqual(['https://cdn.test/a1.jpg', 'https://cdn.test/a2.jpg']);
+  });
+
+  it('acepta el alias "imagenes" y separa por espacios o saltos de línea', () => {
+    const { productos, errores } = parseCatalogo(
+      'SKU;Producto;Categoría;Precio (₲);Imagenes\n' +
+        'A-1;Producto A;Hogar;100000;"https://cdn.test/a1.jpg\nhttps://cdn.test/a2.jpg"\n',
+    );
+
+    expect(errores).toEqual([]);
+    expect(productos[0]!.fotos).toEqual(['https://cdn.test/a1.jpg', 'https://cdn.test/a2.jpg']);
+  });
+
+  it('sin la columna Fotos, o vacía, el producto queda sin fotos', () => {
+    const { productos, errores } = parseCatalogo(
+      `${ENCABEZADO}\nA-1;Producto A;Hogar;Único;100000;5\n`,
+    );
+
+    expect(errores).toEqual([]);
+    expect(productos[0]!.fotos).toEqual([]);
+  });
+
+  it('una URL que no es https:// es un error con la línea, no un silencio', () => {
+    const { errores } = parseCatalogo(
+      `${ENCABEZADO};Fotos\n` + 'A-1;Producto A;Hogar;Único;100000;5;http://cdn.test/a1.jpg\n',
+    );
+
+    expect(errores).toHaveLength(1);
+    expect(errores[0]!).toContain('Línea 2');
+  });
+
+  it('una URL que no parsea como URL es un error', () => {
+    const { errores } = parseCatalogo(
+      `${ENCABEZADO};Fotos\n` + 'A-1;Producto A;Hogar;Único;100000;5;https://\n',
+    );
+
+    expect(errores).toHaveLength(1);
+  });
+
+  it('más de 10 fotos en un producto es un error, sumadas entre varias filas', () => {
+    const muchas = Array.from({ length: 11 }, (_, i) => `https://cdn.test/${i}.jpg`).join('|');
+    const { errores: errPrimerFila } = parseCatalogo(
+      `${ENCABEZADO};Fotos\n` + `A-1;Producto A;Hogar;Único;100000;5;${muchas}\n`,
+    );
+    expect(errPrimerFila).toHaveLength(1);
+    expect(errPrimerFila[0]!).toContain('máximo');
+
+    const diez = Array.from({ length: 10 }, (_, i) => `https://cdn.test/${i}.jpg`).join('|');
+    const { errores: errDosFilas } = parseCatalogo(
+      `${ENCABEZADO};Fotos\n` +
+        `A-1;Producto A;Hogar;Único;100000;5;${diez}\n` +
+        'A-2;Producto A;Hogar;Otro;100000;5;https://cdn.test/extra.jpg\n',
+    );
+    expect(errDosFilas).toHaveLength(1);
+    expect(errDosFilas[0]!).toContain('Línea 3');
+  });
+
+  it('no duplica una URL que se repite entre filas del mismo producto', () => {
+    const { productos, errores } = parseCatalogo(
+      `${ENCABEZADO};Fotos\n` +
+        'A-1;Producto A;Hogar;Único;100000;5;https://cdn.test/a1.jpg\n' +
+        'A-2;Producto A;Hogar;Otro;100000;5;https://cdn.test/a1.jpg\n',
+    );
+
+    expect(errores).toEqual([]);
+    expect(productos[0]!.fotos).toEqual(['https://cdn.test/a1.jpg']);
+  });
+
+  it('el mensaje de columna obligatoria faltante menciona Fotos entre las opcionales', () => {
+    const { errores } = parseCatalogo('SKU;Producto;Precio (₲)\nX;Y;100\n');
+    expect(errores[0]!).toContain('Fotos');
+  });
+});

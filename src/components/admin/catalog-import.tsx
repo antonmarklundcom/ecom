@@ -71,11 +71,23 @@ export function CatalogImportForm() {
         return;
       }
       toast.success(
-        t("panel.productos.importar.listo", {
-          productos: result.productosNuevos + result.productosActualizar,
-          variantes: result.variantesEscritas,
-        }),
+        result.fotosSubidas > 0
+          ? t("panel.productos.importar.listoConFotos", {
+              productos: result.productosNuevos + result.productosActualizar,
+              variantes: result.variantesEscritas,
+              fotos: result.fotosSubidas,
+            })
+          : t("panel.productos.importar.listo", {
+              productos: result.productosNuevos + result.productosActualizar,
+              variantes: result.variantesEscritas,
+            }),
       );
+      if (result.fotosOmitidas > 0) {
+        toast.warning(t("panel.productos.importar.fotosOmitidas", { n: result.fotosOmitidas }));
+      }
+      if (result.fotosFallidas.length > 0) {
+        toast.error(tPlural("panel.productos.importar.fotosFallidas", result.fotosFallidas.length));
+      }
       setSummary(null);
       setErrores(null);
       setFileName(null);
@@ -153,6 +165,11 @@ export function CatalogImportForm() {
               {t("panel.productos.importar.categoriasNuevas", {
                 categorias: summary.categoriasNuevas.join(", "),
               })}
+            </p>
+          ) : null}
+          {summary.fotosNuevas > 0 ? (
+            <p className="mt-1">
+              {tPlural("panel.productos.importar.fotosNuevas", summary.fotosNuevas)}
             </p>
           ) : null}
 

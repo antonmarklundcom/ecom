@@ -291,12 +291,27 @@ Los productos reales entran por dos caminos:
   Variante vacía significa variante única y Stock vacío significa 0 al crear,
   sin tocarlo al reimportar. El formato es el mismo que baja el export del
   panel (una fila por variante) más columnas opcionales — Descripción, Marca,
-  IVA, Precio antes (₲), Slug. Separador `;` o `,`, como venga. Sin `--aplicar`
-  es un ensayo que sólo cuenta; los errores salen todos juntos con número de
-  línea. Idempotente: re-importar actualiza precios sin duplicar y **no pisa el
-  stock** de variantes existentes (`--pisar-stock` si de verdad querés eso).
-  Las categorías que no existan se crean al final del menú. Las fotos no van
-  por acá: se cargan después en `/admin/productos`.
+  IVA, Precio antes (₲), Slug y **Fotos**. Separador `;` o `,`, como venga. Sin
+  `--aplicar` es un ensayo que sólo cuenta; los errores salen todos juntos con
+  número de línea. Idempotente: re-importar actualiza precios sin duplicar y
+  **no pisa el stock** de variantes existentes (`--pisar-stock` si de verdad
+  querés eso). Las categorías que no existan se crean al final del menú.
+  - **Fotos**: una o más URLs `https://` en la columna Fotos, separadas por
+    `|`, espacio o salto de línea (normalmente sólo en la primera fila de cada
+    producto). Cloudinary va a buscarlas solo — nada se descarga acá — y sólo
+    se suben a un producto que hoy no tiene ninguna foto, para que reimportar
+    la misma planilla no duplique nada. Ejemplo de fila (mismas columnas de
+    siempre + Fotos al final):
+
+    ```
+    SKU;Producto;Categoría;Variante;Precio (₲);Stock;Descripción;Marca;IVA;Precio antes (₲);Slug;Fotos
+    AUR-1;Auriculares TWS;Electrónica;Negro;285000;24;;;;;;https://cdn.tienda.com/aur-1.jpg|https://cdn.tienda.com/aur-1b.jpg
+    ```
+
+    Tanto el panel (`/admin/productos`) como la CLI las suben iguales, con la
+    misma regla; sin credenciales de Cloudinary configuradas se avisa y se
+    sigue el resto de la importación sin ellas. Una foto también se puede
+    cargar suelta, a mano, desde `/admin/productos`.
 
 El seed deja un punto de partida que **se termina de ajustar desde el panel**,
 sin volver a tocar código:
