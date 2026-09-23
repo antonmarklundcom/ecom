@@ -1,7 +1,21 @@
-import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  lte,
+  ne,
+  notInArray,
+  sql,
+} from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { categories, productImages, products, variants } from "@/db/schema";
+import { categories, orderItems, orders, productImages, products, variants } from "@/db/schema";
 
 import type { Executor } from "@/domain/executor";
 import { heldQtyMap } from "@/domain/stock";
@@ -486,10 +500,74 @@ export async function getBrands(
 }
 
 /**
- * "También te puede interesar" para la ficha de producto (FASE 2, PR M).
+ * Los estados en los que un pedido "cuenta" para comprado-junto: desde que se
+ * confirma la plata en adelante. `pendiente_pago`, `esperando_verificacion`,
+ * `rechazado`, `vencido` y `cancelado` no prueban que dos productos se
+ * compren juntos — sólo que alguien los puso en el mismo carrito y no llegó
+ * a pagar (o pagó y se le devolvió, `reembolsado`, que tampoco cuenta como
+ * venta).
+ */
+const CO_PURCHASE_STATUSES = ["pagado", "preparando", "enviado", "entregado"] as const;
+
+/**
+ * Paso 1 de `getRelatedProducts`: lo que se compró junto con `productId`, en
+ * cualquier categoría.
  *
- * Misma categoría, publicados, con stock, sin el que se está mirando. El
- * orden mezcla dos señales, en este orden:
+ * Dos consultas y no una con subquery correlacionada: la primera trae los
+ * pedidos (ya filtrados por estado) que tienen a `productId` adentro, y la
+ * segunda cuenta, para cada otro producto, en cuántos de esos pedidos
+ * también aparece. Separarlas es más fácil de leer y evita repetir el join a
+ * `orders` dos veces en la misma consulta.
+ *
+ * Mismo filtro de publicado/stock que el resto de la vidriera —un producto
+ * que se compró junto pero ya no se vende no sirve de sugerencia— y el mismo
+ * criterio de `limit * 3` candidatos que la búsqueda por categoría: el
+ * segundo filtro de stock (holds ajenos) se hace después con `hydrate`.
+ */
+async function getCoPurchasedProducts(
+  tx: Executor,
+  productId: number,
+  limit: number
+): Promise<CatalogProduct[]> {
+  const coOrders = await tx
+    .selectDistinct({ orderId: orderItems.orderId })
+    .from(orderItems)
+    .innerJoin(variants, eq(variants.id, orderItems.variantId))
+    .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .where(and(eq(variants.productId, productId), inArray(orders.status, CO_PURCHASE_STATUSES)));
+
+  if (coOrders.length === 0) return [];
+  const coOrderIds = coOrders.map((row) => row.orderId);
+
+  const coPurchasedOrders = count(sql`DISTINCT ${orderItems.orderId}`);
+
+  const rows = await tx
+    .select({ ...PRODUCT_COLUMNS, coPurchasedOrders })
+    .from(orderItems)
+    .innerJoin(
+      variants,
+      and(eq(variants.id, orderItems.variantId), eq(variants.isActive, true), gt(variants.onHand, 0))
+    )
+    .innerJoin(products, eq(products.id, variants.productId))
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(
+      and(inArray(orderItems.orderId, coOrderIds), ne(products.id, productId), PUBLISHED())
+    )
+    .groupBy(products.id, categories.name, categories.slug)
+    .orderBy(desc(coPurchasedOrders), asc(products.name))
+    .limit(limit * 3);
+
+  const hydrated = await hydrate(tx, rows);
+
+  return hydrated
+    .filter((product) => product.variants.some((variant) => variant.available > 0))
+    .slice(0, limit);
+}
+
+/**
+ * Paso 2 de `getRelatedProducts`, el de siempre: misma categoría, publicados,
+ * con stock, sin el que se está mirando **y sin lo que ya salió en el paso
+ * 1** (`excludeIds`). El orden mezcla dos señales, en este orden:
  *
  * 1. **La misma marca primero.** Quien está mirando una Marca X suele estar
  *    decidiendo entre Marca X, no entre categorías.
@@ -507,13 +585,12 @@ export async function getBrands(
  * no dejan huecos. Puede devolver menos de `limit`, y la ficha simplemente no
  * dibuja la sección si vuelve vacío.
  */
-export async function getRelatedProducts(
+async function getSameCategoryRelated(
+  tx: Executor,
   input: { productId: number; categorySlug: string; brand: string | null; pricePyg?: number },
-  limit = 4,
-  executor?: Executor
+  limit: number,
+  excludeIds: number[]
 ): Promise<CatalogProduct[]> {
-  const tx = executor ?? getDb();
-
   // `<=>` es el igual de MySQL que trata NULL como un valor: con `=`, un
   // producto sin marca comparado contra NULL da NULL (o sea, ni verdadero ni
   // falso) y el CASE se cae siempre al 1. Con `<=>`, "los dos sin marca"
@@ -542,6 +619,7 @@ export async function getRelatedProducts(
         PUBLISHED(),
         eq(categories.slug, input.categorySlug),
         ne(products.id, input.productId),
+        excludeIds.length > 0 ? notInArray(products.id, excludeIds) : undefined,
         gt(variants.onHand, 0)
       )
     )
@@ -554,6 +632,39 @@ export async function getRelatedProducts(
   return hydrated
     .filter((product) => product.variants.some((variant) => variant.available > 0))
     .slice(0, limit);
+}
+
+/**
+ * "También te puede interesar" para la ficha de producto (FASE 2, PR M; el
+ * primer paso de "comprado junto" es posterior).
+ *
+ * Primero lo que la gente compró de verdad junto con este producto —de
+ * cualquier categoría, ver `getCoPurchasedProducts`—, y recién con los
+ * lugares que sobren, lo de la misma categoría (`getSameCategoryRelated`),
+ * sin repetir nada que ya haya salido en el primer paso. Quien compró un
+ * cargador junto con este celular es una señal más fuerte que "otro celular
+ * de la misma marca y precio parecido", y sólo cuando no hay suficientes
+ * compras juntas la sección cae al criterio de siempre.
+ */
+export async function getRelatedProducts(
+  input: { productId: number; categorySlug: string; brand: string | null; pricePyg?: number },
+  limit = 4,
+  executor?: Executor
+): Promise<CatalogProduct[]> {
+  const tx = executor ?? getDb();
+
+  const coPurchased = await getCoPurchasedProducts(tx, input.productId, limit);
+  const remaining = limit - coPurchased.length;
+  if (remaining <= 0) return coPurchased.slice(0, limit);
+
+  const sameCategory = await getSameCategoryRelated(
+    tx,
+    input,
+    remaining,
+    coPurchased.map((product) => product.id)
+  );
+
+  return [...coPurchased, ...sameCategory];
 }
 
 /**
