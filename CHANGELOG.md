@@ -27,6 +27,9 @@ funciones nuevas; **parche** para arreglos.
 
 Migración: no.
 
+- CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
+  Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
+
 ## v1.0.0 — 2026-09-22
 
 **Migración: sí** (para las tiendas cuyo baseline es anterior a O5/O14: la
