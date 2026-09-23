@@ -64,6 +64,9 @@ Migración: no.
   `add_to_cart`/`AddToCart` al agregar y `begin_checkout`/`InitiateCheckout`
   en el checkout, con el SKU como id (el mismo `g:id` del feed). Sin
   medidores configurados no carga ni manda nada.
+- **Purchase con productos:** el evento de compra de GA4/Meta lleva las
+  líneas con el SKU como id (atribución al catálogo) y no se manda para un
+  pedido que ya está vencido, cancelado o rechazado cuando se abre el link.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 
