@@ -27,25 +27,38 @@ funciones nuevas; **parche** para arreglos.
 
 Migración: no.
 
+## v1.0.0 — 2026-09-22
+
+**Migración: sí** (para las tiendas cuyo baseline es anterior a O5/O14: la
+`0011`–`0013` llegan con esta versión). Primera versión publicada: ninguna
+distribución corrió antes, así que cada tienda recibe **todo** lo que el
+template cambió desde su `.template-baseline`, no sólo lo de esta lista. El PR
+de cada tienda lista archivo por archivo qué trae. Después de mergearlo:
+redeployar y correr el setup (NEW-STORE.md § "Migraciones que llegan por
+`template:sync`").
+
 - `.env.example` ya no trae un WhatsApp de ejemplo y `pnpm preflight` bloquea
   el viejo (`+595981123456`) si quedó en un `.env.local`.
-- CI gasta menos minutos de Actions: sólo en PRs, cancela la corrida vieja, no
-  corre en PRs de sólo docs; `e2e` sólo con el label `ci-completo`, a mano o en
-  un PR de distribución; `lighthouse` sólo a mano. `distribuir.yml` y
-  `pnpm-al-dia.yml` no corren en las tiendas. Hook `pre-push` con `pnpm test`.
-- Las tiendas ya no heredan `fable/` ni Dependabot (`SOLO_TEMPLATE`):
-  `nueva-tienda` los borra, `bootstrap:repo` no los copia, `template:sync` los
-  saca.
-- `template:sync` resuelve solo los conflictos en `KNOWN-ISSUES.md`, `ARCH.md`,
-  `NEW-STORE.md` y `CHANGELOG.md` quedándose con el template (T7).
+- CI según el repo: en uno **público** (gratis en Actions) `checks` y `e2e`
+  corren en cada PR y en cada push a `main`, y `lighthouse` en cada push a
+  `main`. En uno **privado**: sólo PRs, `e2e` con el label `ci-completo`, a
+  mano o en un PR de distribución, `lighthouse` a mano. Poner `ci-completo`
+  dispara la corrida. En los dos: nada en PRs de sólo docs y se cancela la
+  corrida vieja. `distribuir.yml` y `pnpm-al-dia.yml` no corren en las tiendas.
+- Hook `pre-push` con `pnpm test:unit` (unitarios en paralelo, ~15 s, sin
+  base); `pnpm test` sigue corriendo todo.
+- Las tiendas ya no heredan `fable/`, Dependabot ni `tiendas.json`
+  (`SOLO_TEMPLATE`): `nueva-tienda` los borra, `bootstrap:repo` no los copia,
+  `template:sync` los saca.
 - **`template:sync` trabaja archivo por archivo** (baseline → versión nueva), no
   commit por commit: en las tres tiendas reales el cherry-pick se frenaba en el
   primer commit que tocaba algo que la tienda había cambiado. Ahora la piel que
   la tienda cambió queda, la maquinaria se fusiona (`package.json` por clave),
   los tests cambiados de los dos lados toman el del template, `src/i18n/es-PY.ts`
-  se fusiona (textos de la tienda + claves nuevas), y todo queda en un commit.
-  `tests/` y `.husky/` pasan a ser maquinaria (un arreglo que sólo tocaba un
-  test no llegaba a las tiendas).
+  se fusiona (textos de la tienda + claves nuevas), los docs del template
+  (`KNOWN-ISSUES.md`, `ARCH.md`, `NEW-STORE.md`, `CHANGELOG.md`) toman el del
+  template, y todo queda en un commit. `tests/` y `.husky/` pasan a ser
+  maquinaria (un arreglo que sólo tocaba un test no llegaba a las tiendas).
 - `distribuir.yml`: corre el `template-sync.ts` del template contra la tienda
   (ya no copia el script adentro, que chocaba consigo mismo, ni corre
   `pnpm install` de la tienda con el token en el entorno); una sola rama
@@ -54,11 +67,9 @@ Migración: no.
   draft con los marcadores commiteados (antes no abría nada); crea el label
   `ci-completo` en la tienda. `TIENDAS_TOKEN` necesita además **Workflows:
   write** (NEW-STORE.md).
-- `tiendas.json` es `SOLO_TEMPLATE` (una tienda nueva no hereda la lista), sólo
-  acepta `repo`, `dominio` y `notas`, y un test rechaza credenciales o datos de
-  la base de Hostinger.
-- Nuevo `pnpm template:ensayar-distribucion [--verificar]`: la distribución
-  contra cada tienda de `tiendas.json` en clones temporales, sin empujar nada.
+- `tiendas.json`: productos, lenceria y mascota. Sólo acepta `repo`, `dominio`
+  y `notas`, y un test rechaza credenciales o datos de la base de Hostinger.
+- Nuevos `pnpm template:probar-tienda` (una tienda nueva desde HEAD, en verde) y
+  `pnpm template:ensayar-distribucion [--verificar]` (la distribución contra
+  cada tienda de `tiendas.json` en clones temporales, sin empujar nada).
 - La suite avisa si corre contra MariaDB (T3).
-- `pnpm template:probar-tienda`.
-- `tiendas.json` acepta campos de registro por tienda (dominio, hosting, notas).
