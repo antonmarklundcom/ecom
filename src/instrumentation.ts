@@ -84,6 +84,17 @@ export function errorReportUrl(): string | null {
 
 export type RequestErrorInfo = { path?: string; method?: string; reqId?: string };
 
+/**
+ * La ruta sin la query. Next llena `path` con `req.url`, y en la query viajan
+ * credenciales: `?t=` del link del pedido (lo único que hace falta para verlo
+ * y subirle un comprobante) y `?secret=` del cron. Ni al log ni al webhook.
+ */
+export function sinQuery(path: string | undefined): string | undefined {
+  if (path === undefined) return undefined;
+  const corte = path.search(/[?#]/);
+  return corte === -1 ? path : path.slice(0, corte);
+}
+
 /** Lo que se manda, escrito campo por campo. Ver la regla de arriba. */
 export function cuerpoDelReporte(error: unknown, info: RequestErrorInfo): string {
   const err = error instanceof Error ? error : new Error(String(error));
@@ -106,7 +117,7 @@ export async function onRequestError(
   request: { path?: string; method?: string; headers?: Record<string, string | undefined> },
 ): Promise<void> {
   const reqId = request.headers?.['x-request-id'];
-  const info: RequestErrorInfo = { path: request.path, method: request.method, reqId };
+  const info: RequestErrorInfo = { path: sinQuery(request.path), method: request.method, reqId };
 
   const registrar = () =>
     log.error('request falló', {

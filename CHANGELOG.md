@@ -40,6 +40,12 @@ Migración: no.
   cupón por cliente ya no se pasa con dos checkouts simultáneos del mismo
   WhatsApp. Y editar un pedido sin bajarle el subtotal (corregir la
   dirección) ya no le quita el cupón si el comercio subió el mínimo después.
+- **Seguridad:** la limpieza del rate limit usaba la ventana de quien la
+  disparaba (una búsqueda de 60 s) y borraba los intentos de login, OTP y
+  registro de los últimos 15 min: el tope de login pasaba de 8 cada 15 min a
+  ~8 por minuto. Y el log y el reporte de errores (`ERROR_REPORT_URL`) ya no
+  llevan la query de la ruta, donde viajan el token del pedido y el secreto
+  del cron.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 
