@@ -84,6 +84,14 @@ export const RECEIPT_REVIEWS = ['pending', 'approved', 'rejected'] as const;
 export type ReceiptReview = (typeof RECEIPT_REVIEWS)[number];
 
 /**
+ * La moderación de una reseña de producto. Mismos tres valores que el
+ * comprobante y por lo mismo: entra `pending`, y sólo una persona del panel la
+ * aprueba o la rechaza. Lo único que se publica es `approved`.
+ */
+export const REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
+/**
  * Los roles viven en `src/lib/roles.ts`, sin dependencias, y se re-exportan
  * acá para que el resto del código los siga leyendo del schema. El motivo del
  * rodeo está escrito en ese archivo: `src/proxy.ts` corre en el edge y no
@@ -722,6 +730,55 @@ export const orderNotes = mysqlTable(
   (t) => [index('order_notes_order_idx').on(t.orderId, t.createdAt)],
 );
 
+/**
+ * Reseñas de producto, sólo de compras verificadas (ver `src/domain/reviews.ts`).
+ *
+ * Cada fila cuelga de un **pedido entregado** y no de una persona: es lo que
+ * hace que la reseña sea de alguien que de verdad recibió el producto, que es
+ * la condición de Google para mostrar estrellas en el resultado. El
+ * `UNIQUE(order_id, product_id)` es "una reseña por producto por compra":
+ * volver a mandar el formulario choca contra el índice y no duplica nada.
+ *
+ * `author_name` es un snapshot armado al escribir ("Rosa G."), nunca el
+ * nombre completo del pedido: se publica en la vidriera y en el JSON-LD.
+ *
+ * `rating`, `title` y `body` los escribe la compradora y **nadie los edita
+ * después**: el panel sólo cambia `status` y `owner_reply`. `ON DELETE
+ * CASCADE` contra producto y pedido: sin ninguno de los dos, la reseña no
+ * tiene de qué hablar ni quién la respalde.
+ */
+export const productReviews = mysqlTable(
+  'product_reviews',
+  {
+    id: int('id').autoincrement().primaryKey(),
+    productId: int('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    orderId: int('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    /** 1..5. El rango lo valida el dominio. */
+    rating: tinyint('rating', { unsigned: true }).notNull(),
+    title: varchar('title', { length: 120 }),
+    /** 10..2000 caracteres, trimmed. */
+    body: text('body').notNull(),
+    /** "Nombre I." — derivado del pedido al escribir, nunca el nombre completo. */
+    authorName: varchar('author_name', { length: 80 }).notNull(),
+    status: mysqlEnum('status', REVIEW_STATUSES).notNull().default('pending'),
+    /** La respuesta pública de la tienda. NULL = sin respuesta. */
+    ownerReply: text('owner_reply'),
+    ownerReplyAt: datetime('owner_reply_at'),
+    moderatedAt: datetime('moderated_at'),
+    /** La FK consultable; ver el comentario largo en `stock_adjustments`. */
+    moderatedByUserId: int('moderated_by_user_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('product_reviews_order_product_uq').on(t.orderId, t.productId),
+    index('product_reviews_product_status_idx').on(t.productId, t.status, t.createdAt),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Cupones (PLAN.md FASE 2, PR G) — cero filas = invisible
 // ---------------------------------------------------------------------------
@@ -1144,6 +1201,8 @@ export const BACKUP_TABLES = [
   'order_items',
   'order_events',
   'order_notes',
+  // Cuelga de `products` y de `orders`.
+  'product_reviews',
   'payments',
   'refunds',
   'receipts',

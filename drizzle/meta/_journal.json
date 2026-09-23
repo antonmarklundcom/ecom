@@ -99,6 +99,13 @@
       "when": 1789091599787,
       "tag": "0013_military_barracuda",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1790169314650,
+      "tag": "0014_worthless_vanisher",
+      "breakpoints": true
     }
   ]
 }

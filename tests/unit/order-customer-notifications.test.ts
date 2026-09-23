@@ -185,6 +185,24 @@ describe("customerNoticeBody · enviado", () => {
   });
 });
 
+describe("customerNoticeBody · resena (pedido entregado)", () => {
+  it("saluda por el nombre, pregunta por el pedido y lleva el link a su pedido", () => {
+    const body = customerNoticeBody("resena", order);
+
+    expect(body).toBe(
+      `Hola Rosa! ¿Qué tal tu pedido PY-000042? Contanos qué te pareció: ` +
+        `https://tienda.com.py/pedido/PY-000042?t=${order.accessToken}`,
+    );
+  });
+
+  it("no lleva el apellido ni el total", () => {
+    const body = customerNoticeBody("resena", order);
+
+    expect(body).not.toContain("Giménez");
+    expect(body).not.toContain("₲");
+  });
+});
+
 describe("resolveCustomerNotifier — sin plantilla, apagado en cualquier canal", () => {
   beforeEach(() => {
     vi.stubEnv("NODE_ENV", "test");
@@ -194,6 +212,7 @@ describe("resolveCustomerNotifier — sin plantilla, apagado en cualquier canal"
     vi.stubEnv("WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO", "");
     vi.stubEnv("WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO", "");
     vi.stubEnv("WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO", "");
+    vi.stubEnv("WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA", "");
   });
 
   it("sin la plantilla de ese aviso, ni siquiera el sender de consola de dev manda algo", () => {
@@ -208,6 +227,15 @@ describe("resolveCustomerNotifier — sin plantilla, apagado en cualquier canal"
     expect(resolveCustomerNotifier("confirmado")).toBeNull();
     expect(resolveCustomerNotifier("enviado")).toBeNull();
     expect(resolveCustomerNotifier("pagado")?.sender.channel).toBe("consola");
+  });
+
+  it("el pedido de reseña tiene su propio interruptor", () => {
+    expect(resolveCustomerNotifier("resena")).toBeNull();
+
+    vi.stubEnv("WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA", "cliente_resena");
+
+    expect(resolveCustomerNotifier("resena")?.sender.channel).toBe("consola");
+    expect(resolveCustomerNotifier("enviado")).toBeNull();
   });
 
   it("en producción, sin la plantilla, sigue apagado aunque exista Cloud", () => {

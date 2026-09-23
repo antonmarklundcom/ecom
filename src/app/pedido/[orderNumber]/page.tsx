@@ -7,9 +7,11 @@ import { CopyField } from "@/components/copy-field";
 import { PurchaseEvent } from "@/components/purchase-event";
 import { GuardarDatosCta } from "@/components/cuenta/guardar-datos";
 import { ReceiptUpload } from "@/components/receipt-upload";
+import { ReviewForms } from "@/components/review-form";
 import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
+import { REVIEWABLE_ORDER_STATUS, listReviewableItems } from "@/domain/reviews";
 import { t } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
 import { comercioWaLink, getDatosBancarios } from "@/lib/comercio";
@@ -45,11 +47,16 @@ export default async function OrderPage({
   const order = await requireOrderAccess(orderNumber, token);
   if (!order) notFound();
 
-  const [items, events, receiptCount, datosBancarios] = await Promise.all([
+  // Reseñas: sólo con el pedido entregado y el token en la mano (el mismo que
+  // re-chequea la acción). Antes de eso ni se consulta.
+  const puedeCalificar = order.status === REVIEWABLE_ORDER_STATUS && Boolean(token);
+
+  const [items, events, receiptCount, datosBancarios, reviewable] = await Promise.all([
     getOrderItems(order.id),
     getOrderEvents(order.id),
     countReceipts(order.id),
     getDatosBancarios(),
+    puedeCalificar ? listReviewableItems(order.id) : Promise.resolve([]),
   ]);
 
   const waHref = comercioWaLink(
@@ -219,6 +226,14 @@ export default async function OrderPage({
           ) : null}
         </dl>
       </section>
+
+      {puedeCalificar && token && reviewable.length > 0 ? (
+        <section className="border-border mt-6 rounded-xl border p-4">
+          <h2 className="font-medium">{t("pedido.resenas.titulo")}</h2>
+          <p className="text-muted-foreground mt-1 text-sm">{t("pedido.resenas.bajada")}</p>
+          <ReviewForms orderNumber={order.orderNumber} token={token} items={reviewable} />
+        </section>
+      ) : null}
 
       <section className="mt-6">
         <h2 className="font-medium">{t("pedido.envio.titulo")}</h2>

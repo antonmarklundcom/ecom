@@ -32,6 +32,8 @@ const TABLES = [
   // cuelgan de algo (FK cascade) para no depender del orden de borrado, igual
   // que el resto de la lista.
   'order_notes',
+  // Reseñas: cuelgan de `orders` y `products`.
+  'product_reviews',
   'refunds',
   'price_adjustments',
   'stock_alerts',

@@ -86,6 +86,13 @@ export const CAPABILITIES = [
    * y apellido — es supervisión, no mostrador.
    */
   "actividad",
+  /**
+   * Moderar y responder reseñas de producto. Mismos roles que `productos`:
+   * es la vidriera. Lo que ninguno puede —ni el dueño— es escribir una reseña
+   * o cambiar la de una compradora: esa función no existe
+   * (`src/domain/reviews.ts`).
+   */
+  "resenas",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -112,6 +119,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     "comprobantes",
     "precios",
     "productos",
+    "resenas",
     "stock",
     "clientes",
     // El encargado supervisa el turno: es el que necesita saber quién marcó
