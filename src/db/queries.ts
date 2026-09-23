@@ -509,6 +509,8 @@ export async function getBrands(
  */
 const CO_PURCHASE_STATUSES = ["pagado", "preparando", "enviado", "entregado"] as const;
 
+const CO_PURCHASE_MAX_ORDERS = 500;
+
 /**
  * Paso 1 de `getRelatedProducts`: lo que se compró junto con `productId`, en
  * cualquier categoría.
@@ -534,7 +536,12 @@ async function getCoPurchasedProducts(
     .from(orderItems)
     .innerJoin(variants, eq(variants.id, orderItems.variantId))
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
-    .where(and(eq(variants.productId, productId), inArray(orders.status, CO_PURCHASE_STATUSES)));
+    .where(and(eq(variants.productId, productId), inArray(orders.status, CO_PURCHASE_STATUSES)))
+    // Tope: un producto con miles de ventas no puede convertir la segunda
+    // consulta en un `IN (...)` de miles de ids en cada render de la ficha.
+    // Los 500 pedidos más nuevos alcanzan para rankear, y siguen la moda.
+    .orderBy(desc(orderItems.orderId))
+    .limit(CO_PURCHASE_MAX_ORDERS);
 
   if (coOrders.length === 0) return [];
   const coOrderIds = coOrders.map((row) => row.orderId);
