@@ -96,6 +96,10 @@ describe.skipIf(!hasTestDb)('GET/POST /api/cron/vencer-pedidos', () => {
       expired: 1,
       skipped: 0,
       reservationsDeleted: 0,
+      // O15: la misma corrida manda los recordatorios de pago. Sin la
+      // plantilla de Meta cargada —el estado de toda tienda que no la pidió—
+      // son tres ceros y el cron es exactamente el de antes.
+      paymentReminders: { candidatos: 0, enviados: 0, fallidos: 0 },
     });
     expect(await getStatus(orderId)).toBe('vencido');
   });

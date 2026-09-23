@@ -42,6 +42,10 @@ import {
 } from "@/lib/admin-guard";
 import { t } from "@/i18n";
 
+function revalidarVidriera() {
+  revalidatePath("/", "layout");
+}
+
 // Import directo del script de seed: mismo `upsertCatalogProducts` que usa
 // `pnpm importar:productos`, no una reimplementación para el panel.
 import { upsertCatalogProducts, type CatalogProductUpsert } from "../../../scripts/seed";
@@ -58,6 +62,11 @@ const ProductSchema = z.object({
   slug: z
     .string()
     .trim()
+    // El techo no es decorativo: `products.slug` es VARCHAR(160) y un slug más
+    // largo se truncaba en la base, dejando dos productos distintos apuntando
+    // a la misma URL (y el segundo guardado fallando por el índice único con
+    // un error que no explica nada).
+    .max(160, t("adminForm.slugLargo"))
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El slug va en minúsculas y con guiones: remera-azul"),
   name: z.string().trim().min(2, t("adminForm.nombreProducto")).max(200),
   description: z.string().trim().max(5000).optional(),
@@ -67,6 +76,13 @@ const ProductSchema = z.object({
   ivaRate: z.union([z.literal(10), z.literal(5), z.literal(0)]),
   isActive: z.boolean(),
   published: z.boolean(),
+  /**
+   * Destacado de la home. Opcional a propósito: un formulario que no dibuja la
+   * casilla manda `undefined` y `updateProduct` lo lee como "no tocar", así
+   * que guardar el precio de un producto destacado no lo des-destaca de paso.
+   * En el alta, `createProduct` lo resuelve como `false`.
+   */
+  isFeatured: z.boolean().optional(),
 });
 
 export async function saveProduct(
@@ -89,18 +105,21 @@ export async function saveProduct(
       ivaRate: parsed.data.ivaRate,
       isActive: parsed.data.isActive,
       published: parsed.data.published,
+      isFeatured: parsed.data.isFeatured,
     };
 
     const productId = parsed.data.productId;
     if (productId === undefined) {
       const created = await createProduct(write);
       revalidatePath("/admin/productos");
+      revalidarVidriera();
       return { ok: true, productId: created };
     }
 
     await updateProduct(productId, write);
     revalidatePath("/admin/productos");
     revalidatePath(`/admin/productos/${productId}`);
+    revalidarVidriera();
     return { ok: true, productId };
   } catch (error) {
     return adminActionError("saveProduct", error);
@@ -184,6 +203,7 @@ export async function adjustVariantStock(
     if (parsed.data.productId) revalidatePath(`/admin/productos/${parsed.data.productId}`);
     revalidatePath("/admin/productos");
     revalidatePath("/admin");
+    revalidarVidriera();
     return { ok: true, newOnHand: result.newOnHand };
   } catch (error) {
     return adminActionError("adjustVariantStock", error);
@@ -227,6 +247,7 @@ export async function uploadProductImage(formData: FormData): Promise<AdminActio
     });
 
     revalidatePath(`/admin/productos/${productId}`);
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("uploadProductImage", error);
@@ -253,6 +274,7 @@ export async function removeProductImage(input: unknown): Promise<AdminActionRes
     await deleteProductImage(parsed.data.imageId);
 
     revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("removeProductImage", error);
@@ -428,6 +450,7 @@ export async function bulkSetProductsActive(
     const afectados = await bulkSetActive(parsed.data.productIds, parsed.data.isActive);
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, afectados };
   } catch (error) {
     return adminActionError("bulkSetProductsActive", error);
@@ -448,6 +471,7 @@ export async function bulkMoveProductsCategory(
     const afectados = await bulkMoveCategory(parsed.data.productIds, parsed.data.categoryId);
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, afectados };
   } catch (error) {
     return adminActionError("bulkMoveProductsCategory", error);
@@ -495,6 +519,7 @@ export async function bulkAdjustProductPrices(
     });
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, ...result };
   } catch (error) {
     return adminActionError("bulkAdjustProductPrices", error);
@@ -549,6 +574,7 @@ export async function duplicateProductAction(
     const productId = await duplicateProduct(parsed.data.productId);
 
     revalidatePath("/admin/productos");
+    revalidarVidriera();
     return { ok: true, productId };
   } catch (error) {
     return adminActionError("duplicateProductAction", error);

@@ -59,6 +59,15 @@ export type AdminCategoryRow = {
    * desactivar: es la cantidad exacta de fichas que desaparecen del sitio.
    */
   publicados: number;
+  /**
+   * Los tres campos de presentación (O7), para que el formulario de edición
+   * prellene lo que la categoría ya tiene en vez de pedirlos a ciegas. Sin
+   * ellos el panel tenía que ofrecer un "cambiar descripción o foto"
+   * destildado, que es lo que esta fase viene a borrar.
+   */
+  description: string | null;
+  imageCloudinaryId: string | null;
+  imageAlt: string | null;
 };
 
 const PUBLICADO = sql<number>`SUM(CASE WHEN ${products.isActive} = 1 AND ${products.publishedAt} IS NOT NULL THEN 1 ELSE 0 END)`;
@@ -80,12 +89,24 @@ export async function listAdminCategories(executor?: Executor): Promise<AdminCat
       name: categories.name,
       position: categories.position,
       isActive: categories.isActive,
+      description: categories.description,
+      imageCloudinaryId: categories.imageCloudinaryId,
+      imageAlt: categories.imageAlt,
       productos: count(products.id),
       publicados: PUBLICADO,
     })
     .from(categories)
     .leftJoin(products, eq(products.categoryId, categories.id))
-    .groupBy(categories.id, categories.slug, categories.name, categories.position, categories.isActive)
+    .groupBy(
+      categories.id,
+      categories.slug,
+      categories.name,
+      categories.position,
+      categories.isActive,
+      categories.description,
+      categories.imageCloudinaryId,
+      categories.imageAlt,
+    )
     .orderBy(asc(categories.position), asc(categories.id));
 
   return rows.map((row) => ({
@@ -178,6 +199,9 @@ export async function createCategory(input: {
       name: row.name,
       position: row.position,
       isActive: row.isActive,
+      description: row.description,
+      imageCloudinaryId: row.imageCloudinaryId,
+      imageAlt: row.imageAlt,
       productos: 0,
       publicados: 0,
     };
@@ -220,6 +244,51 @@ export async function updateCategory(input: {
       .update(categories)
       .set({ name, slug, ...presentacion(input) })
       .where(eq(categories.id, category.id));
+  });
+}
+
+/**
+ * La foto de la categoría, ya subida a Cloudinary.
+ *
+ * Devuelve el `public_id` que había antes (o `null`) para que la acción borre
+ * ese asset del CDN. El borrado se hace **después** de que la fila apunte a la
+ * foto nueva y nunca adentro de esta función: si Cloudinary está caído, la
+ * categoría ya quedó bien y lo único que pasa es que sobra un archivo.
+ *
+ * A diferencia de `updateCategory`, no toca nombre ni slug: subir una foto no
+ * es el momento de re-validar la URL de la categoría.
+ */
+export async function setCategoryImage(input: {
+  categoryId: number;
+  imageCloudinaryId: string;
+  imageAlt?: string | null;
+}): Promise<{ previousCloudinaryId: string | null }> {
+  return getDb().transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: categories.id, imageCloudinaryId: categories.imageCloudinaryId })
+      .from(categories)
+      .where(eq(categories.id, input.categoryId))
+      .limit(1)
+      .for('update');
+    const category = rows[0];
+    if (!category) throw new AdminCategoryError('adminError.categoria.noExiste');
+
+    await tx
+      .update(categories)
+      .set({
+        imageCloudinaryId: input.imageCloudinaryId,
+        // `undefined` no toca el alt que ya había: quien sólo reemplaza la
+        // foto no tiene por qué volver a escribir la descripción.
+        ...(input.imageAlt === undefined ? {} : { imageAlt: input.imageAlt?.trim() || null }),
+      })
+      .where(eq(categories.id, category.id));
+
+    return {
+      previousCloudinaryId:
+        category.imageCloudinaryId === input.imageCloudinaryId
+          ? null
+          : category.imageCloudinaryId,
+    };
   });
 }
 

@@ -193,7 +193,7 @@ export function OrderActions({
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {nextStatuses.map((status) => {
+          {nextStatuses.filter((status) => status !== "reembolsado").map((status) => {
             const destructive = DESTRUCTIVE_TRANSITIONS.includes(status);
             return (
               <Button

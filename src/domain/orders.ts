@@ -26,12 +26,14 @@ import { log, mensajeDe } from '@/lib/log';
 export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   pendiente_pago: ['esperando_verificacion', 'pagado', 'vencido', 'cancelado'],
   esperando_verificacion: ['pagado', 'rechazado', 'cancelado'],
-  // Comprobante inválido: el comprador puede reintentar.
-  rechazado: ['pendiente_pago', 'cancelado'],
+  // Reintento de comprobante, dar por cobrado desde el panel, vencimiento por cron o cancelación.
+  rechazado: ['esperando_verificacion', 'pagado', 'vencido', 'cancelado'],
   pagado: ['preparando', 'reembolsado'],
   preparando: ['enviado', 'reembolsado'],
-  enviado: ['entregado'],
-  entregado: [],
+  // Devolución total de un pedido ya despachado; el stock no vuelve solo:
+  // la mercadería devuelta se repone con un ajuste de stock manual, auditado.
+  enviado: ['entregado', 'reembolsado'],
+  entregado: ['reembolsado'],
   // `vencido → pagado` es la recuperación del pago tardío (ARCH.md §4.1): el
   // cron venció el pedido y el aviso de Pagopar llegó un segundo después. La
   // arista existe, pero entrar a `pagado` re-asegura el stock primero, así que
@@ -302,12 +304,12 @@ export async function transitionOrder(
   // llama, p. ej. `reviewReceipt`, `retryOrderRevival`, el webhook de
   // Pagopar), esto puede correr una fracción de segundo antes de que esa
   // transacción externa haga commit: `notifyCustomerOrderEvent` usa su propia
-  // conexión (nunca `tx`) y lee `orders` de nuevo, así que en el peor caso
-  // sólo espera el lock de fila hasta que el commit libera la fila — no hay
-  // riesgo de tocar la conexión que está por cerrar esa transacción.
+  // conexión (nunca `tx`). Su SELECT común no espera el lock de fila y puede
+  // leer el snapshot anterior; pasamos el destino para el evento del aviso.
   const kind = result.changed ? CUSTOMER_NOTICE_FOR_STATUS[to] : undefined;
   if (kind) {
     void notifyCustomerOrderEvent(orderId, kind, {
+      status: to,
       note: kind === 'enviado' ? (reason ?? null) : null,
     }).catch((error) => {
       log.error('notifyCustomerOrderEvent rechazó', { error: mensajeDe(error) });
@@ -448,9 +450,10 @@ async function consumeReservations(tx: Executor, orderId: number): Promise<void>
   for (const reservation of held) {
     await tx
       .update(variants)
-      // GREATEST(...,0): on_hand es UNSIGNED. Si un ajuste manual de stock dejó
-      // menos de lo reservado, preferimos 0 antes que abortar el cobro.
-      .set({ onHand: sql`GREATEST(${variants.onHand} - ${reservation.qty}, 0)` })
+      // on_hand es UNSIGNED: GREATEST solo no alcanza porque la resta se evalúa
+      // antes y puede fallar. Casteamos a SIGNED para dejar 0 si un ajuste de
+      // stock dejó menos de lo reservado, sin abortar el cobro.
+      .set({ onHand: sql`GREATEST(CAST(${variants.onHand} AS SIGNED) - ${reservation.qty}, 0)` })
       .where(eq(variants.id, reservation.variantId));
 
     await tx

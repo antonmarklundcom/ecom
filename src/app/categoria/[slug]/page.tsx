@@ -51,7 +51,15 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     markdownToText(category.description).slice(0, 160) ||
     t("categoria.metaDescripcion", { nombre: category.name });
 
-  return { title: category.name, description };
+  // == S17 == `alternates.canonical` a la URL sin query: `/categoria/slug`
+  // siempre es la misma página sin importar `?orden=` o `?precio=`, y sin eso
+  // Google indexaba cada combinación de filtros como si fuera contenido
+  // distinto. `siteOrigin()` devuelve `null` sin `NEXT_PUBLIC_SITE_URL` — sin
+  // origen conocido no se emite nada inventado (plan-crecimiento.md §6.1 F).
+  const origin = siteOrigin();
+  const canonical = origin ? new URL(`/categoria/${slug}`, origin).toString() : undefined;
+
+  return { title: category.name, description, ...(canonical ? { alternates: { canonical } } : {}) };
 }
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -195,22 +203,38 @@ export default async function CategoryPage({
 
       {result.totalPages > 1 ? (
         <nav className="mt-8 flex items-center justify-center gap-3" aria-label={t("nav.paginacion")}>
-          <Button asChild variant="outline" size="sm" disabled={result.page <= 1}>
-            <Link href={buildPageHref(result.page - 1)} aria-disabled={result.page <= 1}>
+          {/* == S17 == En los bordes, un `<span aria-disabled>` con el mismo
+              estilo del botón deshabilitado — no un `<Link>`: un `<a href>`
+              sigue siendo clickeable (y navegable con teclado) aunque el
+              `Button` que lo envuelve diga `disabled`, que es justo lo que
+              pasaba acá antes de este PR. */}
+          {result.page > 1 ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={buildPageHref(result.page - 1)}>{t("nav.anterior")}</Link>
+            </Button>
+          ) : (
+            <span
+              aria-disabled="true"
+              className="border-input text-muted-foreground pointer-events-none rounded-md border px-3 py-1.5 text-sm opacity-50"
+            >
               {t("nav.anterior")}
-            </Link>
-          </Button>
+            </span>
+          )}
           <span className="text-muted-foreground text-sm">
             {t("nav.pagina", { actual: result.page, total: result.totalPages })}
           </span>
-          <Button asChild variant="outline" size="sm" disabled={result.page >= result.totalPages}>
-            <Link
-              href={buildPageHref(result.page + 1)}
-              aria-disabled={result.page >= result.totalPages}
+          {result.page < result.totalPages ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={buildPageHref(result.page + 1)}>{t("nav.siguiente")}</Link>
+            </Button>
+          ) : (
+            <span
+              aria-disabled="true"
+              className="border-input text-muted-foreground pointer-events-none rounded-md border px-3 py-1.5 text-sm opacity-50"
             >
               {t("nav.siguiente")}
-            </Link>
-          </Button>
+            </span>
+          )}
         </nav>
       ) : null}
     </main>

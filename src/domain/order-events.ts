@@ -3,6 +3,9 @@ import { orderEvents, type OrderStatus } from "@/db/schema";
 
 import type { Executor } from "./executor";
 
+/** Prefijo de avisos sin transición; reconcile lo usa para reconocer sus eventos. */
+export const NOTICE_REASON_PREFIX = "aviso_";
+
 /**
  * La única forma de escribir en `order_events` fuera de `transitionOrder()`.
  *
@@ -14,14 +17,14 @@ import type { Executor } from "./executor";
  *
  * `toStatus` es NOT NULL en la tabla, así que un evento que no es una
  * transición guarda el estado en el que el pedido **sigue** estando y deja
- * `fromStatus` en null. Leer una fila con `from_status IS NULL` es exactamente
- * eso: "acá no hubo cambio de estado, pasó otra cosa".
+ * `fromStatus` en null para la creación. Los avisos usan `fromStatus = status`
+ * y `NOTICE_REASON_PREFIX` para distinguirlos de una transición.
  */
 export type OrderEventInput = {
   orderId: number;
   /** El estado en el que queda el pedido; para un evento sin transición, el actual. */
   status: OrderStatus;
-  /** Estado anterior. `null` —el default— cuando no hubo transición. */
+  /** Estado anterior; en avisos, igual a `status`. `null` por defecto al crear. */
   fromStatus?: OrderStatus | null;
   /** Quién: `"buyer"`, `"sistema"`, o el email de quien lo hizo desde el panel. */
   actor: string;

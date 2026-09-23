@@ -12,7 +12,7 @@ import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 /**
- * Reembolso parcial de un pago (O7 §5.3 A, S10 §6.2).
+ * Reembolso total o parcial de un pago (O7 §5.3 A, S10 §6.2).
  *
  * **Nueva, la crea S10** (plan-operacion §6.2): componente autónomo y
  * controlado por props, sin ninguna consulta propia — el navegador nunca
@@ -31,12 +31,14 @@ export function RefundForm({
   orderNumber,
   amountPyg,
   refundedPygInicial = 0,
+  allowSettled = false,
   onDone,
 }: {
   paymentId: number;
   orderNumber: string;
   amountPyg: number;
   refundedPygInicial?: number;
+  allowSettled?: boolean;
   onDone?: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -119,6 +121,7 @@ export function RefundForm({
                     paymentId,
                     reason,
                     amountPyg: monto,
+                    allowSettled,
                   });
                   if (!result.ok) {
                     setError(result.error);

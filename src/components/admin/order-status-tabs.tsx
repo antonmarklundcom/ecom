@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { ORDER_STATUSES, type OrderStatus } from "@/db/schema";
+import { ORDER_STATUSES, type OrderStatus } from "@/db/enums";
 import type { OrderStatusCounts } from "@/domain/admin-orders";
 
 import { ORDER_STATUS_LABEL } from "@/lib/order-labels";

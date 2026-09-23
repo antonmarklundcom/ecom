@@ -33,6 +33,8 @@ export type UnmatchedPaymentCard = {
   provider: string;
   amountPyg: number;
   paidAt: string;
+  // == S17 == `findUnmatchedPayments` (O14) ya trae el reembolso real.
+  refundedPyg: number;
 };
 
 /**
@@ -146,11 +148,9 @@ function UnmatchedPaymentRow({
             paymentId={payment.paymentId}
             orderNumber={payment.orderNumber}
             amountPyg={payment.amountPyg}
-            // La consulta de "pagos sin pedido vivo" no trae `refunded_pyg`
-            // todavía (KNOWN-ISSUES.md): 0 es correcto para el caso normal
-            // —un pago recién detectado— y se actualiza solo dentro del
-            // formulario si se hacen varios parciales seguidos acá mismo.
-            refundedPygInicial={0}
+            // == S17 == Real desde `findUnmatchedPayments` (O14 agregó
+            // `refunded_pyg` a la consulta); antes esto era 0 siempre.
+            refundedPygInicial={payment.refundedPyg}
             onDone={() => router.refresh()}
           />
           <Button

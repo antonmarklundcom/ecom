@@ -9,7 +9,7 @@ import { siteOrigin } from "@/lib/site-url";
 
 import { resolveMessageSender, whatsappOwnerTemplate, type MessageSender } from "./messaging";
 import { motivoDeAviso, withTimeout } from "./notify-timing";
-import { recordOrderEvent } from "./order-events";
+import { NOTICE_REASON_PREFIX, recordOrderEvent } from "./order-events";
 import { log, mensajeDe } from '@/lib/log';
 
 /**
@@ -170,16 +170,18 @@ export async function notifyOwnerNewOrder(
       await recordOrderEvent({
         orderId,
         status: order.status,
+        fromStatus: order.status,
         actor: "sistema",
-        reason: "aviso_dueno_enviado",
+        reason: `${NOTICE_REASON_PREFIX}dueno_enviado`,
       });
     } catch (error) {
       log.error('notifyOwnerNewOrder: no se pudo avisar del pedido', { error: mensajeDe(error) });
       await recordOrderEvent({
         orderId,
         status: order.status,
+        fromStatus: order.status,
         actor: "sistema",
-        reason: `aviso_dueno_fallido: ${motivoDeAviso(error)}`.slice(0, 500),
+        reason: `${NOTICE_REASON_PREFIX}dueno_fallido: ${motivoDeAviso(error)}`.slice(0, 500),
       });
     }
   } catch (error) {

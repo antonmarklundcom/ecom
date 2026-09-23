@@ -35,6 +35,35 @@ afterEach(() => {
   if (SITE_URL === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
 });
 
+describe("customerNoticeBody · recordatorio (O15)", () => {
+  // 18:40 del 20 de abril, hora de Asunción (UTC-3, sin horario de verano).
+  const reservedUntil = new Date("2026-04-20T21:40:00.000Z");
+
+  it("lleva número, total, la hora límite en Asunción y el link al pedido", () => {
+    const body = customerNoticeBody("recordatorio", { ...order, reservedUntil });
+
+    expect(body).toContain("PY-000042");
+    expect(body).toContain("₲ 1.250.000");
+    expect(body).toContain("Rosa");
+    expect(body).toContain("20/04/2026 18:40");
+    expect(body).toContain(`https://tienda.com.py/pedido/PY-000042?t=${order.accessToken}`);
+  });
+
+  it("sin reserva no inventa una hora límite", () => {
+    const body = customerNoticeBody("recordatorio", { ...order, reservedUntil: null });
+
+    expect(body).toContain("PY-000042");
+    expect(body).not.toContain("hasta las");
+  });
+
+  it("no lleva el teléfono de nadie ni datos bancarios", () => {
+    const body = customerNoticeBody("recordatorio", { ...order, reservedUntil });
+
+    expect(body).not.toMatch(/\+595/);
+    expect(body).not.toMatch(/cuenta|RUC/i);
+  });
+});
+
 describe("customerNoticeBody · confirmado", () => {
   it("lleva número, total, el nombre de la tienda y el link al pedido", () => {
     const body = customerNoticeBody("confirmado", order);

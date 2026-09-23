@@ -3,7 +3,7 @@
 > **Historial.** Las fases de este plan están todas mergeadas. El plan activo es
 > [`fable/plan-operacion.md`](./plan-operacion.md) (2026-09-05).
 
-**Origen:** `fable/REVIEW.md` (revisión de Fable 5.1, 2026-09-02). Este plan **no reemplaza**
+**Origen:** `fable/REVIEW-2026-09-02.md` (revisión de Fable 5.1, 2026-09-02). Este plan **no reemplaza**
 `PLAN.md` (FASE 2, cerrada) ni `TASKS.md` (historial + bloqueos de terceros): los deja como
 registro y agrega lo que la revisión encontró. Cuando las cuatro fases estén mergeadas, este
 archivo pasa a ser también historial.
@@ -252,7 +252,7 @@ CI verde completo; PR mergeado. **STOP — reporte final a Anton (ver prompt).**
 
 | Qué | Quién | Fase que lo necesita |
 |---|---|---|
-| Respuesta a P1–P4 de `fable/REVIEW.md` (o silencio = recomendación) | Anton | O1 |
+| Respuesta a P1–P4 de `fable/REVIEW-2026-09-02.md` (o silencio = recomendación) | Anton | O1 |
 | Plantilla de WhatsApp Cloud aprobada por Meta para "pedido nuevo" (para probar en una tienda real; el código no la necesita) | Dueño del comercio / Anton | O2, sólo para prueba real |
 | Nada más: el resto corre con lo que hay en CI | — | — |
 

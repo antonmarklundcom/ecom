@@ -1,17 +1,52 @@
 name: CI
 
+# Minutos de Actions (NEW-STORE.md § "CI y minutos de Actions"). Este archivo
+# viaja a TODAS las tiendas, y el costo depende de si el repo es público o
+# privado: en un repo **público** los runners estándar de GitHub son gratis y
+# sin límite; en uno **privado** cada minuto se descuenta de la cuenta. Por eso
+# cada job mira `github.event.repository.private`:
+#
+#   - Público: todo corre en cada PR y en cada push a main (e2e incluido;
+#     lighthouse en cada push a main). No cuesta nada y es la red que ataja lo
+#     que un PR de piel rompe en checkout.
+#   - Privado: sólo PRs (el push a main no corre: ya corrió en su PR), `checks`
+#     siempre, `e2e` sólo con el label `ci-completo`, a mano, o en un PR de
+#     distribución del template (rama `template/…`); `lighthouse` sólo a mano.
+#   - En los dos: un PR que sólo toca docs no corre nada (`paths-ignore`), y
+#     un push nuevo cancela la corrida anterior (`concurrency`). Poner el label
+#     `ci-completo` dispara la corrida sola (`labeled`); cualquier otro label no.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
+    paths-ignore:
+      - "**.md"
+      - "fable/**"
+      - "LICENSE"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "fable/**"
+      - "LICENSE"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
+    # Un push a main en un repo privado no corre (ya corrió en su PR), y un
+    # label que no es `ci-completo` no dispara nada. Un job salteado no cuesta
+    # minutos.
+    if: >-
+      (github.event_name != 'push' || !github.event.repository.private) &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci-completo')
     runs-on: ubuntu-latest
     # Un paso que se cuelga no puede comerse el runner (ni los logs, que
     # recién quedan disponibles cuando el job termina).
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     # Los tests de dominio (transitionOrder, reservas, contador de pedidos)
     # corren contra MySQL de verdad: FOR UPDATE y las transacciones no se
@@ -93,8 +128,16 @@ jobs:
   # compradora en un navegador, no lo que asume un test unitario. Corre
   # después de `checks` — sin typecheck/lint/unitarios verdes no vale la pena
   # pagar el minuto extra de un navegador.
+  #
+  # Es el job más caro (navegador + build + base sembrada): en un repo privado
+  # no corre en cada PR, ver el comentario de arriba de todo para cómo pedirlo.
   e2e:
     needs: checks
+    if: >-
+      !github.event.repository.private ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-completo') ||
+      startsWith(github.head_ref, 'template/')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -183,8 +226,13 @@ jobs:
   # presupuesto de JS de `tests/e2e/presupuesto.spec.ts` (arriba, en `e2e`),
   # medido con bytes reales, no con un puntaje que cambia con la carga del
   # runner. Este job es sólo una alarma temprana.
+  # En un repo público corre en cada push a main (gratis); en uno privado,
+  # sólo a mano: es una alarma sin poder de bloqueo y no vale los minutos.
   lighthouse:
     needs: e2e
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && !github.event.repository.private)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true

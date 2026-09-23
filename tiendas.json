@@ -1,0 +1,14 @@
+[
+  {
+    "repo": "antonmarklundcom/productos",
+    "notas": "baseline f5c8031; sin carga por planilla (no usa exceljs)"
+  },
+  {
+    "repo": "antonmarklundcom/lenceria",
+    "notas": "baseline 7ff178a; src/db/index.ts, src/lib/images.ts y src/lib/seo.ts propios"
+  },
+  {
+    "repo": "antonmarklundcom/mascota",
+    "notas": "baseline f9979ce; nunca trajo la carga por planilla: el primer sync choca en admin-products.ts"
+  }
+]

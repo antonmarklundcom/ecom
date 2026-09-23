@@ -73,6 +73,8 @@ export default async function AdminDashboardPage() {
               provider: payment.provider,
               amountPyg: payment.amountPyg,
               paidAt: formatDateTimePY(payment.paidAt),
+              // == S17 == `findUnmatchedPayments` (O14) ya trae el real.
+              refundedPyg: payment.refundedPyg,
             }))}
             puedeDevolver={can(actor.role, "reembolsos")}
           />

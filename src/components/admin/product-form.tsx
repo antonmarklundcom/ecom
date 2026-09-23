@@ -23,6 +23,8 @@ export type ProductFormValues = {
   ivaRate: number;
   isActive: boolean;
   published: boolean;
+  // == S17 == Destacado en la home (O14 dejó `isFeatured` en `saveProduct`).
+  isFeatured: boolean;
 };
 
 export function ProductForm({
@@ -59,6 +61,7 @@ export function ProductForm({
             ivaRate: Number(data.get("ivaRate")),
             isActive: data.get("isActive") === "on",
             published: data.get("published") === "on",
+            isFeatured: data.get("isFeatured") === "on",
           });
 
           if (!result.ok) {
@@ -175,6 +178,19 @@ export function ProductForm({
           {t("panel.producto.publicado")}
         </label>
         <p className="text-muted-foreground text-xs">{t("panel.producto.publicadoAyuda")}</p>
+
+        {/* == S17 == `isFeatured` ya lo acepta `saveProduct` (O14); esto es
+            sólo el checkbox que faltaba para prenderlo desde el panel. */}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="isFeatured"
+            data-testid={TESTIDS.adminProductFeaturedToggle}
+            defaultChecked={defaults.isFeatured}
+          />
+          {t("panel.producto.destacado")}
+        </label>
+        <p className="text-muted-foreground text-xs">{t("panel.producto.destacadoAyuda")}</p>
       </div>
 
       <Button type="submit" data-testid={TESTIDS.adminProductSaveSubmit} disabled={isPending}>

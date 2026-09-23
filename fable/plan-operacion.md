@@ -1177,6 +1177,87 @@ falta uno nuevo.
 O8 más la fuga de `drizzle-orm` de acá); ARCH.md §6 sigue con la cifra
 vieja de 120 KB y S13 la actualiza con los valores medidos de esta tabla.
 
+### 2026-09-06 · S13 — ciclo de vida del template, docs y reporte final
+
+Branch `phase/s13`. Última fase. Sin código de dominio: sólo
+`.github/workflows/distribuir.yml` (nuevo), `scripts/template-sync.ts`
+(dos flags), `scripts/ci/armar-pr-tiendas.mjs` (nuevo) y documentación.
+
+**Qué existe ahora.** `distribuir.yml`: en cada push a `main` (y por
+`workflow_dispatch`), un job `preparar` lee `tiendas.json` de la raíz (vacío
+en este repo = no-op, con el aviso en el log) y si hay entradas pero falta
+`secrets.TIENDAS_TOKEN`, deja un `::warning::` explicando qué falta y por
+qué no se distribuye nada. Con token y tiendas, un job `distribuir` en
+matrix clona cada tienda, agrega el remoto `template`, y corre
+`pnpm template:sync --sin-tests --json --rama-destino template/<fecha>-<sha>`
+sobre una copia recién traída de `scripts/template-sync.ts` /
+`template-shared.ts` (bootstrap: así el comando entiende `--json` y
+`--rama-destino` sin importar hace cuánto sincronizó esa tienda por última
+vez — si el commit real que agregó esos flags viaja después en el mismo
+cherry-pick, da "vacío" y se saltea solo, el mismo camino que un commit ya
+aplicado). `scripts/ci/armar-pr-tiendas.mjs` traduce ese `--json` en un push
++ PR: completo → PR normal con la lista de commits; conflicto o fallo con
+algo aplicado → push de lo que entró más PR **en draft** con el commit, el
+archivo y los pasos para seguir a mano (el mismo texto que ya arma
+`template-sync.ts` para la terminal); sin nada aplicado → falla el job, sin
+PR. `template:sync` ganó `--rama-destino <nombre>` (crea o retoma esa rama
+antes de sincronizar — el workflow clona la tienda parada en su default
+branch) y `--json` (resumen máquina vía `resumenJson`, testeado en
+`tests/unit/template-sync.test.ts`). `template-diff.ts` no cambió.
+
+**No se pudo probar `workflow_dispatch` en este repo antes del PR.** GitHub
+no deja disparar por API un workflow que todavía no existe en la rama por
+defecto — la única forma de probarlo de verdad es después de este merge (o
+manualmente, en el propio push a `main` que hace el merge, que ya ejercita
+el camino real con `tiendas.json` vacío). Nadie cargó `TIENDAS_TOKEN` ni una
+tienda real antes de esta sesión (revisado a mano, no hay secret ni
+`tiendas.json` previos), así que el camino con una tienda de verdad queda
+sin ejercitar — ver la pregunta para Anton al cierre. Se validó en cambio
+por revisión de código y con `python3 -c "import yaml"` sobre el archivo, y
+la lógica de cada rama del `--json` (`sin-cambios`, `completado`,
+`conflicto-manual`, `fallo-post`, `precondicion`) quedó fijada en
+`tests/unit/template-sync.test.ts` (`resumenJson`).
+
+**Decisiones y desvíos.**
+- El prompt de la fase (`fable/prompts/sonnet-13-template-docs.md`) dice
+  "abrí/actualizá un **issue**, nunca un PR"; el plan mismo (§6.5, la
+  sección que ese prompt manda ejecutar "bajo el protocolo §4") dice PR, en
+  draft si hay conflicto, nunca issue — y la orquestación de esta sesión lo
+  confirmó explícitamente antes de arrancar. Se construyó `distribuir.yml`
+  tal como dice el plan: abre o actualiza un PR por tienda, nunca un issue.
+- Docs: la mayoría de lo pedido (tracking/remito, resumen diario + sus
+  plantillas, "avisame", `/api/version`, el logger con `reqId`) ya lo habían
+  dejado escrito O5–O8 en ARCH.md y NEW-STORE.md §4c — esta fase sumó lo que
+  faltaba (destacados/categorías/reorder_point/stock_alerts en el ERD de
+  ARCH.md §2, la tabla única de cron en DEPLOY.md §5 con hora Asunción y
+  UTC, `/api/version` en DEPLOY.md §6, NEW-STORE.md §4f con la operación
+  diaria del panel y la sección de distribución) en vez de reescribir lo que
+  ya estaba bien.
+- ARCH.md §6: la cifra de 120 KB era aspiracional, nunca medida; se
+  reemplazó por la tabla de S12 (219.9/229.6/224.2 KB medidos, techos
+  245/260/255 KB) con la nota de que el techo es una alarma contra que
+  crezca más, no un objetivo.
+- `KNOWN-ISSUES.md`: las seis entradas de fases anteriores se revisaron una
+  por una contra el código actual (grep de cada símbolo que dice que falta:
+  `isFeatured` en `admin-products.ts`, `uploadCategoryImage`,
+  `listAdminCategories`, `refunded_pyg` en `findUnmatchedPayments`, los
+  cuatro imports de `@/db/schema` en componentes cliente) — **ninguna se
+  resolvió**, todas siguen abiertas tal como las dejó S10/S12. No se agregó
+  ninguna nueva.
+- `.env.example`: revisado de punta a punta contra `process.env` en
+  `src/**`/`scripts/**` (incluidos los que se leen por nombre dinámico,
+  como `WHATSAPP_CLOUD_TEMPLATE_*` y `CRON_SECRET`) — las tres variables
+  que pedía la fase (`RESUMEN_DIARIO`, `STOCK_DISPONIBLE`,
+  `ERROR_REPORT_URL`) ya tenían su "vacía = apagado" documentado desde
+  O6/O8. No se agregó ninguna variable nueva.
+- MySQL local: igual que S12, sin Docker (el registro de Docker Hub sigue
+  403 en esta sesión); se usó el `mysqld` ya instalado por `apt` en la
+  máquina (no en contenedor), con el `root`/`root` que ya traía
+  `.env.local`. Con eso, `pnpm typecheck && pnpm lint && pnpm test` y la
+  suite de integración corrieron completas.
+
+**Fin del plan.** No hay fase siguiente — S13 es la última de las nueve.
+
 ## 10. Backlog
 
 - Rate limit compartido (DB) el día que haya más de un proceso (`fable/plan.md` §10).

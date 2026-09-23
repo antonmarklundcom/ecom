@@ -164,7 +164,7 @@ export function checkGitRemote(nombre: string, url: string | null, alcanzable: b
       title: `Remoto "${nombre}"`,
       detail:
         nombre === 'template'
-          ? 'no configurado. `git remote add template git@github.com:antonmarklundcom/ecom.git` (NEW-STORE.md §1).'
+          ? 'no configurado. `git remote add template https://github.com/antonmarklundcom/ecom.git` (NEW-STORE.md §1).'
           : 'no configurado.',
       severity: nombre === 'template' ? 'advierte' : 'bloquea',
     };

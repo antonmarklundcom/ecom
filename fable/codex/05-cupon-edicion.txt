@@ -1,0 +1,30 @@
+Task:
+Repo antonmarklundcom/ecom, hallazgo S4 de fable/REVIEW-2026-09-13. Cuando editPendingOrder (src/domain/edit-order.ts) quita el cupon de un pedido porque el subtotal nuevo no llega al minimo, pone coupon_id y coupon_code en NULL pero coupons.times_used no se decrementa nunca. findCouponUsageMismatches en src/domain/reconciliation.ts compara times_used con COUNT(orders WHERE coupon_id = ...) y queda en rojo para siempre. La decision documentada de no devolver el uso se revierte: al quitar el cupon en una edicion, se decrementa times_used con la fila del cupon bloqueada, en la misma transaccion. Mantener coupon_code con descuento 0 no sirve porque findDiscountMismatches ya reporta cupon con descuento cero.
+
+Files to touch:
+src/domain/edit-order.ts
+tests/integration/edit-order.test.ts
+ARCH.md
+
+Do not touch:
+src/domain/coupons.ts (lockCouponForUse queda igual), src/domain/reconciliation.ts, cualquier archivo de src/app.
+
+Definition of done:
+En revalidarCupon (o en el paso 6 de editPendingOrder), cuando el cupon se quita por minimo de compra: SELECT ... FOR UPDATE sobre la fila de coupons y UPDATE times_used = GREATEST(CAST(times_used AS SIGNED) - 1, 0) dentro de la misma transaccion tx. Si el cupon fue borrado de la tabla (fila inexistente) no hay nada que decrementar.
+El comentario de revalidarCupon que dice que los usos consumidos no se devuelven pasa a explicar lo contrario y por que (reconcile compara times_used con los pedidos que siguen apuntando al cupon).
+tests/integration/edit-order.test.ts: nuevo test: cupon con minOrderPyg y times_used 1 tras crear el pedido; editar bajando la cantidad por debajo del minimo; el resultado dice couponRemoved true, coupons.times_used vuelve a 0 y findCouponUsageMismatches (importar de reconciliation) devuelve vacio. Segundo test: editar sin cruzar el minimo deja times_used en 1.
+ARCH.md, seccion 3, parrafo El cupon se re-valida contra el subtotal nuevo: reemplazar la frase sobre que los usos no se devuelven por la regla nueva.
+Stay within the listed files. If something outside them must change to satisfy the definition of done, stop and say so instead of changing it.
+
+Commands to run before reporting:
+pnpm typecheck   (working directory: repo root)
+pnpm lint   (working directory: repo root)
+pnpm test -- tests/integration/edit-order.test.ts tests/integration/coupons.test.ts   (working directory: repo root, con docker compose up -d y TEST_DATABASE_URL en .env.local)
+pnpm test   (working directory: repo root)
+Run every listed command. Report FAIL with the error text rather than skipping or substituting another check.
+
+Report format:
+Files changed: each path with a one-line summary of the change.
+Commands run: each command with PASS or FAIL and a one-line result.
+Flagged or not done: anything skipped, blocked, ambiguous, or outside scope, or None.
+Keep the report under 30 lines. No diffs, no file dumps. Never print or write secrets, tokens, or API keys.

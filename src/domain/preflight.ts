@@ -78,6 +78,10 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkAvisoCliente(env, "confirmado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO"),
     checkAvisoCliente(env, "pagado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO"),
     checkAvisoCliente(env, "enviado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"),
+    // O15. Advertencia, nunca bloqueo: sin esta plantilla la tienda cobra
+    // exactamente igual que antes — lo que pierde son los pedidos que vencen
+    // sin que nadie les haya dicho nada.
+    checkAvisoCliente(env, "recordatorio", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO"),
     checkResumenDiario(env),
     checkBackups(env),
     checkDatabaseUrl(env),
@@ -497,6 +501,14 @@ function checkCloudinary(env: PreflightEnv): PreflightCheck {
   };
 }
 
+/**
+ * El número que `.env.example` traía de ejemplo hasta 2026-09. Una tienda
+ * con un `.env.local` copiado de esa época lo tiene cargado y con forma
+ * válida, así que el chequeo de formato lo dejaba pasar: los compradores
+ * terminaban escribiéndole a un WhatsApp ajeno.
+ */
+export const WHATSAPP_DE_EJEMPLO = "+595981123456";
+
 /** El aviso al dueño llega por WhatsApp; sin número, no llega. */
 function checkWhatsApp(env: PreflightEnv): PreflightCheck {
   const phone = value(env, "WHATSAPP_NUMBER");
@@ -507,6 +519,16 @@ function checkWhatsApp(env: PreflightEnv): PreflightCheck {
       severity: "bloquea",
       title: "WhatsApp del comercio",
       detail: "WHATSAPP_NUMBER vacío: el comprador no tiene botón para avisar del pedido",
+    };
+  }
+  if (phone.replace(/[^\d+]/g, "") === WHATSAPP_DE_EJEMPLO) {
+    return {
+      id: "whatsapp",
+      severity: "bloquea",
+      title: "WhatsApp del comercio",
+      detail:
+        "WHATSAPP_NUMBER es el número de ejemplo del template, no el del comercio: " +
+        "los compradores le escribirían a un WhatsApp ajeno",
     };
   }
   if (!/^\+595\d{9}$/.test(phone)) {
@@ -655,7 +677,7 @@ function checkResumenDiario(env: PreflightEnv): PreflightCheck {
  */
 function checkAvisoCliente(
   env: PreflightEnv,
-  id: "confirmado" | "pagado" | "enviado",
+  id: "confirmado" | "pagado" | "enviado" | "recordatorio",
   templateVar: string,
 ): PreflightCheck {
   const template = value(env, templateVar);
@@ -670,8 +692,12 @@ function checkAvisoCliente(
       id: `aviso_cliente_${id}`,
       severity: "advierte",
       title: titulo,
-      detail: `${templateVar} vacío: la compradora no recibe este aviso. Sin plantilla no sale ` +
-        "ni por la consola de dev — es una decisión de esta tienda, no un default",
+      detail:
+        id === "recordatorio"
+          ? `${templateVar} vacío: las compradoras no reciben recordatorio de pago y el pedido ` +
+            "que se olvidaron vence sin que nadie les haya dicho nada"
+          : `${templateVar} vacío: la compradora no recibe este aviso. Sin plantilla no sale ` +
+            "ni por la consola de dev — es una decisión de esta tienda, no un default",
     };
   }
 

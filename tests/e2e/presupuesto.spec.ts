@@ -18,15 +18,19 @@ import { TESTIDS } from "./testids";
  * anota el chunk culpable en `KNOWN-ISSUES.md` y en plan-operacion §9, y esa
  * es una fase aparte (regla dura de S12).
  *
- * Valores medidos el 2026-09-06 contra un build local (Next 16.3.4,
- * Turbopack), con MySQL 8 y el seed de `pnpm db:seed`, ver plan-operacion §9
- * para el detalle y el chunk más pesado (una fuga de `drizzle-orm` al
- * cliente vía `@/db/schema`, documentada y no arreglada acá).
+ * Valores medidos el 2026-09-11 contra un build local (Next 16.3.4,
+ * Turbopack), con el seed de `pnpm db:seed`: home 203.6 KB, producto 207.8 KB,
+ * checkout 202.5 KB, + 10%. Son ~17 KB menos por página que la medición del
+ * 2026-09-06 porque O14 sacó la fuga de `drizzle-orm` al cliente que estaba
+ * documentada en `KNOWN-ISSUES.md`: los valores de enum viven ahora en
+ * `src/db/enums.ts`, sin el ORM detrás (`tests/unit/db-enums.test.ts` lo
+ * cuida). Los techos bajaron al valor nuevo a propósito — dejarlos en el
+ * anterior era regalar 17 KB de margen que nadie midió.
  */
 const BUDGET_KB = {
-  home: 245,
-  producto: 260,
-  checkout: 255,
+  home: 224,
+  producto: 229,
+  checkout: 223,
 } as const;
 
 type ScriptSample = { url: string; sizeBytes: number };
@@ -117,7 +121,7 @@ test.describe("presupuesto de JS por página", () => {
     assertBudget(samples, "home", BUDGET_KB.home);
   });
 
-  test("producto", async ({ page }) => {
+  test("producto", async ({ page, browser }) => {
     await page.goto("/");
     await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
     await expect(page).toHaveURL(/\/categoria\//);
@@ -125,8 +129,19 @@ test.describe("presupuesto de JS por página", () => {
     const productHref = await page.getByTestId(TESTIDS.productCard).first().getAttribute("href");
     if (!productHref) throw new Error("El seed no tiene ningún producto — corré `pnpm db:seed`.");
 
-    const samples = await collectScriptResponses(page, productHref);
-    assertBudget(samples, "producto", BUDGET_KB.producto);
+    // La medición va en una pestaña **nueva**: navegar hasta acá desde la home
+    // deja los chunks compartidos en el caché del navegador, y entonces
+    // `responseBodySize` de cada uno vuelve 0 y el presupuesto de esta página
+    // mide menos de 2 KB — un techo que no puede fallar nunca. La primera
+    // visita de una compradora que llega por un link de WhatsApp tampoco tiene
+    // nada cacheado, así que el contexto limpio es además el caso real.
+    const context = await browser.newContext();
+    try {
+      const samples = await collectScriptResponses(await context.newPage(), productHref);
+      assertBudget(samples, "producto", BUDGET_KB.producto);
+    } finally {
+      await context.close();
+    }
   });
 
   test("checkout", async ({ page }) => {

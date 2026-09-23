@@ -1,0 +1,22 @@
+Task: .github/workflows/distribuir.yml corre en cada push a main de cada tienda, porque Use this template y pnpm bootstrap:repo copian el workflow y template:sync lo repone con la version del template. Con tiendas.json vacio el job preparar igual levanta un runner (checkout mas node) solo para decidir que no hay nada, y eso es un minuto facturado por push en cada tienda. Agregar al job preparar una condicion a nivel job para que solo corra en el repo del template: if: github.repository == 'antonmarklundcom/ecom'. El job distribuir ya depende de preparar, asi que queda cubierto solo. Agregar un comentario de dos lineas arriba del if explicando esto.
+
+Files to touch:
+  .github/workflows/distribuir.yml
+  NEW-STORE.md (una frase en la seccion La distribucion automatica del template: el workflow viaja a las tiendas pero solo corre en el repo del template)
+
+Do not touch: cualquier otro workflow, scripts/**, src/**, tiendas.json
+
+Definition of done:
+  - El YAML sigue siendo valido (node -e con js-yaml no esta disponible: alcanza con que la indentacion del if quede al mismo nivel que runs-on y timeout-minutes del job preparar)
+  - La logica existente del workflow no cambia en nada mas
+
+Commands to run before reporting (en la raiz del repo):
+  pnpm typecheck
+  pnpm lint
+  pnpm test
+  git diff --stat
+
+Report format:
+  Files changed: cada path con una linea
+  Commands run: cada comando con PASS o FAIL y una linea de resultado
+  Flagged or not done: lo que quedo afuera o ambiguo, o None

@@ -1,0 +1,25 @@
+Task: tres documentos dicen que fable/REVIEW.md (2026-09-11) es la revision vigente, pero fable/REVIEW-2026-09-13.md es posterior, sus arreglos ya estan mergeados en main (#109), y ahora existe ademas fable/TEMPLATE-REVIEW.md (2026-09-19, auditoria del template). Corregir las referencias sin borrar historia: REVIEW.md (11) sigue siendo el origen de plan-crecimiento.md; la ultima revision de maquinaria es REVIEW-2026-09-13.md, ya aplicada; la auditoria del template es TEMPLATE-REVIEW.md con sus despachos en fable/codex/08 a 12. Aparte, NEW-STORE.md da el remoto del template como git@github.com:antonmarklundcom/ecom.git y scripts/template-diff.ts (mensaje de error cuando falta el remoto) sugiere https://github.com/antonmarklundcom/ecom.git: unificar a la forma ssh de NEW-STORE.md en el script, que es la que documenta y la que doctor.ts verifica.
+
+Files to touch:
+  CLAUDE.md (la vinieta de fable/plan-crecimiento.md, lineas 13 a 18)
+  README.md (la fila de fable/REVIEW.md en la tabla de documentos; agregar una fila para fable/TEMPLATE-REVIEW.md)
+  PLAN.md (la frase de la linea 8 sobre la revision vigente)
+  scripts/template-diff.ts (solo la URL dentro del mensaje de error de remoto faltante)
+
+Do not touch: src/**, fable/REVIEW*.md, fable/TEMPLATE-REVIEW.md, fable/codex/**, cualquier otro script
+
+Definition of done:
+  - grep -n 2026-09-11 CLAUDE.md README.md PLAN.md ya no describe esa revision como la vigente
+  - Las tres referencias nuevas apuntan a archivos que existen (ls fable/)
+  - tests/unit/template-diff.test.ts sigue verde (si algun test fija la URL, actualizarlo y decirlo en Files changed)
+
+Commands to run before reporting (en la raiz del repo):
+  pnpm typecheck
+  pnpm lint
+  pnpm test
+  git diff --stat
+
+Report format:
+  Files changed: cada path con una linea
+  Commands run: cada comando con PASS o FAIL y una linea de resultado
+  Flagged or not done: lo que quedo afuera o ambiguo, o None

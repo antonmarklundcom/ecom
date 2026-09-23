@@ -1,0 +1,44 @@
+Task:
+Repo antonmarklundcom/ecom, hallazgo S3 de fable/REVIEW-2026-09-13. Hoy no hay forma de devolver el total de un pedido ya enviado o entregado: refundPayment en src/domain/payment-recovery.ts rechaza la devolucion total sobre un pedido settled con adminError.pago.pedidoRevivio (pensado para la lista de pagos colgados), los parciales llegan como mucho a total menos 1, y la maquina de estados no tiene arista enviado -> reembolsado ni entregado -> reembolsado. Ademas advanceOrder (src/app/actions/admin-orders.ts) permite pagado -> reembolsado y preparando -> reembolsado sin tocar payments ni refunds, o sea dos mecanismos de devolucion que se contradicen. Objetivo: una sola via a reembolsado, que pase por el ledger.
+
+Files to touch:
+src/domain/orders.ts
+src/domain/payment-recovery.ts
+src/app/actions/admin-payments.ts
+src/app/actions/admin-orders.ts
+src/lib/order-labels.ts
+src/components/admin/order-actions.tsx
+src/components/admin/refund-form.tsx
+src/app/admin/(panel)/pedidos/[id]/page.tsx
+src/i18n/es-PY.ts
+tests/unit/state-machine.test.ts
+tests/integration/partial-refunds.test.ts
+tests/integration/payment-recovery-actions.test.ts
+ARCH.md
+
+Do not touch:
+src/domain/reconciliation.ts (la lista de aristas se deriva de ORDER_TRANSITIONS; los invariantes de refunds ya cubren esto). src/domain/edit-order.ts. El flujo de reintento (retryOrderRevival).
+
+Definition of done:
+ORDER_TRANSITIONS: agregar reembolsado como destino de enviado y de entregado, con comentario: devolucion total de un pedido ya despachado; el stock no vuelve solo (la mercaderia devuelta se repone con un ajuste de stock manual, auditado).
+refundPayment acepta una opcion allowSettled (boolean, default false). Con allowSettled true, una devolucion total sobre un pedido en pagado, preparando, enviado o entregado hace: fila en refunds, payments a refunded, transitionOrder al estado reembolsado con motivo pago devuelto: <reason>. Con allowSettled false se mantiene el comportamiento actual (la lista de pagos colgados sigue rechazando con pedidoRevivio). Sobre un pedido no settled (vencido, rechazado, pendiente, esperando) el total sigue llevando a cancelado como hoy.
+markPaymentRefunded en admin-payments.ts acepta allowSettled en su schema (boolean opcional) y lo pasa. Sigue siendo requireOwnerSession.
+advanceOrder rechaza to igual a reembolsado con un error legible (clave nueva adminError.pedido.reembolsoPorFormulario en es-PY.ts: la devolucion se registra desde el formulario de devolucion del pedido, no como cambio de estado), antes de llamar transitionOrder. order-actions.tsx no ofrece el boton reembolsado (filtrarlo de los destinos que dibuja; ver como usa ORDER_TRANSITIONS o TRANSITION_LABEL).
+La ficha del pedido (src/app/admin/(panel)/pedidos/[id]/page.tsx) muestra, solo para owner y solo si getPaymentForOrder devuelve un pago paid, el RefundForm existente con allowSettled true, con el monto total como opcion ademas del parcial. Reusar refund-form.tsx; si ya esta cableado ahi, solo agregar allowSettled.
+tests/unit/state-machine.test.ts: el test solo se reembolsa despues de cobrar espera ahora pagado, preparando, enviado, entregado.
+tests/integration: (a) devolucion total con allowSettled sobre un pedido entregado: fila en refunds por el total, payments refunded, pedido reembolsado, un evento pagado devuelto; pnpm reconcile (funcion reconcile o los findRefund* que existan) sin hallazgos. (b) la misma llamada sin allowSettled sigue tirando pedidoRevivio. (c) dos devoluciones totales concurrentes con allowSettled sobre el mismo pago: una escribe, la otra devuelve changed false, una sola fila en refunds. (d) advanceOrder con to reembolsado devuelve ok false con el mensaje nuevo y no toca el pedido.
+ARCH.md seccion 3 (maquina de estados) y seccion 2 (Devoluciones: el ledger): reflejar las aristas nuevas y que reembolsado solo se entra por refundPayment.
+Stay within the listed files. If something outside them must change to satisfy the definition of done, stop and say so instead of changing it.
+
+Commands to run before reporting:
+pnpm typecheck   (working directory: repo root)
+pnpm lint   (working directory: repo root)
+pnpm test   (working directory: repo root, con docker compose up -d y TEST_DATABASE_URL en .env.local)
+pnpm build   (working directory: repo root)
+Run every listed command. Report FAIL with the error text rather than skipping or substituting another check.
+
+Report format:
+Files changed: each path with a one-line summary of the change.
+Commands run: each command with PASS or FAIL and a one-line result.
+Flagged or not done: anything skipped, blocked, ambiguous, or outside scope, or None.
+Keep the report under 30 lines. No diffs, no file dumps. Never print or write secrets, tokens, or API keys.

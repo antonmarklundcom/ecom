@@ -1,0 +1,30 @@
+Task:
+Repo antonmarklundcom/ecom, hallazgos S7 y N5 de fable/REVIEW-2026-09-13. Cambios mecanicos: (1) las acciones de producto no revalidan la vidriera publica, solo /admin/productos, y la home tarda hasta 5 minutos en mostrar un destacado; src/app/actions/admin-categories.ts ya tiene la funcion revalidarVidriera() que llama revalidatePath('/', 'layout'). (2) Tres correcciones de docs.
+
+Files to touch:
+src/app/actions/admin-products.ts
+KNOWN-ISSUES.md
+README.md
+NEW-STORE.md
+
+Do not touch:
+Cualquier otro archivo. No cambiar la logica de ninguna accion, solo agregar la revalidacion.
+
+Definition of done:
+En src/app/actions/admin-products.ts existe una funcion local revalidarVidriera() identica en espiritu a la de admin-categories.ts: llama revalidatePath('/', 'layout'). La llaman, despues de su revalidatePath actual y solo en el camino de exito: saveProduct, bulkSetActive, bulkMoveCategory, duplicateProduct, la accion de ajuste de stock (buscar la que llama adjustStock), uploadProductImage y removeProductImage, y la accion de precios masivos si existe en este archivo.
+KNOWN-ISSUES.md: borrar entera la entrada saveProduct no revalidea la vidriera (fase S17).
+README.md: en la tabla de comandos agregar pnpm template:sync (una linea: trae a esta tienda la maquinaria del template, commit por commit, ver NEW-STORE.md) junto a template:diff. Agregar tambien pnpm db:generate (genera la migracion de un cambio de schema) si no esta.
+NEW-STORE.md, seccion 4, parrafo sobre pnpm importar:productos: dejar claro que las columnas obligatorias son SKU, Producto, Categoria y Precio, y que Variante y Stock son opcionales (Variante vacia = variante unica; Stock vacio = 0 al crear y sin tocar al reimportar).
+Stay within the listed files. If something outside them must change to satisfy the definition of done, stop and say so instead of changing it.
+
+Commands to run before reporting:
+pnpm typecheck   (working directory: repo root)
+pnpm lint   (working directory: repo root)
+pnpm test -- tests/unit   (working directory: repo root)
+Run every listed command. Report FAIL with the error text rather than skipping or substituting another check.
+
+Report format:
+Files changed: each path with a one-line summary of the change.
+Commands run: each command with PASS or FAIL and a one-line result.
+Flagged or not done: anything skipped, blocked, ambiguous, or outside scope, or None.
+Keep the report under 30 lines. No diffs, no file dumps. Never print or write secrets, tokens, or API keys.

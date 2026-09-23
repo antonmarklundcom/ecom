@@ -37,6 +37,7 @@ export default async function NewProductPage() {
             ivaRate: 10,
             isActive: true,
             published: false,
+            isFeatured: false,
           }}
         />
       </div>

@@ -16,6 +16,10 @@ jobs:
   # (semanal + a mano) en vez de en cada PR: le pega al registry de npm, y esa
   # llamada no tiene nada que ver con el diff que se está revisando.
   pnpm-al-dia:
+    # Viaja a cada tienda pero sólo corre en el template: el pin se sube acá y
+    # llega a las tiendas con template:sync. Un cron semanal por tienda era un
+    # minuto facturado por semana en cada repo privado, para avisar lo mismo.
+    if: github.repository == 'antonmarklundcom/ecom'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 

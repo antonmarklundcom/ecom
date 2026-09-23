@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -9,11 +10,14 @@ import {
   crearCategoria,
   editarCategoria,
   moverCategoria,
+  uploadCategoryImage,
 } from "@/app/actions/admin-categories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { productImageUrl } from "@/lib/images";
 import { slugify } from "@/lib/slug";
+import { TESTIDS } from "@/lib/testids";
 import { t, tPlural } from "@/i18n";
 
 export type AdminCategoryCard = {
@@ -26,6 +30,12 @@ export type AdminCategoryCard = {
   /** Para no ofrecer "subir" en la primera fila ni "bajar" en la última. */
   esPrimera: boolean;
   esUltima: boolean;
+  // == S17 == `listAdminCategories` (O14) ya trae los tres campos; esto es
+  // lo que faltaba para que el formulario de edición los prellene en vez de
+  // pedirlos a ciegas por encima (KNOWN-ISSUES.md, entrada ya borrada por O14).
+  description: string | null;
+  imageCloudinaryId: string | null;
+  imageAlt: string | null;
 };
 
 export function CategoriesManager({ categories }: { categories: AdminCategoryCard[] }) {
@@ -249,17 +259,12 @@ function CategoryForm({
   */
   const [slugTocado, setSlugTocado] = useState(Boolean(category));
 
-  // Presentación (O7 §5.3 E): `listAdminCategories` no devuelve todavía la
-  // descripción ni la foto que ya tiene cargadas la categoría (KNOWN-ISSUES.md),
-  // así que este formulario no las puede mostrar al editar — sólo puede
-  // escribir por encima. El checkbox evita que "guardar cambios" sin querer
-  // borre una descripción o una foto que ya estaban puestas: destildado, esos
-  // dos campos ni siquiera viajan (`crearCategoria`/`editarCategoria` tratan
-  // la ausencia como "no tocar", ver `admin-categories.ts`).
-  const [cambiarPresentacion, setCambiarPresentacion] = useState(!category);
-  const [description, setDescription] = useState("");
-  const [imageCloudinaryId, setImageCloudinaryId] = useState("");
-  const [imageAlt, setImageAlt] = useState("");
+  // == S17 == `listAdminCategories` (O14) ya trae descripción, foto y alt: el
+  // formulario los prellena de verdad y el checkbox "cambiar descripción o
+  // foto" (que sólo existía para no pisar a ciegas lo que no se podía ver) ya
+  // no hace falta — desde acá "guardar" siempre manda la descripción tal
+  // como quedó en pantalla.
+  const [description, setDescription] = useState(category?.description ?? "");
 
   const slugFinal = slugify(slug || name);
   const cambiaLaUrl = category !== undefined && slugFinal !== category.slug;
@@ -274,13 +279,7 @@ function CategoryForm({
         const payload = {
           name,
           slug,
-          ...(cambiarPresentacion
-            ? {
-                description: description.trim() === "" ? null : description.trim(),
-                imageCloudinaryId: imageCloudinaryId.trim() === "" ? null : imageCloudinaryId.trim(),
-                imageAlt: imageAlt.trim() === "" ? null : imageAlt.trim(),
-              }
-            : {}),
+          description: description.trim() === "" ? null : description.trim(),
         };
 
         startTransition(async () => {
@@ -351,60 +350,29 @@ function CategoryForm({
         </div>
       </div>
 
-      {category ? (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={cambiarPresentacion}
-            onChange={(event) => setCambiarPresentacion(event.target.checked)}
-          />
-          {t("panel.categoria.cambiarPresentacion")}
-        </label>
-      ) : null}
+      <div className="grid gap-1.5">
+        <Label htmlFor="categoria-description">{t("panel.categoria.descripcion")}</Label>
+        <textarea
+          id="categoria-description"
+          value={description}
+          maxLength={5000}
+          rows={3}
+          placeholder={t("panel.categoria.descripcion.placeholder")}
+          onChange={(event) => setDescription(event.target.value)}
+          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+        />
+      </div>
 
-      {cambiarPresentacion ? (
-        <div className="grid gap-3">
-          {category ? (
-            <p className="text-muted-foreground text-xs">
-              {t("panel.categoria.presentacionAyuda")}
-            </p>
-          ) : null}
-          <div className="grid gap-1.5">
-            <Label htmlFor="categoria-description">{t("panel.categoria.descripcion")}</Label>
-            <textarea
-              id="categoria-description"
-              value={description}
-              maxLength={5000}
-              rows={3}
-              placeholder={t("panel.categoria.descripcion.placeholder")}
-              onChange={(event) => setDescription(event.target.value)}
-              className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label htmlFor="categoria-image">{t("panel.categoria.foto")}</Label>
-              <Input
-                id="categoria-image"
-                value={imageCloudinaryId}
-                maxLength={255}
-                autoComplete="off"
-                onChange={(event) => setImageCloudinaryId(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">{t("panel.categoria.foto.ayuda")}</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="categoria-image-alt">{t("panel.categoria.foto.alt")}</Label>
-              <Input
-                id="categoria-image-alt"
-                value={imageAlt}
-                maxLength={200}
-                autoComplete="off"
-                onChange={(event) => setImageAlt(event.target.value)}
-              />
-            </div>
-          </div>
-        </div>
+      {/* == S17 == La foto sólo se sube después de que la categoría existe
+          (`uploadCategoryImage` necesita el `categoryId`, igual que
+          `uploadProductImage`): al crear, este bloque no se dibuja, y la
+          primera foto se carga entrando a editar la categoría recién creada. */}
+      {category ? (
+        <CategoryImageUpload
+          categoryId={category.id}
+          imageCloudinaryId={category.imageCloudinaryId}
+          imageAlt={category.imageAlt}
+        />
       ) : null}
 
       {cambiaLaUrl ? (
@@ -431,5 +399,93 @@ function CategoryForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * La foto de una categoría (O14 + S17), clonada de `product-images.tsx`: un
+ * `<input type="file">` real que llama a `uploadCategoryImage`, con la misma
+ * validación de bytes del lado del servidor. A diferencia de las fotos de
+ * producto, una categoría tiene una sola —es la portada de la sección
+ * entera—, así que no hay lista ni botón de "quitar": subir una nueva
+ * reemplaza (y borra) la anterior (ver `admin-categories.ts`).
+ */
+function CategoryImageUpload({
+  categoryId,
+  imageCloudinaryId,
+  imageAlt,
+}: {
+  categoryId: number;
+  imageCloudinaryId: string | null;
+  imageAlt: string | null;
+}) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const previewUrl = productImageUrl(imageCloudinaryId, "card");
+
+  return (
+    <div className="grid gap-2">
+      <Label>{t("panel.categoria.foto")}</Label>
+
+      {previewUrl ? (
+        <div className="bg-muted relative aspect-[3/1] w-full max-w-xs overflow-hidden rounded-lg">
+          <Image src={previewUrl} alt={imageAlt ?? ""} fill unoptimized sizes="320px" className="object-cover" />
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-xs">{t("panel.categoria.foto.vacia")}</p>
+      )}
+
+      {error ? (
+        <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-2 text-xs">
+          {error}
+        </p>
+      ) : null}
+
+      <form
+        ref={formRef}
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError(null);
+          const data = new FormData(event.currentTarget);
+          data.set("categoryId", String(categoryId));
+
+          startTransition(async () => {
+            const result = await uploadCategoryImage(data);
+            if (!result.ok) {
+              setError(result.error);
+              return;
+            }
+            formRef.current?.reset();
+            toast.success(t("panel.categoria.foto.subida"));
+            router.refresh();
+          });
+        }}
+      >
+        <div className="grid gap-1.5">
+          <Input
+            name="file"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            data-testid={TESTIDS.adminCategoryImageInput}
+            required
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Input
+            name="alt"
+            maxLength={200}
+            defaultValue={imageAlt ?? ""}
+            placeholder={t("panel.categoria.foto.alt")}
+          />
+        </div>
+        <Button type="submit" size="sm" disabled={isPending}>
+          {isPending ? t("panel.fotos.subiendo") : t("panel.fotos.subir")}
+        </Button>
+      </form>
+    </div>
   );
 }

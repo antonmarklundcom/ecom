@@ -1,0 +1,38 @@
+Task:
+Repo antonmarklundcom/ecom, bug C1 (y S6, N7) de fable/REVIEW-2026-09-13. Un comprobante rechazado deja el pedido en estado rechazado sin salida: src/app/pedido/[orderNumber]/page.tsx ofrece volver a subir el comprobante y src/app/actions/receipt.ts llama transitionOrder(rechazado -> esperando_verificacion), pero ORDER_TRANSITIONS.rechazado en src/domain/orders.ts solo permite pendiente_pago y cancelado, asi que la subida falla con error generico despues de haber grabado la fila de receipts, aprobar ese comprobante (rechazado -> pagado) tambien falla, y nadie llama nunca la arista rechazado -> pendiente_pago. Ademas el cron (src/domain/maintenance.ts, EXPIRABLE) nunca vence un pedido rechazado. Hay que dar salida real al estado rechazado, que venza como pendiente_pago, y fijarlo con tests.
+
+Files to touch:
+src/domain/orders.ts
+src/domain/maintenance.ts
+src/domain/daily-digest.ts
+tests/unit/state-machine.test.ts
+tests/integration/transition-order.test.ts
+tests/integration/admin-receipts.test.ts
+tests/integration/maintenance.test.ts
+ARCH.md
+
+Do not touch:
+src/app/actions/receipt.ts (ya hace lo correcto una vez que la arista existe). src/domain/reconciliation.ts (la lista blanca de aristas se arma sola desde ORDER_TRANSITIONS). Ningun otro archivo de src/.
+
+Definition of done:
+ORDER_TRANSITIONS.rechazado queda exactamente en esperando_verificacion, pagado, vencido, cancelado. Se saca pendiente_pago porque nadie la usaba. El comentario de esa linea explica los cuatro destinos: reintento de comprobante, dar por cobrado desde el panel, vencimiento por cron, cancelacion.
+EXPIRABLE en src/domain/maintenance.ts incluye rechazado ademas de pendiente_pago, y el comentario lo dice.
+SIN_PAGAR en src/domain/daily-digest.ts incluye rechazado (ajustar el tipo de la constante).
+tests/unit/state-machine.test.ts: el test que dice que solo desde rechazado se vuelve a pendiente_pago pasa a esperar que nadie vuelva a pendiente_pago (lista vacia). El test de cancelables sigue igual. Agregar un test que fije que desde rechazado se llega a esperando_verificacion y a pagado.
+tests/integration/transition-order.test.ts: el test actual rechazado permite reintentar el pago sin soltar el stock se reescribe para el flujo real: esperando_verificacion -> rechazado (reserva sigue held) -> esperando_verificacion -> pagado, y al final on_hand descontado una sola vez.
+tests/integration/admin-receipts.test.ts: nuevo test: primer comprobante rechazado con motivo, segundo comprobante del mismo pedido (fila nueva en receipts, review pending) aprobado con reviewReceipt, pedido termina pagado y stock descontado una vez.
+tests/integration/maintenance.test.ts (si no existe con ese nombre, buscar el test que cubre expireOverdueOrders y agregar ahi): un pedido rechazado con reserved_until en el pasado se vence en expireOverdueOrders y libera su reserva.
+ARCH.md seccion 3: el diagrama y la frase sobre rechazado reflejan las aristas nuevas (rechazado -> esperando_verificacion al volver a subir comprobante, rechazado -> vencido por cron).
+Stay within the listed files. If something outside them must change to satisfy the definition of done, stop and say so instead of changing it.
+
+Commands to run before reporting:
+pnpm typecheck   (working directory: repo root)
+pnpm lint   (working directory: repo root)
+pnpm test   (working directory: repo root, con docker compose up -d y TEST_DATABASE_URL en .env.local)
+Run every listed command. Report FAIL with the error text rather than skipping or substituting another check.
+
+Report format:
+Files changed: each path with a one-line summary of the change.
+Commands run: each command with PASS or FAIL and a one-line result.
+Flagged or not done: anything skipped, blocked, ambiguous, or outside scope, or None.
+Keep the report under 30 lines. No diffs, no file dumps. Never print or write secrets, tokens, or API keys.

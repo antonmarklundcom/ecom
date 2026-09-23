@@ -12,6 +12,10 @@ import { log, mensajeDe } from '@/lib/log';
  * Vence los pedidos sin pago que pasaron su `reserved_until` y limpia las
  * reservas viejas. Todo el trabajo pasa por `transitionOrder`, así que cada
  * vencimiento deja su fila en `order_events` con actor `cron`.
+ *
+ * Desde O15 la misma corrida manda los **recordatorios de pago** de los
+ * pedidos a los que les quedan menos de 6 h de reserva — después de vencer, no
+ * antes. No hay entrada nueva de cron en el hPanel: es ésta.
  */
 
 // La ruta lee y escribe la DB en cada llamada: nunca se prerenderiza.
@@ -42,6 +46,8 @@ async function handle(request: Request): Promise<Response> {
       salteados: report.skipped,
       reservasBorradas: report.reservationsDeleted,
       avisosStockPurgados: report.stockAlertsPurged,
+      recordatorios: report.paymentReminders.enviados,
+      recordatoriosFallidos: report.paymentReminders.fallidos,
     });
 
     return cronJson({
@@ -49,6 +55,7 @@ async function handle(request: Request): Promise<Response> {
       expired: report.expired.length,
       skipped: report.skipped,
       reservationsDeleted: report.reservationsDeleted,
+      paymentReminders: report.paymentReminders,
     });
   } catch (error) {
     log.error('cron: falló la corrida', { error: mensajeDe(error) });

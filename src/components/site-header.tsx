@@ -39,7 +39,29 @@ export async function SiteHeader() {
       </div>
 
       <nav aria-label={t("header.categorias")} className="border-border/60 border-t">
-        <div className="mx-auto flex w-full max-w-6xl gap-4 overflow-x-auto px-4 py-2 text-sm">
+        {/* == S18 ==
+            Fade del borde derecho (plan-crecimiento §6.2.C) con el truco de
+            "scroll shadows" — dos degradés a `--background`, uno pegado al
+            borde visible del contenedor (`background-attachment: scroll`,
+            no se mueve) y otro pegado al final real del contenido
+            (`background-attachment: local`, se mueve con el scroll). Cuando
+            no hay overflow (desktop, pocas categorías) los dos coinciden
+            desde el arranque y el degradé nunca se ve; a medida que se
+            hace scroll el de "local" se acerca al de "scroll" y lo tapa
+            justo al llegar al final. Sin JS, sin listeners de scroll, y sin
+            tocar los `data-testid` de los links de abajo. */}
+        <div
+          className="mx-auto flex w-full max-w-6xl gap-4 overflow-x-auto px-4 py-2 text-sm"
+          style={{
+            backgroundImage:
+              "linear-gradient(to left, var(--background), var(--background) 60%, transparent), " +
+              "linear-gradient(to left, var(--background), transparent)",
+            backgroundRepeat: "no-repeat, no-repeat",
+            backgroundPosition: "100% 0, 100% 0",
+            backgroundSize: "48px 100%, 48px 100%",
+            backgroundAttachment: "local, scroll",
+          }}
+        >
           {categories.map((category) => (
             <Link
               key={category.id}

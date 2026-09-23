@@ -185,6 +185,33 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
     expect(await findImpossibleEdges()).toEqual([]);
   });
 
+  it("los avisos actuales e históricos no son aristas imposibles", async () => {
+    const orderId = await pedidoSanoConTarjeta();
+    await getTestDb().insert(orderEvents).values([
+      { orderId, fromStatus: null, toStatus: "pagado", actor: "sistema", reason: "aviso_cliente_pagado" },
+      { orderId, fromStatus: "pagado", toStatus: "pagado", actor: "sistema", reason: "aviso_cliente_pagado" },
+      { orderId, fromStatus: null, toStatus: "enviado", actor: "sistema", reason: "aviso_cliente_enviado" },
+      { orderId, fromStatus: "enviado", toStatus: "enviado", actor: "sistema", reason: "aviso_cliente_enviado" },
+    ]);
+
+    expect(await findImpossibleEdges()).toEqual([]);
+  });
+
+  it("NULL hacia pagado sin prefijo aviso_ sigue siendo una arista imposible", async () => {
+    const order = await insertOrder({ status: "pagado" });
+    await getTestDb().insert(orderEvents).values({
+      orderId: order.id,
+      fromStatus: null,
+      toStatus: "pagado",
+      actor: "sistema",
+      reason: "pago_confirmado",
+    });
+
+    const found = await findImpossibleEdges();
+    expect(found).toHaveLength(1);
+    expect(found[0]?.orderNumber).toBe(order.orderNumber);
+  });
+
   // ---------------------------------------------------------------------------
   // Dirección 2: cada inconsistencia inyectada se detecta
   // ---------------------------------------------------------------------------

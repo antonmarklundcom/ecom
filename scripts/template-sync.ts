@@ -1,39 +1,65 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   BASELINE_FILE,
   commitsClasificados,
   type Commit,
   contenidoBaseline,
+  DOCS_DEL_TEMPLATE,
+  esMaquinaria,
+  esMixto,
+  esSoloTemplate,
   gitEn,
   parseBaseline,
   remotoExiste,
+  SOLO_TEMPLATE,
 } from './template-shared';
 
 /**
  * `pnpm template:sync` — traer la maquinaria del template con un comando.
  *
- * `pnpm template:diff` dice qué le falta a esta tienda; traerlo seguía siendo
- * cherry-pick manual, commit por commit. Sincronizar tres tiendas costó tres
- * sesiones de IA, y los conflictos fueron siempre los mismos y aburridos:
- * `fable/` (las tiendas no lo tienen — es el plan de endurecimiento del
- * template), `pnpm-lock.yaml` (nunca se resuelve a mano) y los workflows de
- * CI (la tienda gana o pierde según lo que decida cada una, pero en la
- * práctica siempre gana el del template). Los conflictos reales en `src/`
- * fueron cero.
+ * `pnpm template:diff` dice qué le falta a esta tienda; esto lo trae.
  *
- * Esto automatiza exactamente eso: cherry-pickea, del más viejo al más nuevo,
- * sólo los commits marcados como maquinaria por `template-shared.ts`;
- * resuelve esos tres casos solo; y para en seco —dejando todo aplicado hasta
- * ahí, sin tocar el baseline— ante cualquier otro conflicto, con instrucciones
- * para terminarlo a mano y retomar.
+ * Cómo: archivo por archivo, no commit por commit. Para cada archivo que el
+ * template cambió entre el `.template-baseline` de la tienda y el objetivo
+ * (`template/main`, o `--hasta`), mira tres versiones —la del template en el
+ * baseline, la de la tienda y la del template en el objetivo— y decide:
+ *
+ *   - la tienda nunca lo tocó        → queda el del template (nuevo, cambiado o borrado)
+ *   - doc del template (ARCH.md…)    → queda el del template
+ *   - maquinaria que la tienda borró → se restaura (la maquinaria no se saca por tienda)
+ *   - maquinaria cambiada de los dos lados → merge de 3 vías; si choca, conflicto
+ *   - piel o docs que la tienda cambió → quedan los de la tienda (se listan)
+ *   - `fable/`, Dependabot, `tiendas.json` → nunca viajan
+ *   - `pnpm-lock.yaml`                → el del template, o se regenera
+ *
+ * Todo termina en **un** commit con el baseline nuevo. Si hubo conflictos,
+ * los archivos quedan con los marcadores de siempre (`<<<<<<<`) y sin
+ * commitear, para resolverlos y commitear a mano (con `--commitear-conflictos`,
+ * que usa `distribuir.yml`, se commitean igual y el PR sale en draft).
+ *
+ * Antes (hasta v1.0.0) esto era un cherry-pick por commit. Con tiendas reales
+ * no andaba: una tienda que no tenía un archivo de maquinaria, un test
+ * salteado porque su commit no tocaba maquinaria, o un `CLAUDE.md` editado
+ * por la tienda frenaban la corrida en el primer commit que los tocaba, aunque
+ * el resultado final no tuviera ningún conflicto de verdad. Mirar sólo el
+ * punto de partida y el de llegada saca del medio los estados intermedios.
  *
  *   pnpm template:sync                    # trae todo lo pendiente
  *   pnpm template:sync --dry-run          # qué haría, sin tocar nada
- *   pnpm template:sync --hasta <sha>      # para en un commit dado
+ *   pnpm template:sync --hasta <sha>      # sincroniza hasta ese commit del template
  *   pnpm template:sync --sin-tests        # no corre typecheck/lint/test al final
+ *   pnpm template:sync --rama-destino <nombre>   # crea/usa esa rama antes de sincronizar
+ *   pnpm template:sync --json             # resumen de una línea en JSON (para un PR automático)
+ *   pnpm template:sync --commitear-conflictos    # commitea aunque queden marcadores
+ *
+ * `--rama-destino`, `--json` y `--commitear-conflictos` existen para
+ * `distribuir.yml`: el workflow clona la tienda recién, no hay rama de feature
+ * todavía, necesita un resumen que pueda leer sin parsear texto de terminal, y
+ * necesita un commit para poder abrir el PR aunque algo haya chocado.
  */
 
 const URL_TEMPLATE = 'https://github.com/antonmarklundcom/ecom.git';
@@ -44,6 +70,10 @@ export type Opciones = {
   dryRun: boolean;
   hasta: string | null;
   sinTests: boolean;
+  /** Opcional para no romper a quien construye `Opciones` a mano (tests viejos). */
+  ramaDestino?: string | null;
+  json?: boolean;
+  commitearConflictos?: boolean;
 };
 
 export function parseArgs(argv: string[]): Opciones {
@@ -53,6 +83,9 @@ export function parseArgs(argv: string[]): Opciones {
     dryRun: false,
     hasta: null,
     sinTests: false,
+    ramaDestino: null,
+    json: false,
+    commitearConflictos: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -66,12 +99,21 @@ export function parseArgs(argv: string[]): Opciones {
       opciones.sinTests = true;
       continue;
     }
-    if (flag === '--hasta' || flag === '--remoto' || flag === '--rama') {
+    if (flag === '--json') {
+      opciones.json = true;
+      continue;
+    }
+    if (flag === '--commitear-conflictos') {
+      opciones.commitearConflictos = true;
+      continue;
+    }
+    if (flag === '--hasta' || flag === '--remoto' || flag === '--rama' || flag === '--rama-destino') {
       const valor = argv[i + 1];
       if (!valor || valor.startsWith('--')) throw new Error(`${flag} espera un valor`);
       if (flag === '--hasta') opciones.hasta = valor;
       else if (flag === '--remoto') opciones.remoto = valor;
-      else opciones.rama = valor;
+      else if (flag === '--rama') opciones.rama = valor;
+      else opciones.ramaDestino = valor;
       i += 1;
       continue;
     }
@@ -82,66 +124,178 @@ export function parseArgs(argv: string[]): Opciones {
   return opciones;
 }
 
-/** Sólo los de maquinaria, del más viejo al más nuevo (`git log` da lo nuevo primero). */
-export function ordenarParaAplicar(commits: Commit[]): Commit[] {
-  return commits
-    .filter((commit) => commit.maquinaria)
-    .slice()
-    .reverse();
+// ---------------------------------------------------------------------------
+// La decisión por archivo: pura, sin git, para poder testearla sola.
+// ---------------------------------------------------------------------------
+
+export type Accion =
+  /** `fable/`, Dependabot, `tiendas.json`, el propio baseline: nunca viajan. */
+  | 'ignorar'
+  /** La tienda ya tiene exactamente lo del template. */
+  | 'al-dia'
+  /** Se resuelve al final, mirando cómo quedó `package.json`. */
+  | 'lockfile'
+  /** La tienda no lo tocó (o es un doc del template): va la versión del template. */
+  | 'tomar-template'
+  /** Maquinaria que la tienda no tiene: vuelve. */
+  | 'restaurar'
+  /** Maquinaria cambiada de los dos lados: merge de 3 vías. */
+  | 'fusionar'
+  /** Maquinaria que el template borró y la tienda cambió: lo decide una persona. */
+  | 'conflicto'
+  /** Piel o docs que la tienda cambió o borró: se queda lo de la tienda. */
+  | 'conservar';
+
+/** Blob de git de cada lado (`null` = el archivo no existe ahí). */
+export type Versiones = { base: string | null; tienda: string | null; template: string | null };
+
+export function decidirArchivo(ruta: string, { base, tienda, template }: Versiones): Accion {
+  if (esSoloTemplate(ruta) || ruta === BASELINE_FILE) return 'ignorar';
+  if (tienda === template) return 'al-dia';
+  if (ruta === 'pnpm-lock.yaml') return 'lockfile';
+  if ((DOCS_DEL_TEMPLATE as readonly string[]).includes(ruta)) return 'tomar-template';
+  if (tienda === base) return 'tomar-template';
+
+  // De acá para abajo, la tienda lo cambió, lo borró o lo agregó por su cuenta.
+  if (!esMaquinaria(ruta)) return 'conservar';
+  if (tienda === null) return 'restaurar';
+  if (template === null) return 'conflicto';
+  return 'fusionar';
 }
 
-const TRAILER_CHERRY_PICK = /cherry picked from commit ([0-9a-f]{40})/g;
+export type ArchivoPlan = { ruta: string; accion: Accion };
+
+export type Conflicto = { ruta: string; motivo: string };
+
+/** Lo que queda escrito en el working tree, agrupado para contarlo. */
+export type Resumen = {
+  /** Del template: nuevos o cambiados que la tienda no había tocado (y restaurados). */
+  traidos: string[];
+  /** Borrados en el template que la tienda no había tocado. */
+  borrados: string[];
+  /** Maquinaria que la tienda no tenía y volvió. */
+  restaurados: string[];
+  /** Maquinaria cambiada de los dos lados que se fusionó sola. */
+  fusionados: string[];
+  /**
+   * Cambios de la tienda que ganó el template: tests que chocaban (tienen que
+   * ir con la maquinaria que prueban) y claves de `package.json` que los dos
+   * cambiaron (`package.json → dependencies.zod`).
+   */
+  reemplazados: string[];
+  /** Piel o docs que la tienda cambió: quedan los suyos. Los mixtos, además, en `mixtos`. */
+  conservados: string[];
+  /** Mixtos (`checkout-form.tsx`, `/admin`) que el template cambió y la tienda tiene distintos. */
+  mixtos: string[];
+  conflictos: Conflicto[];
+};
+
+export function resumenVacio(): Resumen {
+  return {
+    traidos: [],
+    borrados: [],
+    restaurados: [],
+    fusionados: [],
+    reemplazados: [],
+    conservados: [],
+    mixtos: [],
+    conflictos: [],
+  };
+}
+
+type Json = null | boolean | number | string | Json[] | { [clave: string]: Json };
+
+function esObjeto(valor: unknown): valor is { [clave: string]: Json } {
+  return typeof valor === 'object' && valor !== null && !Array.isArray(valor);
+}
+
+function igualJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
 /**
- * SHAs del template que ya están en esta rama, leyendo los trailers que deja
- * `git cherry-pick -x` en el mensaje de cada commit.
+ * Merge de 3 vías de `package.json` clave por clave, no línea por línea.
  *
- * Esto es lo que hace que `template:sync` sea reanudable sin guardar estado
- * propio: si una corrida anterior se cortó a mitad de camino (conflicto
- * resuelto a mano, `--hasta`, lo que sea), la próxima corrida vuelve a mirar
- * el log y salta lo que ya está.
+ * Línea por línea chocaba siempre: la tienda sube `zod` y el template también,
+ * o los dos agregan un script al final de `scripts` —líneas vecinas— y git no
+ * puede separarlos. Por clave, casi todo se resuelve: lo que cambió un solo
+ * lado gana; lo que cambiaron los dos (la misma dependencia a dos versiones)
+ * lo gana el template, porque la maquinaria que viene con él se probó con esa
+ * versión. Esas claves vuelven en `pisadas` para listarlas en el PR.
+ *
+ * Devuelve `null` si alguno de los tres no es JSON válido.
  */
-export function shasYaAplicados(logDesdeBaseline: string): Set<string> {
-  const shas = new Set<string>();
-  for (const match of logDesdeBaseline.matchAll(TRAILER_CHERRY_PICK)) {
-    if (match[1]) shas.add(match[1]);
+export function fusionarPackageJson(
+  base: string,
+  tienda: string,
+  template: string,
+): { contenido: string; pisadas: string[] } | null {
+  let b: unknown;
+  let t: unknown;
+  let m: unknown;
+  try {
+    b = base.trim() === '' ? {} : JSON.parse(base);
+    t = JSON.parse(tienda);
+    m = JSON.parse(template);
+  } catch {
+    return null;
   }
-  return shas;
+  if (!esObjeto(b) || !esObjeto(t) || !esObjeto(m)) return null;
+
+  const pisadas: string[] = [];
+
+  const fusionarNivel = (
+    enBase: { [clave: string]: Json },
+    enTienda: { [clave: string]: Json },
+    enTemplate: { [clave: string]: Json },
+    camino: string,
+  ): { [clave: string]: Json } => {
+    const salida: { [clave: string]: Json } = {};
+    // El orden del template, con lo que sólo tiene la tienda metido donde la
+    // tienda lo tenía (después de la misma clave vecina): el diff del PR
+    // muestra sólo lo que cambió, no claves que se mudaron al final.
+    const claves = Object.keys(enTemplate);
+    let anterior: string | null = null;
+    for (const clave of Object.keys(enTienda)) {
+      if (!claves.includes(clave)) {
+        claves.splice(anterior === null ? 0 : claves.indexOf(anterior) + 1, 0, clave);
+      }
+      anterior = clave;
+    }
+    for (const clave of claves) {
+      const vb = enBase[clave];
+      const vt = enTienda[clave];
+      const vm = enTemplate[clave];
+      const ruta = camino ? `${camino}.${clave}` : clave;
+      let valor: Json | undefined;
+
+      if (esObjeto(vt) && esObjeto(vm)) {
+        valor = fusionarNivel(esObjeto(vb) ? vb : {}, vt, vm, ruta);
+      } else if (igualJson(vt, vm) || igualJson(vt, vb)) {
+        valor = vm;
+      } else if (igualJson(vm, vb)) {
+        valor = vt;
+      } else {
+        valor = vm;
+        pisadas.push(ruta);
+      }
+
+      if (valor !== undefined) salida[clave] = valor;
+    }
+    return salida;
+  };
+
+  const fusionado = fusionarNivel(esObjeto(b) ? b : {}, t, m, '');
+  return { contenido: `${JSON.stringify(fusionado, null, 2)}\n`, pisadas };
 }
 
-export function commitsPendientes(ordenados: Commit[], yaAplicados: ReadonlySet<string>): Commit[] {
-  return ordenados.filter((commit) => !yaAplicados.has(commit.sha));
+export function esTest(ruta: string): boolean {
+  return ruta.startsWith('tests/') || /\.test\.tsx?$/.test(ruta);
 }
 
-/** Corta la lista en (e incluyendo) el commit pedido. Tira si no está. */
-export function cortarHasta(ordenados: Commit[], hasta: string | null): Commit[] {
-  if (!hasta) return ordenados;
-  const normalizado = hasta.toLowerCase();
-  const indice = ordenados.findIndex((commit) => commit.sha.toLowerCase().startsWith(normalizado));
-  if (indice === -1) {
-    throw new Error(
-      `"${hasta}" no está entre los commits de maquinaria pendientes ` +
-        '(¿ya se aplicó, no es un SHA del template, o no toca la maquinaria?).',
-    );
-  }
-  return ordenados.slice(0, indice + 1);
-}
-
-export type AccionConflicto = 'eliminar' | 'lockfile' | 'usar-template' | 'manual';
-
-/**
- * Los tres conflictos aburridos que se repiten en cada sync (ver el comentario
- * de arriba), y todo lo demás cae en "manual" — que es la señal de parar.
- */
-export function clasificarConflicto(archivo: string): AccionConflicto {
-  if (archivo.startsWith('fable/')) return 'eliminar';
-  if (archivo === 'pnpm-lock.yaml') return 'lockfile';
-  if (archivo.startsWith('.github/workflows/') && /\.ya?ml$/.test(archivo)) return 'usar-template';
-  return 'manual';
-}
-
-export function necesitaInstall(archivosTocados: readonly string[]): boolean {
-  return archivosTocados.includes('package.json');
+/** ¿Hay algo que escribir? `al-dia`, `ignorar` y `conservar` no cambian nada. */
+export function hayQueHacer(plan: readonly ArchivoPlan[]): boolean {
+  return plan.some((archivo) => !['al-dia', 'ignorar', 'conservar'].includes(archivo.accion));
 }
 
 // ---------------------------------------------------------------------------
@@ -150,91 +304,126 @@ export function necesitaInstall(archivosTocados: readonly string[]): boolean {
 
 export type ResultadoSync =
   | { estado: 'sin-cambios' }
-  | { estado: 'dry-run'; pendientes: Commit[] }
   | { estado: 'precondicion'; mensaje: string }
-  | { estado: 'conflicto-manual'; sha: string; asunto: string; archivos: string[]; mensaje: string }
-  | { estado: 'fallo-post'; mensaje: string; aplicados: Commit[]; salteados: Commit[] }
-  | { estado: 'completado'; aplicados: Commit[]; salteados: Commit[]; baseline: string };
+  | { estado: 'dry-run'; objetivo: string; commits: Commit[]; plan: ArchivoPlan[] }
+  | {
+      estado: 'conflicto';
+      objetivo: string;
+      commits: Commit[];
+      resumen: Resumen;
+      commiteado: boolean;
+      mensaje: string;
+    }
+  | { estado: 'fallo-post'; objetivo: string; commits: Commit[]; resumen: Resumen; mensaje: string }
+  | { estado: 'completado'; objetivo: string; commits: Commit[]; resumen: Resumen };
 
 function ramaActual(cwd: string): string {
   return gitEn(cwd, ['branch', '--show-current']).trim();
+}
+
+function ramaExiste(cwd: string, rama: string): boolean {
+  try {
+    gitEn(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${rama}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `--rama-destino`: crea (o retoma) la rama pedida antes de sincronizar. El
+ * workflow clona la tienda parada en su default branch; sin esto necesitaría
+ * un `git checkout -b` aparte.
+ */
+function pararEnRamaDestino(cwd: string, rama: string): void {
+  if (ramaActual(cwd) === rama) return;
+  if (ramaExiste(cwd, rama)) {
+    gitEn(cwd, ['checkout', rama]);
+  } else {
+    gitEn(cwd, ['checkout', '-b', rama]);
+  }
 }
 
 function treeSucio(cwd: string): boolean {
   return gitEn(cwd, ['status', '--porcelain']).trim() !== '';
 }
 
-function rutaGit(cwd: string, nombre: string): string {
-  const salida = gitEn(cwd, ['rev-parse', '--git-path', nombre]).trim();
-  return isAbsolute(salida) ? salida : join(cwd, salida);
-}
-
-function cherryPickEnCurso(cwd: string): boolean {
-  return existsSync(rutaGit(cwd, 'CHERRY_PICK_HEAD'));
-}
-
-function archivosEnConflicto(cwd: string): string[] {
-  return gitEn(cwd, ['diff', '--name-only', '--diff-filter=U'])
+function lineas(salida: string): string[] {
+  return salida
     .split('\n')
     .map((linea) => linea.trim())
     .filter((linea) => linea !== '');
 }
 
-type ResultadoIntento = 'ok' | 'conflicto' | 'vacio';
-
-function intentarCherryPick(cwd: string, sha: string): ResultadoIntento {
-  try {
-    gitEn(cwd, ['cherry-pick', '-x', sha]);
-    return 'ok';
-  } catch {
-    if (archivosEnConflicto(cwd).length > 0) return 'conflicto';
-    if (cherryPickEnCurso(cwd)) return 'vacio';
-    throw new Error(`git cherry-pick -x ${sha.slice(0, 12)} falló de una forma que no reconozco.`);
+/** ruta → blob, de un árbol entero. Un par de cientos de archivos: una sola llamada a git. */
+function blobsDe(cwd: string, arbol: string): Map<string, string> {
+  const blobs = new Map<string, string>();
+  const salida = gitEn(cwd, ['ls-tree', '-r', '-z', '--full-tree', arbol]);
+  for (const entrada of salida.split('\0')) {
+    if (entrada === '') continue;
+    // "<modo> <tipo> <blob>\t<ruta>"
+    const tab = entrada.indexOf('\t');
+    const [, tipo, blob] = entrada.slice(0, tab).split(' ');
+    if (tipo === 'blob' && blob) blobs.set(entrada.slice(tab + 1), blob);
   }
+  return blobs;
 }
 
-function resolverArchivoConflicto(cwd: string, archivo: string, accion: AccionConflicto): void {
-  if (accion === 'eliminar') {
-    gitEn(cwd, ['rm', '-f', '--', archivo]);
-    return;
-  }
-  if (accion === 'usar-template') {
-    gitEn(cwd, ['checkout', '--theirs', '--', archivo]);
-    gitEn(cwd, ['add', '--', archivo]);
-    return;
-  }
-  // 'lockfile' se resuelve aparte (regenerarLockfile), no archivo por archivo.
-}
-
-function regenerarLockfile(cwd: string): void {
-  execFileSync('pnpm', ['install', '--lockfile-only'], {
-    cwd,
+function blobABuffer(cwd: string, blob: string): Buffer {
+  return execFileSync('git', ['-C', cwd, 'cat-file', 'blob', blob], {
+    maxBuffer: 50 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 }
 
-function continuarCherryPick(cwd: string): void {
-  gitEn(cwd, ['-c', 'core.editor=true', 'cherry-pick', '--continue']);
+/**
+ * `git merge-file` sobre tres blobs. Devuelve el resultado (con marcadores si
+ * chocó) y cuántos conflictos quedaron; `null` si git no puede (binarios).
+ */
+function fusionar(cwd: string, ruta: string, v: Versiones): { contenido: Buffer; conflictos: number } | null {
+  const tmp = mkdtempSync(join(tmpdir(), 'template-sync-'));
+  try {
+    const escribirLado = (nombre: string, blob: string | null): string => {
+      const archivo = join(tmp, nombre);
+      writeFileSync(archivo, blob ? blobABuffer(cwd, blob) : Buffer.alloc(0));
+      return archivo;
+    };
+    const tienda = escribirLado('tienda', v.tienda);
+    const base = escribirLado('base', v.base);
+    const template = escribirLado('template', v.template);
+    const args = ['merge-file', '-p', '-L', `${ruta} (tienda)`, '-L', `${ruta} (template, baseline)`, '-L', `${ruta} (template)`, tienda, base, template];
+    try {
+      const contenido = execFileSync('git', args, { maxBuffer: 50 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+      return { contenido, conflictos: 0 };
+    } catch (error) {
+      const fallo = error as { status?: number | null; stdout?: Buffer };
+      // merge-file sale con la cantidad de conflictos (>0) y el resultado en
+      // stdout; un código negativo (255 en el proceso) es un error de verdad.
+      if (typeof fallo.status === 'number' && fallo.status > 0 && fallo.status < 128 && fallo.stdout) {
+        return { contenido: fallo.stdout, conflictos: fallo.status };
+      }
+      return null;
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
-function saltarCherryPick(cwd: string): void {
-  gitEn(cwd, ['cherry-pick', '--skip']);
+function tomarDelTemplate(cwd: string, objetivo: string, ruta: string, existeEnTemplate: boolean): void {
+  if (existeEnTemplate) {
+    gitEn(cwd, ['checkout', objetivo, '--', ruta]);
+  } else {
+    gitEn(cwd, ['rm', '-q', '--', ruta]);
+  }
 }
 
 /**
- * Resolver un conflicto puede dejar el commit vacío — típicamente `fable/`:
- * si se descarta el lado del template y no queda otro archivo con cambios
- * reales, el diff contra HEAD es nulo. `--continue` rechaza eso ("nothing to
- * commit"); hay que `--skip` en su lugar, igual que un commit que ya estaba
- * aplicado bajo otro SHA.
+ * Lo de `SOLO_TEMPLATE` que está versionado en la tienda: en una tienda vieja,
+ * creada antes de que existiera la lista, también se saca lo que heredó.
  */
-function quedanCambiosParaCommitear(cwd: string): boolean {
-  try {
-    execFileSync('git', ['-C', cwd, 'diff', '--cached', '--quiet'], { stdio: 'ignore' });
-    return false;
-  } catch {
-    return true;
-  }
+function soloTemplateVersionado(cwd: string): string[] {
+  const rutas = SOLO_TEMPLATE.map((entrada) => entrada.replace(/\/$/, ''));
+  return lineas(gitEn(cwd, ['ls-files', '--', ...rutas]));
 }
 
 function mensajeDeError(error: unknown): string {
@@ -252,37 +441,46 @@ function mensajeDeError(error: unknown): string {
   return String(error);
 }
 
+/** Cuerpo del commit: qué commits de maquinaria del template quedaron adentro. */
+function mensajeCommit(objetivo: string, commits: Commit[], conflictos: Conflicto[]): string {
+  const titulo = `Sincronizar maquinaria del template hasta ${objetivo.slice(0, 12)}`;
+  const partes = [conflictos.length > 0 ? `${titulo} (con conflictos)` : titulo, ''];
+  if (conflictos.length > 0) {
+    partes.push('Conflictos a resolver a mano:', ...conflictos.map((c) => `- ${c.ruta}: ${c.motivo}`), '');
+  }
+  const deMaquinaria = commits.filter((commit) => commit.maquinaria);
+  if (deMaquinaria.length > 0) {
+    partes.push('Commits de maquinaria del template incluidos:', ...deMaquinaria.map((c) => `- ${c.sha.slice(0, 12)} ${c.asunto}`));
+  }
+  return partes.join('\n');
+}
+
 /**
  * El corazón del comando. Nada de esto imprime a consola ni llama a
  * `process.exit`: eso es cosa de `main()`, para que esta función se pueda
  * llamar directo desde un test de integración contra un repo temporal.
  */
 export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
+  if (opciones.ramaDestino) {
+    pararEnRamaDestino(cwd, opciones.ramaDestino);
+  }
+
   if (ramaActual(cwd) === 'main') {
     return {
       estado: 'precondicion',
       mensaje:
-        'Estás parado en "main". `template:sync` trae commits con `git cherry-pick`: ' +
+        'Estás parado en "main". `template:sync` deja un commit con la maquinaria nueva: ' +
         'creá o cambiá a una rama de feature y volvé a correrlo ahí.',
-    };
-  }
-
-  if (cherryPickEnCurso(cwd)) {
-    return {
-      estado: 'precondicion',
-      mensaje:
-        'Hay un cherry-pick sin terminar de una corrida anterior.\n\n' +
-        '  Resolvé el conflicto, `git add` lo que corresponda y:\n\n' +
-        '    git cherry-pick --continue\n\n' +
-        '  Después volvé a correr `pnpm template:sync` — retoma solo desde el primer\n' +
-        '  commit no aplicado.',
     };
   }
 
   if (treeSucio(cwd)) {
     return {
       estado: 'precondicion',
-      mensaje: 'El working tree tiene cambios sin commitear. Commiteá o guardalos antes de sincronizar.',
+      mensaje:
+        'El working tree tiene cambios sin commitear. Commiteá o guardalos antes de sincronizar.\n\n' +
+        '  Si son los conflictos de una corrida anterior: resolvé los marcadores, `git add -A`\n' +
+        '  y `git commit` — el baseline nuevo ya está en ese mismo commit.',
     };
   }
 
@@ -300,14 +498,14 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
   }
 
   const ref = `${opciones.remoto}/${opciones.rama}`;
-  const cabezaTemplate = gitEn(cwd, ['rev-parse', ref]).trim();
 
   if (!existsSync(join(cwd, BASELINE_FILE))) {
     return {
       estado: 'precondicion',
       mensaje:
         `No hay ${BASELINE_FILE} en este repo, así que no sé desde dónde traer.\n\n` +
-        '  Marcá primero un punto de partida conocido:\n\n' +
+        '  Marcá primero un punto de partida conocido: el commit del template desde el que\n' +
+        '  se creó esta tienda (o hasta el que se sincronizó a mano por última vez):\n\n' +
         '    pnpm template:diff --marcar\n',
     };
   }
@@ -320,130 +518,288 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
     };
   }
 
-  const ordenados = ordenarParaAplicar(commitsClasificados(cwd, baseline, ref));
-  const logDesdeBaseline =
-    ordenados.length > 0 ? gitEn(cwd, ['log', '--format=%B', `${baseline}..HEAD`]) : '';
-  let pendientes = commitsPendientes(ordenados, shasYaAplicados(logDesdeBaseline));
-
-  if (opciones.hasta) {
-    try {
-      pendientes = cortarHasta(pendientes, opciones.hasta);
-    } catch (error) {
-      return { estado: 'precondicion', mensaje: mensajeDeError(error) };
-    }
+  let objetivo: string;
+  try {
+    gitEn(cwd, ['cat-file', '-e', `${baseline}^{commit}`]);
+    objetivo = gitEn(cwd, ['rev-parse', '--verify', `${opciones.hasta ?? ref}^{commit}`]).trim();
+    gitEn(cwd, ['merge-base', '--is-ancestor', baseline, objetivo]);
+  } catch {
+    return {
+      estado: 'precondicion',
+      mensaje: opciones.hasta
+        ? `"${opciones.hasta}" no es un commit del template posterior al baseline (${baseline.slice(0, 12)}).`
+        : `El baseline ${baseline.slice(0, 12)} no está en la historia de ${ref}. ¿Es un SHA del template?`,
+    };
   }
 
-  if (pendientes.length === 0) {
+  if (objetivo === gitEn(cwd, ['rev-parse', `${baseline}^{commit}`]).trim()) {
+    return { estado: 'sin-cambios' };
+  }
+
+  const commits = commitsClasificados(cwd, baseline, objetivo);
+  const enBase = blobsDe(cwd, baseline);
+  const enTienda = blobsDe(cwd, 'HEAD');
+  const enObjetivo = blobsDe(cwd, objetivo);
+
+  // Sólo lo que el template cambió desde el baseline. Lo que no cambió en el
+  // medio es asunto de la tienda aunque le falte: el baseline dice "hasta acá
+  // estoy al día", y restaurar un archivo que la tienda nunca tuvo (una
+  // función que decidió no usar, sin su dependencia) la deja en rojo.
+  const plan: ArchivoPlan[] = lineas(
+    gitEn(cwd, ['diff', '--name-only', '--no-renames', baseline, objetivo]),
+  ).map((ruta) => ({
+    ruta,
+    accion: decidirArchivo(ruta, {
+      base: enBase.get(ruta) ?? null,
+      tienda: enTienda.get(ruta) ?? null,
+      template: enObjetivo.get(ruta) ?? null,
+    }),
+  }));
+
+  const soloTemplate = soloTemplateVersionado(cwd);
+
+  if (!hayQueHacer(plan) && soloTemplate.length === 0) {
     return { estado: 'sin-cambios' };
   }
 
   if (opciones.dryRun) {
-    return { estado: 'dry-run', pendientes };
+    return { estado: 'dry-run', objetivo, commits, plan };
   }
 
-  const headInicial = gitEn(cwd, ['rev-parse', 'HEAD']).trim();
-  const aplicados: Commit[] = [];
-  const salteados: Commit[] = [];
+  const resumen = resumenVacio();
+  const versiones = (ruta: string): Versiones => ({
+    base: enBase.get(ruta) ?? null,
+    tienda: enTienda.get(ruta) ?? null,
+    template: enObjetivo.get(ruta) ?? null,
+  });
 
-  for (const commit of pendientes) {
-    const resultado = intentarCherryPick(cwd, commit.sha);
+  for (const { ruta, accion } of plan) {
+    const v = versiones(ruta);
 
-    if (resultado === 'vacio') {
-      saltarCherryPick(cwd);
-      salteados.push(commit);
-      continue;
-    }
-
-    if (resultado === 'conflicto') {
-      const acciones = archivosEnConflicto(cwd).map(
-        (archivo) => [archivo, clasificarConflicto(archivo)] as const,
-      );
-      const manuales = acciones.filter(([, accion]) => accion === 'manual').map(([archivo]) => archivo);
-
-      if (manuales.length > 0) {
-        return {
-          estado: 'conflicto-manual',
-          sha: commit.sha,
-          asunto: commit.asunto,
-          archivos: manuales,
-          mensaje:
-            `Conflicto en ${commit.sha.slice(0, 12)} "${commit.asunto}" que no puedo resolver solo:\n\n` +
-            manuales.map((archivo) => `    - ${archivo}`).join('\n') +
-            '\n\n  Resolvelo a mano y seguí:\n\n' +
-            '    1. Editá esos archivos y sacá los marcadores de conflicto\n' +
-            '    2. git add <archivo(s)>\n' +
-            '    3. git cherry-pick --continue\n' +
-            '    4. pnpm template:sync   # retoma desde acá\n',
-        };
+    switch (accion) {
+      case 'tomar-template':
+        tomarDelTemplate(cwd, objetivo, ruta, v.template !== null);
+        (v.template === null ? resumen.borrados : resumen.traidos).push(ruta);
+        break;
+      case 'restaurar':
+        tomarDelTemplate(cwd, objetivo, ruta, true);
+        resumen.restaurados.push(ruta);
+        break;
+      case 'conflicto':
+        resumen.conflictos.push({
+          ruta,
+          motivo: 'el template lo borró y la tienda lo tiene cambiado: borralo o quedátelo a mano',
+        });
+        break;
+      case 'conservar':
+        resumen.conservados.push(ruta);
+        if (esMixto(ruta)) resumen.mixtos.push(ruta);
+        break;
+      case 'fusionar': {
+        if (esTest(ruta) && v.template !== null) {
+          // Un test va con la maquinaria que prueba: si la tienda lo adaptó y el
+          // template también lo cambió, gana el del template (y se lista). Un
+          // merge "limpio" de dos tests distintos compila mal más seguido que
+          // bien (imports de un lado, uso del otro).
+          tomarDelTemplate(cwd, objetivo, ruta, true);
+          resumen.reemplazados.push(ruta);
+          break;
+        }
+        if (ruta === 'package.json' && v.base !== null && v.tienda !== null && v.template !== null) {
+          const json = fusionarPackageJson(
+            blobABuffer(cwd, v.base).toString('utf8'),
+            blobABuffer(cwd, v.tienda).toString('utf8'),
+            blobABuffer(cwd, v.template).toString('utf8'),
+          );
+          if (json) {
+            writeFileSync(join(cwd, ruta), json.contenido);
+            gitEn(cwd, ['add', '--', ruta]);
+            resumen.fusionados.push(ruta);
+            resumen.reemplazados.push(...json.pisadas.map((clave) => `package.json → ${clave}`));
+            break;
+          }
+        }
+        const resultado = fusionar(cwd, ruta, v);
+        if (!resultado) {
+          resumen.conflictos.push({
+            ruta,
+            motivo: 'cambiado en la tienda y en el template, y git no lo puede fusionar (¿binario?)',
+          });
+          break;
+        }
+        writeFileSync(join(cwd, ruta), resultado.contenido);
+        if (resultado.conflictos > 0) {
+          resumen.conflictos.push({
+            ruta,
+            motivo: `${resultado.conflictos} bloque(s) con marcadores <<<<<<< — la tienda y el template cambiaron lo mismo`,
+          });
+        } else {
+          gitEn(cwd, ['add', '--', ruta]);
+          resumen.fusionados.push(ruta);
+        }
+        break;
       }
+      default:
+        break;
+    }
+  }
 
-      for (const [archivo, accion] of acciones) resolverArchivoConflicto(cwd, archivo, accion);
-      if (acciones.some(([, accion]) => accion === 'lockfile')) {
-        regenerarLockfile(cwd);
+  // El lockfile, al final: depende de cómo quedó package.json.
+  if (plan.some((archivo) => archivo.accion === 'lockfile')) {
+    const lock = versiones('pnpm-lock.yaml');
+    const paqueteFinal = gitEn(cwd, ['hash-object', '--', 'package.json']).trim();
+    const paqueteTemplate = enObjetivo.get('package.json') ?? null;
+
+    if (resumen.conflictos.some((c) => c.ruta === 'package.json')) {
+      resumen.conflictos.push({
+        ruta: 'pnpm-lock.yaml',
+        motivo: 'resolvé package.json primero y después `pnpm install` para regenerarlo',
+      });
+    } else if (lock.tienda === lock.base && paqueteFinal === paqueteTemplate) {
+      // Mismas dependencias que el template: su lockfile es exactamente el correcto.
+      tomarDelTemplate(cwd, objetivo, 'pnpm-lock.yaml', lock.template !== null);
+      resumen.traidos.push('pnpm-lock.yaml');
+    } else {
+      try {
+        execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts'], {
+          cwd,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
         gitEn(cwd, ['add', '--', 'pnpm-lock.yaml']);
+        resumen.fusionados.push('pnpm-lock.yaml');
+      } catch (error) {
+        resumen.conflictos.push({
+          ruta: 'pnpm-lock.yaml',
+          motivo: `\`pnpm install --lockfile-only\` falló: ${mensajeDeError(error).split('\n')[0]}`,
+        });
       }
-
-      if (!quedanCambiosParaCommitear(cwd)) {
-        saltarCherryPick(cwd);
-        salteados.push(commit);
-        continue;
-      }
-
-      continuarCherryPick(cwd);
-    }
-
-    aplicados.push(commit);
-  }
-
-  const tocados = gitEn(cwd, ['diff', '--name-only', `${headInicial}..HEAD`])
-    .split('\n')
-    .map((linea) => linea.trim())
-    .filter((linea) => linea !== '');
-
-  if (necesitaInstall(tocados)) {
-    try {
-      execFileSync('pnpm', ['install'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-    } catch (error) {
-      return {
-        estado: 'fallo-post',
-        mensaje: `\`pnpm install\` falló después de traer la maquinaria:\n\n${mensajeDeError(error)}`,
-        aplicados,
-        salteados,
-      };
     }
   }
+
+  writeFileSync(join(cwd, BASELINE_FILE), contenidoBaseline(objetivo));
+  gitEn(cwd, ['add', '--', BASELINE_FILE]);
+  if (soloTemplate.length > 0) gitEn(cwd, ['rm', '-r', '-q', '--', ...soloTemplate]);
+
+  if (resumen.conflictos.length > 0) {
+    const commiteado = Boolean(opciones.commitearConflictos);
+    if (commiteado) {
+      gitEn(cwd, ['add', '-A']);
+      gitEn(cwd, ['-c', 'core.editor=true', 'commit', '-m', mensajeCommit(objetivo, commits, resumen.conflictos)]);
+    }
+    return {
+      estado: 'conflicto',
+      objetivo,
+      commits,
+      resumen,
+      commiteado,
+      mensaje:
+        `${resumen.conflictos.length} archivo(s) que no puedo resolver solo:\n\n` +
+        resumen.conflictos.map((c) => `    - ${c.ruta}: ${c.motivo}`).join('\n') +
+        (commiteado
+          ? '\n\n  Quedaron commiteados así (con marcadores): resolvelos en esta rama antes de mergear.\n'
+          : '\n\n  Lo demás ya está aplicado (y el baseline nuevo escrito). Para terminar:\n\n' +
+            '    1. Editá esos archivos y sacá los marcadores de conflicto\n' +
+            '    2. git add -A\n' +
+            '    3. git commit -m "Sincronizar maquinaria del template"\n'),
+    };
+  }
+
+  gitEn(cwd, ['-c', 'core.editor=true', 'commit', '-m', mensajeCommit(objetivo, commits, [])]);
 
   if (!opciones.sinTests) {
-    for (const comando of [
-      ['pnpm', 'typecheck'],
-      ['pnpm', 'lint'],
-      ['pnpm', 'test'],
-    ]) {
+    const pasos: string[][] = [];
+    if (plan.some((archivo) => archivo.ruta === 'package.json' || archivo.ruta === 'pnpm-lock.yaml')) {
+      pasos.push(['pnpm', 'install']);
+    }
+    pasos.push(['pnpm', 'typecheck'], ['pnpm', 'lint'], ['pnpm', 'test']);
+    for (const comando of pasos) {
       try {
         execFileSync(comando[0]!, comando.slice(1), { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
       } catch (error) {
         return {
           estado: 'fallo-post',
+          objetivo,
+          commits,
+          resumen,
           mensaje: `\`${comando.join(' ')}\` falló después de traer la maquinaria:\n\n${mensajeDeError(error)}`,
-          aplicados,
-          salteados,
         };
       }
     }
   }
 
-  const objetivo = opciones.hasta ? pendientes[pendientes.length - 1]!.sha : cabezaTemplate;
-  writeFileSync(join(cwd, BASELINE_FILE), contenidoBaseline(objetivo));
-  gitEn(cwd, ['add', '--', BASELINE_FILE]);
-  gitEn(cwd, [
-    '-c',
-    'core.editor=true',
-    'commit',
-    '-m',
-    `Sincronizar maquinaria del template hasta ${objetivo.slice(0, 12)}`,
-  ]);
+  return { estado: 'completado', objetivo, commits, resumen };
+}
 
-  return { estado: 'completado', aplicados, salteados, baseline: objetivo };
+/**
+ * Resumen máquina de un `ResultadoSync`, para `--json`.
+ *
+ * Pura a propósito (nada de git acá): así el test unitario fija la forma sin
+ * tener que armar un repo de verdad. `distribuir.yml` (vía
+ * `scripts/ci/armar-pr-tiendas.mjs`) lo lee para armar el cuerpo del PR y
+ * decidir si sale en draft (`conflicto`).
+ */
+export function resumenJson(resultado: ResultadoSync): Record<string, unknown> {
+  const commit = (c: Commit) => ({ sha: c.sha, asunto: c.asunto });
+  const deMaquinaria = (commits: Commit[]) => commits.filter((c) => c.maquinaria).map(commit);
+
+  switch (resultado.estado) {
+    case 'sin-cambios':
+      return { estado: 'sin-cambios' };
+    case 'precondicion':
+      return { estado: 'precondicion', mensaje: resultado.mensaje };
+    case 'dry-run':
+      return {
+        estado: 'dry-run',
+        objetivo: resultado.objetivo,
+        commits: deMaquinaria(resultado.commits),
+        plan: resultado.plan,
+      };
+    case 'conflicto':
+      return {
+        estado: 'conflicto',
+        objetivo: resultado.objetivo,
+        commits: deMaquinaria(resultado.commits),
+        resumen: resultado.resumen,
+        commiteado: resultado.commiteado,
+        mensaje: resultado.mensaje,
+      };
+    case 'fallo-post':
+      return {
+        estado: 'fallo-post',
+        objetivo: resultado.objetivo,
+        commits: deMaquinaria(resultado.commits),
+        resumen: resultado.resumen,
+        mensaje: resultado.mensaje,
+      };
+    case 'completado':
+      return {
+        estado: 'completado',
+        objetivo: resultado.objetivo,
+        commits: deMaquinaria(resultado.commits),
+        resumen: resultado.resumen,
+      };
+    default:
+      return { estado: 'desconocido' };
+  }
+}
+
+const ETIQUETAS: Array<[keyof Omit<Resumen, 'conflictos'>, string]> = [
+  ['traidos', 'traídos del template'],
+  ['borrados', 'borrados (el template los sacó)'],
+  ['restaurados', 'maquinaria que faltaba, restaurada'],
+  ['fusionados', 'fusionados solos (cambios de los dos lados)'],
+  ['reemplazados', 'cambios tuyos que pisó el template (tests, claves de package.json)'],
+  ['conservados', 'tuyos, sin tocar (piel o docs que cambiaste)'],
+  ['mixtos', 'mixtos: el template cambió su lógica, miralos a mano'],
+];
+
+function imprimirResumen(resumen: Resumen): void {
+  for (const [clave, etiqueta] of ETIQUETAS) {
+    const rutas = resumen[clave];
+    if (rutas.length === 0) continue;
+    console.log(`\n  ${rutas.length} ${etiqueta}:`);
+    for (const ruta of rutas) console.log(`    ${ruta}`);
+  }
 }
 
 function main(): void {
@@ -452,12 +808,23 @@ function main(): void {
     opciones = parseArgs(process.argv.slice(2));
   } catch (error) {
     console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
-    console.error('\n  pnpm template:sync [--dry-run] [--hasta <sha>] [--sin-tests]\n');
+    console.error(
+      '\n  pnpm template:sync [--dry-run] [--hasta <sha>] [--sin-tests] ' +
+        '[--rama-destino <nombre>] [--json] [--commitear-conflictos]\n',
+    );
     process.exitCode = 1;
     return;
   }
 
   const resultado = ejecutarSync(process.cwd(), opciones);
+
+  if (opciones.json) {
+    console.log(JSON.stringify(resumenJson(resultado)));
+    if (resultado.estado === 'precondicion' || resultado.estado === 'conflicto' || resultado.estado === 'fallo-post') {
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   switch (resultado.estado) {
     case 'precondicion':
@@ -467,32 +834,33 @@ function main(): void {
     case 'sin-cambios':
       console.log('\n✓ No hay maquinaria pendiente del template.\n');
       return;
-    case 'dry-run':
-      console.log(
-        `\n(dry-run) ${resultado.pendientes.length} commit(s) de maquinaria que traería, del más viejo al más nuevo:\n`,
-      );
-      for (const commit of resultado.pendientes) {
-        console.log(`    ${commit.sha.slice(0, 12)}  ${commit.asunto}`);
+    case 'dry-run': {
+      console.log(`\n(dry-run) hasta ${resultado.objetivo.slice(0, 12)} del template, archivo por archivo:\n`);
+      for (const { ruta, accion } of resultado.plan) {
+        if (accion === 'al-dia' || accion === 'ignorar') continue;
+        console.log(`    ${accion.padEnd(15)} ${ruta}`);
       }
-      console.log('\nSacá --dry-run para aplicarlos de verdad.\n');
+      console.log('\nSacá --dry-run para aplicarlo de verdad.\n');
       return;
-    case 'conflicto-manual':
+    }
+    case 'conflicto':
+      imprimirResumen(resultado.resumen);
       console.error(`\n✗ ${resultado.mensaje}\n`);
       process.exitCode = 1;
       return;
     case 'fallo-post':
+      imprimirResumen(resultado.resumen);
       console.error(
         `\n✗ ${resultado.mensaje}\n\n` +
-          `  ${resultado.aplicados.length} commit(s) quedaron aplicados, ${resultado.salteados.length} salteado(s) por vacíos.\n` +
-          `  ${BASELINE_FILE} NO se actualizó — arreglá lo que falló y volvé a correr \`pnpm template:sync\`.\n`,
+          '  El commit de la sincronización quedó hecho: arreglá lo que falló en un commit aparte.\n',
       );
       process.exitCode = 1;
       return;
     case 'completado':
+      imprimirResumen(resultado.resumen);
       console.log(
-        `\n✓ ${resultado.aplicados.length} commit(s) de maquinaria sincronizados` +
-          (resultado.salteados.length > 0 ? `, ${resultado.salteados.length} salteado(s) por vacíos` : '') +
-          `.\n  ${BASELINE_FILE} → ${resultado.baseline.slice(0, 12)}, commiteado.\n`,
+        `\n✓ Maquinaria sincronizada hasta ${resultado.objetivo.slice(0, 12)}.\n` +
+          `  ${BASELINE_FILE} actualizado, todo en un commit.\n`,
       );
       return;
     default:

@@ -1,6 +1,14 @@
 # PLAN.md — Tienda PY · FASE 2
 
-**Plan activo:** [fable/plan.md](./fable/plan.md) — este archivo queda como historial de la FASE 2, ya cerrada.
+Este archivo queda como historial de la FASE 2, ya cerrada. `fable/plan.md`
+(endurecimiento), `fable/plan-operacion.md` (la tienda después del
+lanzamiento) y `fable/plan-crecimiento.md` (deuda de dominio, recordatorio de
+pago, edición de pedido, kit de temas, dependencias) son historial también,
+con las seis fases O14–S19 de este último mergeadas en dos ventanas.
+`fable/REVIEW.md` (2026-09-11) es el origen de `fable/plan-crecimiento.md`; la
+última revisión de maquinaria es `fable/REVIEW-2026-09-13.md` (ya aplicada) y
+la auditoría del template, `fable/TEMPLATE-REVIEW.md` (2026-09-19). La próxima
+arranca desde `fable/PROMPT.md`.
 
 **Stack (locked):** Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js slot** + Cloudinary.
 No Supabase, no Vercel, no Cloudflare. Deploy mechanics live in `DEPLOY.md` and the `nextjs-deploy-hostinger` skill.

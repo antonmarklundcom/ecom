@@ -75,6 +75,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
               ivaRate: product.ivaRate,
               isActive: product.isActive,
               published: product.publishedAt !== null,
+              isFeatured: product.isFeatured,
             }}
           />
         </div>

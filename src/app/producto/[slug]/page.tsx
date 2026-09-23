@@ -59,9 +59,18 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // el link se comparte con la marca en vez de con un rectángulo gris.
   const ogImage = productImageUrl(product.images[0]?.cloudinaryId, "og");
 
+  // == S17 == Mismo criterio que `categoria/[slug]`: canonical a la URL
+  // limpia del producto, y sólo si hay origen configurado (`siteOrigin()`,
+  // nunca un dominio inventado). Esta ficha no arrastra filtros en la URL
+  // hoy, pero declarar el canonical explícito no le hace falta a un futuro
+  // parámetro de tracking para dejar de indexarse como página aparte.
+  const origin = siteOrigin();
+  const canonical = origin ? new URL(`/producto/${slug}`, origin).toString() : undefined;
+
   return {
     title: product.name,
     description,
+    ...(canonical ? { alternates: { canonical } } : {}),
     openGraph: {
       title: product.name,
       description,

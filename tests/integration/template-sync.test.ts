@@ -8,14 +8,13 @@ import { gitEn, parseBaseline } from '../../scripts/template-shared';
 import { ejecutarSync } from '../../scripts/template-sync';
 
 /**
- * `pnpm template:sync` contra git de verdad (fable/plan.md §9).
+ * `pnpm template:sync` contra git de verdad.
  *
  * Arma dos repos temporales sin historia compartida —igual que un template y
- * una tienda hecha con "Use this template"— y hace commits de maquinaria y de
- * piel en el template. El escenario cubre los tres casos del problema
- * original (fable/plan.md §9 / la tarea): sólo la maquinaria se trae, el
- * conflicto de `fable/` se resuelve solo, y un conflicto de verdad en `src/`
- * frena todo sin tocar el baseline.
+ * una tienda hecha con "Use this template"— y cubre las decisiones archivo
+ * por archivo: lo que la tienda no tocó llega, la maquinaria que las dos
+ * partes cambiaron se fusiona, la piel de la tienda queda, `fable/` nunca
+ * viaja, y un conflicto de verdad deja marcadores sin commitear.
  */
 
 const temporales: string[] = [];
@@ -51,151 +50,213 @@ function identidadGit(repo: string): void {
   gitEn(repo, ['config', 'commit.gpgsign', 'false']);
 }
 
+const OPCIONES = { remoto: 'template', rama: 'main', dryRun: false, hasta: null, sinTests: true } as const;
+
+function leer(repo: string, ruta: string): string {
+  return readFileSync(join(repo, ...ruta.split('/')), 'utf8');
+}
+
+function existe(repo: string, ruta: string): boolean {
+  return gitEn(repo, ['ls-files', '--', ruta]).trim() !== '';
+}
+
 /**
- * Arma el template y la tienda del escenario, ya con `.template-baseline`
- * marcado en el commit inicial y la rama de la tienda lista para sincronizar.
- * Devuelve los SHA de cada commit del template para que los tests los usen.
+ * Template con historia (C0 → C1…) y una tienda creada desde C0 con
+ * customizaciones propias, parada en una rama de feature con el baseline en C0.
  */
 function armarEscenario() {
   const template = repoTemporal('template-sync-template');
   identidadGit(template);
 
-  // Tres líneas con un "medio" que nunca cambia: le da a los merges de 3 vías
-  // el contexto que necesitan para separar la edición de la tienda (línea 1)
-  // de la de C1 (línea 3) y fusionarlas solas, y a la vez le deja a C4 una
-  // línea 1 real para chocar con la customización de la tienda.
+  // Tres líneas con un "medio" que nunca cambia: le da al merge de 3 vías el
+  // contexto para separar la línea 1 (de la tienda) de la 3 (del template).
   escribir(template, 'src/domain/stock.ts', 'inicio\nmedio\nfin\n');
+  escribir(template, 'src/lib/spreadsheet.ts', 'export const v = 1;\n');
   escribir(template, 'fable/plan.md', 'plan v1\n');
   escribir(template, 'README.md', 'template readme v1\n');
+  escribir(template, 'src/components/hero.tsx', 'hero v1\n');
+  escribir(template, 'KNOWN-ISSUES.md', '# Known\nuno\n');
+  escribir(template, 'tests/e2e/helpers.ts', 'selector v1\n');
+  escribir(template, 'package.json', `${JSON.stringify({ name: 'ecom', scripts: { dev: 'next dev' }, dependencies: { zod: '1' } }, null, 2)}\n`);
   const c0 = commit(template, 'C0 inicial');
   gitEn(template, ['branch', '-M', 'main']);
 
-  // C1 — maquinaria, toca sólo la línea 3: se aplica limpio aunque la tienda
-  // ya haya customizado la línea 1 (están separadas por "medio").
-  escribir(template, 'src/domain/stock.ts', 'inicio\nmedio\nfin-c1\n');
-  const c1 = commit(template, 'C1 maquinaria: stock cambia línea 3');
-
-  // C2 — piel (README no es maquinaria ni mixto): nunca se intenta.
-  escribir(template, 'README.md', 'template readme v2\n');
-  const c2 = commit(template, 'C2 piel: readme');
-
-  // C3 — maquinaria (toca scripts/) que además choca en fable/, que la
-  // tienda nunca tuvo. Se resuelve solo: se descarta fable/ del lado del
-  // template y se aplica el resto.
-  escribir(template, 'fable/plan.md', 'plan v2\n');
-  escribir(template, 'scripts/helper.ts', 'export const helper = 1;\n');
-  const c3 = commit(template, 'C3 maquinaria + fable/: agrega helper');
-
-  // C4 — maquinaria, pero cambia la línea 1 — la misma que la tienda ya
-  // customizó por su cuenta: conflicto de verdad, no auto-resoluble.
-  escribir(template, 'src/domain/stock.ts', 'inicio-template\nmedio\nfin-c1\n');
-  const c4 = commit(template, 'C4 maquinaria: stock cambia línea 1');
-
+  // La tienda: copia de C0 (sin historia compartida, sin fable/) + sus cambios.
   const tienda = repoTemporal('template-sync-tienda');
   identidadGit(tienda);
-  escribir(tienda, 'src/domain/stock.ts', 'inicio\nmedio\nfin\n');
-  escribir(tienda, 'README.md', 'tienda readme\n');
-  commit(tienda, 'C0 tienda');
-  gitEn(tienda, ['checkout', '-b', 'phase/sync-test']);
-
-  gitEn(tienda, ['remote', 'add', 'template', template]);
-  gitEn(tienda, ['fetch', 'template', 'main']);
-  writeFileSync(
-    join(tienda, '.template-baseline'),
-    '# baseline de prueba\n' + `${c0}\n`,
-  );
-  commit(tienda, 'Marcar baseline de template:sync');
-
-  // La tienda ya customizó la línea 1 antes de sincronizar nada — es lo que
-  // hace que C4 choque de verdad más adelante.
   escribir(tienda, 'src/domain/stock.ts', 'inicio-tienda\nmedio\nfin\n');
-  commit(tienda, 'Customización propia de la tienda');
+  escribir(tienda, 'README.md', 'tienda readme\n');
+  escribir(tienda, 'src/components/hero.tsx', 'hero v1\n');
+  escribir(tienda, 'KNOWN-ISSUES.md', '# Known\nuno\n');
+  escribir(tienda, 'tests/e2e/helpers.ts', 'selector de la tienda\n');
+  escribir(tienda, 'package.json', `${JSON.stringify({ name: 'mascota', scripts: { dev: 'next dev', fotos: 'tsx fotos.ts' }, dependencies: { zod: '1' } }, null, 2)}\n`);
+  // src/lib/spreadsheet.ts no está: la tienda nunca lo trajo.
+  writeFileSync(join(tienda, '.template-baseline'), `# baseline de prueba\n${c0}\n`);
+  commit(tienda, 'C0 tienda');
+  gitEn(tienda, ['checkout', '-b', 'sync']);
+  gitEn(tienda, ['remote', 'add', 'template', template]);
 
-  return { template, tienda, c0, c1, c2, c3, c4 };
+  // Lo que cambia el template después de C0.
+  escribir(template, 'src/domain/stock.ts', 'inicio\nmedio\nfin-template\n');
+  escribir(template, 'src/lib/spreadsheet.ts', 'export const v = 2;\n');
+  escribir(template, 'fable/plan.md', 'plan v2\n');
+  escribir(template, 'README.md', 'template readme v2\n');
+  escribir(template, 'src/components/hero.tsx', 'hero v2\n');
+  escribir(template, 'KNOWN-ISSUES.md', '# Known\nuno, resuelto\n');
+  escribir(template, 'tests/e2e/helpers.ts', 'selector por testid\n');
+  escribir(template, 'scripts/helper.ts', 'export const helper = 1;\n');
+  escribir(template, 'tiendas.json', '[]\n');
+  escribir(template, 'package.json', `${JSON.stringify({ name: 'ecom', scripts: { dev: 'next dev', restore: 'tsx restore.ts' }, dependencies: { zod: '1' } }, null, 2)}\n`);
+  const c1 = commit(template, 'C1 maquinaria, piel y docs');
+
+  return { template, tienda, c0, c1 };
 }
 
 describe('template:sync contra git de verdad', () => {
-  it('trae sólo la maquinaria, resuelve fable/ solo, y para en un conflicto real de src/', () => {
-    const { tienda, c1, c2, c4 } = armarEscenario();
+  it('trae lo que corresponde archivo por archivo, en un solo commit, y avanza el baseline', () => {
+    const { tienda, c1 } = armarEscenario();
+    const antes = gitEn(tienda, ['rev-parse', 'HEAD']).trim();
 
-    const resultado = ejecutarSync(tienda, {
-      remoto: 'template',
-      rama: 'main',
-      dryRun: false,
-      hasta: null,
-      sinTests: true,
+    const resultado = ejecutarSync(tienda, OPCIONES);
+
+    expect(resultado.estado).toBe('completado');
+    if (resultado.estado !== 'completado') throw new Error('no debería pasar');
+
+    // Maquinaria cambiada de los dos lados: se fusiona (línea 1 de la tienda, línea 3 del template).
+    expect(leer(tienda, 'src/domain/stock.ts')).toBe('inicio-tienda\nmedio\nfin-template\n');
+    // Maquinaria que la tienda no tenía y el template cambió: vuelve.
+    expect(leer(tienda, 'src/lib/spreadsheet.ts')).toBe('export const v = 2;\n');
+    // Nueva en el template: llega.
+    expect(leer(tienda, 'scripts/helper.ts')).toBe('export const helper = 1;\n');
+    // Piel que la tienda no tocó: la del template.
+    expect(leer(tienda, 'src/components/hero.tsx')).toBe('hero v2\n');
+    // Piel que la tienda cambió: la suya.
+    expect(leer(tienda, 'README.md')).toBe('tienda readme\n');
+    // Doc del template: el del template.
+    expect(leer(tienda, 'KNOWN-ISSUES.md')).toBe('# Known\nuno, resuelto\n');
+    // Test adaptado por la tienda y cambiado en el template: gana el del template.
+    expect(leer(tienda, 'tests/e2e/helpers.ts')).toBe('selector por testid\n');
+    // package.json por clave: el script de la tienda y el del template, los dos.
+    expect(JSON.parse(leer(tienda, 'package.json'))).toEqual({
+      name: 'mascota',
+      scripts: { dev: 'next dev', restore: 'tsx restore.ts', fotos: 'tsx fotos.ts' },
+      dependencies: { zod: '1' },
+    });
+    // Sólo del template: nunca viajan.
+    expect(existe(tienda, 'fable/plan.md')).toBe(false);
+    expect(existe(tienda, 'tiendas.json')).toBe(false);
+
+    expect(resultado.resumen).toMatchObject({
+      restaurados: ['src/lib/spreadsheet.ts'],
+      fusionados: ['package.json', 'src/domain/stock.ts'],
+      reemplazados: ['tests/e2e/helpers.ts'],
+      conservados: ['README.md'],
+      conflictos: [],
     });
 
-    expect(resultado.estado).toBe('conflicto-manual');
-    if (resultado.estado !== 'conflicto-manual') throw new Error('no debería pasar');
-    expect(resultado.sha).toBe(c4);
-    expect(resultado.archivos).toEqual(['src/domain/stock.ts']);
+    // Un solo commit, con el baseline adentro y el tree limpio.
+    expect(gitEn(tienda, ['rev-list', '--count', `${antes}..HEAD`]).trim()).toBe('1');
+    expect(gitEn(tienda, ['log', '-1', '--format=%s'])).toContain('Sincronizar maquinaria del template');
+    expect(parseBaseline(leer(tienda, '.template-baseline'))).toBe(c1);
+    expect(gitEn(tienda, ['status', '--porcelain']).trim()).toBe('');
 
-    // C1 y C3 quedaron aplicados como commits propios de la tienda, con el
-    // trailer que deja `cherry-pick -x` apuntando al SHA original del template.
-    const asuntos = gitEn(tienda, ['log', '--format=%s']);
-    const trailers = gitEn(tienda, ['log', '--format=%B']);
-    expect(trailers).toContain(c1);
-    expect(asuntos).toContain('C3 maquinaria + fable/: agrega helper');
-
-    // El helper de C3 está; fable/plan.md, que la tienda nunca tuvo, no.
-    expect(readFileSync(join(tienda, 'scripts/helper.ts'), 'utf8')).toBe('export const helper = 1;\n');
-    expect(() => readFileSync(join(tienda, 'fable/plan.md'), 'utf8')).toThrow();
-
-    // C2 es piel: nunca se intentó, el readme sigue siendo el de la tienda.
-    expect(readFileSync(join(tienda, 'README.md'), 'utf8')).toBe('tienda readme\n');
-    expect(trailers).not.toContain(c2);
-    expect(asuntos).not.toContain('C2 piel: readme');
-
-    // El conflicto de C4 sigue abierto: el baseline no se tocó.
-    const baseline = parseBaseline(readFileSync(join(tienda, '.template-baseline'), 'utf8'));
-    expect(asuntos).not.toContain('Sincronizar maquinaria del template');
-    expect(baseline).not.toBe(c4);
-
-    const conflicto = gitEn(tienda, ['diff', '--name-only', '--diff-filter=U']).trim();
-    expect(conflicto).toBe('src/domain/stock.ts');
+    // Y la segunda corrida no tiene nada que hacer.
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe('sin-cambios');
   });
 
-  it('con el cherry-pick a medio resolver, avisa que hay que terminarlo a mano', () => {
+  it('trae los commits de un PR mergeado y el baseline queda en el merge', () => {
+    const { template, tienda } = armarEscenario();
+    gitEn(template, ['checkout', '-b', 'arreglo']);
+    escribir(template, 'src/domain/otro.ts', 'export const otro = 1;\n');
+    commit(template, 'Arreglo de maquinaria del PR');
+    gitEn(template, ['checkout', 'main']);
+    gitEn(template, ['merge', '--no-ff', 'arreglo', '-m', 'Merge pull request de maquinaria']);
+    const merge = gitEn(template, ['rev-parse', 'HEAD']).trim();
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+
+    expect(resultado.estado).toBe('completado');
+    expect(leer(tienda, 'src/domain/otro.ts')).toBe('export const otro = 1;\n');
+    expect(parseBaseline(leer(tienda, '.template-baseline'))).toBe(merge);
+    expect(gitEn(tienda, ['log', '--merges', '--format=%H']).trim()).toBe('');
+    expect(gitEn(tienda, ['log', '-1', '--format=%B'])).toContain('Arreglo de maquinaria del PR');
+  });
+
+  it('un choque de verdad en la maquinaria deja marcadores sin commitear, con el resto aplicado', () => {
+    const { template, tienda, c1 } = armarEscenario();
+    // El template ahora también cambia la línea 1, la misma que la tienda.
+    escribir(template, 'src/domain/stock.ts', 'inicio-template\nmedio\nfin-template\n');
+    commit(template, 'C2 maquinaria: stock cambia línea 1');
+    const antes = gitEn(tienda, ['rev-parse', 'HEAD']).trim();
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+
+    expect(resultado.estado).toBe('conflicto');
+    if (resultado.estado !== 'conflicto') throw new Error('no debería pasar');
+    expect(resultado.commiteado).toBe(false);
+    expect(resultado.resumen.conflictos.map((c) => c.ruta)).toEqual(['src/domain/stock.ts']);
+    expect(leer(tienda, 'src/domain/stock.ts')).toContain('<<<<<<<');
+    expect(leer(tienda, 'scripts/helper.ts')).toBe('export const helper = 1;\n');
+
+    // Nada commiteado, pero el baseline nuevo ya está escrito para el commit a mano.
+    expect(gitEn(tienda, ['rev-parse', 'HEAD']).trim()).toBe(antes);
+    expect(parseBaseline(leer(tienda, '.template-baseline'))).not.toBe(c1);
+
+    // Una segunda corrida con el conflicto a medio resolver no pisa nada.
+    const segunda = ejecutarSync(tienda, OPCIONES);
+    expect(segunda.estado).toBe('precondicion');
+    if (segunda.estado !== 'precondicion') throw new Error('no debería pasar');
+    expect(segunda.mensaje).toContain('git commit');
+
+    // Resuelto y commiteado a mano, ya no queda nada pendiente.
+    escribir(tienda, 'src/domain/stock.ts', 'inicio-resuelto\nmedio\nfin-template\n');
+    commit(tienda, 'Sincronizar maquinaria del template');
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe('sin-cambios');
+  });
+
+  it('con --commitear-conflictos, el choque queda commiteado (para el PR en draft de distribuir.yml)', () => {
+    const { template, tienda } = armarEscenario();
+    escribir(template, 'src/domain/stock.ts', 'inicio-template\nmedio\nfin-template\n');
+    commit(template, 'C2 maquinaria: stock cambia línea 1');
+
+    const resultado = ejecutarSync(tienda, { ...OPCIONES, commitearConflictos: true });
+
+    expect(resultado.estado).toBe('conflicto');
+    if (resultado.estado !== 'conflicto') throw new Error('no debería pasar');
+    expect(resultado.commiteado).toBe(true);
+    expect(gitEn(tienda, ['status', '--porcelain']).trim()).toBe('');
+    expect(gitEn(tienda, ['log', '-1', '--format=%B'])).toContain('src/domain/stock.ts');
+    expect(gitEn(tienda, ['show', 'HEAD:src/domain/stock.ts'])).toContain('<<<<<<<');
+  });
+
+  it('--dry-run no toca nada y lista la decisión de cada archivo', () => {
     const { tienda } = armarEscenario();
+    const antes = gitEn(tienda, ['rev-parse', 'HEAD']).trim();
 
-    ejecutarSync(tienda, { remoto: 'template', rama: 'main', dryRun: false, hasta: null, sinTests: true });
+    const resultado = ejecutarSync(tienda, { ...OPCIONES, dryRun: true });
 
-    const segundaCorrida = ejecutarSync(tienda, {
-      remoto: 'template',
-      rama: 'main',
-      dryRun: false,
-      hasta: null,
-      sinTests: true,
-    });
-
-    expect(segundaCorrida.estado).toBe('precondicion');
-    if (segundaCorrida.estado !== 'precondicion') throw new Error('no debería pasar');
-    expect(segundaCorrida.mensaje).toContain('cherry-pick --continue');
+    expect(resultado.estado).toBe('dry-run');
+    if (resultado.estado !== 'dry-run') throw new Error('no debería pasar');
+    expect(resultado.plan).toContainEqual({ ruta: 'src/lib/spreadsheet.ts', accion: 'restaurar' });
+    expect(resultado.plan).toContainEqual({ ruta: 'fable/plan.md', accion: 'ignorar' });
+    expect(gitEn(tienda, ['rev-parse', 'HEAD']).trim()).toBe(antes);
+    expect(gitEn(tienda, ['status', '--porcelain']).trim()).toBe('');
   });
 
-  it('resuelto el conflicto a mano, la corrida siguiente no repite lo ya aplicado', () => {
-    const { tienda, c4 } = armarEscenario();
+  it('una tienda vieja que heredó fable/ lo pierde en el commit de la sincronización', () => {
+    const { tienda } = armarEscenario();
+    escribir(tienda, 'fable/viejo.md', 'plan heredado\n');
+    commit(tienda, 'Tienda vieja con fable/');
 
-    ejecutarSync(tienda, { remoto: 'template', rama: 'main', dryRun: false, hasta: null, sinTests: true });
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe('completado');
+    expect(existe(tienda, 'fable/viejo.md')).toBe(false);
+  });
 
-    // Simula lo que pide el mensaje: resolver a mano y `--continue`.
-    escribir(tienda, 'src/domain/stock.ts', 'inicio-resuelto\nmedio\nfin-c1\n');
-    gitEn(tienda, ['add', '--', 'src/domain/stock.ts']);
-    gitEn(tienda, ['-c', 'core.editor=true', 'cherry-pick', '--continue']);
+  it('parada en main, no hace nada', () => {
+    const { tienda } = armarEscenario();
+    gitEn(tienda, ['checkout', '-B', 'main']);
 
-    const resultado = ejecutarSync(tienda, {
-      remoto: 'template',
-      rama: 'main',
-      dryRun: false,
-      hasta: null,
-      sinTests: true,
-    });
-
-    // Ya no queda ningún commit de maquinaria pendiente: C1, C3 y C4 (recién
-    // continuado) tienen su trailer en el log.
-    expect(resultado.estado).toBe('sin-cambios');
-    const log = gitEn(tienda, ['log', '--format=%B']);
-    expect(log).toContain(c4);
+    const resultado = ejecutarSync(tienda, OPCIONES);
+    expect(resultado.estado).toBe('precondicion');
   });
 });

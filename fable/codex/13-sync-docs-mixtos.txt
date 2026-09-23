@@ -1,0 +1,32 @@
+Entorno de esta maquina (Windows, PowerShell), leelo antes de correr nada:
+  - Si pnpm no esta en PATH, anteponer C:\Users\anton\.local\bin al PATH o usar corepack pnpm (mismos argumentos).
+  - No hay Docker ni MySQL local y TEST_DATABASE_URL no esta definida: pnpm test corre solo los unitarios y saltea los de integracion con base de datos. Eso es esperado, reportalo tal cual.
+  - Git tiene core.autocrlf=true a nivel sistema. Antes de correr cualquier vitest, define en la misma sesion de PowerShell: $env:GIT_CONFIG_COUNT='1'; $env:GIT_CONFIG_KEY_0='core.autocrlf'; $env:GIT_CONFIG_VALUE_0='false'. Sin eso, los tests que crean repos git en temp fallan por CRLF y no es culpa del codigo.
+  - Un test de tests/unit/bootstrap-into-repo.test.ts (un symlink se avisa y no se copia) falla con EPERM porque Windows no permite crear symlinks sin modo desarrollador. Es un fallo conocido del entorno: reportalo como FAIL con esa causa, no lo arregles ni toques ese test.
+  - El repo commitea CRLF: no conviertas finales de linea de archivos existentes.
+
+Task: pnpm template:sync para con un conflicto real en KNOWN-ISSUES.md cuando la tienda cruza commits de piel salteados que editaron ese doc antes de un commit de maquinaria que tambien lo toca (visto con baseline 9bc85c1 sincronizando hasta el tip: choca en 4d51e32 porque 6151f04 y 3aadfb3, ambos piel, editaron KNOWN-ISSUES.md y no se trajeron). KNOWN-ISSUES.md es un doc del template, no una customizacion de la tienda, asi que en un conflicto hay que quedarse con el lado del template y seguir, con la misma mecanica con la que hoy se auto-resuelve fable/ (donde se descarta el lado del template). Lee primero como template-sync.ts resuelve fable/ y el lockfile y reusa ese camino.
+
+Files to touch:
+  scripts/template-sync.ts (KNOWN-ISSUES.md entra en la auto-resolucion: en conflicto se toma la version del template con git checkout --theirs, se hace git add y se continua; comentario de dos lineas explicando por que el lado del template gana en ese archivo)
+  tests/integration/template-sync.test.ts (nuevo caso: el template tiene un commit de piel que edita KNOWN-ISSUES.md y despues un commit de maquinaria que tambien lo edita; la tienda sincroniza y termina en estado completado, KNOWN-ISSUES.md queda con el contenido del template y el baseline avanza)
+  NEW-STORE.md (una frase en la seccion Arreglos que aparecen despues junto a la de fable/: KNOWN-ISSUES.md se resuelve solo quedandose con el template)
+
+Do not touch: src/**, scripts/template-shared.ts, scripts/template-diff.ts, drizzle/**, .github/**, cualquier otro test
+
+Definition of done:
+  - Los cuatro tests existentes de tests/integration/template-sync.test.ts siguen verdes
+  - El caso nuevo falla si se saca KNOWN-ISSUES.md de la auto-resolucion (verificalo una vez y volvelo a poner)
+  - Un conflicto en cualquier otro archivo de src/ sigue frenando el sync como hoy
+
+Commands to run before reporting (en la raiz del repo):
+  pnpm typecheck
+  pnpm lint
+  pnpm exec vitest run tests/integration/template-sync.test.ts tests/unit/template-sync.test.ts
+  pnpm test
+  git diff --stat
+
+Report format:
+  Files changed: cada path con una linea
+  Commands run: cada comando con PASS o FAIL y una linea de resultado
+  Flagged or not done: lo que quedo afuera o ambiguo, o None

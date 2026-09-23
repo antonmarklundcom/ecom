@@ -113,6 +113,15 @@ describe('debeExcluir', () => {
     expect(debeExcluir('.template-baseline')).toBe(true);
   });
 
+  it('no copia lo que sólo es del template: fable/ y Dependabot', () => {
+    // SOLO_TEMPLATE (template-shared.ts): los planes del template y los PRs de
+    // dependencias no son de la tienda.
+    for (const ruta of ['fable', 'fable/plan.md', 'fable/prompts/o1.md', '.github/dependabot.yml']) {
+      expect(debeExcluir(ruta), ruta).toBe(true);
+    }
+    expect(debeExcluir('src/fable.ts')).toBe(false);
+  });
+
   it('copia lo que sí es el template', () => {
     for (const ruta of [
       'package.json',

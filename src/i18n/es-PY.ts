@@ -732,6 +732,8 @@ export const esPY = {
   "adminError.pago.nadaQueDevolver": "Ese pago no está acreditado: no hay nada que devolver todavía.",
   "adminError.pago.pedidoRevivio":
     "Ese pedido volvió a estar vivo ({estado}) desde que abriste esta pantalla. Recargá y mirá el pedido antes de marcar una devolución.",
+  "adminError.pedido.reembolsoPorFormulario":
+    "La devolución se registra desde el formulario de devolución del pedido, no como cambio de estado.",
 
   // Validación de los formularios del panel.
   "adminError.revisaDatos": "Revisá los datos.",
@@ -1519,13 +1521,8 @@ export const esPY = {
 
   "panel.categoria.descripcion": "Descripción",
   "panel.categoria.descripcion.placeholder": "Texto para la página de la categoría (opcional).",
-  "panel.categoria.foto": "ID de la foto en Cloudinary",
-  "panel.categoria.foto.ayuda":
-    "Subí la foto a la carpeta \"categorias/\" del panel multimedia y pegá acá el public_id. Vacío = sin foto.",
+  "panel.categoria.foto": "Foto de portada",
   "panel.categoria.foto.alt": "Descripción de la foto (alt)",
-  "panel.categoria.cambiarPresentacion": "Cambiar descripción o foto",
-  "panel.categoria.presentacionAyuda":
-    "Esta lista no muestra la descripción ni la foto que ya tiene cargadas la categoría — sólo lo que escribas acá se guarda. Dejalo destildado para no tocar lo que ya tiene.",
 
   "panel.reembolso.titulo": "Reembolso parcial",
   "panel.reembolso.pagado": "Pagado",
@@ -1616,4 +1613,104 @@ export const esPY = {
   "producto.consultaVariante":
     'Hola, quiero consultar por "{producto}" ({variante}, SKU {sku})',
   "producto.consultarWhatsApp": "Consultar por WhatsApp",
+
+  // -------------------------------------------------------------------------
+  // == O14 == Deuda de dominio: destacados, foto de categoría, slug largo,
+  // planilla dañada (fable/plan-crecimiento.md §5.1)
+  // -------------------------------------------------------------------------
+  "adminForm.slugLargo": "El slug no puede pasar los 160 caracteres.",
+
+  // -------------------------------------------------------------------------
+  // == O15 == Recordatorio de pago antes del vencimiento
+  // (fable/plan-crecimiento.md §5.2)
+  // -------------------------------------------------------------------------
+  // Sin datos de otras personas y sin datos bancarios: número de pedido, total,
+  // hasta cuándo, y el link tokenizado donde están las instrucciones de pago
+  // que la tienda ya sabe dar.
+  "wa.cliente.recordatorio":
+    "Hola {nombre}! Tu pedido {numero} ({total}) todavía está esperando el pago.",
+  "wa.cliente.recordatorio.limite": "Podés pagarlo hasta las {limite}.",
+  "wa.cliente.recordatorio.pagar": "Pagá o mirá cómo acá: {url}",
+
+  // -------------------------------------------------------------------------
+  // == O16 == Editar un pedido antes del pago (fable/plan-crecimiento.md §5.3)
+  // -------------------------------------------------------------------------
+  // Los lee el staff en el panel, no la compradora: dicen qué se puede hacer
+  // en vez de "no se pudo".
+  "error.edicion.noExiste": "Ese pedido ya no existe.",
+  "error.edicion.estado": "Sólo se puede editar un pedido que todavía está esperando el pago.",
+  "error.edicion.tarjeta":
+    "Un pedido con tarjeta no se edita: el monto ya está comprometido en Pagopar. Cancelalo y que lo haga de nuevo.",
+  "error.edicion.yaPagado": "Este pedido ya tiene el pago acreditado: no se edita.",
+  "error.edicion.motivo": "Escribí por qué lo estás editando: queda en la historia del pedido.",
+  "error.edicion.sinLineas": "Ese pedido no tiene líneas para editar.",
+  "error.edicion.cantidad": "La cantidad tiene que ser un número entero de 0 para arriba.",
+  "error.edicion.lineaAjena": "Esa línea no es de este pedido.",
+  "error.edicion.cantidadSube":
+    "Acá las cantidades sólo bajan. Para agregar productos hace falta un pedido nuevo.",
+  "error.edicion.quedaVacio":
+    "El pedido no puede quedar sin nada. Si ya no quiere nada, cancelalo.",
+  "error.edicion.envio":
+    "Esa forma de entrega no sirve para esta ciudad. Elegí otra antes de guardar.",
+  "error.edicion.envioPago":
+    "Esa forma de entrega no acepta el medio de pago de este pedido.",
+
+  // El mensaje que el staff le manda a la compradora después de editar. Lo
+  // manda una persona por el `wa.me` de siempre: una edición se acordó por
+  // WhatsApp hace un minuto y el que sigue no lo escribe el servidor.
+  "wa.edicion.total": "Listo, tu pedido {numero} quedó en {total}.",
+  "wa.edicion.cuponQuitado":
+    "Con las cantidades nuevas el cupón ya no llegaba al mínimo, así que quedó sin descuento.",
+  "wa.edicion.limite": "Podés pagarlo hasta las {limite}.",
+  "wa.edicion.link": "Mirá el detalle acá: {url}",
+
+  // -------------------------------------------------------------------------
+  // == S17 == Panel y vidriera: dibujar lo que O14–O16 dejaron
+  // (fable/plan-crecimiento.md §6.1)
+  // -------------------------------------------------------------------------
+
+  // Destacados (A): O14 dejó `isFeatured` en `saveProduct`/`listAdminProducts`.
+  "panel.producto.destacado": "Destacado en la home",
+  "panel.producto.destacadoAyuda":
+    "Aparece en la fila de destacados de la portada, antes que el resto del catálogo.",
+  "panel.productos.destacadoChip": "Destacado",
+  "panel.filtros.destacados": "Sólo destacados",
+
+  // Foto de categoría (B): antes era un ID de Cloudinary pegado a mano.
+  "panel.categoria.foto.vacia": "Todavía no tiene foto.",
+  "panel.categoria.foto.subida": "Foto actualizada.",
+
+  // Editar un pedido antes del pago (D): O16 dejó el dominio y la acción.
+  "panel.pedido.editar.titulo": "Editar pedido",
+  "panel.pedido.editar.abrir": "Editar pedido",
+  "panel.pedido.editar.motivoTarjeta":
+    "Con tarjeta no se edita: el monto ya está comprometido en Pagopar. Cancelalo y que la compradora lo haga de nuevo.",
+  "panel.pedido.editar.motivoPagado": "Este pedido ya tiene el pago acreditado: no se edita.",
+  "panel.pedido.editar.motivoEstado": "Sólo se puede editar un pedido que todavía está esperando el pago.",
+  "panel.pedido.editar.items": "Cantidades",
+  "panel.pedido.editar.quitar": "Quitar",
+  "panel.pedido.editar.ciudad": "Ciudad",
+  "panel.pedido.editar.direccion": "Dirección",
+  "panel.pedido.editar.referencia": "Referencia",
+  "panel.pedido.editar.envio": "Forma de entrega",
+  "panel.pedido.editar.sinEnvios": "No hay una forma de entrega que acepte el medio de pago de este pedido.",
+  "panel.pedido.editar.motivo": "Motivo de la edición",
+  "panel.pedido.editar.motivo.placeholder": "Ej: la compradora pidió bajar una unidad",
+  "panel.pedido.editar.motivoCorto": "Contá en pocas palabras por qué lo estás editando.",
+  "panel.pedido.editar.guardar": "Guardar cambios",
+  "panel.pedido.editar.guardado": "Pedido editado.",
+  "panel.pedido.editar.resumen": "Total: {antes} → {despues}",
+  "panel.pedido.editar.cuponQuitado":
+    "Con las cantidades nuevas el cupón {codigo} ya no llegaba al mínimo, así que quedó sin descuento.",
+  "panel.pedido.editar.avisar": "Avisar por WhatsApp",
+
+  // Timeline (E): la línea del recordatorio de pago (O15) en la ficha.
+  "panel.pedido.recordatorioEnviado": "Recordatorio de pago enviado el {fecha}",
+
+  // `src/app/admin/error.tsx` (F): el mismo boundary genérico no distinguía
+  // un error de checkout de un error del panel.
+  "admin.error.titulo": "Algo falló en el panel",
+  "admin.error.texto":
+    "No se pudo cargar esta pantalla. Podés reintentar o volver al inicio del panel — el pedido o el producto no se tocaron.",
+  "admin.error.volver": "Volver a /admin",
 } as const satisfies Record<string, string>;

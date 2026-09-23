@@ -163,6 +163,11 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   // stock, no cambia el estado y la compradora no la ve nunca.
   addOrderNote: 'Admin',
 
+  // Editar un pedido sin pagar (O16): `Staff`, no `Admin`. La pantalla muestra
+  // totales, descuento y envío —montos que el vendedor no ve— y además los
+  // cambia. Es la misma línea que separa despachar de cobrar.
+  editPendingOrderAction: 'Staff',
+
   // Acciones masivas (O7). Publicar, despublicar, mover de categoría y
   // duplicar son trabajo de catálogo: `Staff`. El **ajuste de precios** es
   // `Owner`, y es la única distinción que importa acá: es lo único de este
@@ -178,6 +183,10 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   editarCategoria: 'Owner',
   cambiarEstadoCategoria: 'Owner',
   moverCategoria: 'Owner',
+  // La foto de una categoría es la portada de una sección entera de la
+  // vidriera, y la subida pisa el asset anterior: mismo dueño que el resto del
+  // ABM de categorías.
+  uploadCategoryImage: 'Owner',
 
   // A qué cuenta transfieren las compradoras. Quien lo puede cambiar puede
   // desviar la facturación entera a otra cuenta sin dejar un pedido raro ni un

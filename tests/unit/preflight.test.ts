@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MARCA_PLACEHOLDER, TIENDA } from "@/config/tienda";
 
-import { preflight, type PreflightEnv, type PreflightSeverity } from "../../src/domain/preflight";
+import {
+  preflight,
+  WHATSAPP_DE_EJEMPLO,
+  type PreflightEnv,
+  type PreflightSeverity,
+} from "../../src/domain/preflight";
 
 /**
  * `pnpm preflight` (TASKS.md §30).
@@ -38,7 +43,7 @@ function envSano(overrides: PreflightEnv = {}): PreflightEnv {
     CLOUDINARY_CLOUD_NAME: "tienda-py",
     CLOUDINARY_API_KEY: "123456789012345",
     CLOUDINARY_API_SECRET: "una-clave-de-cloudinary",
-    WHATSAPP_NUMBER: "+595981123456",
+    WHATSAPP_NUMBER: "+595971000111",
     NEXT_PUBLIC_SITE_URL: "https://tienda.com.py",
     PAGOPAR_PUBLIC_KEY: "publica",
     PAGOPAR_PRIVATE_KEY: "privada",
@@ -105,6 +110,15 @@ describe("preflight", () => {
       ),
     ).toBe("bloquea");
     expect(severityOf(envSano({ CLOUDINARY_CLOUD_NAME: "changeme" }), "cloudinary")).toBe("bloquea");
+  });
+
+  it("el WhatsApp de ejemplo del template bloquea aunque tenga forma válida", () => {
+    expect(severityOf(envSano({ WHATSAPP_NUMBER: WHATSAPP_DE_EJEMPLO }), "whatsapp")).toBe(
+      "bloquea",
+    );
+    expect(severityOf(envSano({ WHATSAPP_NUMBER: "+595 981 123-456" }), "whatsapp")).toBe(
+      "bloquea",
+    );
   });
 
   it("PAGOPAR_MODE=mock en producción bloquea", () => {

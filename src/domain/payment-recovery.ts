@@ -41,6 +41,12 @@ export type UnmatchedPayment = {
   provider: string;
   providerRef: string;
   amountPyg: number;
+  /**
+   * Lo que ya se devolvió de este pago (O7). Sin esto, el formulario de
+   * reembolso mostraba "queda por devolver: el total" después de cada recarga
+   * de la pantalla, aunque el servidor tuviera bien la cuenta.
+   */
+  refundedPyg: number;
   /** Total del pedido, para comparar de un vistazo contra lo cobrado. */
   orderTotalPyg: number;
   paidAt: Date;
@@ -69,6 +75,7 @@ export async function findUnmatchedPayments(
       p.provider      AS provider,
       p.provider_ref  AS providerRef,
       p.amount_pyg    AS amountPyg,
+      p.refunded_pyg  AS refundedPyg,
       o.total_pyg     AS orderTotalPyg,
       p.updated_at    AS paidAt
     FROM payments p
@@ -90,9 +97,67 @@ export async function findUnmatchedPayments(
     provider: String(row.provider),
     providerRef: String(row.providerRef),
     amountPyg: Number(row.amountPyg),
+    refundedPyg: Number(row.refundedPyg ?? 0),
     orderTotalPyg: Number(row.orderTotalPyg),
     paidAt: new Date(row.paidAt as string | number | Date),
   }));
+}
+
+export type OrderPayment = {
+  paymentId: number;
+  provider: string;
+  amountPyg: number;
+  /** Acumulado ya devuelto. `amountPyg - refundedPyg` es lo que queda. */
+  refundedPyg: number;
+  paidAt: Date;
+};
+
+/**
+ * El pago cobrado de un pedido, sea cual sea el estado del pedido.
+ *
+ * Es la consulta que le falta a la ficha del pedido para dibujar el formulario
+ * de reembolso donde el caso de uso realmente vive: "la compradora se queda
+ * con dos de tres remeras" pasa sobre un pedido `enviado` o `entregado`, y
+ * `findUnmatchedPayments` los excluye a propósito (ahí la plata no está
+ * colgada).
+ *
+ * `null` = este pedido no tiene un pago cobrado: contra entrega sin cobrar,
+ * transferencia sin verificar, pedido todavía sin pagar. No es un error.
+ *
+ * Un pedido puede tener más de una fila en `payments` (un intento fallido y
+ * después el bueno); se devuelve el `paid` más reciente, que es sobre el que
+ * se devuelve plata.
+ */
+export async function getPaymentForOrder(
+  orderId: number,
+  executor?: Executor,
+): Promise<OrderPayment | null> {
+  const tx = executor ?? getDb();
+
+  const result = await tx.execute(sql`
+    SELECT
+      p.id           AS paymentId,
+      p.provider     AS provider,
+      p.amount_pyg   AS amountPyg,
+      p.refunded_pyg AS refundedPyg,
+      p.updated_at   AS paidAt
+    FROM payments p
+    WHERE p.order_id = ${orderId}
+      AND p.status = 'paid'
+    ORDER BY p.updated_at DESC, p.id DESC
+    LIMIT 1
+  `);
+
+  const row = rowsOf(result)[0];
+  if (!row) return null;
+
+  return {
+    paymentId: Number(row.paymentId),
+    provider: String(row.provider),
+    amountPyg: Number(row.amountPyg),
+    refundedPyg: Number(row.refundedPyg ?? 0),
+    paidAt: new Date(row.paidAt as string | number | Date),
+  };
 }
 
 /** Sólo el conteo, para el resumen del panel. */
@@ -225,8 +290,8 @@ export const PARTIAL_REFUND_REASON_PREFIX = "devolución parcial ₲";
 /**
  * Marca el pago como devuelto y cierra el pedido.
  *
- * Dos escrituras que tienen que ir juntas o no ir: `payments.status` a
- * `refunded` y el pedido a `cancelado`, con el motivo en `order_events`. Si se
+ * El ledger, `payments.status` a `refunded` y el pedido a `cancelado` o
+ * `reembolsado` van juntos, con el motivo en `order_events`. Si se
  * escribiera sólo la primera, la plata desaparecería de esta lista con el
  * pedido todavía esperando; si se escribiera sólo la segunda, la devolución no
  * quedaría registrada en ningún lado.
@@ -249,6 +314,8 @@ export async function refundPayment(input: {
    * devuelto la mitad.
    */
   amountPyg?: number;
+  /** Habilita el total sobre un pedido cobrado desde su ficha. Default: false. */
+  allowSettled?: boolean;
   /**
    * `users.id` de quien lo hizo (PR D). Opcional por el mismo motivo que en
    * `TransitionOptions`: hay caminos legítimos sin persona detrás.
@@ -306,14 +373,11 @@ export async function refundPayment(input: {
 
     const total = monto === disponible;
 
-    // El pedido revivió mientras esta pantalla estaba abierta. Marcar la
-    // devolución **total** ahora cancelaría un pedido que alguien está por
-    // preparar.
-    //
-    // Un **parcial** sí se permite sobre un pedido vivo, y es justamente su
-    // caso de uso: la compradora se queda con dos de las tres remeras y se le
-    // devuelve una. Ese pedido sigue su curso y no se toca su estado.
-    if (total && SETTLED_STATUSES.includes(order.status as (typeof SETTLED_STATUSES)[number])) {
+    // La lista de pagos colgados conserva la protección contra un pedido que
+    // revivió. Su ficha habilita explícitamente el total con allowSettled.
+    // Los parciales siguen sin mover el estado del pedido.
+    const settled = SETTLED_STATUSES.includes(order.status as (typeof SETTLED_STATUSES)[number]);
+    if (total && settled && !input.allowSettled) {
       throw new PaymentRecoveryError("adminError.pago.pedidoRevivio", {
         estado: order.status,
       });
@@ -374,13 +438,13 @@ export async function refundPayment(input: {
       };
     }
 
-    // `cancelado` es el estado terminal honesto para un pedido cuya plata
-    // vuelve. Si ya estaba cancelado, `transitionOrder` no escribe evento y el
-    // motivo de la cancelación original —que ya está en el historial— se
-    // respeta: no se pisa con este.
+    // Sólo el ledger lleva un pedido cobrado a reembolsado. Los pagos colgados
+    // siguen cerrándose en cancelado; si ya estaba cancelado no se pisa su
+    // motivo original. La devolución no repone mercadería automáticamente.
+    const destination = settled ? "reembolsado" : "cancelado";
     const result = await transitionOrder(
       order.id,
-      "cancelado",
+      destination,
       input.actor,
       `pago devuelto: ${reason}`.slice(0, 500),
       { executor: tx, actorUserId: input.actorUserId ?? null },
@@ -390,7 +454,7 @@ export async function refundPayment(input: {
       paymentId: payment.id,
       orderId: order.id,
       orderNumber: order.orderNumber,
-      orderStatus: "cancelado" as OrderStatus,
+      orderStatus: destination,
       // `true` sin mirar `result.changed`: el pago pasó a `refunded` en esta
       // misma corrida, aunque el pedido ya estuviera cancelado de antes.
       changed: true,
