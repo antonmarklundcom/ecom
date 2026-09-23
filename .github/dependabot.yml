@@ -1,15 +1,12 @@
 version: 2
 updates:
-  # Repos creados con "Use this template" no reciben commits posteriores del
-  # template (ver NEW-STORE.md), así que un parche de seguridad acá no llega
-  # solo a las tiendas ya creadas. Esto al menos mantiene al día el template,
-  # que es de donde salen las tiendas nuevas y de donde se cherry-pickean los
-  # arreglos con `pnpm template:diff`.
+  # Sólo el template: una tienda no tiene este archivo —`pnpm nueva-tienda` lo
+  # borra y `template:sync` se lo saca a las viejas, ver SOLO_TEMPLATE en
+  # scripts/template-shared.ts—. Las dependencias le llegan a cada tienda con
+  # el PR `template/sync` de cada versión, ya probadas acá.
   #
-  # Mensual y no semanal: cada PR de Dependabot corre el CI (minutos de
-  # Actions en repo privado). Una tienda no tiene este archivo —`pnpm
-  # nueva-tienda` lo borra, ver SOLO_TEMPLATE en scripts/template-shared.ts—:
-  # sus dependencias llegan con template:sync.
+  # Mensual y no semanal: cada PR de Dependabot corre el CI completo, y
+  # agruparlos deja menos PRs que revisar.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:

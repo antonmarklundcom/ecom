@@ -23,7 +23,7 @@ import {
 
 describe('parseArgs', () => {
   it('por defecto mira template/main sin marcar nada', () => {
-    expect(parseArgs([])).toEqual({ remoto: 'template', rama: 'main', marcar: false });
+    expect(parseArgs([])).toEqual({ remoto: 'template', rama: 'main', marcar: false, origen: false });
   });
 
   it('acepta otro remoto y otra rama', () => {
@@ -31,11 +31,16 @@ describe('parseArgs', () => {
       remoto: 'upstream',
       rama: 'produccion',
       marcar: false,
+      origen: false,
     });
   });
 
   it('--marcar es un flag suelto', () => {
     expect(parseArgs(['--marcar']).marcar).toBe(true);
+  });
+
+  it('--origen marca el commit del que salió la tienda, no la punta', () => {
+    expect(parseArgs(['--marcar', '--origen'])).toMatchObject({ marcar: true, origen: true });
   });
 
   it('una opción desconocida o sin valor no se ignora', () => {

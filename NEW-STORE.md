@@ -12,7 +12,7 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 1. GitHub → **Use this template** → repo **privado** nuevo para la tienda.
 2. `git clone` · `pnpm install` · `git remote add template https://github.com/antonmarklundcom/ecom.git`
 3. `pnpm setup:doctor` → `pnpm nueva-tienda` (marca, WhatsApp **real**, dominio,
-   tema; borra `fable/` y Dependabot, que son del template) → commit + push.
+   tema; borra `fable/`, Dependabot y `tiendas.json`, que son del template) → commit + push.
 4. En el repo nuevo: crear el label `ci-completo` (Issues → Labels) para pedir
    el e2e cuando haga falta. Ver § "CI y minutos de Actions".
 5. Base, catálogo y dueño (§4) · diseño (§5) · cuentas de terceros (tabla de
@@ -105,8 +105,10 @@ cuadra, o si querés saber por qué el wizard hace lo que hace.
    git remote add template https://github.com/antonmarklundcom/ecom.git
    ```
 
-   `pnpm nueva-tienda` (paso 2) corre `template:diff --marcar` solo y deja
-   `.template-baseline` escrito —commitealo—; sin el remoto no puede, te lo
+   `pnpm nueva-tienda` (paso 2) corre `template:diff --marcar --origen` solo y
+   deja `.template-baseline` escrito —commitealo— con el commit del template
+   del que salió la tienda (el que tiene el árbol de su primer commit, no la
+   punta de hoy); si ya existe, no lo toca. Sin el remoto no puede, te lo
    avisa, y el primer `pnpm template:diff` corre en modo degradado con los
    commits del template apareciendo todos, para siempre (ver "Arreglos que
    aparecen después" al final).
@@ -194,7 +196,8 @@ del pie, WhatsApp y dominio— y con eso:
   `crypto.randomBytes` (no con `openssl`, que en Windows no existe) y los
   escribe en `.env.local` junto con el WhatsApp y el dominio;
 - imprime el bloque exacto de variables para pegar en el hPanel;
-- corre `pnpm template:diff --marcar`.
+- corre `pnpm template:diff --marcar --origen` si todavía no hay
+  `.template-baseline` (si ya hay, no lo mueve).
 
 **Es idempotente:** correrlo de nuevo ofrece los valores de hoy como default
 —Enter los deja— y **nunca regenera un secreto que ya exista**. Eso último no
@@ -839,9 +842,9 @@ registrar la URL de respuesta de Pagopar.
 
 ## Arreglos que aparecen después — ya tengo una tienda
 
-Los repos creados desde un template **no reciben** los commits posteriores del
-template. Si arreglás un bug de checkout acá, las tiendas ya creadas no se
-enteran.
+Los repos creados desde un template no reciben **solos** los commits
+posteriores del template: les llegan como un PR `template/sync` cada vez que se
+publica una versión, o a mano con `pnpm template:sync`.
 
 `pnpm template:diff` te dice qué le falta a **esta** tienda; `pnpm
 template:sync` lo trae. Lo normal es no correrlo a mano: cada versión del
@@ -915,8 +918,13 @@ el original, así que `git log HEAD..template/main` lista todo y no sirve. Por
 eso ambos comandos se apoyan en un punto de partida guardado en
 `.template-baseline` —commitealo—, que `template:diff --marcar` (o el commit
 final de `template:sync`) es lo que mueve. Si no hay `.template-baseline`
-todavía, corré `pnpm template:diff --marcar` una vez en un commit conocido
-antes de tocar `template:sync`.
+todavía, corré `pnpm template:diff --marcar --origen` (busca el commit del
+template con el árbol del primer commit de la tienda) antes de tocar
+`template:sync`. Un repo que ya existía no tiene ese commit: `pnpm
+bootstrap:repo` escribe el baseline solo (el commit del template que copió);
+si no, escribí el SHA a mano. **No** uses `--marcar` a secas para arrancar: marca
+la punta de hoy y da por traído todo lo que el template arregló desde que la
+tienda salió.
 
 ### Migraciones que llegan por `template:sync`
 

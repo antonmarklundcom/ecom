@@ -10,7 +10,7 @@ import { stdin, stdout } from 'node:process';
 // importarlo daría `nombre` ya resuelto, y este script necesita distinguir
 // "sigue siendo la constante del template" de "la tienda se llama así".
 import { MARCA_PLACEHOLDER } from '../src/config/tienda';
-import { SOLO_TEMPLATE } from './template-shared';
+import { BASELINE_FILE, SOLO_TEMPLATE } from './template-shared';
 
 /**
  * `pnpm nueva-tienda` — de "Use this template" a una tienda que corre.
@@ -740,17 +740,27 @@ function imprimirHPanel(contenidoEnv: string, claves: ValoresEnv): void {
  * y ahí no hay nada que marcar.
  */
 function marcarBaseline(): void {
+  // Idempotente de verdad: volver a correr el wizard no puede mover un
+  // baseline que ya existe. Adelantarlo a la punta del template da por
+  // traídos arreglos que la tienda nunca recibió, y ninguno llega después.
+  if (existsSync(BASELINE_FILE)) {
+    console.log(`  ${BASELINE_FILE} ya existe — no se toca.`);
+    return;
+  }
   try {
-    execFileSync('pnpm', ['template:diff', '--marcar'], {
+    // `--origen`: el commit del template del que salió la tienda (mismo árbol
+    // que su primer commit), no la punta de hoy.
+    execFileSync('pnpm', ['template:diff', '--marcar', '--origen'], {
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
     });
-    console.log('  .template-baseline escrito — commitealo junto con el resto.');
+    console.log(`  ${BASELINE_FILE} escrito — commitealo junto con el resto.`);
   } catch {
     console.log(
-      '  (no pude marcar el baseline del template: falta el remoto `template`.\n' +
-        '   Agregalo y corré `pnpm template:diff --marcar` — sin eso, los commits\n' +
-        '   del template te van a aparecer todos, para siempre.)',
+      '  (no pude marcar el baseline del template: falta el remoto `template`, o\n' +
+        '   el primer commit de este repo no salió del template. Agregá el remoto y\n' +
+        '   corré `pnpm template:diff --marcar --origen`; si no encuentra el commit,\n' +
+        `   escribí a mano en ${BASELINE_FILE} el SHA del template del que salió.)`,
     );
   }
 }
