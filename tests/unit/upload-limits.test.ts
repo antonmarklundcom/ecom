@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import nextConfig from "../../next.config";
@@ -23,5 +25,14 @@ describe("techo de las subidas", () => {
   it("next.config.ts sube el límite de las server actions y del proxy", () => {
     expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe(ACTION_BODY_MAX_BYTES);
     expect(nextConfig.experimental?.proxyClientMaxBodySize).toBe(ACTION_BODY_MAX_BYTES);
+  });
+
+  it("la acción de la planilla usa el mismo tope (tiene su propia copia)", () => {
+    const accion = readFileSync("src/app/actions/admin-products.ts", "utf8");
+    const match = /const MAX_CATALOG_FILE_BYTES = (\d+) \* 1024 \* 1024;/.exec(accion);
+    // Una tienda que no trajo la carga por planilla no tiene el tope: no hay
+    // nada que comparar (y este test le llega igual por template:sync).
+    if (!/readCatalogFile/.test(accion)) return;
+    expect(Number(match?.[1]) * 1024 * 1024).toBe(CATALOG_FILE_MAX_BYTES);
   });
 });

@@ -62,7 +62,16 @@ const nextConfig: NextConfig = {
     BUILD_SHA: buildSha(),
     BUILD_AT: new Date().toISOString(),
   },
+  // mysql2 usa APIs de Node que el bundler no debe tocar.
+  serverExternalPackages: ["mysql2"],
   experimental: {
+    // Next por defecto usa os.cpus().length - 1 build workers, que en el
+    // shared hosting de Hostinger es el número de cores físicos del host,
+    // no la cuota de esta cuenta. Cada worker es un proceso Node y cuenta
+    // contra el "Max Processes" (200) que comparten las 9 apps de la
+    // cuenta: un solo worker evita que un deploy tire la cuenta entera.
+    // Mismo fix que vendercrm PR #84, propia.node PR #81, trabajo PR #82.
+    cpus: 1,
     // Los comprobantes, las fotos y la planilla suben por server actions, y
     // Next corta ese body en 1 MB (y el proxy en 10 MB) si no se le dice otra
     // cosa: una foto de comprobante de 2 MB terminaba en un 413 y en la
@@ -70,8 +79,6 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: ACTION_BODY_MAX_BYTES },
     proxyClientMaxBodySize: ACTION_BODY_MAX_BYTES,
   },
-  // mysql2 usa APIs de Node que el bundler no debe tocar.
-  serverExternalPackages: ["mysql2"],
   // `X-Powered-By: Next.js` regala la versión exacta del framework.
   poweredByHeader: false,
   images: {

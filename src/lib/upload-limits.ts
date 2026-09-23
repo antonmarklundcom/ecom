@@ -16,7 +16,13 @@ export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 /** Foto de producto, de categoría o QR del banco. */
 export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
-/** Planilla de la carga masiva de productos (CSV o Excel). */
+/**
+ * Planilla de la carga masiva de productos (CSV o Excel). La acción
+ * (`src/app/actions/admin-products.ts`) tiene su propia copia,
+ * `MAX_CATALOG_FILE_BYTES`, a propósito: tocar ese archivo hace chocar la
+ * sincronización de las tiendas que no trajeron la carga por planilla. El
+ * test de este archivo verifica que las dos digan lo mismo.
+ */
 export const CATALOG_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
 /**

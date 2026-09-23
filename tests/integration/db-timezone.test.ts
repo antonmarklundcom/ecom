@@ -1,6 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import { closePool, getPool } from "@/db";
+import { getPool } from "@/db";
+
+import { closeTestDb, getTestDb, hasTestDb } from "../helpers/db";
 
 /**
  * Cada conexión del pool habla en UTC (`src/db/index.ts`). Sin esto, en un
@@ -9,12 +11,15 @@ import { closePool, getPool } from "@/db";
  * antes de nacer o duraban horas de más. CI corre MySQL con otra hora a
  * propósito para que esto se vea.
  */
-describe("zona horaria de la sesión", () => {
+describe.skipIf(!hasTestDb)("zona horaria de la sesión", () => {
   afterAll(async () => {
-    await closePool();
+    await closeTestDb();
   });
 
   it("toda conexión del pool está en UTC, aunque el servidor no lo esté", async () => {
+    // `getTestDb()` apunta el pool de la app a la base de tests; el que se
+    // mira es ese pool, que es donde vive el `SET time_zone`.
+    getTestDb();
     const pool = getPool();
     // Varias a la vez: fuerza conexiones nuevas, no sólo la primera.
     const filas = await Promise.all(
