@@ -78,12 +78,19 @@ describe.skipIf(!hasTestDb)("createOrder → aviso 'confirmado' a la compradora"
     expect(body.template.name).toBe("cliente_confirmado");
     expect(body.template.components[0].parameters[0].text).toContain(order.orderNumber);
 
-    const rows = await getTestDb()
-      .select()
-      .from(orderEvents)
-      .where(eq(orderEvents.orderId, order.orderId))
-      .orderBy(desc(orderEvents.id));
-    expect(rows.some((r) => r.reason === "aviso_cliente_confirmado")).toBe(true);
+    // El evento se escribe después de que `fetch` responde, en el mismo
+    // disparo sin await: esperarlo igual que al fetch, no leerlo una vez.
+    await vi.waitFor(
+      async () => {
+        const rows = await getTestDb()
+          .select()
+          .from(orderEvents)
+          .where(eq(orderEvents.orderId, order.orderId))
+          .orderBy(desc(orderEvents.id));
+        expect(rows.some((r) => r.reason === "aviso_cliente_confirmado")).toBe(true);
+      },
+      { timeout: 2000, interval: 20 },
+    );
   });
 
   it("sin la plantilla, crea el pedido igual y no manda nada", async () => {
