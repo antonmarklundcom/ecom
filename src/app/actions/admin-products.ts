@@ -32,6 +32,7 @@ import { sweepBackInStock } from "@/domain/stock-alerts";
 import { validateProductImage } from "@/domain/product-images";
 import { CLOUDINARY_PRODUCTS_FOLDER, cloudinary } from "@/lib/cloudinary";
 import { slugify } from "@/lib/slug";
+import { CATALOG_FILE_MAX_BYTES } from "@/lib/upload-limits";
 import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from "@/lib/spreadsheet";
 import {
   actorLabel,
@@ -293,8 +294,6 @@ export async function removeProductImage(input: unknown): Promise<AdminActionRes
 // justo el tipo de sorpresa que una planilla de semanas no debería poder dar.
 // ---------------------------------------------------------------------------
 
-const MAX_CATALOG_FILE_BYTES = 10 * 1024 * 1024;
-
 export type CatalogImportSummary = {
   productosNuevos: number;
   productosActualizar: number;
@@ -315,7 +314,7 @@ async function readCatalogFile(
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, errores: [t("adminError.elegiArchivo")] };
   }
-  if (file.size > MAX_CATALOG_FILE_BYTES) {
+  if (file.size > CATALOG_FILE_MAX_BYTES) {
     return { ok: false, errores: [t("adminError.archivoGrande")] };
   }
 

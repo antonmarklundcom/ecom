@@ -1,4 +1,5 @@
 import { AdminInputError } from "./admin-products";
+import { PRODUCT_IMAGE_MAX_BYTES } from "@/lib/upload-limits";
 
 /**
  * Validación de las fotos de producto (PLAN.md 4.6).
@@ -11,7 +12,8 @@ import { AdminInputError } from "./admin-products";
  * SVG queda afuera a propósito, justamente por eso.
  */
 
-export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+// Ver `@/lib/upload-limits` (lo lee también `next.config.ts`).
+export { PRODUCT_IMAGE_MAX_BYTES } from "@/lib/upload-limits";
 
 const MAGIC: Array<{ mime: string; bytes: number[] }> = [
   { mime: "image/jpeg", bytes: [0xff, 0xd8, 0xff] },

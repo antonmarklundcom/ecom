@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import { receipts } from "@/db/schema";
 
 import type { Executor } from "./executor";
+import { RECEIPT_MAX_BYTES } from "@/lib/upload-limits";
 
 /**
  * Comprobantes de transferencia (PLAN.md 3.5).
@@ -15,7 +16,9 @@ import type { Executor } from "./executor";
  * saltear con un `fetch`, así que el límite real es este.
  */
 
-export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
+// El límite vive en `@/lib/upload-limits`: `next.config.ts` lo necesita para
+// dejar pasar el body de la server action.
+export { RECEIPT_MAX_BYTES } from "@/lib/upload-limits";
 export const RECEIPT_MAX_PER_ORDER = 3;
 export const RECEIPT_ALLOWED_MIME = ["image/jpeg", "image/png", "application/pdf"] as const;
 
