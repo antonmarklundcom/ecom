@@ -28,6 +28,13 @@ funciones nuevas; **parche** para arreglos.
 Migración: sí (`product_reviews`, `order_returns`, `order_return_items`,
 `store_settings`).
 
+- **Planilla de productos con fotos:** la columna opcional `Fotos` (una o más
+  URLs `https://` separadas por `|`, espacio o salto de línea) sube las fotos
+  a Cloudinary sola al importar — desde `/admin/productos` o
+  `pnpm importar:productos --aplicar` — sólo a un producto que todavía no
+  tiene ninguna, para que reimportar la misma planilla no duplique nada. Sin
+  credenciales de Cloudinary se avisa y se sigue sin ellas; una foto que falla
+  no frena el resto de la importación.
 - **Ajustes de la tienda (`/admin/ajustes`, sólo el dueño):** bajada, título y
   descripción de la home, portada (con foto subida a Cloudinary), barra de
   anuncio, WhatsApp público, email, dirección, horario y redes, sin tocar

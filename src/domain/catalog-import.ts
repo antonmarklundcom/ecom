@@ -11,8 +11,16 @@ import { slugify } from "@/lib/slug";
  *
  * El formato es **el mismo que baja el export del panel** (una fila por
  * variante, encabezados en español) más columnas opcionales que el export no
- * tiene: Descripción, Marca, IVA, Precio antes y Slug. Así el ciclo
+ * tiene: Descripción, Marca, IVA, Precio antes, Slug y Fotos. Así el ciclo
  * exportar → tocar en Excel → importar funciona sin convertir nada.
+ *
+ * **Fotos** es URLs separadas por `|`, un espacio o un salto de línea —
+ * normalmente sólo en la primera fila de cada producto, porque las fotos son
+ * del producto, no de la variante. Tienen que ser `https://` (no hay
+ * descarga del lado del servidor: es Cloudinary quien va a buscarlas) y como
+ * mucho 10 por producto. `applyCatalogImport`/`--aplicar` las sube sólo a un
+ * producto que todavía no tiene ninguna foto — igual que una carga manual, y
+ * para que reimportar la misma planilla no duplique nada.
  *
  * Todo acá es puro — texto entra, catálogo o errores salen — para poder
  * testearlo sin base. La base (qué categoría existe, qué SKU es de quién) la
@@ -41,6 +49,12 @@ export type CatalogoProducto = {
   brand: string | null;
   ivaRate: IvaRate;
   variants: CatalogoVariante[];
+  /**
+   * Unión sin duplicados, en orden, de las URLs de la columna Fotos de todas
+   * las filas del producto. Vacío si la planilla no trae la columna, o si
+   * ninguna fila la completó para este producto.
+   */
+  fotos: string[];
 };
 
 export type CatalogoImportado = {
@@ -68,6 +82,10 @@ const COLUMNAS: Record<string, keyof FilaCruda> = {
   iva: "iva",
   "precio antes": "precioAntes",
   slug: "slug",
+  fotos: "fotos",
+  imagenes: "fotos",
+  imagen: "fotos",
+  foto: "fotos",
 };
 
 type FilaCruda = {
@@ -82,6 +100,7 @@ type FilaCruda = {
   iva: string;
   precioAntes: string;
   slug: string;
+  fotos: string;
 };
 
 const REQUERIDAS: ReadonlyArray<keyof FilaCruda> = ["sku", "producto", "categoria", "precio"];
@@ -112,6 +131,37 @@ export function parseGs(value: string): number | null {
   return Number.isSafeInteger(n) ? n : null;
 }
 
+/** Tope de fotos por producto (mismo criterio que la carga manual: sin límite no tiene sentido). */
+const MAX_FOTOS_POR_PRODUCTO = 10;
+
+/**
+ * `"https://a.jpg|https://b.jpg"`, con saltos de línea o espacios en vez de
+ * `|`, en URLs válidas. Cualquier token que no sea `https://` y parsee como
+ * URL vuelve en `invalidas`, tal cual vino, para el mensaje de error.
+ */
+function parseFotosCelda(raw: string): { urls: string[]; invalidas: string[] } {
+  const tokens = raw
+    .split(/[|\s]+/)
+    .map((token) => token.trim())
+    .filter((token) => token !== "");
+
+  const urls: string[] = [];
+  const invalidas: string[] = [];
+  for (const token of tokens) {
+    if (!token.startsWith("https://")) {
+      invalidas.push(token);
+      continue;
+    }
+    try {
+      new URL(token);
+      urls.push(token);
+    } catch {
+      invalidas.push(token);
+    }
+  }
+  return { urls, invalidas };
+}
+
 export function parseCatalogo(text: string): CatalogoImportado {
   const filas = parseCsv(text);
   const errores: string[] = [];
@@ -131,7 +181,7 @@ export function parseCatalogo(text: string): CatalogoImportado {
   for (const campo of REQUERIDAS) {
     if (!indice.has(campo)) {
       errores.push(
-        `Falta la columna "${campo}" en el encabezado. Las obligatorias son: SKU, Producto, Categoría y Precio (₲); el resto — Variante, Stock, Descripción, Marca, IVA, Precio antes (₲), Slug — es opcional.`,
+        `Falta la columna "${campo}" en el encabezado. Las obligatorias son: SKU, Producto, Categoría y Precio (₲); el resto — Variante, Stock, Descripción, Marca, IVA, Precio antes (₲), Slug, Fotos — es opcional.`,
       );
     }
   }
@@ -206,6 +256,19 @@ export function parseCatalogo(text: string): CatalogoImportado {
       continue;
     }
 
+    const fotosCrudo = celda(fila, "fotos");
+    let fotosFila: string[] = [];
+    if (fotosCrudo !== "") {
+      const { urls, invalidas } = parseFotosCelda(fotosCrudo);
+      if (invalidas.length > 0) {
+        errores.push(
+          `Línea ${linea}: la(s) URL de foto "${invalidas.join(", ")}" tienen que ser https:// y URLs válidas.`,
+        );
+        continue;
+      }
+      fotosFila = urls;
+    }
+
     const variante: CatalogoVariante = {
       sku,
       label: celda(fila, "variante") || "Único",
@@ -216,6 +279,13 @@ export function parseCatalogo(text: string): CatalogoImportado {
 
     const existente = porSlug.get(slug);
     if (!existente) {
+      const fotos = [...new Set(fotosFila)];
+      if (fotos.length > MAX_FOTOS_POR_PRODUCTO) {
+        errores.push(
+          `Línea ${linea}: la fila trae ${fotos.length} fotos, el máximo por producto es ${MAX_FOTOS_POR_PRODUCTO}.`,
+        );
+        continue;
+      }
       porSlug.set(slug, {
         slug,
         name: nombre,
@@ -224,8 +294,20 @@ export function parseCatalogo(text: string): CatalogoImportado {
         brand: celda(fila, "marca") || null,
         ivaRate: iva as IvaRate,
         variants: [variante],
+        fotos,
         primeraLinea: linea,
       });
+      continue;
+    }
+
+    const fotosUnion = [...existente.fotos];
+    for (const url of fotosFila) {
+      if (!fotosUnion.includes(url)) fotosUnion.push(url);
+    }
+    if (fotosUnion.length > MAX_FOTOS_POR_PRODUCTO) {
+      errores.push(
+        `Línea ${linea}: el producto "${slug}" ya suma ${fotosUnion.length} fotos entre sus filas, el máximo es ${MAX_FOTOS_POR_PRODUCTO}.`,
+      );
       continue;
     }
 
@@ -252,6 +334,7 @@ export function parseCatalogo(text: string): CatalogoImportado {
     }
     if (existente.description === null) existente.description = celda(fila, "descripcion") || null;
     if (existente.brand === null) existente.brand = marca;
+    existente.fotos = fotosUnion;
     existente.variants.push(variante);
   }
 

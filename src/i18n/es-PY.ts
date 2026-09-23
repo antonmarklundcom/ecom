@@ -1387,7 +1387,15 @@ export const esPY = {
   "panel.productos.importar.variantesActualizar.uno": "{n} variante a actualizar",
   "panel.productos.importar.variantesActualizar.varios": "{n} variantes a actualizar",
   "panel.productos.importar.categoriasNuevas": "Categorías a crear: {categorias}.",
+  "panel.productos.importar.fotosNuevas.uno": "{n} foto a subir",
+  "panel.productos.importar.fotosNuevas.varios": "{n} fotos a subir",
+  "panel.productos.importar.fotosOmitidas":
+    "{n} fotos NO se subieron: Cloudinary no está configurado.",
+  "panel.productos.importar.fotosFallidas.uno": "{n} foto no se pudo subir.",
+  "panel.productos.importar.fotosFallidas.varios": "{n} fotos no se pudieron subir.",
   "panel.productos.importar.listo": "Listo: {productos} productos, {variantes} variantes escritas.",
+  "panel.productos.importar.listoConFotos":
+    "Listo: {productos} productos, {variantes} variantes y {fotos} fotos.",
 
   "panel.clientes.meta": "Clientes",
   "panel.clientes.titulo": "Clientes",
