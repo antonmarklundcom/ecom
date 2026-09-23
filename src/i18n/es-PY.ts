@@ -119,6 +119,25 @@ export const esPY = {
   "cantidad.agregarUno": "Agregar uno",
 
   // -------------------------------------------------------------------------
+  // Favoritos (sin cuenta, en el navegador)
+  // -------------------------------------------------------------------------
+  "favoritos.guardar": "Guardar en favoritos",
+  "favoritos.quitar": "Quitar de favoritos",
+  "favoritos.agregado": "Guardado en favoritos",
+  "favoritos.quitado": "Sacado de favoritos",
+  "favoritos.abrir": "Favoritos",
+  "favoritos.abrirCon": "Favoritos ({n})",
+  "favoritos.titulo": "Tus favoritos",
+  "favoritos.tituloCompartido": "Favoritos que te compartieron",
+  "favoritos.vacio": "Todavía no guardaste ningún producto.",
+  "favoritos.vacio.ayuda": "Tocá el corazón de un producto para guardarlo acá.",
+  "favoritos.vacio.irAlInicio": "Ver el catálogo",
+  "favoritos.compartirWhatsApp": "Compartir por WhatsApp",
+  "favoritos.compartirWhatsApp.texto": "¡Mirá lo que guardé en favoritos!",
+  "favoritos.guardarTodos": "Guardar todos en mis favoritos",
+  "favoritos.meta": "Favoritos",
+
+  // -------------------------------------------------------------------------
   // Envío gratis
   // -------------------------------------------------------------------------
   "envioGratis.alcanzado": "¡Tenés envío gratis!",
@@ -1725,4 +1744,120 @@ export const esPY = {
   "admin.error.texto":
     "No se pudo cargar esta pantalla. Podés reintentar o volver al inicio del panel — el pedido o el producto no se tocaron.",
   "admin.error.volver": "Volver a /admin",
+
+  // -------------------------------------------------------------------------
+  // Reseñas verificadas (`src/domain/reviews.ts`): sólo quien recibió el
+  // pedido califica; el panel modera y responde.
+  // -------------------------------------------------------------------------
+  "error.resena.estrellas": "Elegí de 1 a 5 estrellas.",
+  "error.resena.corta": "Contanos un poco más: al menos {minimo} caracteres.",
+  "error.resena.larga": "La reseña puede tener hasta {maximo} caracteres.",
+  "error.resena.tituloLargo": "El título puede tener hasta {maximo} caracteres.",
+  "error.resena.pedidoNoExiste": "No encontramos ese pedido.",
+  "error.resena.noEntregado": "Vas a poder calificar tu compra cuando el pedido figure como entregado.",
+  "error.resena.noEstaEnElPedido": "Ese producto no está en este pedido.",
+  "error.resena.yaCalificaste": "Ya calificaste este producto.",
+  "error.resena.estadoInvalido": "No entendí qué hacer con la reseña.",
+  "error.resena.respuestaLarga": "La respuesta puede tener hasta {maximo} caracteres.",
+  "error.resena.noExiste": "Esa reseña ya no existe.",
+  "error.resena.demasiados": "Mandaste muchas reseñas seguidas. Probá de nuevo en un rato.",
+  "error.resena.generico": "No pudimos guardar tu reseña. Probá de nuevo en un momento.",
+  "resena.autorSinNombre": "Compradora",
+
+  // La página del pedido (`/pedido/[orderNumber]`), con el pedido entregado.
+  "pedido.resenas.titulo": "Calificá tu compra",
+  "pedido.resenas.bajada":
+    "Tu opinión ayuda a otras personas a elegir. Se publica con tu nombre y la inicial de tu apellido.",
+  "pedido.resenas.estrellas": "¿Cuántas estrellas le das a {producto}?",
+  "pedido.resenas.estrella.uno": "{n} estrella",
+  "pedido.resenas.estrella.varios": "{n} estrellas",
+  "pedido.resenas.tituloCampo": "Título (opcional)",
+  "pedido.resenas.cuerpo": "Tu reseña",
+  "pedido.resenas.cuerpoPlaceholder": "¿Qué te pareció? ¿Es lo que esperabas?",
+  "pedido.resenas.contador": "{n}/{maximo}",
+  "pedido.resenas.enviar": "Enviar reseña",
+  "pedido.resenas.enviando": "Enviando…",
+  "pedido.resenas.gracias": "¡Gracias! Tu reseña se publica cuando la revisemos.",
+  "pedido.resenas.yaCalificado": "Ya calificaste {producto}. ¡Gracias!",
+
+  // La ficha de producto.
+  "estrellas.label": "{valor} de 5 estrellas",
+  "producto.resenas.resumen.uno": "{promedio} ({n} reseña)",
+  "producto.resenas.resumen.varios": "{promedio} ({n} reseñas)",
+  "producto.resenas.titulo": "Reseñas",
+  "producto.resenas.compraVerificada": "Compra verificada",
+  "producto.resenas.respuesta": "Respuesta de la tienda",
+
+  // WhatsApp a la compradora cuando el pedido se entrega.
+  "wa.cliente.resena": "Hola {nombre}! ¿Qué tal tu pedido {numero}? Contanos qué te pareció: {url}",
+
+  // `/admin/resenas`.
+  "panel.nav.resenas": "Reseñas",
+  "panel.nav.resenasPendientes": "Reseñas ({n})",
+  "panel.resenas.meta": "Reseñas",
+  "panel.resenas.titulo": "Reseñas",
+  "panel.resenas.bajada":
+    "Sólo escriben quienes recibieron su pedido. Podés publicarlas, rechazarlas y responder en público, pero no cambiar lo que escribió la compradora.",
+  "panel.resenas.estado.pendiente": "Por revisar",
+  "panel.resenas.estado.aprobada": "Publicadas",
+  "panel.resenas.estado.rechazada": "Rechazadas",
+  "panel.resenas.vacio": "No hay reseñas en esta lista.",
+  "panel.resenas.pedido": "Pedido {numero}",
+  "panel.resenas.aprobar": "Publicar",
+  "panel.resenas.rechazar": "Rechazar",
+  "panel.resenas.respuesta": "Respuesta pública de la tienda",
+  "panel.resenas.respuestaPlaceholder": "Se publica debajo de la reseña. Vacía, no se muestra ninguna.",
+  "panel.resenas.guardarRespuesta": "Guardar respuesta",
+  "panel.resenas.aprobada": "Reseña publicada.",
+  "panel.resenas.rechazada": "Reseña rechazada.",
+  "panel.resenas.respuestaGuardada": "Respuesta guardada.",
+  "adminError.noEntendi.resena": "No entendí qué hacer con esa reseña.",
+
+  // -------------------------------------------------------------------------
+  // Devoluciones de mercadería (`src/domain/returns.ts`): qué volvió y si va
+  // al stock. La plata sigue por el reembolso, aparte.
+  // -------------------------------------------------------------------------
+  "error.devolucion.sinMotivo": "Contá en pocas palabras por qué vuelve la mercadería.",
+  "error.devolucion.motivoLargo": "El motivo puede tener hasta {maximo} caracteres.",
+  "error.devolucion.sinItems": "Elegí al menos una unidad que vuelva.",
+  "error.devolucion.cantidad": "Las cantidades tienen que ser enteras y mayores que cero.",
+  "error.devolucion.lineaRepetida": "Una línea del pedido aparece dos veces en la devolución.",
+  "error.devolucion.pedidoNoExiste": "Ese pedido no existe.",
+  "error.devolucion.estado":
+    "Sólo se registra una devolución de un pedido enviado, entregado o reembolsado. Antes de eso, editalo o cancelalo.",
+  "error.devolucion.lineaAjena": "Esa línea no es de este pedido.",
+  "error.devolucion.demasiado": "De {producto} se pueden devolver {queda} como máximo.",
+  "adminError.noEntendi.mercaderia": "No entendí la devolución. Revisá las cantidades.",
+
+  "panel.nav.devoluciones": "Devoluciones",
+  "panel.devoluciones.meta": "Devoluciones",
+  "panel.devoluciones.titulo": "Devoluciones",
+  "panel.devoluciones.bajada":
+    "Las últimas mercaderías que volvieron. La plata, si se devolvió, está en el reembolso de cada pedido.",
+  "panel.devoluciones.vacio": "Todavía no se registró ninguna devolución.",
+  "panel.devoluciones.item": "{n}× {producto}",
+  "panel.devoluciones.repuesto": "volvió al stock",
+  "panel.devoluciones.noRepuesto": "no volvió al stock",
+  "panel.devoluciones.motivo": "Motivo: {motivo}",
+
+  // Ficha del pedido.
+  "panel.pedido.devoluciones": "Devoluciones",
+  "panel.pedido.devoluciones.ninguna": "Este pedido no tiene devoluciones.",
+  "panel.pedido.devoluciones.noCorresponde":
+    "Se registra una devolución cuando el pedido ya salió (enviado, entregado o reembolsado).",
+  "panel.pedido.devoluciones.nueva": "Registrar una devolución",
+  "panel.pedido.devoluciones.cantidad": "Vuelven",
+  "panel.pedido.devoluciones.deTotal": "de {n}",
+  "panel.pedido.devoluciones.alStock": "Volver al stock",
+  "panel.pedido.devoluciones.motivo": "Motivo",
+  "panel.pedido.devoluciones.motivoPlaceholder": "Ej: cambio de talle, llegó fallado",
+  "panel.pedido.devoluciones.registrar": "Registrar devolución",
+  "panel.pedido.devoluciones.registrando": "Registrando…",
+  "panel.pedido.devoluciones.registrada": "Devolución registrada.",
+  "panel.pedido.devoluciones.nadaQueDevolver": "Ya se devolvió todo lo de este pedido.",
+  "panel.pedido.devoluciones.reembolso": "¿Hay que devolver plata? Usá el reembolso de este pedido.",
+
+  // Página pública del pedido, con el pedido entregado.
+  "pedido.cambio.link": "¿Querés cambiar o devolver algo?",
+  "pedido.cambio.waMensaje": "¡Hola! Quiero cambiar o devolver algo de mi pedido {numero}.",
 } as const satisfies Record<string, string>;

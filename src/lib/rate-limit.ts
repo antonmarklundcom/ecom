@@ -231,3 +231,13 @@ export const STOCK_ALERT_IP_LIMIT = 5;
 export const STOCK_ALERT_IP_WINDOW_MS = 15 * 60 * 1000;
 export const STOCK_ALERT_PHONE_LIMIT = 3;
 export const STOCK_ALERT_PHONE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Reseñas desde la página del pedido. La puerta de verdad es el token del
+ * link y el pedido entregado —sin eso no se escribe nada—, así que esto no es
+ * contra spam anónimo sino contra un script con un link válido martillando la
+ * acción. Diez por IP cada 15 minutos cubre de sobra un pedido grande
+ * calificado producto por producto.
+ */
+export const REVIEW_IP_LIMIT = 10;
+export const REVIEW_IP_WINDOW_MS = 15 * 60 * 1000;

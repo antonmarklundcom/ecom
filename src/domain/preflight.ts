@@ -82,6 +82,7 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     // exactamente igual que antes — lo que pierde son los pedidos que vencen
     // sin que nadie les haya dicho nada.
     checkAvisoCliente(env, "recordatorio", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO"),
+    checkAvisoCliente(env, "resena", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA"),
     checkResumenDiario(env),
     checkBackups(env),
     checkDatabaseUrl(env),
@@ -677,7 +678,7 @@ function checkResumenDiario(env: PreflightEnv): PreflightCheck {
  */
 function checkAvisoCliente(
   env: PreflightEnv,
-  id: "confirmado" | "pagado" | "enviado" | "recordatorio",
+  id: "confirmado" | "pagado" | "enviado" | "recordatorio" | "resena",
   templateVar: string,
 ): PreflightCheck {
   const template = value(env, templateVar);

@@ -8,6 +8,8 @@
  * datos y llaman acá, así que esto se testea sin levantar Next ni la base.
  */
 
+import { formatDatePY } from "./py";
+
 /**
  * Lo que ningún buscador debería recorrer.
  *
@@ -15,7 +17,9 @@
  * `/api` no tienen nada que indexar, y `/checkout`, `/pedido` y `/cuenta`
  * llevan datos de una compra concreta. `/pedido/<numero>` en particular es un
  * link tokenizado que viaja por WhatsApp: aparecer en un índice sería
- * filtrarlo.
+ * filtrarlo. `/favoritos` es distinta para cada navegador —localStorage, o
+ * una lista compartida por `?p=`— y no tiene nada propio que Google deba
+ * guardar.
  */
 export const RUTAS_PRIVADAS = [
   "/admin",
@@ -24,6 +28,7 @@ export const RUTAS_PRIVADAS = [
   "/pedido",
   "/cuenta",
   "/dev",
+  "/favoritos",
 ] as const;
 
 export type SitemapEntry = {
@@ -154,8 +159,17 @@ export function productJsonLd(input: {
   /** URLs absolutas de las fotos (Cloudinary), en orden. */
   images: string[];
   variants: { sku: string; label: string; pricePyg: number; available: number }[];
+  /**
+   * Promedio y cantidad de reseñas **aprobadas** (`getProductRatingSummary`).
+   * Con `count` 0 o ausente no sale ni `aggregateRating` ni `review`: un
+   * `aggregateRating` con cero reseñas es un error de datos estructurados.
+   */
+  rating?: { average: number; count: number };
+  /** Las aprobadas más nuevas primero; se publican las 5 primeras. */
+  reviews?: ProductReviewLd[];
 }): JsonLd {
   const url = input.origin ? `${input.origin.origin}/producto/${input.slug}` : undefined;
+  const conResenas = input.rating !== undefined && input.rating.count >= 1;
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -176,5 +190,49 @@ export function productJsonLd(input: {
       availability:
         variant.available > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
     })),
+    ...(conResenas && input.rating
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: input.rating.average,
+            reviewCount: input.rating.count,
+            bestRating: 5,
+            worstRating: 1,
+          },
+          ...(input.reviews && input.reviews.length > 0
+            ? { review: input.reviews.slice(0, MAX_REVIEWS_LD).map(reviewLd) }
+            : {}),
+        }
+      : {}),
   };
+}
+
+/** Una reseña aprobada, como la necesita el JSON-LD. */
+export type ProductReviewLd = {
+  /** El "Nombre I." ya guardado en la reseña, nunca el nombre completo. */
+  author: string;
+  rating: number;
+  title?: string | null;
+  body: string;
+  date: Date;
+};
+
+/** Cuántas reseñas van en el JSON-LD. El resto está en la página, no hace falta repetirlo. */
+const MAX_REVIEWS_LD = 5;
+
+function reviewLd(review: ProductReviewLd): JsonLd {
+  return {
+    "@type": "Review",
+    reviewRating: { "@type": "Rating", ratingValue: review.rating, bestRating: 5, worstRating: 1 },
+    author: { "@type": "Person", name: review.author },
+    datePublished: isoDatePY(review.date),
+    ...(review.title ? { name: review.title } : {}),
+    reviewBody: review.body,
+  };
+}
+
+/** `YYYY-MM-DD` del día paraguayo: la reseña de las 22:00 es de ese día y no del siguiente en UTC. */
+function isoDatePY(date: Date): string {
+  const [dia, mes, anio] = formatDatePY(date).split("/");
+  return `${anio}-${mes}-${dia}`;
 }

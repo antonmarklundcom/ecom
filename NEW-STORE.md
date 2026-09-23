@@ -429,6 +429,7 @@ de siempre: un parámetro en el cuerpo, aprobada por Meta:
 | Pedido registrado (justo después de crearse) | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO` |
 | Pago registrado (transferencia aprobada, Pagopar acreditado o contra entrega confirmada) | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO` |
 | Pedido enviado | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO` |
+| Pedido entregado: "¿Qué tal tu pedido? Contanos qué te pareció" con el link a su pedido, donde está el formulario de reseña (sólo compras entregadas) | `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA` |
 
 El destino de los tres es el WhatsApp que dejó cada compradora en su pedido —
 no hace falta ninguna variable de número. Y a diferencia del aviso al

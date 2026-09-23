@@ -25,8 +25,22 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
-Migración: no.
+Migración: sí (`product_reviews`, `order_returns`, `order_return_items`).
 
+- **Reseñas verificadas:** sólo quien recibió el pedido (estado `entregado`)
+  califica, una vez por producto, desde la página de su pedido. El panel
+  (`/admin/resenas`, owner y staff) publica, rechaza y responde en público,
+  pero no crea ni edita reseñas. Las aprobadas salen en la ficha y en el
+  JSON-LD (`aggregateRating` + `review`) para las estrellas de Google. Aviso
+  opcional por WhatsApp al entregar: `WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA`
+  (vacía = apagado).
+- **Devoluciones de mercadería:** en la ficha del pedido (enviado, entregado
+  o reembolsado) se registra qué volvió, cuánto de cada línea (nunca más de
+  lo vendido) y si vuelve al stock — con su fila en `stock_adjustments` y el
+  aviso de "volvió el stock" si estaba agotada. Listado en
+  `/admin/devoluciones` (owner y staff). El reembolso sigue siendo un paso
+  aparte. La compradora ve "¿Querés cambiar o devolver algo?" por WhatsApp
+  con el pedido entregado.
 - **Comprobantes de más de 1 MB:** Next cortaba el body de las server
   actions en 1 MB y una foto de comprobante de 2 MB terminaba en la pantalla
   de error. `next.config.ts` ahora sube el límite al del archivo más grande

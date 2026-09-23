@@ -170,6 +170,18 @@ export function waLink(phone: string, text = '', limit: number = WA_TEXT_LIMIT):
     : `https://wa.me/${target}?text=${encodeURIComponent(trimmed)}`;
 }
 
+/**
+ * Un link de "compartir por WhatsApp" **sin destinatario fijo**: abre el
+ * selector de contactos del navegador en vez de escribirle a un número en
+ * particular. Es lo que usa `/favoritos` para compartir una lista — no hay
+ * ningún teléfono al que mandarla, es la propia compradora eligiendo a quién.
+ * Mismo recorte de largo que `waLink`, y por el mismo motivo.
+ */
+export function waShareLink(text: string, limit: number = WA_TEXT_LIMIT): string {
+  const trimmed = text.length > limit ? `${text.slice(0, Math.max(0, limit - 1))}…` : text;
+  return `https://wa.me/?text=${encodeURIComponent(trimmed)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Fechas — dd/mm/yyyy, America/Asuncion
 // ---------------------------------------------------------------------------

@@ -7,9 +7,11 @@ import { CopyField } from "@/components/copy-field";
 import { PurchaseEvent } from "@/components/purchase-event";
 import { GuardarDatosCta } from "@/components/cuenta/guardar-datos";
 import { ReceiptUpload } from "@/components/receipt-upload";
+import { ReviewForms } from "@/components/review-form";
 import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
 import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
+import { REVIEWABLE_ORDER_STATUS, listReviewableItems } from "@/domain/reviews";
 import { t } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
 import { comercioWaLink, getDatosBancarios } from "@/lib/comercio";
@@ -45,11 +47,16 @@ export default async function OrderPage({
   const order = await requireOrderAccess(orderNumber, token);
   if (!order) notFound();
 
-  const [items, events, receiptCount, datosBancarios] = await Promise.all([
+  // Reseñas: sólo con el pedido entregado y el token en la mano (el mismo que
+  // re-chequea la acción). Antes de eso ni se consulta.
+  const puedeCalificar = order.status === REVIEWABLE_ORDER_STATUS && Boolean(token);
+
+  const [items, events, receiptCount, datosBancarios, reviewable] = await Promise.all([
     getOrderItems(order.id),
     getOrderEvents(order.id),
     countReceipts(order.id),
     getDatosBancarios(),
+    puedeCalificar ? listReviewableItems(order.id) : Promise.resolve([]),
   ]);
 
   const waHref = comercioWaLink(
@@ -58,6 +65,14 @@ export default async function OrderPage({
       total: formatGs(order.totalPyg),
     })
   );
+
+  // "¿Querés cambiar o devolver algo?": sólo con el pedido entregado, y por
+  // el mismo armador de links que el botón flotante (`comercioWaLink`): sin
+  // WHATSAPP_NUMBER devuelve null y no se dibuja nada.
+  const cambioWaHref =
+    order.status === "entregado"
+      ? comercioWaLink(t("pedido.cambio.waMensaje", { numero: order.orderNumber }))
+      : null;
 
   // PLAN 3.6: mensaje pre-armado con nro. de pedido, total y la URL
   // tokenizada — bien por debajo del límite de ~1500 caracteres de waLink()
@@ -220,6 +235,28 @@ export default async function OrderPage({
         </dl>
       </section>
 
+      {puedeCalificar && token && reviewable.length > 0 ? (
+        <section className="border-border mt-6 rounded-xl border p-4">
+          <h2 className="font-medium">{t("pedido.resenas.titulo")}</h2>
+          <p className="text-muted-foreground mt-1 text-sm">{t("pedido.resenas.bajada")}</p>
+          <ReviewForms orderNumber={order.orderNumber} token={token} items={reviewable} />
+        </section>
+      ) : null}
+
+      {cambioWaHref ? (
+        <p className="mt-4 text-sm">
+          <a
+            href={cambioWaHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid={TESTIDS.pedidoCambioLink}
+            className="text-muted-foreground hover:text-foreground underline"
+          >
+            {t("pedido.cambio.link")}
+          </a>
+        </p>
+      ) : null}
+
       <section className="mt-6">
         <h2 className="font-medium">{t("pedido.envio.titulo")}</h2>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -270,7 +307,9 @@ export default async function OrderPage({
       <section className="mt-6">
         <h2 className="font-medium">{t("pedido.seguimiento")}</h2>
         <ol className="mt-2 space-y-2 text-sm">
-          {events.map((event) => (
+          {/* Sólo los cambios de estado: los eventos internos que no mueven el
+              estado (avisos por WhatsApp, devoluciones) repetirían la fila. */}
+          {events.filter((event) => event.fromStatus !== event.toStatus).map((event) => (
             <li key={event.id} className="flex gap-3">
               <span className="text-muted-foreground w-36 shrink-0 tabular-nums">
                 {formatDateTimePY(event.createdAt)}

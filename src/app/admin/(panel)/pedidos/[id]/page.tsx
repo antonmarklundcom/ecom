@@ -7,6 +7,7 @@ import { OrderActions } from "@/components/admin/order-actions";
 import { OrderNotes, type OrderNoteView } from "@/components/admin/order-notes";
 import { OrderStatusBadge } from "@/components/admin/order-status-badge";
 import { RefundForm } from "@/components/admin/refund-form";
+import { ReturnForm } from "@/components/admin/return-form";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { ReceiptReview } from "@/components/admin/receipt-review";
 import { listAdminShippingMethods } from "@/domain/admin-shipping-methods";
@@ -14,6 +15,7 @@ import { getAdminOrder, isRecoverableStatus } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
 import { listOrderNotes } from "@/domain/order-notes";
 import { listReceipts } from "@/domain/receipts";
+import { canRegisterReturn, listReturnsForOrder, returnableQuantities } from "@/domain/returns";
 import { getPaymentForOrder } from "@/domain/payment-recovery";
 import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
 import { adminActor } from "@/lib/admin-guard";
@@ -56,6 +58,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
     // uso (ver `getPaymentForOrder`).
     getPaymentForOrder(order.id),
   ]);
+
+  // Devoluciones de mercadería (capability `devoluciones`, los roles de
+  // `stock`). Sin el permiso ni se consultan.
+  const verDevoluciones = can(actor.role, "devoluciones");
+  const [devoluciones, devolvibles] = verDevoluciones
+    ? await Promise.all([listReturnsForOrder(order.id), returnableQuantities(order.id)])
+    : [[], []];
 
   const noteViews: OrderNoteView[] = notes.map((note) => ({
     id: note.id,
@@ -297,6 +306,65 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               allowSettled
             />
           </div>
+        </section>
+      ) : null}
+
+      {/* Devoluciones de mercadería: qué volvió y si fue al stock. La plata es
+          el reembolso de arriba, aparte y owner-only — por eso la línea del
+          final apunta ahí en vez de hacerlo desde acá. */}
+      {verDevoluciones ? (
+        <section className="mt-6" data-testid={TESTIDS.adminReturnsBlock}>
+          <h2 className="font-medium">{t("panel.pedido.devoluciones")}</h2>
+          {devoluciones.length === 0 ? (
+            <p className="text-muted-foreground mt-2 text-sm">
+              {t("panel.pedido.devoluciones.ninguna")}
+            </p>
+          ) : (
+            <ul className="mt-2 grid gap-2">
+              {devoluciones.map((devolucion) => (
+                <li key={devolucion.id} className="border-border rounded-lg border p-3 text-sm">
+                  <ul>
+                    {devolucion.items.map((item, index) => (
+                      <li key={index}>
+                        {t("panel.devoluciones.item", { n: item.qty, producto: item.name })}{" "}
+                        <span className="text-muted-foreground text-xs">
+                          ·{" "}
+                          {item.restocked
+                            ? t("panel.devoluciones.repuesto")
+                            : t("panel.devoluciones.noRepuesto")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 whitespace-pre-line">
+                    {t("panel.devoluciones.motivo", { motivo: devolucion.reason })}
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {devolucion.actorName ?? devolucion.actor} · {formatDateTimePY(devolucion.createdAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-3">
+            {canRegisterReturn(order.status) ? (
+              <ReturnForm
+                orderId={order.id}
+                lines={devolvibles.map((line) => ({
+                  orderItemId: line.orderItemId,
+                  name: line.name,
+                  ordered: line.ordered,
+                  remaining: line.remaining,
+                }))}
+              />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                {t("panel.pedido.devoluciones.noCorresponde")}
+              </p>
+            )}
+          </div>
+          <p className="text-muted-foreground mt-2 text-xs">{t("panel.pedido.devoluciones.reembolso")}</p>
         </section>
       ) : null}
 

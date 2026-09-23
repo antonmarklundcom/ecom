@@ -8,17 +8,22 @@ import { FunnelEvent } from "@/components/funnel-event";
 import { ProductDescription } from "@/components/product-description";
 import { ProductImage } from "@/components/product-image";
 import { ProductCard } from "@/components/product-card";
+import { RatingStars, formatRating } from "@/components/rating-stars";
 import { RecentlyViewed } from "@/components/recently-viewed";
+import { WishlistButton } from "@/components/wishlist-button";
 import { getProductBySlug, getRelatedProducts } from "@/db/queries";
+import { getProductRatingSummary, listApprovedReviews } from "@/domain/reviews";
 import { stockAlertsEnabled } from "@/domain/stock-alerts";
-import { t } from "@/i18n";
+import { t, tPlural } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
 import { comercioWaLink, comercioWhatsApp } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
 import { formatGs } from "@/lib/money";
+import { formatDatePY } from "@/lib/py";
 import { jsonLdScript, productJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
+import { TESTIDS } from "@/lib/testids";
 
 /**
  * Ficha de producto.
@@ -118,6 +123,13 @@ export default async function ProductPage({ params }: { params: Params }) {
     pricePyg: cheapest,
   });
 
+  // Reseñas verificadas: sólo las aprobadas (`src/domain/reviews.ts`). Sin
+  // ninguna, no se dibuja nada — ni estrellas vacías ni "sé la primera".
+  const [rating, reviews] = await Promise.all([
+    getProductRatingSummary(product.id),
+    listApprovedReviews(product.id),
+  ]);
+
   const waHref = comercioWaLink(t("producto.consultaWhatsApp", { nombre: product.name }));
 
   // Para el link de consulta por variante (`variant-inquiry-link.tsx`, cliente):
@@ -143,6 +155,14 @@ export default async function ProductPage({ params }: { params: Params }) {
       .map((image) => productImageUrl(image.cloudinaryId, "detail"))
       .filter((src): src is string => src !== null),
     variants: product.variants,
+    rating,
+    reviews: reviews.map((review) => ({
+      author: review.authorName,
+      rating: review.rating,
+      title: review.title,
+      body: review.body,
+      date: review.createdAt,
+    })),
   });
 
   return (
@@ -191,13 +211,37 @@ export default async function ProductPage({ params }: { params: Params }) {
         <div>
           <p className="text-muted-foreground text-sm">{product.brand ?? product.categoryName}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{product.name}</h1>
+          {rating.count >= 1 ? (
+            <a
+              href="#resenas"
+              data-testid={TESTIDS.productRatingSummary}
+              className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-2 text-sm"
+            >
+              <RatingStars value={rating.average} />
+              <span>
+                {tPlural("producto.resenas.resumen", rating.count, {
+                  promedio: formatRating(rating.average),
+                })}
+              </span>
+            </a>
+          ) : null}
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-start gap-3">
             <AddToCart
               product={product}
               stockAlertsEnabled={stockAlertsEnabled()}
               whatsappPhone={whatsappPhone}
               productUrl={productUrl}
+            />
+            <WishlistButton
+              slug={product.slug}
+              name={product.name}
+              sku={
+                (product.variants.find((variant) => variant.pricePyg === cheapest) ??
+                  product.variants[0])?.sku
+              }
+              pricePyg={cheapest ?? product.variants[0]?.pricePyg}
+              size="inline"
             />
           </div>
 
@@ -237,6 +281,35 @@ export default async function ProductPage({ params }: { params: Params }) {
           </dl>
         </div>
       </div>
+
+      {reviews.length > 0 ? (
+        <section
+          id="resenas"
+          data-testid={TESTIDS.productReviewsSection}
+          className="border-border mt-12 scroll-mt-24 border-t pt-8"
+        >
+          <h2 className="text-lg font-semibold tracking-tight">{t("producto.resenas.titulo")}</h2>
+          <ul className="mt-4 grid gap-6">
+            {reviews.map((review) => (
+              <li key={review.id} className="text-sm">
+                <RatingStars value={review.rating} />
+                {review.title ? <p className="mt-1 font-medium">{review.title}</p> : null}
+                <p className="mt-1 whitespace-pre-line">{review.body}</p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {review.authorName} · {formatDatePY(review.createdAt)} ·{" "}
+                  {t("producto.resenas.compraVerificada")}
+                </p>
+                {review.ownerReply ? (
+                  <div className="border-border bg-muted/40 mt-2 rounded-lg border p-3">
+                    <p className="text-xs font-medium">{t("producto.resenas.respuesta")}</p>
+                    <p className="mt-1 whitespace-pre-line">{review.ownerReply}</p>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {related.length > 0 ? (
         <section className="border-border mt-12 border-t pt-8">

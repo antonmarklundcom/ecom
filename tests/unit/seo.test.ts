@@ -209,3 +209,62 @@ describe("productJsonLd", () => {
     expect(jsonLd.url).toBeUndefined();
   });
 });
+
+describe("productJsonLd · reseñas verificadas", () => {
+  const base = {
+    origin: new URL("https://tienda.com.py"),
+    slug: "conjunto-encaje",
+    name: "Conjunto de encaje",
+    images: [],
+    variants: [{ sku: "CE-S", label: "S", pricePyg: 150_000, available: 3 }],
+  };
+
+  // 22:30 del 14 de marzo en Asunción = 01:30 del 15 en UTC.
+  const deNoche = new Date("2026-03-15T01:30:00.000Z");
+
+  const resenas = Array.from({ length: 7 }, (_, index) => ({
+    author: `Rosa ${String.fromCharCode(65 + index)}.`,
+    rating: 5 - (index % 2),
+    title: index === 0 ? "Hermoso" : null,
+    body: `Me encantó, la tela es muy suave (${index}).`,
+    date: deNoche,
+  }));
+
+  it("con reseñas aprobadas emite aggregateRating y hasta 5 Review", () => {
+    const jsonLd = productJsonLd({
+      ...base,
+      rating: { average: 4.6, count: 12 },
+      reviews: resenas,
+    }) as { aggregateRating: Record<string, unknown>; review: Array<Record<string, unknown>> };
+
+    expect(jsonLd.aggregateRating).toEqual({
+      "@type": "AggregateRating",
+      ratingValue: 4.6,
+      reviewCount: 12,
+      bestRating: 5,
+      worstRating: 1,
+    });
+    expect(jsonLd.review).toHaveLength(5);
+    expect(jsonLd.review[0]).toEqual({
+      "@type": "Review",
+      reviewRating: { "@type": "Rating", ratingValue: 5, bestRating: 5, worstRating: 1 },
+      author: { "@type": "Person", name: "Rosa A." },
+      // El día de Asunción, no el de UTC.
+      datePublished: "2026-03-14",
+      name: "Hermoso",
+      reviewBody: "Me encantó, la tela es muy suave (0).",
+    });
+    // Sin título, sin `name`: no se inventa uno.
+    expect(jsonLd.review[1]).not.toHaveProperty("name");
+  });
+
+  it("con cero reseñas no aparece ninguna de las dos claves", () => {
+    const sinNada = productJsonLd(base);
+    const conCero = productJsonLd({ ...base, rating: { average: 0, count: 0 }, reviews: [] });
+
+    for (const jsonLd of [sinNada, conCero]) {
+      expect(jsonLd).not.toHaveProperty("aggregateRating");
+      expect(jsonLd).not.toHaveProperty("review");
+    }
+  });
+});

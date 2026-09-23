@@ -156,6 +156,45 @@ export const TESTIDS = {
   adminEditOrderWhatsapp: "admin-edit-order-whatsapp",
   /** El total en la página pública del pedido (`/pedido/[orderNumber]`). */
   pedidoTotal: "pedido-total",
+
+  // Reseñas verificadas.
+  /** Un formulario de reseña por producto (`review-form.tsx`), con `data-product-id`. */
+  reviewForm: "review-form",
+  /** El radio group de estrellas del formulario. */
+  reviewStars: "review-stars",
+  reviewBody: "review-body",
+  reviewSubmit: "review-submit",
+  /** El "¡Gracias!" que reemplaza al formulario enviado. */
+  reviewThanks: "review-thanks",
+  /** El resumen de estrellas bajo el título de la ficha de producto. */
+  productRatingSummary: "product-rating-summary",
+  /** La sección "Reseñas" (`#resenas`) de la ficha de producto. */
+  productReviewsSection: "product-reviews-section",
+  /** Una fila de `/admin/resenas`, con `data-review-id`. */
+  adminReviewRow: "admin-review-row",
+
+  // Devoluciones de mercadería.
+  /** El bloque "Devoluciones" de la ficha del pedido, con las ya registradas. */
+  adminReturnsBlock: "admin-returns-block",
+  adminReturnForm: "admin-return-form",
+  /** Cantidad por línea (`return-form.tsx`), con `data-order-item-id`. */
+  adminReturnQty: "admin-return-qty",
+  adminReturnReason: "admin-return-reason",
+  adminReturnSubmit: "admin-return-submit",
+  /** El link "¿Querés cambiar o devolver algo?" de la página del pedido. */
+  pedidoCambioLink: "pedido-cambio-link",
+
+  // == Favoritos ==
+  /** Corazón de favoritos (`wishlist-button.tsx`), en la tarjeta o la ficha. */
+  wishlistButton: "wishlist-button",
+  /** El link "Favoritos" del header (`wishlist-header-link.tsx`). */
+  headerWishlistLink: "header-wishlist-link",
+  /** La grilla de `/favoritos`. */
+  wishlistGrid: "wishlist-grid",
+  /** "Compartir por WhatsApp" en `/favoritos`. */
+  wishlistShareWhatsapp: "wishlist-share-whatsapp",
+  /** "Guardar todos en mis favoritos" al ver una lista compartida (`?p=`). */
+  wishlistSaveAll: "wishlist-save-all",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];

@@ -6,6 +6,7 @@ import type { Executor } from "./executor";
 import { ORDER_TRANSITIONS } from "./orders";
 import { NOTICE_REASON_PREFIX } from "./order-events";
 import { EDIT_ORDER_REASON_PREFIX } from "./edit-order";
+import { RETURN_REASON_PREFIX } from "./returns";
 import { PARTIAL_REFUND_REASON_PREFIX } from "./payment-recovery";
 
 /**
@@ -499,6 +500,7 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
   const parcialLike = `${PARTIAL_REFUND_REASON_PREFIX}%`;
   const edicionLike = `${EDIT_ORDER_REASON_PREFIX}%`;
   const avisoLike = `${NOTICE_REASON_PREFIX}%`;
+  const devolucionLike = `${RETURN_REASON_PREFIX}%`;
 
   const result = await tx.execute(sql`
     SELECT
@@ -535,6 +537,10 @@ export async function findImpossibleEdges(executor?: Executor): Promise<CrossChe
       -- findTotalMismatches, que es el control que importa aca: si la edicion
       -- dejara los totales torcidos, sale reportada ahi.
       WHEN e.from_status = e.to_status AND e.reason LIKE ${edicionLike} THEN FALSE
+      -- Una devolución de mercadería deja otra fila con from = to: volvieron
+      -- cosas al local (y quizás al stock), el pedido no cambió de estado. La
+      -- plata, si se devuelve, va por el reembolso y su propio control.
+      WHEN e.from_status = e.to_status AND e.reason LIKE ${devolucionLike} THEN FALSE
       ELSE (e.from_status, e.to_status) NOT IN (${sql.join(allowed, sql`, `)})
     END
     ORDER BY e.id DESC

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { getRelatedProducts, suggestProducts } from '@/db/queries';
-import { categories, products, variants } from '@/db/schema';
+import { categories, orderItems, products, variants, type OrderStatus } from '@/db/schema';
 import { reserveStock } from '@/domain/stock';
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from '../helpers/db';
@@ -60,16 +60,16 @@ async function catalogo(categorySlug: string, fichas: Ficha[]): Promise<Map<stri
   return ids;
 }
 
+const BASE: Ficha[] = [
+  { slug: 'el-que-miro', name: 'El que miro', brand: 'Marca A', pricePyg: 100_000 },
+  { slug: 'misma-marca-lejos', name: 'Misma marca lejos', brand: 'Marca A', pricePyg: 900_000 },
+  { slug: 'otra-marca-cerca', name: 'Otra marca cerca', brand: 'Marca B', pricePyg: 105_000 },
+  { slug: 'otra-marca-lejos', name: 'Otra marca lejos', brand: 'Marca B', pricePyg: 800_000 },
+];
+
 describe.skipIf(!hasTestDb)('también te puede interesar', () => {
   beforeEach(resetTables);
   afterAll(closeTestDb);
-
-  const BASE: Ficha[] = [
-    { slug: 'el-que-miro', name: 'El que miro', brand: 'Marca A', pricePyg: 100_000 },
-    { slug: 'misma-marca-lejos', name: 'Misma marca lejos', brand: 'Marca A', pricePyg: 900_000 },
-    { slug: 'otra-marca-cerca', name: 'Otra marca cerca', brand: 'Marca B', pricePyg: 105_000 },
-    { slug: 'otra-marca-lejos', name: 'Otra marca lejos', brand: 'Marca B', pricePyg: 800_000 },
-  ];
 
   async function relacionadosDe(ids: Map<string, number>, limit = 4) {
     return getRelatedProducts(
@@ -209,6 +209,121 @@ describe.skipIf(!hasTestDb)('también te puede interesar', () => {
     expect(rows[0]?.slug).toBe('cerca');
     expect(rows[1]?.slug).toBe('lejos');
     expect(rows[2]?.slug).toBe('con-marca-cerquísima');
+  });
+});
+
+/**
+ * Simula un pedido que llegó a `status`, con una línea por cada slug de
+ * `ids`. Una sola variante por producto (así arma `catalogo()`), así que
+ * alcanza con buscarla por `productId`.
+ */
+async function pedidoCon(status: OrderStatus, slugs: string[], ids: Map<string, number>): Promise<number> {
+  const db = getTestDb();
+  const orderId = await createOrder({ status });
+
+  for (const slug of slugs) {
+    const productId = ids.get(slug);
+    if (!productId) throw new Error(`sin id para "${slug}"`);
+    const [variant] = await db.select().from(variants).where(eq(variants.productId, productId)).limit(1);
+    if (!variant) throw new Error(`sin variante para "${slug}"`);
+    await db.insert(orderItems).values({
+      orderId,
+      variantId: variant.id,
+      nameSnapshot: slug,
+      skuSnapshot: variant.sku,
+      unitPricePyg: variant.pricePyg,
+      qty: 1,
+      ivaRate: 10,
+      lineTotalPyg: variant.pricePyg,
+    });
+  }
+
+  return orderId;
+}
+
+describe.skipIf(!hasTestDb)('también te puede interesar: comprado junto', () => {
+  beforeEach(resetTables);
+  afterAll(closeTestDb);
+
+  it('lo que se compró junto gana, aunque sea de otra categoría', async () => {
+    const ids = await catalogo('ropa', BASE);
+    const accesorios = await catalogo('accesorios', [
+      { slug: 'funda', name: 'Funda', brand: 'Otra', pricePyg: 50_000 },
+    ]);
+    for (const [slug, id] of accesorios) ids.set(slug, id);
+
+    await pedidoCon('pagado', ['el-que-miro', 'funda'], ids);
+
+    const rows = await getRelatedProducts(
+      { productId: ids.get('el-que-miro')!, categorySlug: 'ropa', brand: 'Marca A', pricePyg: 100_000 },
+      4
+    );
+
+    // "funda" no tiene ni la marca ni la categoría de "el-que-miro" — sólo se
+    // compró junto — y aun así sale primero, antes que "misma-marca-lejos".
+    expect(rows[0]?.slug).toBe('funda');
+  });
+
+  it('un pedido sin pagar (o cancelado) no cuenta como comprado junto', async () => {
+    const ids = await catalogo('ropa', BASE);
+    const accesorios = await catalogo('accesorios', [
+      { slug: 'funda', name: 'Funda', brand: 'Otra', pricePyg: 50_000 },
+    ]);
+    for (const [slug, id] of accesorios) ids.set(slug, id);
+
+    await pedidoCon('pendiente_pago', ['el-que-miro', 'funda'], ids);
+    await pedidoCon('cancelado', ['el-que-miro', 'funda'], ids);
+
+    const rows = await getRelatedProducts(
+      { productId: ids.get('el-que-miro')!, categorySlug: 'ropa', brand: 'Marca A', pricePyg: 100_000 },
+      4
+    );
+
+    // Sin ningún pedido que cuente, la sección vuelve a ser exactamente la de
+    // "misma categoría" de siempre — "funda" ni aparece.
+    expect(rows.map((row) => row.slug)).not.toContain('funda');
+    expect(rows[0]?.slug).toBe('misma-marca-lejos');
+  });
+
+  it('con menos comprados-juntos que el límite, el resto lo llena la misma categoría', async () => {
+    const ids = await catalogo('ropa', BASE);
+    const accesorios = await catalogo('accesorios', [
+      { slug: 'funda', name: 'Funda', brand: 'Otra', pricePyg: 50_000 },
+    ]);
+    for (const [slug, id] of accesorios) ids.set(slug, id);
+
+    await pedidoCon('pagado', ['el-que-miro', 'funda'], ids);
+
+    const rows = await getRelatedProducts(
+      { productId: ids.get('el-que-miro')!, categorySlug: 'ropa', brand: 'Marca A', pricePyg: 100_000 },
+      4
+    );
+
+    // "funda" (comprado junto) primero, y atrás los tres de BASE, en el mismo
+    // orden de siempre (misma marca, después precio parecido).
+    expect(rows.map((row) => row.slug)).toEqual([
+      'funda',
+      'misma-marca-lejos',
+      'otra-marca-cerca',
+      'otra-marca-lejos',
+    ]);
+  });
+
+  it('lo comprado junto no se repite si además es de la misma categoría', async () => {
+    const ids = await catalogo('ropa', BASE);
+
+    // "misma-marca-lejos" es de la misma categoría (candidato del paso 2) y
+    // además se compró junto con "el-que-miro" (candidato del paso 1).
+    await pedidoCon('pagado', ['el-que-miro', 'misma-marca-lejos'], ids);
+
+    const rows = await getRelatedProducts(
+      { productId: ids.get('el-que-miro')!, categorySlug: 'ropa', brand: 'Marca A', pricePyg: 100_000 },
+      4
+    );
+
+    const slugs = rows.map((row) => row.slug);
+    expect(slugs.filter((slug) => slug === 'misma-marca-lejos')).toHaveLength(1);
+    expect(slugs).toEqual(['misma-marca-lejos', 'otra-marca-cerca', 'otra-marca-lejos']);
   });
 });
 

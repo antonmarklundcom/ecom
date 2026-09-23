@@ -69,6 +69,9 @@ const RELEASES_STOCK: readonly OrderStatus[] = ['vencido', 'cancelado'];
 const CUSTOMER_NOTICE_FOR_STATUS: Partial<Record<OrderStatus, CustomerNoticeKind>> = {
   pagado: 'pagado',
   enviado: 'enviado',
+  // El pedido de reseña: recién con el paquete en la mano tiene sentido
+  // preguntar "¿qué te pareció?" (ver `src/domain/reviews.ts`).
+  entregado: 'resena',
 };
 
 export class OrderNotFoundError extends Error {

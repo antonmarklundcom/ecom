@@ -126,6 +126,47 @@ describe.skipIf(!hasTestDb)("transitionOrder → aviso a la compradora", () => {
     );
   });
 
+  it("al entrar a entregado, con su plantilla, le pide la reseña con el link a su pedido — una sola vez", async () => {
+    vi.stubEnv("WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA", "cliente_resena");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://tienda.com.py");
+    const fetchMock = mockFetchOk();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const orderId = await createOrder({ status: "enviado", customerPhone: "+595981444444" });
+    await transitionOrder(orderId, "entregado", "admin:test");
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 2000, interval: 20 });
+
+    const body = requestBody(fetchMock);
+    expect(body.to).toBe("595981444444");
+    expect(body.template.name).toBe("cliente_resena");
+    const texto = body.template.components[0].parameters[0].text;
+    expect(texto).toContain("¿Qué tal tu pedido");
+    expect(texto).toMatch(/https:\/\/tienda\.com\.py\/pedido\/PY-T[0-9A-F]+\?t=/);
+
+    await vi.waitFor(
+      async () => expect((await eventos(orderId)).some((r) => r.reason === "aviso_cliente_resena")).toBe(true),
+      { timeout: 2000, interval: 20 },
+    );
+
+    // Idempotente por `order_events`, igual que "enviado": un segundo disparo
+    // del aviso (p. ej. un reintento) no le vuelve a escribir.
+    const { notifyCustomerOrderEvent } = await import("@/domain/order-customer-notifications");
+    await notifyCustomerOrderEvent(orderId, "resena");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin la plantilla de reseña, entregar el pedido no manda nada", async () => {
+    const fetchMock = mockFetchOk();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const orderId = await createOrder({ status: "enviado" });
+    await transitionOrder(orderId, "entregado", "admin:test");
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("una transición que no cambia nada (webhook repetido) no dispara un segundo aviso", async () => {
     vi.stubEnv("WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO", "cliente_pagado");
     const fetchMock = mockFetchOk();

@@ -26,11 +26,16 @@ import { TESTIDS } from "./testids";
  * `src/db/enums.ts`, sin el ORM detrás (`tests/unit/db-enums.test.ts` lo
  * cuida). Los techos bajaron al valor nuevo a propósito — dejarlos en el
  * anterior era regalar 17 KB de margen que nadie midió.
+ *
+ * 2026-09-23: producto y checkout pasaron el techo por 0,2–0,3 KB con
+ * favoritos (el corazón del header y de la ficha) y las reseñas. Medido en
+ * CI: producto 229.2 KB, checkout 223.3 KB → +10%, según la regla de arriba.
+ * Home no pasó su techo y queda igual. Anotado en `KNOWN-ISSUES.md`.
  */
 const BUDGET_KB = {
   home: 224,
-  producto: 229,
-  checkout: 223,
+  producto: 252,
+  checkout: 246,
 } as const;
 
 type ScriptSample = { url: string; sizeBytes: number };

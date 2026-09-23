@@ -52,7 +52,7 @@ import { log, mensajeDe } from '@/lib/log';
 
 const AVISO_TIMEOUT_MS = 10_000;
 
-export type CustomerNoticeKind = "confirmado" | "pagado" | "enviado" | "recordatorio";
+export type CustomerNoticeKind = "confirmado" | "pagado" | "enviado" | "recordatorio" | "resena";
 
 const TEMPLATE_ENV_VAR: Record<CustomerNoticeKind, string> = {
   confirmado: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO",
@@ -64,6 +64,10 @@ const TEMPLATE_ENV_VAR: Record<CustomerNoticeKind, string> = {
   // y una fila de evento no se puede pedir "sólo si no existe" en una sola
   // sentencia. El detalle está en `src/domain/payment-reminders.ts`.
   recordatorio: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO",
+  // Pedido de reseña: sale al entrar a `entregado`, por el mismo hook y con
+  // la misma idempotencia en `order_events` que "enviado". El link es el del
+  // pedido, que es donde está el formulario (`src/domain/reviews.ts`).
+  resena: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA",
 };
 
 /** El nombre de la plantilla de Meta para este aviso, o `null` si no se cargó. */
@@ -168,6 +172,10 @@ export function customerNoticeBody(
     ].join("\n");
   }
 
+  if (kind === "resena") {
+    return t("wa.cliente.resena", { nombre, numero: order.orderNumber, url });
+  }
+
   // "enviado"
   const nota = options.note?.trim();
   // El seguimiento (O5). El courier y la guía van en una sola línea porque
@@ -205,7 +213,8 @@ function reasonOk(kind: CustomerNoticeKind): string {
  * Le avisa a la compradora del pedido `orderId`. **No tira nunca.**
  *
  * Se la llama sin `await` desde `createOrder()` (kind "confirmado") y desde
- * el hook post-transición de `transitionOrder()` (kind "pagado" / "enviado"),
+ * el hook post-transición de `transitionOrder()` (kind "pagado" / "enviado" /
+ * "resena"),
  * Con una transacción externa, el hook pasa el estado destino porque el
  * SELECT puede leer el snapshot anterior al commit.
  */
