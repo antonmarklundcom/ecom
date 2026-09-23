@@ -114,6 +114,10 @@ describe('la matriz de capacidades', () => {
     // A qué cuenta transfieren las compradoras (PR T): quien lo puede cambiar
     // desvía la facturación entera sin dejar un pedido raro.
     expect(can('staff', 'banco')).toBe(false);
+    // Los ajustes de la tienda incluyen el WhatsApp al que escriben las
+    // compradoras: mismo motivo que el banco.
+    expect(can('staff', 'ajustes')).toBe(false);
+    expect(can('owner', 'ajustes')).toBe(true);
     // …pero sí la operación diaria completa.
     expect(can('staff', 'comprobantes')).toBe(true);
     expect(can('staff', 'stock')).toBe(true);

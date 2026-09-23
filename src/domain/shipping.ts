@@ -359,3 +359,39 @@ export function selectShippingMethod(
   const found = methods.find((method) => method.id === requestedId);
   return found ? { ok: true, method: found } : { ok: false, reason: "no_disponible" };
 }
+
+/**
+ * Los medios de pago que esta tienda ofrece **en algún** método de envío
+ * activo, en el orden del checkout. Es lo que la compradora ve anunciado
+ * antes de elegir ciudad (el recuadro de confianza del checkout, la página de
+ * preguntas frecuentes): la unión de lo que acepta cada método, o los tres de
+ * siempre si la tienda no configuró ninguno — el mismo método implícito de
+ * `resolveShippingMethods`.
+ *
+ * `tarjeta` sólo con Pagopar configurado, igual que en el formulario: sin
+ * credenciales el checkout no la muestra, así que tampoco se promete acá.
+ *
+ * Es informativo: el medio que se acepta en un pedido lo sigue decidiendo
+ * `createOrder` contra el método elegido.
+ */
+export async function offeredPaymentMethods(
+  options: { cardEnabled: boolean },
+  executor?: Executor
+): Promise<PaymentMethod[]> {
+  const tx = executor ?? getDb();
+  const rows = await tx
+    .select({ allowed: shippingMethods.allowedPaymentMethods })
+    .from(shippingMethods)
+    .where(eq(shippingMethods.isActive, true));
+
+  const vistos = new Set<PaymentMethod>();
+  if (rows.length === 0) {
+    for (const method of PAYMENT_METHODS) vistos.add(method);
+  } else {
+    for (const row of rows) for (const method of sanitizePaymentMethods(row.allowed)) vistos.add(method);
+  }
+
+  return PAYMENT_METHODS.filter(
+    (method) => vistos.has(method) && (method !== "tarjeta" || options.cardEnabled)
+  );
+}

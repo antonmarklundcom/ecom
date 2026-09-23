@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
 import { getCategories, searchProducts } from "@/db/queries";
+import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
 
   const results = term.length >= 2 ? await searchProducts(term) : [];
   const categories = results.length === 0 ? await getCategories().catch(() => []) : [];
+  const { vidriera } = await getStoreSettings();
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
@@ -40,7 +42,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
       {results.length > 0 ? (
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {results.map((product, index) => (
-            <ProductCard key={product.id} product={product} priority={index < 4} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              priority={index < 4}
+              showRating={vidriera.estrellasEnTarjetas}
+            />
           ))}
         </div>
       ) : term.length >= 2 ? (

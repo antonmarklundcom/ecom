@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { priceCart } from "@/domain/cart";
-import { comercioWaLink } from "@/lib/comercio";
+import { waLinkPublico } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { QUOTE_LIMIT, QUOTE_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -17,8 +17,8 @@ import { QUOTE_LIMIT, QUOTE_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-li
  * aparece con el carrito armado, y hacerle escribir de nuevo qué quería es
  * perder la venta.
  *
- * Es una server action y no un link armado en el cliente porque
- * `comercioWaLink` lee `WHATSAPP_NUMBER`, que es una variable **del
+ * Es una server action y no un link armado en el cliente porque el número
+ * sale de los ajustes de la tienda o de `WHATSAPP_NUMBER`, una variable **del
  * servidor**: no lleva `NEXT_PUBLIC_` a propósito (ver `src/lib/comercio.ts`).
  * De paso, el total del mensaje sale de la DB y no del snapshot del
  * navegador, así que el comercio recibe el precio que va a cobrar.
@@ -57,5 +57,5 @@ export async function cartWhatsAppLink(input: unknown): Promise<string | null> {
 
   // `waLink` recorta el texto largo antes de codificarlo: un carrito de
   // veinte líneas no rompe el deeplink, se acorta.
-  return comercioWaLink(message);
+  return waLinkPublico(message);
 }

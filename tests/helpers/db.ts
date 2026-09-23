@@ -58,6 +58,7 @@ const TABLES = [
   'shipping_methods',
   // Antes que `users`, que la referencia con FK (updated_by).
   'bank_details',
+  'store_settings',
   'users',
   // Antes que `customers`, que la referencia con FK.
   'login_tokens',

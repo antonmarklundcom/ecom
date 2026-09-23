@@ -4,7 +4,9 @@ import Link from "next/link";
 import { UnmatchedPayments } from "@/components/admin/unmatched-payments";
 import { listOrders } from "@/domain/admin-orders";
 import { getDashboardSummary, salesTrend, topProducts } from "@/domain/admin-dashboard";
-import { lowStockVariants } from "@/domain/admin-products";
+import { DEFAULT_REORDER_POINT, lowStockVariants } from "@/domain/admin-products";
+import { getStoreSettings } from "@/domain/store-settings";
+import { umbralStockBajo } from "@/domain/store-settings-schema";
 import { cronAtrasado, getJobRun } from "@/domain/job-runs";
 import { countActiveDemoProducts, countActiveShippingZones } from "@/domain/launch-checks";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
@@ -21,12 +23,15 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
   const actor = await requireCapabilityPage("dashboard");
+  // El umbral global de stock bajo sale de `/admin/ajustes`; el de cada
+  // variante igual gana.
+  const { stock } = await getStoreSettings();
 
   const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas, cron] =
     await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
-    lowStockVariants(3, 8),
+    lowStockVariants(umbralStockBajo(stock, DEFAULT_REORDER_POINT), 8),
     findUnmatchedPayments({ limit: 10 }),
     topProducts(),
     salesTrend(),

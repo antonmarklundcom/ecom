@@ -1,14 +1,20 @@
 import { MessageCircle } from "lucide-react";
 
 import { t } from "@/i18n";
-import { comercioWaLink } from "@/lib/comercio";
+import { waLinkPublico } from "@/lib/comercio";
 
 /**
  * Botón flotante de WhatsApp. En PY es el canal de venta real: si el
  * comprador duda, escribe antes de abandonar el carrito.
+ *
+ * Al número **público** (`/admin/ajustes` → contacto, o `WHATSAPP_NUMBER`).
+ *
+ * `data-whatsapp-fab` es el gancho con el que `globals.css` lo sube cuando la
+ * barra de compra móvil de la ficha está a la vista (`sticky-buy-bar.tsx`):
+ * sin eso, la barra lo taparía.
  */
-export function WhatsAppFab({ message }: { message?: string }) {
-  const href = comercioWaLink(message ?? t("whatsapp.consultaGenerica"));
+export async function WhatsAppFab({ message }: { message?: string }) {
+  const href = await waLinkPublico(message ?? t("whatsapp.consultaGenerica"));
   if (!href) return null;
 
   return (
@@ -23,6 +29,7 @@ export function WhatsAppFab({ message }: { message?: string }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label={t("whatsapp.flotante.label")}
+        data-whatsapp-fab=""
         className="fixed right-4 bottom-4 z-40 flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <MessageCircle className="size-7" />

@@ -25,7 +25,34 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
-Migración: sí (`product_reviews`, `order_returns`, `order_return_items`).
+Migración: sí (`product_reviews`, `order_returns`, `order_return_items`,
+`store_settings`).
+
+- **Ajustes de la tienda (`/admin/ajustes`, sólo el dueño):** bajada, título y
+  descripción de la home, portada (con foto subida a Cloudinary), barra de
+  anuncio, WhatsApp público, email, dirección, horario y redes, sin tocar
+  `tienda.ts` ni el entorno. Vacío = el de siempre, así que una tienda que no
+  entra al panel se ve igual que antes. Una fila JSON (`store_settings`): los
+  ajustes que vengan después no traen migración. Los avisos al dueño siguen
+  yendo a `WHATSAPP_NUMBER`; el número público es el del panel si está.
+  La home publica un `Organization` en JSON-LD cuando hay
+  `NEXT_PUBLIC_SITE_URL`.
+- **Páginas de políticas:** `/envios`, `/devoluciones`,
+  `/preguntas-frecuentes`, `/terminos` y `/privacidad`, con textos de arranque
+  editables desde el panel (hay que revisarlos antes de lanzar), enlazadas en
+  el pie y en el sitemap. Se pueden apagar de a una.
+- **Google:** con los datos de envío y devolución cargados en el panel, cada
+  `Offer` del JSON-LD de producto lleva `shippingDetails` y
+  `hasMerchantReturnPolicy`. Lo que no se cargó no se publica.
+- **Vidriera y checkout:** estrellas y cantidad de reseñas en las tarjetas de
+  producto (una consulta agrupada por listado), barra de compra fija en el
+  celular en la ficha, y un recuadro "Comprá tranquilo" en el checkout con los
+  medios de pago que de verdad se ofrecen. Los tres se apagan desde el panel.
+- **Stock bajo:** el umbral global (resumen del panel y aviso diario) se
+  cambia desde el panel; el de cada variante sigue ganando.
+- **Tiendas con piel propia:** `layout.tsx`, `site-footer.tsx` y `page.tsx`
+  son piel y `template:sync` no los pisa; la barra de anuncio, los links a las
+  páginas y el contacto del pie hay que sumarlos a mano (NEW-STORE.md §4a-bis).
 
 - **Reseñas verificadas:** sólo quien recibió el pedido (estado `entregado`)
   califica, una vez por producto, desde la página de su pedido. El panel

@@ -8,6 +8,7 @@ import { CatalogFilters } from "@/components/catalog-filters";
 import { ProductCard } from "@/components/product-card";
 import { ProductDescription } from "@/components/product-description";
 import { Button } from "@/components/ui/button";
+import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
 import { productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
@@ -89,6 +90,7 @@ export default async function CategoryPage({
   const { min, max } = parsePriceRange(first(query.precio));
   const page = Number.parseInt(first(query.page) ?? "1", 10) || 1;
 
+  const { vidriera } = await getStoreSettings();
   const [result, brands] = await Promise.all([
     getCategoryProducts({
       categorySlug: slug,
@@ -196,7 +198,12 @@ export default async function CategoryPage({
               pantalla. */}
           <h2 className="sr-only">{t("catalogo.tituloOculto")}</h2>
           {result.products.map((product, index) => (
-            <ProductCard key={product.id} product={product} priority={index < 4} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              priority={index < 4}
+              showRating={vidriera.estrellasEnTarjetas}
+            />
           ))}
         </div>
       )}

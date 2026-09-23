@@ -1,4 +1,6 @@
 import { readBankDetails } from "@/domain/admin-bank";
+import { getStoreSettings } from "@/domain/store-settings";
+import { contactoEfectivo, type ContactoEfectivo } from "@/domain/store-settings-schema";
 import { bankQrUrl } from "@/lib/images";
 import { normalizePhonePY, waLink } from "@/lib/py";
 
@@ -18,6 +20,35 @@ export function comercioWaLink(text: string): string | null {
   const phone = comercioWhatsApp();
   if (!phone) return null;
   return waLink(phone, text);
+}
+
+/**
+ * El WhatsApp **público** de la tienda: el que ve la compradora en el botón
+ * flotante, el pie, las políticas y los "consultá por WhatsApp".
+ *
+ * Gana el que el dueño cargó en `/admin/ajustes`; sin ése, `WHATSAPP_NUMBER`.
+ * Los avisos **al dueño** (pedido nuevo, comprobante) siguen yendo a
+ * `comercioWhatsApp()`, o sea al entorno: cambiar el número que se publica
+ * no puede desviar en silencio los avisos internos a otro teléfono.
+ *
+ * Async porque toca la base (una vez por request: `getStoreSettings` está
+ * memoizado). Los componentes cliente reciben el número ya resuelto por prop.
+ */
+export async function whatsappPublico(): Promise<string | null> {
+  return (await contactoPublico()).whatsapp;
+}
+
+/** `comercioWaLink`, pero al número público (ver `whatsappPublico`). */
+export async function waLinkPublico(text: string): Promise<string | null> {
+  const phone = await whatsappPublico();
+  if (!phone) return null;
+  return waLink(phone, text);
+}
+
+/** Todo el contacto público, con la misma precedencia: panel → entorno. */
+export async function contactoPublico(): Promise<ContactoEfectivo> {
+  const ajustes = await getStoreSettings();
+  return contactoEfectivo(ajustes.contacto, comercioWhatsApp());
 }
 
 export type DatosBancarios = {

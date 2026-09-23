@@ -10,13 +10,15 @@ import { ProductImage } from "@/components/product-image";
 import { ProductCard } from "@/components/product-card";
 import { RatingStars, formatRating } from "@/components/rating-stars";
 import { RecentlyViewed } from "@/components/recently-viewed";
+import { StickyBuyBar } from "@/components/sticky-buy-bar";
 import { WishlistButton } from "@/components/wishlist-button";
 import { getProductBySlug, getRelatedProducts } from "@/db/queries";
 import { getProductRatingSummary, listApprovedReviews } from "@/domain/reviews";
 import { stockAlertsEnabled } from "@/domain/stock-alerts";
+import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
-import { comercioWaLink, comercioWhatsApp } from "@/lib/comercio";
+import { waLinkPublico, whatsappPublico } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
 import { formatGs } from "@/lib/money";
@@ -35,6 +37,9 @@ import { TESTIDS } from "@/lib/testids";
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ slug: string }>;
+
+/** El bloque de agregar al carrito: a donde vuelve la barra de compra móvil. */
+const BLOQUE_COMPRA_ID = "comprar";
 
 /** `cache()` memoiza por request: metadata y página comparten una consulta. */
 const loadProduct = cache(async (slug: string) => getProductBySlug(slug));
@@ -125,18 +130,20 @@ export default async function ProductPage({ params }: { params: Params }) {
 
   // Reseñas verificadas: sólo las aprobadas (`src/domain/reviews.ts`). Sin
   // ninguna, no se dibuja nada — ni estrellas vacías ni "sé la primera".
-  const [rating, reviews] = await Promise.all([
+  const [rating, reviews, ajustes] = await Promise.all([
     getProductRatingSummary(product.id),
     listApprovedReviews(product.id),
+    getStoreSettings(),
   ]);
 
-  const waHref = comercioWaLink(t("producto.consultaWhatsApp", { nombre: product.name }));
+  // Al WhatsApp **público** (`/admin/ajustes`, o `WHATSAPP_NUMBER`).
+  const waHref = await waLinkPublico(t("producto.consultaWhatsApp", { nombre: product.name }));
 
   // Para el link de consulta por variante (`variant-inquiry-link.tsx`, cliente):
-  // el teléfono sale de una variable sin `NEXT_PUBLIC_`, así que se resuelve
-  // acá, en el servidor, y se pasa ya normalizado — el componente cliente
-  // nunca lee `process.env`.
-  const whatsappPhone = comercioWhatsApp();
+  // el teléfono sale de los ajustes o de una variable sin `NEXT_PUBLIC_`, así
+  // que se resuelve acá, en el servidor, y se pasa ya normalizado — el
+  // componente cliente nunca lee `process.env` ni la base.
+  const whatsappPhone = await whatsappPublico();
   const origin = siteOrigin();
   const productUrl = origin ? `${origin.origin}/producto/${product.slug}` : null;
 
@@ -156,6 +163,8 @@ export default async function ProductPage({ params }: { params: Params }) {
       .filter((src): src is string => src !== null),
     variants: product.variants,
     rating,
+    // Envío y devoluciones para Google, sólo con lo que el dueño cargó.
+    merchant: ajustes.envioDevolucion,
     reviews: reviews.map((review) => ({
       author: review.authorName,
       rating: review.rating,
@@ -226,7 +235,9 @@ export default async function ProductPage({ params }: { params: Params }) {
             </a>
           ) : null}
 
-          <div className="mt-6 flex flex-wrap items-start gap-3">
+          {/* `id` para la barra de compra móvil (`StickyBuyBar`), que trae
+              de vuelta hasta acá. */}
+          <div id={BLOQUE_COMPRA_ID} className="mt-6 flex scroll-mt-24 flex-wrap items-start gap-3">
             <AddToCart
               product={product}
               stockAlertsEnabled={stockAlertsEnabled()}
@@ -320,6 +331,14 @@ export default async function ProductPage({ params }: { params: Params }) {
             ))}
           </div>
         </section>
+      ) : null}
+
+      {ajustes.vidriera.barraCompraMovil && product.variants.length > 0 ? (
+        <StickyBuyBar
+          targetId={BLOQUE_COMPRA_ID}
+          name={product.name}
+          price={cheapest !== undefined ? formatGs(cheapest) : null}
+        />
       ) : null}
 
       <RecentlyViewed

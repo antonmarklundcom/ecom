@@ -1197,6 +1197,40 @@ export const bankDetails = mysqlTable('bank_details', {
   updatedBy: int('updated_by').references(() => users.id, { onDelete: 'set null' }),
 });
 
+// ---------------------------------------------------------------------------
+// Ajustes de la tienda — singleton JSON, editable desde /admin/ajustes
+// ---------------------------------------------------------------------------
+
+/**
+ * Lo que el dueño cambia sin llamar al desarrollador: la bajada, la portada,
+ * la barra de anuncio, el contacto público, los textos de las políticas, los
+ * datos de envío y devolución para Google, un par de interruptores de la
+ * vidriera y el umbral de stock bajo.
+ *
+ * **Una columna JSON, a propósito** — lo contrario de `bank_details`. Allá
+ * cinco campos obligatorios se validan juntos y una columna que no existe no
+ * compila; acá son decenas de preferencias opcionales que van a seguir
+ * creciendo, y cada una nueva sería una migración que viaja a todas las
+ * tiendas. El contrato de tipos lo pone `StoreSettingsSchema`
+ * (`src/domain/store-settings-schema.ts`), donde **todo** campo tiene un
+ * default: un JSON viejo, parcial o roto se lee igual, y un ajuste nuevo no
+ * necesita migración.
+ *
+ * `null` en un campo = "usá el de siempre" (`src/config/tienda.ts` o el
+ * entorno). Sin fila, la tienda se ve exactamente como antes de que esta
+ * tabla existiera.
+ */
+export const storeSettings = mysqlTable('store_settings', {
+  id: tinyint('id').primaryKey(),
+  data: json('data').notNull(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+  /**
+   * Quién guardó por última vez. La FK (`ON DELETE SET NULL`) la pone
+   * `applySchemaExtras`, igual que las de `*_user_id` de las auditorías.
+   */
+  updatedByUserId: int('updated_by_user_id'),
+});
+
 /**
  * Idempotencia y lock de los trabajos programados (plan-operacion §2, §0.5).
  *
@@ -1262,6 +1296,7 @@ export const BACKUP_TABLES = [
   'payment_events',
   // Cuelgan de las de arriba.
   'bank_details',
+  'store_settings',
   'login_tokens',
   'products',
   'product_images',

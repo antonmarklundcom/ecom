@@ -2,18 +2,27 @@ import Link from "next/link";
 
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
+import { RatingStars, formatRating } from "@/components/rating-stars";
 import { StockBadge } from "@/components/stock-badge";
 import { WishlistButton } from "@/components/wishlist-button";
 import type { CatalogProduct } from "@/db/queries";
-import { t } from "@/i18n";
+import { t, tPlural } from "@/i18n";
 import { TESTIDS } from "@/lib/testids";
 
 export function ProductCard({
   product,
   priority = false,
+  showRating = false,
 }: {
   product: CatalogProduct;
   priority?: boolean;
+  /**
+   * Estrellas en la tarjeta (`/admin/ajustes` → vidriera). Lo decide la
+   * página, que es server: esta tarjeta también se dibuja en el cliente
+   * (favoritos) y no puede leer los ajustes. Sin reseñas aprobadas no se
+   * dibuja nada aunque esté prendido.
+   */
+  showRating?: boolean;
 }) {
   // El precio "desde" es el de la variante más barata disponible; si no hay
   // ninguna con stock, igual mostramos el más barato para no dejar el card mudo.
@@ -47,6 +56,13 @@ export function ProductCard({
         <h3 className="group-hover:text-foreground line-clamp-2 text-sm font-medium">
           {product.name}
         </h3>
+        {showRating && product.rating && product.rating.count >= 1 ? (
+          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+            <RatingStars value={product.rating.average} size={12} />
+            <span aria-hidden>{formatRating(product.rating.average)}</span>
+            <span>({tPlural("catalogo.resenas", product.rating.count)})</span>
+          </p>
+        ) : null}
 
         <div className="mt-auto pt-2">
           {shown ? (

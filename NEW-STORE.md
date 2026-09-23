@@ -341,6 +341,39 @@ vaciar las variables, para que no queden dos verdades. `pnpm preflight` avisa
 (sin frenar el deploy) si están vacías, porque desde afuera de la base no puede
 saber si la tabla está cargada; el que sí sabe es el cartel de `/admin`.
 
+### 4a-bis. Ajustes de la tienda: lo que el dueño edita sin llamarte
+
+`/admin/ajustes` (sólo el dueño) junta lo que antes era un cambio en
+`src/config/tienda.ts` o una variable de entorno más un redeploy. Todo campo
+vacío significa **"el de siempre"** —el de `tienda.ts` o el del entorno— y la
+pantalla muestra cuál es; "Restaurar valores por defecto" vuelve cada sección a
+eso. Se guarda en una sola fila JSON (`store_settings`): un ajuste nuevo del
+template no trae migración, y una fila vieja o rota se lee con los defaults.
+
+| Se edita en `/admin/ajustes` | Sigue en el código / el entorno |
+|---|---|
+| Bajada del pie, título y descripción de la home para Google | El **nombre** (`TIENDA.nombre`): también es el `<title>` de cada página y lo verifica `pnpm preflight` |
+| Portada: prendida/apagada, título, texto, botón, foto (se sube a Cloudinary, carpeta `portadas/`) | Una portada distinta (carrusel, vídeo): se escribe en `src/app/page.tsx` |
+| Barra de anuncio arriba de todo | Idioma, `ogLocale`, cuentas de cliente (`tienda.ts`) |
+| WhatsApp **público**, email, dirección, horario, Instagram/Facebook/TikTok | `WHATSAPP_NUMBER`: destino de los avisos al dueño (y el público si el panel está vacío) |
+| Envío y devoluciones para el JSON-LD de Google (días, precio desde, política) | Tarifas y zonas de envío (`/admin/envios`) |
+| Páginas `/envios`, `/devoluciones`, `/preguntas-frecuentes`, `/terminos`, `/privacidad`: prendidas, título y texto | Los textos de arranque: `src/config/paginas-default.ts` (piel) |
+| Estrellas en las tarjetas, barra de compra móvil | El diseño de esas piezas (piel) |
+| Recuadro "Comprá tranquilo" del checkout | Los medios de pago que lista: salen solos de los métodos de envío y de Pagopar |
+| Umbral global de stock bajo | El de cada variante (`reorder_point`), que igual gana |
+
+Los textos de las páginas arrancan con un aviso "Texto por defecto — revisalo
+antes de publicar": son genéricos, sin promesas ni números de ley, y **hay que
+leerlos con el dueño antes de lanzar**. Aceptan el markdown chico de las
+descripciones y los `{{tienda}}`, `{{url}}`, `{{whatsapp}}`, `{{email}}`,
+`{{direccion}}`, `{{horario}}`, `{{diasDevolucion}}` y `{{mediosDePago}}`; uno sin
+dato sale como una frase ("a coordinar por WhatsApp"), nunca crudo.
+
+Una tienda que ya rediseñó `site-footer.tsx`, `layout.tsx` o `page.tsx` (piel) y
+trae esto por `template:sync` se queda con los suyos: la barra de anuncio, los
+links a las páginas y el contacto nuevo del pie no aparecen hasta sumarlos a
+mano (las páginas en sí sí existen).
+
 ### 4b. ¿Esta tienda quiere cuentas de cliente?
 
 **Por defecto no**, y para la mayoría de las tiendas ese default está bien: en

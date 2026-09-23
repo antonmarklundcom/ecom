@@ -6,6 +6,7 @@ import * as reviewsModule from '@/domain/reviews';
 import {
   ReviewError,
   getProductRatingSummary,
+  getRatingSummaries,
   listApprovedReviews,
   listReviewableItems,
   listReviewsForAdmin,
@@ -181,6 +182,32 @@ describe.skipIf(!hasTestDb)('reseñas verificadas', () => {
     expect(await listReviewsForAdmin({ status: 'pending' })).toEqual([]);
   });
 
+  it('getRatingSummaries: una consulta para varios productos, sólo aprobadas', async () => {
+    const adminId = await createAdminUser();
+    const conResenas = await createProduct();
+    const soloPendiente = await createProduct();
+    const sinNada = await createProduct();
+
+    for (const [productId, rating, aprobar] of [
+      [conResenas, 5, true],
+      [conResenas, 4, true],
+      [conResenas, 1, false],
+      [soloPendiente, 5, false],
+    ] as const) {
+      const variantId = await createVariant({ onHand: 3, productId });
+      const orderId = await createOrder({ status: 'entregado' });
+      await lineaDePedido(orderId, variantId);
+      const id = await submitReview({ orderId, productId, rating, body: TEXTO });
+      if (aprobar) await moderateReview(id, 'approved', { actorUserId: adminId });
+    }
+
+    const resumenes = await getRatingSummaries([conResenas, soloPendiente, sinNada]);
+    expect(resumenes.get(conResenas)).toEqual({ average: 4.5, count: 2 });
+    expect(resumenes.has(soloPendiente)).toBe(false);
+    expect(resumenes.has(sinNada)).toBe(false);
+    expect((await getRatingSummaries([])).size).toBe(0);
+  });
+
   it('moderar deja quién y cuándo; responder guarda y vacío borra', async () => {
     const adminId = await createAdminUser();
     const { orderId, productId } = await pedidoEntregado();
@@ -230,6 +257,8 @@ describe.skipIf(!hasTestDb)('reseñas verificadas', () => {
       [
         'countPendingReviews',
         'getProductRatingSummary',
+        // Lectura: el mismo resumen, agrupado para las tarjetas de un listado.
+        'getRatingSummaries',
         'listApprovedReviews',
         'listReviewableItems',
         'listReviewsForAdmin',

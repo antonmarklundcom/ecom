@@ -8,6 +8,8 @@ import { formatGs } from '@/lib/money';
 import { startOfDayPY } from '@/lib/py';
 
 import { DEFAULT_REORDER_POINT, lowStockVariants, type LowStockVariant } from './admin-products';
+import { getStoreSettings } from './store-settings';
+import { umbralStockBajo } from './store-settings-schema';
 import type { Executor } from './executor';
 import { resolveMessageSender, type MessageSender } from './messaging';
 import { withTimeout } from './notify-timing';
@@ -148,7 +150,11 @@ export async function buildDailyDigest(
           lt(orders.createdAt, inicioDeHoy),
         ),
       ),
-    lowStockVariants(DEFAULT_REORDER_POINT, MAX_POR_SECCION, tx),
+    // El umbral global es el de `/admin/ajustes` (sección stock) o el de
+    // siempre; el de cada variante (`reorder_point`) igual le gana.
+    getStoreSettings().then(({ stock }) =>
+      lowStockVariants(umbralStockBajo(stock, DEFAULT_REORDER_POINT), MAX_POR_SECCION, tx),
+    ),
   ]);
 
   const comprobantesPendientes = comprobantes[0]?.n ?? 0;

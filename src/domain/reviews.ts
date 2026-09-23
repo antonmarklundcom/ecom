@@ -231,6 +231,43 @@ export async function getProductRatingSummary(
   return { average: Math.round(Number(fila?.promedio ?? 0) * 10) / 10, count: n };
 }
 
+/**
+ * Promedio y cantidad de **varios** productos en una sola consulta agrupada,
+ * para las tarjetas de un listado (`hydrate` en `src/db/queries.ts`). Sólo
+ * aparecen los productos con al menos una reseña aprobada: los demás no
+ * tienen nada que mostrar.
+ */
+export async function getRatingSummaries(
+  productIds: readonly number[],
+  executor?: Executor,
+): Promise<Map<number, RatingSummary>> {
+  const resumenes = new Map<number, RatingSummary>();
+  if (productIds.length === 0) return resumenes;
+
+  const tx = executor ?? getDb();
+  const filas = await tx
+    .select({
+      productId: productReviews.productId,
+      n: count(),
+      promedio: avg(productReviews.rating),
+    })
+    .from(productReviews)
+    .where(
+      and(inArray(productReviews.productId, [...productIds]), eq(productReviews.status, 'approved')),
+    )
+    .groupBy(productReviews.productId);
+
+  for (const fila of filas) {
+    const n = Number(fila.n ?? 0);
+    if (n === 0) continue;
+    resumenes.set(fila.productId, {
+      average: Math.round(Number(fila.promedio ?? 0) * 10) / 10,
+      count: n,
+    });
+  }
+  return resumenes;
+}
+
 export type PublicReview = {
   id: number;
   rating: number;
