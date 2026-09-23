@@ -138,3 +138,43 @@ export function itemListJsonLd(
     })),
   };
 }
+
+/**
+ * `Product` de la ficha. Sin `image` Google no da rich result de producto ni
+ * listado de comercio, y sin `url` cada `Offer` queda sin página a la que
+ * mandar. Lo que no hay no se inventa: sin foto o sin dominio configurado, el
+ * campo se omite (mejor que una URL rota en el rich result).
+ */
+export function productJsonLd(input: {
+  origin: URL | null;
+  slug: string;
+  name: string;
+  description?: string | null;
+  brand?: string | null;
+  /** URLs absolutas de las fotos (Cloudinary), en orden. */
+  images: string[];
+  variants: { sku: string; label: string; pricePyg: number; available: number }[];
+}): JsonLd {
+  const url = input.origin ? `${input.origin.origin}/producto/${input.slug}` : undefined;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: input.name,
+    description: input.description || undefined,
+    image: input.images.length > 0 ? input.images : undefined,
+    url,
+    brand: input.brand ? { "@type": "Brand", name: input.brand } : undefined,
+    sku: input.variants[0]?.sku,
+    offers: input.variants.map((variant) => ({
+      "@type": "Offer",
+      sku: variant.sku,
+      name: variant.label,
+      price: variant.pricePyg,
+      priceCurrency: "PYG",
+      itemCondition: "https://schema.org/NewCondition",
+      url,
+      availability:
+        variant.available > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    })),
+  };
+}

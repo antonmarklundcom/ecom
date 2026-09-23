@@ -15,7 +15,7 @@ import { comercioWaLink, comercioWhatsApp } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
 import { formatGs } from "@/lib/money";
-import { jsonLdScript } from "@/lib/seo";
+import { jsonLdScript, productJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 
 /**
@@ -127,27 +127,21 @@ export default async function ProductPage({ params }: { params: Params }) {
   const productUrl = origin ? `${origin.origin}/producto/${product.slug}` : null;
 
   // JSON-LD: PYG y priceValidUntil no se inventan — se dejan afuera si no
-  // hay dato, que es mejor que un dato falso en el rich result.
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
+  // hay dato, que es mejor que un dato falso en el rich result. Lo arma
+  // `productJsonLd` (src/lib/seo.ts), que es maquinaria.
+  const jsonLd = productJsonLd({
+    origin,
+    slug: product.slug,
     name: product.name,
     // Mismo motivo que arriba: el JSON-LD que lee Google es texto, no markdown.
-    description: markdownToText(product.description) || undefined,
-    brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
-    sku: product.variants[0]?.sku,
-    offers: product.variants.map((variant) => ({
-      "@type": "Offer",
-      sku: variant.sku,
-      name: variant.label,
-      price: variant.pricePyg,
-      priceCurrency: "PYG",
-      availability:
-        variant.available > 0
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock",
-    })),
-  };
+    description: markdownToText(product.description),
+    brand: product.brand,
+    images: product.images
+      .slice(0, 5)
+      .map((image) => productImageUrl(image.cloudinaryId, "detail"))
+      .filter((src): src is string => src !== null),
+    variants: product.variants,
+  });
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">

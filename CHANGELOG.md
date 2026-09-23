@@ -54,6 +54,9 @@ Migración: no.
   PR anterior se cerró o se mergeó con squash (antes la salteaba para
   siempre, en verde). `template:sync` trae rutas con tildes y avisa aparte la
   piel rediseñada que el template borró o renombró. `.gitattributes` fija LF.
+- **SEO:** el `Product` JSON-LD de la ficha lleva `image`, `url` e
+  `itemCondition` (sin imagen Google no da rich result de producto ni listado
+  de comercio). Lo arma `productJsonLd` en `src/lib/seo.ts`.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 
