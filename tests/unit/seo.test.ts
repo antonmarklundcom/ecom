@@ -100,7 +100,9 @@ describe("robots.txt", () => {
    * lo puede ver un buscador?".
    */
   it("cubre todas las rutas de nivel uno que no son públicas", async () => {
-    const publicas = new Set(["buscar", "categoria", "producto"]);
+    // `feed.xml`: el catálogo para Google Merchant y Meta (src/lib/product-feed.ts),
+    // los mismos datos públicos que las fichas.
+    const publicas = new Set(["buscar", "categoria", "producto", "feed.xml"]);
     const raiz = path.join(process.cwd(), "src/app");
     const entries = await readdir(raiz, { withFileTypes: true });
 

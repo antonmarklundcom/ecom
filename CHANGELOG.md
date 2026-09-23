@@ -57,6 +57,9 @@ Migración: no.
 - **SEO:** el `Product` JSON-LD de la ficha lleva `image`, `url` e
   `itemCondition` (sin imagen Google no da rich result de producto ni listado
   de comercio). Lo arma `productJsonLd` en `src/lib/seo.ts`.
+- **Feed de productos `/feed.xml`** para Google Merchant Center y el
+  catálogo de Meta: fichas gratuitas en Google Shopping y anuncios de
+  catálogo e Instagram Shopping sin cargar productos a mano (NEW-STORE.md §7).
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 

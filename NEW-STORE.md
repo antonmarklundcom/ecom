@@ -838,6 +838,24 @@ de Hostinger, las trampas del SSH, la base de datos, el cron cada 15 minutos
 contra `/api/cron/vencer-pedidos` y la prueba de humo. Acordate además de
 registrar la URL de respuesta de Pagopar.
 
+### 7. Google Shopping y el catálogo de Meta (después del lanzamiento)
+
+La tienda publica su catálogo en **`https://DOMINIO/feed.xml`** (un ítem por
+variante, con foto, precio, tachado, stock y marca; lo arma
+`src/lib/product-feed.ts`). Se carga **una vez** en cada panel y ellos lo
+vuelven a leer solos:
+
+- **Google Merchant Center** → Productos → Fuentes de datos → Agregar →
+  "Recuperación programada" con esa URL, país Paraguay, idioma español,
+  moneda PYG. Habilita las fichas gratuitas de Google Shopping.
+- **Meta Commerce Manager** → Catálogo → Fuentes de datos → Feed de datos →
+  URL programada, la misma. Habilita los anuncios de catálogo y las etiquetas
+  de compra de Instagram y Facebook.
+
+Sin `NEXT_PUBLIC_SITE_URL` el feed responde 404 (sin dominio no hay links), y
+un producto sin foto no entra (Google lo rechazaría). No hay nada que
+configurar en la tienda.
+
 ---
 
 ## Arreglos que aparecen después — ya tengo una tienda
