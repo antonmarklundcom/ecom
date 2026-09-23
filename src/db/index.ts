@@ -1,4 +1,5 @@
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
+import type { PoolConnection } from 'mysql2';
 import mysql from 'mysql2/promise';
 
 import * as schema from './schema';
@@ -17,6 +18,31 @@ const POOL_OPTIONS = {
 } as const;
 
 export type Database = MySql2Database<typeof schema>;
+
+/**
+ * Cada conexión nueva habla en UTC con MySQL, no sólo del lado de mysql2.
+ *
+ * `timezone: 'Z'` convierte los `Date` de JS, pero `NOW()`, los
+ * `DEFAULT CURRENT_TIMESTAMP` y la lectura de columnas `TIMESTAMP` usan la
+ * zona de la **sesión**, que en un MySQL con `time_zone = SYSTEM` (el default
+ * de Hostinger) es la hora del servidor. Con el servidor fuera de UTC, una
+ * reserva de stock de 45 minutos nacía vencida (o duraba horas de más) porque
+ * `expires_at` (UTC) se comparaba con `NOW()` (hora local), y dos compradoras
+ * podían llevarse la última unidad. `tests/integration/db-timezone.test.ts`
+ * lo fija, y CI corre MySQL con otra hora a propósito.
+ *
+ * El `SET` sale antes que cualquier consulta: mysql2 emite `connection` antes
+ * de entregar la conexión, y cada conexión ejecuta sus comandos en orden.
+ */
+function fijarSesionEnUtc(connection: PoolConnection): void {
+  connection.query("SET time_zone = '+00:00'", (error) => {
+    if (!error) return;
+    // Una conexión en la hora equivocada corrompe fechas en silencio: mejor
+    // tirarla y que el pool abra otra.
+    console.error('No se pudo fijar time_zone en UTC; se descarta la conexión', error);
+    connection.destroy();
+  });
+}
 
 declare global {
   // Next.js dev reloads the module graph on every edit; without this the pool
@@ -37,7 +63,11 @@ function connectionString(): string {
 
 export function getPool(): mysql.Pool {
   if (!globalThis.__ecomPool) {
-    globalThis.__ecomPool = mysql.createPool({ uri: connectionString(), ...POOL_OPTIONS });
+    const pool = mysql.createPool({ uri: connectionString(), ...POOL_OPTIONS });
+    // El pool de callbacks: el evento del pool de promesas trae la misma conexión
+    // cruda, pero tipada como si fuera de promesas.
+    pool.pool.on('connection', fijarSesionEnUtc);
+    globalThis.__ecomPool = pool;
   }
   return globalThis.__ecomPool;
 }
