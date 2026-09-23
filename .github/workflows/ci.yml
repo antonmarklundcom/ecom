@@ -95,6 +95,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # MySQL con una hora que no es UTC, como un servidor con `time_zone =
+      # SYSTEM` (Hostinger). El pool fija cada sesión en UTC (src/db/index.ts);
+      # si eso se rompe, los tests de reservas de stock fallan acá y no en
+      # producción.
+      - name: MySQL fuera de UTC
+        run: mysql -h 127.0.0.1 -uroot -proot -e "SET GLOBAL time_zone = '-03:00'"
+
       # `POST /api/setup/init` deploya **migraciones**, no `schema.ts`: en el
       # servidor no hay drizzle-kit y `db:push` no corre. O sea que una columna
       # agregada a schema.ts sin su migración generada compila, pasa los tests

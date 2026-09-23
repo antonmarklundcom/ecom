@@ -27,6 +27,14 @@ funciones nuevas; **parche** para arreglos.
 
 Migración: no.
 
+- **Comprobantes de más de 1 MB:** Next cortaba el body de las server
+  actions en 1 MB y una foto de comprobante de 2 MB terminaba en la pantalla
+  de error. `next.config.ts` ahora sube el límite al del archivo más grande
+  (`src/lib/upload-limits.ts`); lo mismo para fotos y planilla.
+- **Reservas de stock con MySQL fuera de UTC:** cada conexión del pool fija
+  `time_zone = '+00:00'`. Con la hora del servidor (Hostinger: `SYSTEM`), las
+  reservas vencían antes de nacer o duraban horas de más. CI corre MySQL a
+  -03:00 para que no vuelva.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 
