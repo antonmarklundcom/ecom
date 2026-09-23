@@ -79,6 +79,11 @@ Migración: no.
   el stock queda reservado y no sale ningún recordatorio — sin nada roto a la
   vista. `/api/health` suma `"cron"`: el monitor de DEPLOY.md §8 ahora
   busca `"db":true,"cron":true`.
+- **`next.config.ts`: `experimental.cpus: 1`** (el fix de Hostinger de
+  lenceria, vendercrm y propia: un solo build worker, para que un deploy no
+  agote los procesos que comparte la cuenta). En una tienda que ya lo tenía
+  (lenceria), el PR de sincronización trae un conflicto de un bloque en ese
+  archivo: quedarse con el del template.
 - CI: un label que no es `ci-completo` ya no cancela la corrida del PR. Con
   Dependabot (que etiqueta el PR apenas lo abre) ningún job llegaba a correr.
 
