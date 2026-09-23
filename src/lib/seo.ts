@@ -17,7 +17,9 @@ import { formatDatePY } from "./py";
  * `/api` no tienen nada que indexar, y `/checkout`, `/pedido` y `/cuenta`
  * llevan datos de una compra concreta. `/pedido/<numero>` en particular es un
  * link tokenizado que viaja por WhatsApp: aparecer en un índice sería
- * filtrarlo.
+ * filtrarlo. `/favoritos` es distinta para cada navegador —localStorage, o
+ * una lista compartida por `?p=`— y no tiene nada propio que Google deba
+ * guardar.
  */
 export const RUTAS_PRIVADAS = [
   "/admin",
@@ -26,6 +28,7 @@ export const RUTAS_PRIVADAS = [
   "/pedido",
   "/cuenta",
   "/dev",
+  "/favoritos",
 ] as const;
 
 export type SitemapEntry = {

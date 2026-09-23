@@ -10,6 +10,7 @@ import { ProductImage } from "@/components/product-image";
 import { ProductCard } from "@/components/product-card";
 import { RatingStars, formatRating } from "@/components/rating-stars";
 import { RecentlyViewed } from "@/components/recently-viewed";
+import { WishlistButton } from "@/components/wishlist-button";
 import { getProductBySlug, getRelatedProducts } from "@/db/queries";
 import { getProductRatingSummary, listApprovedReviews } from "@/domain/reviews";
 import { stockAlertsEnabled } from "@/domain/stock-alerts";
@@ -225,12 +226,22 @@ export default async function ProductPage({ params }: { params: Params }) {
             </a>
           ) : null}
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-start gap-3">
             <AddToCart
               product={product}
               stockAlertsEnabled={stockAlertsEnabled()}
               whatsappPhone={whatsappPhone}
               productUrl={productUrl}
+            />
+            <WishlistButton
+              slug={product.slug}
+              name={product.name}
+              sku={
+                (product.variants.find((variant) => variant.pricePyg === cheapest) ??
+                  product.variants[0])?.sku
+              }
+              pricePyg={cheapest ?? product.variants[0]?.pricePyg}
+              size="inline"
             />
           </div>
 

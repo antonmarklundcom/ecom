@@ -288,7 +288,10 @@ describe('cobertura de la revisión', () => {
     // stateless y no tocan nada del servidor.
     const GUARDS =
       /requireAdminSession|requireStaffSession|requireOwnerSession|requireCustomerSession|requireOrderAccess|rateLimit\s*\(|cuentasClientesHabilitadas\s*\(/;
-    const SIN_ESTADO = new Set([path.join(ACTIONS, 'cart.ts')]);
+    // `wishlist.ts` es igual de stateless que `cart.ts`: sólo lee catálogo
+    // publicado a partir de slugs (los mismos que ya se ven en cualquier
+    // ficha de producto), no escribe nada ni expone datos de un comprador.
+    const SIN_ESTADO = new Set([path.join(ACTIONS, 'cart.ts'), path.join(ACTIONS, 'wishlist.ts')]);
 
     const offenders: string[] = [];
     for (const file of files) {

@@ -183,6 +183,18 @@ export const TESTIDS = {
   adminReturnSubmit: "admin-return-submit",
   /** El link "¿Querés cambiar o devolver algo?" de la página del pedido. */
   pedidoCambioLink: "pedido-cambio-link",
+
+  // == Favoritos ==
+  /** Corazón de favoritos (`wishlist-button.tsx`), en la tarjeta o la ficha. */
+  wishlistButton: "wishlist-button",
+  /** El link "Favoritos" del header (`wishlist-header-link.tsx`). */
+  headerWishlistLink: "header-wishlist-link",
+  /** La grilla de `/favoritos`. */
+  wishlistGrid: "wishlist-grid",
+  /** "Compartir por WhatsApp" en `/favoritos`. */
+  wishlistShareWhatsapp: "wishlist-share-whatsapp",
+  /** "Guardar todos en mis favoritos" al ver una lista compartida (`?p=`). */
+  wishlistSaveAll: "wishlist-save-all",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];
