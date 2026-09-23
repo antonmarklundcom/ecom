@@ -36,7 +36,7 @@ import type { Executor, Tx } from './executor';
  * corrió" y los dos mandarían.
  */
 
-export type JobName = 'resumen_diario' | 'backup';
+export type JobName = 'resumen_diario' | 'backup' | 'vencer_pedidos';
 
 export type ClaimOptions = {
   /**
@@ -160,6 +160,40 @@ export async function finishJob(job: JobName, options: FinishOptions): Promise<v
       payload: (options.payload ?? null) as never,
     })
     .where(eq(jobRuns.job, job));
+}
+
+/**
+ * Deja constancia de una corrida que no necesita lock ni "una vez por día"
+ * (`vencer_pedidos`: cada paso ya bloquea su propia fila). Crea la fila si es
+ * la primera y la cierra como `finishJob`.
+ *
+ * Existe para poder contestar "¿el cron está andando?": sin él, los pedidos
+ * sin pagar no vencen, el stock queda reservado y no sale ningún recordatorio
+ * de pago — y nada se rompe a la vista.
+ */
+export async function recordJobRun(job: JobName, options: FinishOptions): Promise<void> {
+  const now = options.now ?? new Date();
+  const tx = options.executor ?? getDb();
+  await tx.execute(
+    sql`INSERT INTO \`job_runs\` (\`job\`, \`started_at\`, \`finished_at\`)
+        VALUES (${job}, ${now}, ${now})
+        ON DUPLICATE KEY UPDATE \`started_at\` = VALUES(\`started_at\`)`,
+  );
+  await finishJob(job, { ...options, now, executor: tx });
+}
+
+/**
+ * ¿El cron de vencimientos dejó de correr? `true` si nunca corrió bien o si
+ * su último éxito es más viejo que `maxMinutes` (corre cada 15 min: dos horas
+ * sin él son varias corridas perdidas, no un atraso).
+ */
+export function cronAtrasado(
+  run: { lastOkAt: Date | null } | null,
+  now: Date = new Date(),
+  maxMinutes = 120,
+): boolean {
+  if (!run?.lastOkAt) return true;
+  return now.getTime() - run.lastOkAt.getTime() > maxMinutes * 60_000;
 }
 
 /** El estado de un trabajo, para el panel y para los tests. */

@@ -1281,6 +1281,18 @@ export const esPY = {
   "panel.resumen.sinBanco.ayuda":
     "La página del pedido está avisando que no hay a dónde transferir, y la transferencia es el método principal de la tienda. Se cargan una vez y quedan.",
   "panel.resumen.sinBanco.link": "Cargar los datos bancarios →",
+  "panel.resumen.demo": "{n} producto(s) del catálogo de ejemplo siguen a la venta",
+  "panel.resumen.demo.ayuda":
+    "Son los que sembró el setup para ver la tienda andando (auriculares, termos, remeras…), con stock de mentira. Apagalos o borralos antes de publicitar la tienda: un pedido por uno de esos es un pedido que no se puede entregar.",
+  "panel.resumen.demo.link": "Ir a productos →",
+  "panel.resumen.sinZonas": "No hay zonas de envío activas: el envío sale gratis a todo el país",
+  "panel.resumen.sinZonas.ayuda":
+    "Sin zonas, el checkout cobra ₲0 de envío a cualquier ciudad y el costo lo pagás vos en cada pedido. Cargá al menos Asunción y una zona Interior sin ciudades, que haga de comodín.",
+  "panel.resumen.sinZonas.link": "Cargar las zonas de envío →",
+  "panel.resumen.cronNunca": "El cron de vencimientos nunca corrió",
+  "panel.resumen.cronParado": "El cron de vencimientos no corre desde el {cuando}",
+  "panel.resumen.cron.ayuda":
+    "Sin él, los pedidos sin pagar no vencen, el stock queda reservado para siempre y no sale ningún recordatorio de pago. Se configura en el hPanel → Avanzado → Cron Jobs, cada 15 minutos (DEPLOY.md §5).",
 
   "panel.resumen.ventasHoy": "Ventas de hoy",
   "panel.resumen.ventasMes": "Ventas del mes",
