@@ -8,10 +8,12 @@ import {
   contenidoBaseline,
   gitEn,
   MAQUINARIA,
+  maquinariaFaltante,
   MIXTOS,
   parseBaseline,
   parseCommits,
   remotoExiste,
+  rutasEn,
 } from './template-shared';
 
 /**
@@ -33,6 +35,12 @@ import {
  *   pnpm template:diff              # qué commits del template no están acá
  *   pnpm template:diff --marcar     # "ya me puse al día": guarda el SHA actual
  *   pnpm template:diff --marcar --origen  # el commit del que salió la tienda
+ *   pnpm template:diff --marcar --forzar  # marcar aunque falte maquinaria (no lo hagas)
+ *
+ * Además de la resta, lista la maquinaria del template que esta tienda no
+ * tiene (`maquinariaFaltante`), y `--marcar` se niega mientras falte algo:
+ * marcar "al día" con archivos de menos es exactamente cómo esos archivos
+ * dejaban de aparecer para siempre.
  *
  * Sin baseline todavía, igual sirve: compara los archivos de la maquinaria
  * contra el template y te dice cuáles difieren.
@@ -51,10 +59,18 @@ export type Opciones = {
   marcar: boolean;
   /** Con `--marcar`: el commit del que salió la tienda, no la punta del template. */
   origen: boolean;
+  /** Con `--marcar`: marcar aunque falte maquinaria. */
+  forzar: boolean;
 };
 
 export function parseArgs(argv: string[]): Opciones {
-  const opciones: Opciones = { remoto: 'template', rama: 'main', marcar: false, origen: false };
+  const opciones: Opciones = {
+    remoto: 'template',
+    rama: 'main',
+    marcar: false,
+    origen: false,
+    forzar: false,
+  };
 
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
@@ -65,6 +81,10 @@ export function parseArgs(argv: string[]): Opciones {
     }
     if (flag === '--origen') {
       opciones.origen = true;
+      continue;
+    }
+    if (flag === '--forzar') {
+      opciones.forzar = true;
       continue;
     }
     if (flag === '--remoto' || flag === '--rama') {
@@ -110,7 +130,12 @@ function main(): void {
   }
 
   const cabezaTemplate = git('rev-parse', ref).trim();
-
+  const enLaTienda = new Set(rutasEn(process.cwd(), 'HEAD'));
+  // Contra el commit que corresponde: la punta del template para el reporte,
+  // el commit que se va a marcar para `--marcar` (con `--origen`, el de la
+  // creación de la tienda: lo que el template sumó después no le falta).
+  const faltantesContra = (commit: string): string[] =>
+    maquinariaFaltante(rutasEn(process.cwd(), commit), (ruta) => enLaTienda.has(ruta));
   if (opciones.marcar) {
     const marca = opciones.origen ? commitDeOrigen(process.cwd(), ref) : cabezaTemplate;
     if (!marca) {
@@ -118,6 +143,20 @@ function main(): void {
         `\n✗ Ningún commit de ${ref} tiene el árbol del primer commit de esta tienda.\n` +
           '  Pasa con un repo que ya existía (bootstrap:repo). Buscá a mano de qué commit\n' +
           `  del template salió y escribilo en ${BASELINE_FILE}.\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const faltanAlMarcar = faltantesContra(marca);
+    if (faltanAlMarcar.length > 0 && !opciones.forzar) {
+      console.error(
+        `\n✗ No marco: a esta tienda le falta${faltanAlMarcar.length === 1 ? '' : 'n'} ${faltanAlMarcar.length} archivo(s) de maquinaria del template:\n`,
+      );
+      listarFaltantes(faltanAlMarcar, console.error);
+      console.error(
+        '\n  Marcar ahora los daría por traídos y no volverían a aparecer. Traelos con\n' +
+          '  `pnpm template:sync` (en una rama) y marcá después. Si de verdad querés\n' +
+          '  marcar igual: `pnpm template:diff --marcar --forzar`.\n',
       );
       process.exitCode = 1;
       return;
@@ -141,8 +180,16 @@ function main(): void {
 
   const commits = commitsClasificados(process.cwd(), baseline, ref);
 
+  const faltan = faltantesContra(cabezaTemplate);
+  if (faltan.length > 0) {
+    console.log(`\n! Falta${faltan.length === 1 ? '' : 'n'} ${faltan.length} archivo(s) de maquinaria del template en esta tienda:\n`);
+    listarFaltantes(faltan);
+    console.log('\n  `pnpm template:sync` (en una rama) los trae aunque el template no los haya cambiado.');
+  }
+
   if (commits.length === 0) {
-    console.log('\n✓ Esta tienda está al día con el template.\n');
+    if (faltan.length === 0) console.log('\n✓ Esta tienda está al día con el template.\n');
+    else console.log('\n  Commits nuevos del template: ninguno.\n');
     return;
   }
 
@@ -185,6 +232,12 @@ function main(): void {
       '    pnpm template:diff --marcar\n\n' +
       'Sin eso, los mismos commits vuelven a aparecer la próxima vez.\n',
   );
+}
+
+function listarFaltantes(faltan: readonly string[], imprimir: (linea: string) => void = console.log): void {
+  const MOSTRAR = 30;
+  for (const ruta of faltan.slice(0, MOSTRAR)) imprimir(`    ${ruta}`);
+  if (faltan.length > MOSTRAR) imprimir(`    … y ${faltan.length - MOSTRAR} más`);
 }
 
 function sinBaseline(ref: string): void {

@@ -9,6 +9,7 @@ import {
   parseArgs,
   resumenJson,
   resumenVacio,
+  versionMasVieja,
 } from '../../scripts/template-sync';
 
 /**
@@ -189,6 +190,32 @@ describe('fusionarPackageJson', () => {
     });
   });
 
+  it('una dependencia de la tienda más vieja que la del template pierde, aunque el template no la haya cambiado', () => {
+    // productos: el baseline ya tenía iron-session 9, la tienda seguía en 8 y
+    // la maquinaria no compilaba. Por clave era "cambio de la tienda" y ganaba.
+    const base = json({ dependencies: { 'iron-session': '^9.0.1', zod: '^4.0.0' } });
+    const tienda = json({ dependencies: { 'iron-session': '^8.0.4', zod: '^4.2.0' } });
+    const template = json({ dependencies: { 'iron-session': '^9.0.1', zod: '^4.0.0' } });
+
+    const resultado = fusionarPackageJson(base, tienda, template);
+    expect(JSON.parse(resultado!.contenido).dependencies).toEqual({
+      'iron-session': '^9.0.1',
+      // Más nueva que la del template: decisión de la tienda, se queda.
+      zod: '^4.2.0',
+    });
+    expect(resultado?.pisadas).toEqual(['dependencies.iron-session']);
+  });
+
+  it('una devDependency vieja también', () => {
+    const base = json({ devDependencies: { typescript: '^6.0.3' } });
+    const tienda = json({ devDependencies: { typescript: '^5.9.3' } });
+    const template = json({ devDependencies: { typescript: '^6.0.3' } });
+
+    expect(JSON.parse(fusionarPackageJson(base, tienda, template)!.contenido).devDependencies).toEqual({
+      typescript: '^6.0.3',
+    });
+  });
+
   it('JSON inválido de cualquier lado: null (vuelve al merge de líneas)', () => {
     expect(fusionarPackageJson('{}', '{ roto', '{}')).toBeNull();
   });
@@ -226,5 +253,21 @@ describe('resumenJson', () => {
     expect(
       resumenJson({ estado: 'conflicto', objetivo: 'fff', commits: [], resumen, commiteado: true, mensaje: 'm' }),
     ).toEqual({ estado: 'conflicto', objetivo: 'fff', commits: [], resumen, commiteado: true, mensaje: 'm' });
+  });
+});
+
+describe('versionMasVieja', () => {
+  it('compara el piso de cada rango', () => {
+    expect(versionMasVieja('^8.0.4', '^9.0.1')).toBe(true);
+    expect(versionMasVieja('19.2.8', '19.3.0')).toBe(true);
+    expect(versionMasVieja('~3.24.2', '^3.24.4')).toBe(true);
+    expect(versionMasVieja('^9.0.1', '^9.0.1')).toBe(false);
+    expect(versionMasVieja('^4.2.0', '^4.0.0')).toBe(false);
+  });
+
+  it('lo que no es un número de versión no se toca', () => {
+    expect(versionMasVieja('workspace:*', '^1.0.0')).toBe(false);
+    expect(versionMasVieja('latest', '^1.0.0')).toBe(false);
+    expect(versionMasVieja('^1.0.0', 'github:org/repo')).toBe(false);
   });
 });

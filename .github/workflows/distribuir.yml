@@ -74,10 +74,15 @@ jobs:
             echo "hay=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Sin TIENDAS_TOKEN, aviso y salgo
+      # En rojo, no en amarillo: con un aviso la corrida quedaba verde y la
+      # distribución no llegó a correr ni una vez en trece corridas (hasta
+      # 2026-09-24) sin que nadie se diera cuenta. Hay tiendas registradas y
+      # ninguna recibe nada: eso es una falla.
+      - name: Sin TIENDAS_TOKEN, falla
         if: steps.leer.outputs.tiendas != '[]' && steps.token.outputs.hay != 'true'
         run: |
-          echo "::warning::tiendas.json tiene entradas pero no hay secrets.TIENDAS_TOKEN configurado en este repo. Nada se distribuye hasta que Anton lo cargue: un token fine-grained con acceso a cada tienda y permisos Contents, Pull requests y Workflows en read and write (NEW-STORE.md § La distribución automática del template)."
+          echo "::error::tiendas.json tiene entradas pero no hay secrets.TIENDAS_TOKEN configurado en este repo, así que no se distribuye nada. Cargalo: un token fine-grained con acceso a cada tienda y permisos Contents, Pull requests y Workflows en read and write (NEW-STORE.md § La distribución automática del template)."
+          exit 1
 
   distribuir:
     needs: preparar

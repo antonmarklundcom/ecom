@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -13,13 +13,22 @@ import { TEMAS } from '../../scripts/nueva-tienda';
  * invisible en esa combinación de tema/modo. Esto lo lee de los `.css`
  * reales, no de memoria: es la única forma de que el test detecte un tema
  * nuevo que se escribió incompleto.
+ *
+ * Los temas son **todos los `.css` de `src/styles/temas/`**, no la lista
+ * `TEMAS` del wizard: una tienda con su propio tema (NEW-STORE.md §5) no
+ * tiene que tocar `scripts/nueva-tienda.ts`, que es maquinaria y chocaría en
+ * el próximo `template:sync`. `TEMAS` sólo tiene que existir en disco.
  */
 
+const DIR_TEMAS = path.join('src', 'styles', 'temas');
+const TEMAS_EN_DISCO = readdirSync(DIR_TEMAS)
+  .filter((archivo) => archivo.endsWith('.css'))
+  .map((archivo) => archivo.replace(/\.css$/, ''))
+  // neutro primero: es la referencia contra la que se comparan los demás.
+  .sort((a, b) => (a === 'neutro' ? -1 : b === 'neutro' ? 1 : a.localeCompare(b)));
+
 function leerTema(nombre: string): string {
-  return readFileSync(
-    path.join('src', 'styles', 'temas', `${nombre}.css`),
-    'utf8',
-  );
+  return readFileSync(path.join(DIR_TEMAS, `${nombre}.css`), 'utf8');
 }
 
 /** El bloque `selector { … }` de nivel superior, o null si no está. */
@@ -44,23 +53,29 @@ function variables(bloqueCss: string): string[] {
 }
 
 describe('kit de piel: paridad de variables entre temas', () => {
-  const porTema = Object.fromEntries(TEMAS.map((tema) => [tema, leerTema(tema)]));
+  const porTema = Object.fromEntries(TEMAS_EN_DISCO.map((tema) => [tema, leerTema(tema)]));
+
+  it('los temas que ofrece el wizard existen en disco', () => {
+    for (const tema of TEMAS) {
+      expect(TEMAS_EN_DISCO, `falta src/styles/temas/${tema}.css`).toContain(tema);
+    }
+  });
 
   it('todos los archivos existen y no están vacíos', () => {
-    for (const tema of TEMAS) {
+    for (const tema of TEMAS_EN_DISCO) {
       expect(porTema[tema]?.length ?? 0, `${tema}.css está vacío`).toBeGreaterThan(0);
     }
   });
 
   it('cada tema define un bloque :root y un bloque .dark', () => {
-    for (const tema of TEMAS) {
+    for (const tema of TEMAS_EN_DISCO) {
       expect(bloque(porTema[tema] ?? '', ':root'), `${tema}.css sin :root`).not.toBeNull();
       expect(bloque(porTema[tema] ?? '', '.dark'), `${tema}.css sin .dark`).not.toBeNull();
     }
   });
 
   it('todos los :root definen exactamente el mismo conjunto de variables', () => {
-    const [primero, ...resto] = TEMAS;
+    const [primero = 'neutro', ...resto] = TEMAS_EN_DISCO;
     const base = new Set(variables(bloque(porTema[primero] ?? '', ':root') ?? ''));
     expect(base.size, 'neutro.css:root no tiene variables').toBeGreaterThan(0);
 
@@ -71,7 +86,7 @@ describe('kit de piel: paridad de variables entre temas', () => {
   });
 
   it('todos los .dark definen exactamente el mismo conjunto de variables', () => {
-    const [primero, ...resto] = TEMAS;
+    const [primero = 'neutro', ...resto] = TEMAS_EN_DISCO;
     const base = new Set(variables(bloque(porTema[primero] ?? '', '.dark') ?? ''));
     expect(base.size, 'neutro.css .dark no tiene variables').toBeGreaterThan(0);
 
@@ -82,7 +97,7 @@ describe('kit de piel: paridad de variables entre temas', () => {
   });
 
   it('cada tema documenta para quién es, las fuentes y las líneas de layout.tsx', () => {
-    for (const tema of TEMAS) {
+    for (const tema of TEMAS_EN_DISCO) {
       const source = porTema[tema] ?? '';
       const cabecera = source.slice(0, source.indexOf('*/') + 2);
       expect(cabecera, `${tema}.css sin "Para quién"`).toMatch(/Para qui[ée]n/i);
@@ -107,7 +122,7 @@ describe('kit de piel: paridad de variables entre temas', () => {
     const globals = readFileSync(path.join('src', 'app', 'globals.css'), 'utf8');
     const match = /@import\s+"\.\.\/styles\/temas\/([a-z0-9-]+)\.css";/.exec(globals);
     expect(match, 'globals.css no tiene el @import de un tema').not.toBeNull();
-    expect(TEMAS as readonly string[]).toContain(match?.[1]);
+    expect(TEMAS_EN_DISCO).toContain(match?.[1]);
     expect(globals).not.toMatch(/^:root\s*\{/m);
     expect(globals).not.toMatch(/^\.dark\s*\{/m);
   });

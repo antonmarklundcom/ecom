@@ -120,6 +120,32 @@ export const DOCS_DEL_TEMPLATE = ['KNOWN-ISSUES.md', 'ARCH.md', 'NEW-STORE.md', 
 
 export const BASELINE_FILE = '.template-baseline';
 
+/**
+ * Maquinaria del template que la tienda no tiene, sin importar cuándo cambió.
+ *
+ * `template:sync` mira lo que el template cambió desde el baseline, y
+ * `template:diff --marcar` mueve el baseline sin mirar nada. Juntos dejaban un
+ * agujero: un archivo de maquinaria que a la tienda le faltaba al marcar ya no
+ * volvía a aparecer nunca, porque el template no lo tocaba más. Así llegó
+ * productos a septiembre de 2026 sin `src/lib/spreadsheet.ts` mientras
+ * `admin-products.ts` —que lo importa— sí llegaba: la tienda compilaba en rojo
+ * y nada lo avisaba. Esto es la foto completa, no la resta.
+ *
+ * Pura: recibe las rutas del template (en el commit objetivo) y cómo saber si
+ * la tienda tiene una.
+ */
+export function maquinariaFaltante(
+  rutasTemplate: Iterable<string>,
+  laTiendaTiene: (ruta: string) => boolean,
+): string[] {
+  const faltan: string[] = [];
+  for (const ruta of rutasTemplate) {
+    if (ruta === BASELINE_FILE || esSoloTemplate(ruta) || !esMaquinaria(ruta)) continue;
+    if (!laTiendaTiene(ruta)) faltan.push(ruta);
+  }
+  return faltan.sort();
+}
+
 export type Commit = { sha: string; asunto: string; maquinaria: boolean; mixto: boolean };
 
 /** `git log --format=%h %s` (o `%H %s`) → filas. Ignora líneas vacías del final. */
@@ -250,4 +276,11 @@ export function commitsClasificados(cwd: string, baseline: string, ref: string):
     shasQueTocan(MAQUINARIA),
     shasQueTocan(MIXTOS),
   );
+}
+
+/** Las rutas versionadas en `ref` (un commit, rama o `HEAD`). */
+export function rutasEn(cwd: string, ref: string): string[] {
+  return gitEn(cwd, ['ls-tree', '-r', '-z', '--name-only', '--full-tree', ref])
+    .split('\0')
+    .filter((ruta) => ruta !== '');
 }

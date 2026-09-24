@@ -25,6 +25,24 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **`template:sync` trae la maquinaria que le falta a la tienda**, aunque el
+  template no la haya cambiado desde el baseline. Antes sólo miraba lo que
+  cambió en `baseline..objetivo`, y un baseline marcado "al día" con archivos
+  de menos los escondía para siempre: productos llegó a 15 archivos faltantes
+  (`src/lib/spreadsheet.ts` entre ellos, que `admin-products.ts` importa) sin
+  que nada lo avisara. La piel que falta se sigue respetando.
+- **`template:diff` lista esa maquinaria faltante, y `--marcar` se niega**
+  mientras falte algo (`--forzar` para marcar igual).
+- **Dependencias más viejas que las del template:** en `package.json`, una
+  versión de la tienda más vieja que la del template pierde siempre (se lista
+  como pisada). Antes contaba como "cambio de la tienda" y se quedaba:
+  productos siguió con `iron-session` 8 y React 19.2 y el build no pasaba.
+- **Temas propios sin tocar maquinaria:** `tests/unit/temas.test.ts` revisa
+  todos los `.css` de `src/styles/temas/`; una tienda con su tema ya no tiene
+  que sumarlo a `TEMAS` en `scripts/nueva-tienda.ts` (NEW-STORE.md §5).
+- **`distribuir.yml` falla sin `TIENDAS_TOKEN`** en vez de terminar en verde
+  con un aviso: en trece corridas no distribuyó nada y nadie se enteró.
+
 Migración: sí (`product_reviews`, `order_returns`, `order_return_items`,
 `store_settings`).
 
