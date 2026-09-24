@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -369,9 +369,13 @@ describe('el tema del kit de piel (--tema)', () => {
     expect(() => escribirTema('body { color: red; }\n', 'calido')).toThrow(/globals\.css/);
   });
 
-  it('el globals.css real importa uno de los temas registrados', () => {
+  it('el globals.css real importa un tema que existe en src/styles/temas', () => {
+    // Un tema propio de la tienda (NEW-STORE.md §5) no tiene por qué estar en
+    // TEMAS —esa lista es lo que ofrece el wizard—, pero el archivo sí.
     const real = readFileSync(path.join('src', 'app', 'globals.css'), 'utf8');
-    expect(TEMAS as readonly string[]).toContain(leerTemaActual(real));
+    const tema = /@import\s+"\.\.\/styles\/temas\/([a-z0-9-]+)\.css";/.exec(real)?.[1];
+    expect(tema, 'globals.css no tiene el @import de un tema').toBeDefined();
+    expect(existsSync(path.join('src', 'styles', 'temas', `${tema}.css`))).toBe(true);
   });
 });
 

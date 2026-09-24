@@ -164,6 +164,41 @@ describe('template:sync contra git de verdad', () => {
     expect(ejecutarSync(tienda, OPCIONES).estado).toBe('sin-cambios');
   });
 
+  it('maquinaria que le falta a la tienda vuelve aunque el template no la haya tocado desde el baseline', () => {
+    // El agujero por el que productos perdió 15 archivos: un baseline marcado
+    // "al día" con maquinaria de menos. Como el template no volvía a cambiar
+    // esos archivos, el diff baseline..objetivo nunca los mostraba.
+    const { template, tienda } = armarEscenario();
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe('completado');
+
+    gitEn(tienda, ['rm', '-q', 'src/lib/spreadsheet.ts']);
+    commit(tienda, 'Se perdió en un sync viejo');
+
+    // Sin nada nuevo en el template: igual hay algo que hacer.
+    const sinNovedades = ejecutarSync(tienda, OPCIONES);
+    expect(sinNovedades.estado).toBe('completado');
+    if (sinNovedades.estado !== 'completado') throw new Error('no debería pasar');
+    expect(sinNovedades.resumen.restaurados).toEqual(['src/lib/spreadsheet.ts']);
+    expect(leer(tienda, 'src/lib/spreadsheet.ts')).toBe('export const v = 2;\n');
+
+    // Con novedades que no lo tocan: también vuelve, junto con lo nuevo.
+    gitEn(tienda, ['rm', '-q', 'src/lib/spreadsheet.ts']);
+    commit(tienda, 'Se perdió otra vez');
+    escribir(template, 'src/domain/otro.ts', 'export const otro = 1;\n');
+    commit(template, 'C2 maquinaria que no toca spreadsheet');
+
+    const conNovedades = ejecutarSync(tienda, OPCIONES);
+    if (conNovedades.estado !== 'completado') throw new Error(`estado ${conNovedades.estado}`);
+    expect(conNovedades.resumen.restaurados).toEqual(['src/lib/spreadsheet.ts']);
+    expect(existe(tienda, 'src/domain/otro.ts')).toBe(true);
+
+    // La piel que la tienda no tiene no se toca: eso sí puede ser una decisión.
+    gitEn(tienda, ['rm', '-q', 'src/components/hero.tsx']);
+    commit(tienda, 'Sin hero');
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe('sin-cambios');
+    expect(existe(tienda, 'src/components/hero.tsx')).toBe(false);
+  });
+
   it('trae los commits de un PR mergeado y el baseline queda en el merge', () => {
     const { template, tienda } = armarEscenario();
     gitEn(template, ['checkout', '-b', 'arreglo']);

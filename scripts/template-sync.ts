@@ -13,6 +13,7 @@ import {
   esMixto,
   esSoloTemplate,
   gitEn,
+  maquinariaFaltante,
   parseBaseline,
   remotoExiste,
   SOLO_TEMPLATE,
@@ -31,6 +32,7 @@ import {
  *   - la tienda nunca lo tocó        → queda el del template (nuevo, cambiado o borrado)
  *   - doc del template (ARCH.md…)    → queda el del template
  *   - maquinaria que la tienda borró → se restaura (la maquinaria no se saca por tienda)
+ *   - maquinaria que la tienda nunca tuvo → se restaura aunque el template no la haya cambiado
  *   - maquinaria cambiada de los dos lados → merge de 3 vías; si choca, conflicto
  *   - piel o docs que la tienda cambió → quedan los de la tienda (se listan)
  *   - `fable/`, Dependabot, `tiendas.json` → nunca viajan
@@ -230,6 +232,14 @@ function igualJson(a: unknown, b: unknown): boolean {
  * lo gana el template, porque la maquinaria que viene con él se probó con esa
  * versión. Esas claves vuelven en `pisadas` para listarlas en el PR.
  *
+ * Una excepción: en `dependencies`/`devDependencies`, una versión de la
+ * tienda **más vieja** que la del template pierde siempre, aunque el template
+ * no la haya cambiado desde el baseline. Casi nunca es una decisión de la
+ * tienda sino un baseline marcado sin traer todo (productos quedó con
+ * `iron-session` 8 cuando la maquinaria ya usaba la API de la 9, y el build no
+ * pasaba). La maquinaria se prueba con la versión del template; si una tienda
+ * de verdad necesita una más vieja, que la fije después del sync.
+ *
  * Devuelve `null` si alguno de los tres no es JSON válido.
  */
 export function fusionarPackageJson(
@@ -278,6 +288,14 @@ export function fusionarPackageJson(
 
       if (esObjeto(vt) && esObjeto(vm)) {
         valor = fusionarNivel(esObjeto(vb) ? vb : {}, vt, vm, ruta);
+      } else if (
+        SECCIONES_DE_DEPENDENCIAS.includes(camino) &&
+        typeof vt === 'string' &&
+        typeof vm === 'string' &&
+        versionMasVieja(vt, vm)
+      ) {
+        valor = vm;
+        if (!igualJson(vt, vb)) pisadas.push(ruta);
       } else if (igualJson(vt, vm) || igualJson(vt, vb)) {
         valor = vm;
       } else if (igualJson(vm, vb)) {
@@ -294,6 +312,30 @@ export function fusionarPackageJson(
 
   const fusionado = fusionarNivel(esObjeto(b) ? b : {}, t, m, '');
   return { contenido: `${JSON.stringify(fusionado, null, 2)}\n`, pisadas };
+}
+
+const SECCIONES_DE_DEPENDENCIAS = ['dependencies', 'devDependencies'];
+
+/** `"^8.0.4"` → `[8, 0, 4]`; `null` si no empieza con un número (`workspace:*`, una URL, `latest`). */
+function numerosDeVersion(rango: string): number[] | null {
+  const match = /^[\^~>=v\s]*(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(rango);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
+}
+
+/**
+ * ¿`tienda` pide una versión más vieja que `template`? Compara el piso de cada
+ * rango (`^8.0.4` < `^9.0.1`). Ante cualquier cosa que no sea un número de
+ * versión, `false`: no se pisa lo que no se entiende.
+ */
+export function versionMasVieja(tienda: string, template: string): boolean {
+  const a = numerosDeVersion(tienda);
+  const b = numerosDeVersion(template);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i]! !== b[i]!) return a[i]! < b[i]!;
+  }
+  return false;
 }
 
 export function esTest(ruta: string): boolean {
@@ -542,22 +584,16 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
     };
   }
 
-  if (objetivo === gitEn(cwd, ['rev-parse', `${baseline}^{commit}`]).trim()) {
-    return { estado: 'sin-cambios' };
-  }
-
   const commits = commitsClasificados(cwd, baseline, objetivo);
   const enBase = blobsDe(cwd, baseline);
   const enTienda = blobsDe(cwd, 'HEAD');
   const enObjetivo = blobsDe(cwd, objetivo);
 
-  // Sólo lo que el template cambió desde el baseline. Lo que no cambió en el
-  // medio es asunto de la tienda aunque le falte: el baseline dice "hasta acá
-  // estoy al día", y restaurar un archivo que la tienda nunca tuvo (una
-  // función que decidió no usar, sin su dependencia) la deja en rojo.
-  const plan: ArchivoPlan[] = rutasZ(
+  // Lo que el template cambió desde el baseline, archivo por archivo…
+  const cambiados = rutasZ(
     gitEn(cwd, ['diff', '--name-only', '-z', '--no-renames', baseline, objetivo]),
-  ).map((ruta) => ({
+  );
+  const plan: ArchivoPlan[] = cambiados.map((ruta) => ({
     ruta,
     accion: decidirArchivo(ruta, {
       base: enBase.get(ruta) ?? null,
@@ -565,6 +601,17 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
       template: enObjetivo.get(ruta) ?? null,
     }),
   }));
+
+  // …más la maquinaria que le falta a la tienda aunque el template no la haya
+  // tocado en el medio. Antes esto se salteaba ("el baseline dice que estoy al
+  // día"), pero un baseline marcado a mano no prueba nada: la maquinaria viaja
+  // junta, y un archivo que falta deja en rojo a los que sí llegan y lo
+  // importan (ver `maquinariaFaltante`).
+  const enElPlan = new Set(cambiados);
+  for (const ruta of maquinariaFaltante(enObjetivo.keys(), (r) => enTienda.has(r))) {
+    if (!enElPlan.has(ruta)) plan.push({ ruta, accion: 'restaurar' });
+  }
+  plan.sort((a, b) => (a.ruta < b.ruta ? -1 : a.ruta > b.ruta ? 1 : 0));
 
   const soloTemplate = soloTemplateVersionado(cwd);
 

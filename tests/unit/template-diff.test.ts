@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { maquinariaFaltante } from '../../scripts/template-shared';
 import {
   BASELINE_FILE,
   clasificar,
@@ -23,7 +24,13 @@ import {
 
 describe('parseArgs', () => {
   it('por defecto mira template/main sin marcar nada', () => {
-    expect(parseArgs([])).toEqual({ remoto: 'template', rama: 'main', marcar: false, origen: false });
+    expect(parseArgs([])).toEqual({
+      remoto: 'template',
+      rama: 'main',
+      marcar: false,
+      origen: false,
+      forzar: false,
+    });
   });
 
   it('acepta otro remoto y otra rama', () => {
@@ -32,6 +39,7 @@ describe('parseArgs', () => {
       rama: 'produccion',
       marcar: false,
       origen: false,
+      forzar: false,
     });
   });
 
@@ -41,6 +49,11 @@ describe('parseArgs', () => {
 
   it('--origen marca el commit del que salió la tienda, no la punta', () => {
     expect(parseArgs(['--marcar', '--origen'])).toMatchObject({ marcar: true, origen: true });
+  });
+
+  it('--forzar marca aunque falte maquinaria (el default es negarse)', () => {
+    expect(parseArgs(['--marcar']).forzar).toBe(false);
+    expect(parseArgs(['--marcar', '--forzar'])).toMatchObject({ marcar: true, forzar: true });
   });
 
   it('una opción desconocida o sin valor no se ignora', () => {
@@ -218,5 +231,36 @@ describe('clasificar', () => {
     expect(
       MAQUINARIA.some((ruta) => 'src/components/checkout-form.tsx'.startsWith(`${ruta}/`)),
     ).toBe(false);
+  });
+});
+
+describe('maquinariaFaltante', () => {
+  const tiene = (rutas: string[]) => (ruta: string) => rutas.includes(ruta);
+
+  it('lista la maquinaria que la tienda no tiene, aunque el template no la haya cambiado', () => {
+    // El caso de productos: src/lib/spreadsheet.ts faltaba con el baseline al
+    // día, y admin-products.ts (que lo importa) sí estaba.
+    const template = ['src/lib/spreadsheet.ts', 'src/app/actions/admin-products.ts', 'tests/unit/log.test.ts'];
+    expect(maquinariaFaltante(template, tiene(['src/app/actions/admin-products.ts']))).toEqual([
+      'src/lib/spreadsheet.ts',
+      'tests/unit/log.test.ts',
+    ]);
+  });
+
+  it('la piel, lo que es sólo del template y el baseline no cuentan', () => {
+    const template = [
+      'src/components/site-header.tsx',
+      'src/styles/temas/calido.css',
+      'fable/plan.md',
+      'tiendas.json',
+      '.github/dependabot.yml',
+      BASELINE_FILE,
+    ];
+    expect(maquinariaFaltante(template, tiene([]))).toEqual([]);
+  });
+
+  it('una tienda con todo: nada', () => {
+    const template = ['src/domain/orders.ts', 'package.json'];
+    expect(maquinariaFaltante(template, tiene(template))).toEqual([]);
   });
 });
