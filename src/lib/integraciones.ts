@@ -322,3 +322,11 @@ export function resumirIntegracion<N extends Integracion>(
     .map((campo) => defs.find((def) => def.campo === campo)?.env ?? campo);
   return { estado: "incompleta", faltan };
 }
+
+/**
+ * El lector del `cloud_name` que usa `src/lib/images.ts` sin importar este
+ * módulo (se usa en componentes cliente y el presupuesto de JS de la home no
+ * da para la tabla de campos). Se registra al cargar este archivo.
+ */
+(globalThis as { [K: symbol]: unknown })[Symbol.for("ecom.integraciones.cloudName")] = (): string | null =>
+  integracion("cloudinary").valores.cloudName;
