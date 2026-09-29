@@ -8,8 +8,10 @@ import { toast } from "sonner";
 
 import {
   guardarAjustes,
+  quitarImagenMarca,
   quitarImagenPortada,
   restaurarAjustes,
+  subirImagenMarca,
   subirImagenPortada,
 } from "@/app/actions/admin-ajustes";
 import { Button } from "@/components/ui/button";
@@ -234,6 +236,110 @@ export function HeroImagePanel({
               accept="image/jpeg,image/png,image/webp"
               required
             />
+          </div>
+          <Button type="submit" disabled={isPending}>
+            {isPending ? t("panel.fotos.subiendo") : t("panel.ajustes.marca.imagenSubir")}
+          </Button>
+        </form>
+      ) : (
+        <p className="text-muted-foreground text-xs">{t("panel.ajustes.marca.sinCloudinary")}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * El logo o el favicon de la tienda (`/admin/ajustes` → Identidad): subirlo a
+ * Cloudinary o sacarlo. Mismo patrón que la foto de portada.
+ */
+export function MarcaImagenPanel({
+  tipo,
+  imagenUrl,
+  habilitado,
+}: {
+  tipo: "logo" | "favicon";
+  imagenUrl: string | null;
+  habilitado: boolean;
+}) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const titulo = tipo === "logo" ? t("panel.ajustes.identidad.logo") : t("panel.ajustes.identidad.favicon");
+  const ayuda = tipo === "logo" ? t("panel.ajustes.identidad.logoAyuda") : t("panel.ajustes.identidad.faviconAyuda");
+  const inputId = `ajustes-${tipo}-archivo`;
+
+  return (
+    <div className="border-border grid gap-3 rounded-lg border p-3">
+      <p className="text-sm font-medium">{titulo}</p>
+      <p className="text-muted-foreground text-xs">{ayuda}</p>
+
+      {error ? (
+        <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm">
+          {error}
+        </p>
+      ) : null}
+
+      {imagenUrl ? (
+        <div className="flex flex-wrap items-center gap-4">
+          <div
+            className={
+              tipo === "logo"
+                ? "border-border relative h-12 w-40 overflow-hidden rounded-lg border"
+                : "border-border relative size-12 overflow-hidden rounded-lg border"
+            }
+          >
+            <Image src={imagenUrl} alt="" fill unoptimized sizes="160px" className="object-contain" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isPending}
+            onClick={() => {
+              setError(null);
+              startTransition(async () => {
+                const result = await quitarImagenMarca({ tipo });
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                toast.success(t("panel.ajustes.marca.imagenQuitada"));
+                router.refresh();
+              });
+            }}
+          >
+            {t("panel.ajustes.marca.imagenQuitar")}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">{t("panel.ajustes.identidad.sinImagen")}</p>
+      )}
+
+      {habilitado ? (
+        <form
+          ref={formRef}
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError(null);
+            const data = new FormData(event.currentTarget);
+            data.set("tipo", tipo);
+            startTransition(async () => {
+              const result = await subirImagenMarca(data);
+              if (!result.ok) {
+                setError(result.error);
+                return;
+              }
+              formRef.current?.reset();
+              toast.success(t("panel.ajustes.marca.imagenSubida"));
+              router.refresh();
+            });
+          }}
+        >
+          <div className="grid gap-1.5">
+            <Label htmlFor={inputId}>{t("panel.ajustes.marca.imagenArchivo")}</Label>
+            <Input id={inputId} name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
           </div>
           <Button type="submit" disabled={isPending}>
             {isPending ? t("panel.fotos.subiendo") : t("panel.ajustes.marca.imagenSubir")}

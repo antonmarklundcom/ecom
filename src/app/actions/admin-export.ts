@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/db/schema";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { listOrdersForExport } from "@/domain/admin-orders";
@@ -168,7 +168,7 @@ export async function exportMarketingOptInsCsv(): Promise<AdminActionResult<CsvE
   try {
     await requireOwnerSession();
 
-    if (!cuentasClientesHabilitadas()) {
+    if (!(await cuentasClientesHabilitadas())) {
       return { ok: false, error: t("adminError.sinCuentasClientes") };
     }
 

@@ -69,6 +69,25 @@ const PaginaSchema = seccion({
 });
 
 export const StoreSettingsSchema = z.object({
+  /**
+   * La identidad de la tienda: nombre, logo, favicon y color de marca. Todo
+   * `null` = lo de `src/config/tienda.ts` y el tema de `globals.css`, como
+   * antes de que existiera esta sección.
+   */
+  identidad: seccion({
+    nombre: texto,
+    /** `public_id` en la carpeta pública `marca/` de Cloudinary. */
+    logoId: texto,
+    faviconId: texto,
+    /** `#RRGGBB`. Pisa `--primary` del tema; el texto encima se elige solo. */
+    colorPrimario: texto,
+  }),
+  /**
+   * Cuentas de cliente. `null` = lo que dice `TIENDA.cuentasClientes`.
+   */
+  cuentas: seccion({
+    activas: z.boolean().nullable().catch(null),
+  }),
   marca: seccion({
     tagline: texto,
     seoTitulo: texto,
@@ -258,7 +277,33 @@ const PaginaInput = z
 
 const DIAS = 90;
 
+/** `#1a2b3c`. Sin `#abc` corto ni nombres: un solo formato para guardar. */
+export const COLOR_HEX = /^#[0-9a-f]{6}$/;
+
 export const SECTION_INPUT = {
+  identidad: z
+    .object({
+      nombre: textoHasta(60, t("panel.ajustes.identidad.nombre")),
+      logoId: textoHasta(255, t("panel.ajustes.identidad.logo")),
+      faviconId: textoHasta(255, t("panel.ajustes.identidad.favicon")),
+      colorPrimario: z.preprocess(
+        (valor) => {
+          const valorLimpio = limpio(valor);
+          return typeof valorLimpio === "string" ? valorLimpio.toLowerCase() : valorLimpio;
+        },
+        z
+          .string()
+          .regex(COLOR_HEX, t("adminError.ajustes.color"))
+          .nullable()
+          .default(null),
+      ),
+    })
+    .strict(),
+  cuentas: z
+    .object({
+      activas: z.boolean().nullable().default(null),
+    })
+    .strict(),
   marca: z
     .object({
       tagline: textoHasta(200, t("panel.ajustes.marca.tagline")),
@@ -467,4 +512,45 @@ export function lineasDeConfianza(checkout: StoreSettings["checkout"]): string[]
     t("checkout.confianza.linea2"),
     t("checkout.confianza.linea3"),
   ];
+}
+
+/** El nombre que se ve: el del panel o, si no hay, el de `tienda.ts`. */
+export function nombreEfectivo(identidad: StoreSettings["identidad"], porDefecto: string): string {
+  return identidad.nombre?.trim() || porDefecto;
+}
+
+/** ¿Hay cuentas de cliente? El panel decide; sin decisión, `tienda.ts`. */
+export function cuentasEfectivas(cuentas: StoreSettings["cuentas"], porDefecto: boolean): boolean {
+  return cuentas.activas ?? porDefecto;
+}
+
+/**
+ * El color de marca como variables CSS, o `null` si no hay (o si lo guardado
+ * no tiene la forma esperada: el valor termina en un atributo `style`, así que
+ * se revalida al leer). El texto encima del color se elige por contraste
+ * (luminancia relativa de WCAG): blanco sobre colores oscuros, casi negro
+ * sobre claros — el dueño elige un color, no un par.
+ */
+export function variablesDeColor(
+  identidad: StoreSettings["identidad"],
+): Record<"--primary" | "--primary-foreground" | "--ring", string> | null {
+  const color = identidad.colorPrimario?.toLowerCase() ?? "";
+  if (!COLOR_HEX.test(color)) return null;
+  return {
+    "--primary": color,
+    "--primary-foreground": textoSobre(color),
+    "--ring": color,
+  };
+}
+
+function textoSobre(hex: string): string {
+  const canal = (inicio: number): number => {
+    const valor = parseInt(hex.slice(inicio, inicio + 2), 16) / 255;
+    return valor <= 0.03928 ? valor / 12.92 : ((valor + 0.055) / 1.055) ** 2.4;
+  };
+  const luminancia = 0.2126 * canal(1) + 0.7152 * canal(3) + 0.0722 * canal(5);
+  // Contraste contra blanco vs. contra casi negro (#171717): gana el mayor.
+  const contraBlanco = 1.05 / (luminancia + 0.05);
+  const contraNegro = (luminancia + 0.05) / (0.0080 + 0.05);
+  return contraBlanco >= contraNegro ? "#ffffff" : "#171717";
 }

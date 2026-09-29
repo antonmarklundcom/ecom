@@ -216,7 +216,15 @@ símbolos raros.
 ## 4. Primer deploy de una tienda nueva
 
 Sin SSH y sin Node instalado en el servidor: la app que ya está corriendo se
-inicializa sola con un curl.
+inicializa sola.
+
+**El camino corto, sin terminal:** con `SETUP_SECRET` cargado y la app
+deployada, abrí **`https://DOMAIN/setup`**, pegá el secreto, el email y la
+contraseña del dueño, y apretá "Inicializar". Es exactamente el mismo POST que
+el curl de abajo (mismo candado, misma respuesta: los pasos y lo que falta para
+cobrar). Sin `SETUP_SECRET` esa página no existe. El curl sigue sirviendo para
+lo que el formulario no ofrece (las zonas de envío en bloque, o para
+automatizarlo).
 
 1. **Cargá las variables** en el hPanel (punto 1), incluida `SETUP_SECRET` —
    mínimo 16 caracteres, `openssl rand -base64 32`.

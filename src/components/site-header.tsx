@@ -1,13 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
 
-import { TIENDA } from "@/config/tienda";
 import { CartButton } from "@/components/cart-button";
 import { CuentaHeaderEntry } from "@/components/cuenta/header-entry";
 import { SearchBox } from "@/components/search-box";
 import { WishlistHeaderLink } from "@/components/wishlist-header-link";
 import { getCategories } from "@/db/queries";
 import { t } from "@/i18n";
+import { marcaEfectiva } from "@/lib/marca";
 import { TESTIDS } from "@/lib/testids";
 
 export async function SiteHeader() {
@@ -17,12 +17,20 @@ export async function SiteHeader() {
   } catch {
     // Sin base todavía: el header se dibuja igual, sin el menú.
   }
+  // Nombre y logo de /admin/ajustes → Identidad, o los de `tienda.ts`.
+  const marca = await marcaEfectiva();
 
   return (
     <header className="border-border bg-background/95 sticky top-0 z-30 border-b backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
         <Link href="/" className="text-lg font-semibold tracking-tight">
-          {TIENDA.nombre}
+          {marca.logoUrl ? (
+            // `<img>` y no `next/image`: Cloudinary ya lo entrega al tamaño justo.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={marca.logoUrl} alt={marca.nombre} className="h-8 w-auto sm:h-10" />
+          ) : (
+            marca.nombre
+          )}
         </Link>
 
         <Suspense fallback={null}>

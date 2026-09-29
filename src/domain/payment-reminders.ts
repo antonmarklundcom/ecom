@@ -11,6 +11,7 @@ import {
   resolveCustomerNotifier,
   type CustomerNotifier,
 } from './order-customer-notifications';
+import { nombreTienda } from '@/lib/marca';
 
 /**
  * El recordatorio de pago antes del vencimiento (plan-crecimiento §5.2).
@@ -127,7 +128,7 @@ export async function sendPaymentReminders(
         await withTimeout(
           notifier.sender.send({
             to: pedido.customerPhone,
-            body: customerNoticeBody('recordatorio', pedido),
+            body: customerNoticeBody('recordatorio', pedido, { tienda: await nombreTienda() }),
             templateName: notifier.templateName,
           }),
           AVISO_TIMEOUT_MS,

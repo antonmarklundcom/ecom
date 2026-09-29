@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type React from "react";
 
-import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 
 /**
  * La puerta de `/cuenta/*` (PLAN.md FASE 2, PR E).
@@ -18,7 +18,7 @@ import { cuentasClientesHabilitadas } from "@/config/tienda";
  */
 export const dynamic = "force-dynamic";
 
-export default function CuentaLayout({ children }: { children: React.ReactNode }) {
-  if (!cuentasClientesHabilitadas()) notFound();
+export default async function CuentaLayout({ children }: { children: React.ReactNode }) {
+  if (!(await cuentasClientesHabilitadas())) notFound();
   return <>{children}</>;
 }

@@ -7,6 +7,7 @@ import {
 } from "../src/domain/admin-shipping-methods";
 import { preflight, type PreflightCheck } from "../src/domain/preflight";
 import { listShippingZones } from "../src/domain/shipping";
+import { readStoreSettings } from "../src/domain/store-settings";
 import { leerIntegracionesDelPanel } from "../src/lib/integraciones-store";
 
 /**
@@ -104,7 +105,15 @@ async function main(): Promise<void> {
   // dónde sale. Si la base no contesta, el reporte sigue con el entorno y lo
   // dice en un control propio.
   const panel = await leerIntegracionesDelPanel();
-  const report = preflight(process.env, panel);
+  // El nombre y las cuentas de cliente también se deciden en /admin/ajustes.
+  // Sin base, `tienda.ts` (lo dice el control de lectura de arriba).
+  const ajustes = await readStoreSettings()
+    .then(({ settings }) => ({
+      nombreTienda: settings.identidad.nombre,
+      cuentasClientes: settings.cuentas.activas,
+    }))
+    .catch(() => ({}));
+  const report = preflight(process.env, panel, ajustes);
 
   console.log("\nPreflight — lo que falta para cobrar de verdad\n");
 

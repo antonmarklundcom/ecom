@@ -230,8 +230,14 @@ archivo (`tests/unit/marca-centralizada.test.ts`). Si te grita, la solución es
 leer de `TIENDA`, no agregar una excepción. Y si te salteás este paso entero,
 `pnpm preflight` bloquea: una tienda con `nombre: "TiendaPY"` no cobra.
 
-Cambiá también el favicon (`src/app/favicon.ico`) — eso ningún control lo
-verifica, así que va en la misma pasada.
+**O, mejor, desde el panel:** `/admin/ajustes` → **Identidad** carga el
+nombre, el logo, el favicon y el color de marca con la tienda ya arriba, sin
+tocar código ni redeployar (§4a-quater). Lo de `tienda.ts` queda como default
+de lo que el dueño no cargue, y `pnpm preflight` acepta el nombre de cualquiera
+de los dos lados.
+
+El favicon por defecto es `src/app/favicon.ico`; el que se sube en Identidad lo
+pisa. Ningún control lo verifica, así que va en la misma pasada.
 
 Dos cosas que **no** son por tienda, a propósito: los números de pedido salen
 `PY-000123` en todas las tiendas (el prefijo participa del hash de Pagopar y
@@ -272,7 +278,7 @@ ausentes, cada una apaga su feature.
 | `CRON_SECRET` | **lo genera el wizard.** ≥ 16 caracteres, nuevo por tienda |
 | `SETUP_SECRET` | **lo genera el wizard.** Va sólo en el servidor y sólo durante el primer deploy: habilita `/api/setup/init` y después se borra (DEPLOY.md §4) |
 | `PAGOPAR_*` | credenciales del comercio; vacías = sin tarjeta, o `PAGOPAR_MODE="mock"` para demo |
-| `CUSTOMER_SESSION_SECRET` | **sólo** si esta tienda prende las cuentas de cliente (ver abajo). Otro secreto, nunca una copia de `SESSION_SECRET` |
+| `CUSTOMER_SESSION_SECRET` | opcional: vacío, se deriva de `SESSION_SECRET` (§4b). Si lo cargás, uno propio, nunca una copia de `SESSION_SECRET` |
 
 `.env.example` y `docs/ENV-OPCIONAL.md` documentan cada trampa — leelos, no
 las adivines. `TEST_DATABASE_URL` (tests de integración, sólo desarrollo) está
@@ -434,12 +440,34 @@ Las reglas, todas en `src/lib/integraciones.ts`:
 - `pnpm preflight` lee las dos fuentes y dice de dónde sale cada valor.
 - `PAGOPAR_MODE`, `CUSTOMER_SESSION_SECRET`, `FACTURAPY_*` y los `OWNER_*` se
   quedan en el entorno: el modo mock es de desarrollo, el secreto de clientes
-  es material de sesión, FacturaPY no se usa todavía, y el dueño se crea con
+  se deriva solo de `SESSION_SECRET` (§4b), FacturaPY no se usa todavía, y el
+  dueño se crea con
   `/api/setup/init` o `pnpm create-owner`.
 
 La lectura usa una foto en memoria que se recarga cada 30 segundos y se tira
 al guardar: en el mismo proceso el cambio es inmediato; el CSP del proxy puede
 tardar hasta 30 s en abrirse a un GA4 recién cargado.
+
+### 4a-quater. Identidad desde el panel: nombre, logo, favicon, color
+
+`/admin/ajustes` → **Identidad** (sólo el dueño). Es lo que antes obligaba a
+editar `src/config/tienda.ts` y el tema en cada tienda clonada:
+
+| Campo | Dónde se ve | Vacío |
+|---|---|---|
+| Nombre | header, `<title>` de cada página, Open Graph, remito, mensajes de WhatsApp, feed | `TIENDA.nombre` |
+| Logo | header (reemplaza el nombre en texto) | el nombre en texto |
+| Favicon | la pestaña del navegador | `src/app/favicon.ico` |
+| Color de marca | `--primary` (botones, links, foco); el texto encima se elige solo por contraste | el del tema de `globals.css` |
+
+Logo y favicon van a la carpeta pública `marca/` de Cloudinary (hace falta
+Cloudinary configurado, §4a-ter). El tema completo (tipografía, radios, modo
+oscuro) sigue siendo piel del código (§5): el panel pisa sólo el color de marca.
+
+**Piel rediseñada:** `site-header.tsx` y `site-footer.tsx` del template ya leen
+`marcaEfectiva()` (`src/lib/marca.ts`). Una tienda que rediseñó los suyos los
+conserva en el `template:sync`; para que muestren el nombre y el logo del
+panel, que lean `marcaEfectiva()` en vez de `TIENDA.nombre`.
 
 ### 4b. ¿Esta tienda quiere cuentas de cliente?
 
@@ -453,12 +481,18 @@ compró: historial de pedidos, datos guardados para la próxima, y una lista de
 gente que aceptó recibir novedades (la única que se puede usar para promociones
 — comprar no es aceptar que te escriban).
 
-Para prenderla:
+Para prenderla: **`/admin/ajustes` → Cuentas de cliente → "Sí, ofrecerlas"**.
+Nada más — sin tocar código ni el hosting.
 
-1. `cuentasClientes: true` en `src/config/tienda.ts`.
-2. `CUSTOMER_SESSION_SECRET` en el entorno: `openssl rand -base64 32`, **uno
-   nuevo**, distinto de `SESSION_SECRET`. Con el flag prendido y sin este
-   secreto, `/cuenta` rompe con un error explícito — a propósito.
+- El default (lo que se usa mientras el dueño no elija) sale de
+  `cuentasClientes` en `src/config/tienda.ts`, apagado de fábrica.
+- **Ya no hace falta `CUSTOMER_SESSION_SECRET`**: vacío, el secreto de las
+  sesiones de cliente se deriva de `SESSION_SECRET` con HKDF (es otro secreto,
+  independiente del del panel). Una tienda que ya lo tiene cargado sigue usando
+  el suyo. Si `SESSION_SECRET` no es válido, el panel lo avisa y `/cuenta` no
+  anda — a propósito.
+- Todo el código decide con `cuentasClientesHabilitadas()` de
+  `src/lib/cuentas.ts` (async); la de `tienda.ts` quedó como legacy.
 
 Con el flag apagado, `/cuenta/*` responde 404, el header no muestra nada y el
 checkout es exactamente el de siempre. Hay un test de CI

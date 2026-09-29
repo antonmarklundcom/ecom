@@ -64,6 +64,10 @@ NEW-STORE.md §5 y `src/lib/testids.ts`.
   (panel `/admin/integraciones` > entorno > apagado), nunca con `process.env`
   directo. Los secretos van cifrados (`src/lib/secret-box.ts`) y no vuelven al
   navegador. NEW-STORE.md §4a-ter.
+- Nombre, logo, favicon y color de marca salen de `marcaEfectiva()` /
+  `nombreTienda()` (`src/lib/marca.ts`: panel `/admin/ajustes` → Identidad >
+  `tienda.ts`), y las cuentas de cliente de `cuentasClientesHabilitadas()` de
+  `src/lib/cuentas.ts` (async). No leas `TIENDA.nombre` directo en código nuevo.
 - Cambios de schema van con su migración generada y commiteada
   (`pnpm db:generate`) — CI falla si `schema.ts` se despega de `drizzle/`.
 - Antes de dar por terminado algo: `pnpm typecheck && pnpm lint && pnpm test`.

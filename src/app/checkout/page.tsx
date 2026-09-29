@@ -16,6 +16,7 @@ import { waLinkPublico } from "@/lib/comercio";
 import { currentCustomer } from "@/lib/customer-session";
 import { nombreMedioDePago } from "@/lib/paginas";
 import { formatPhonePY } from "@/lib/py";
+import { nombreTienda } from "@/lib/marca";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export default async function CheckoutPage() {
           cities={cities}
           pagoparEnabled={pagoparEnabled}
           hayCupones={hayCupones}
+          nombreTienda={await nombreTienda()}
           prefill={
             customer
               ? {

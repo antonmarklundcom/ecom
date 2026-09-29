@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CsvDownloadButton } from "@/components/admin/csv-download";
-import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import { listCustomers } from "@/domain/admin-customers";
 import { customersByPhone } from "@/domain/customers";
 import { can } from "@/lib/permissions";
@@ -49,7 +49,8 @@ export default async function AdminCustomersPage({
   // Con las cuentas apagadas esto ni se consulta y la pantalla queda igual que
   // antes de la feature: "cliente" sigue siendo lo que siempre fue, una vista
   // sobre los pedidos agrupados por WhatsApp.
-  const conCuenta = cuentasClientesHabilitadas()
+  const cuentasActivas = await cuentasClientesHabilitadas();
+  const conCuenta = cuentasActivas
     ? await customersByPhone(result.rows.map((row) => row.phone))
     : new Map();
 
@@ -77,7 +78,7 @@ export default async function AdminCustomersPage({
       {/* La lista de marketing que hasta ahora no existía: sólo las cuentas
           activas que dijeron que sí, y sólo para el dueño — es la base de
           clientes en un archivo que sale del edificio (ARCH.md §1). */}
-      {cuentasClientesHabilitadas() && can(actor.role, "exports") ? (
+      {cuentasActivas && can(actor.role, "exports") ? (
         <div className="mt-4">
           <CsvDownloadButton
             kind="clientes-opt-in"

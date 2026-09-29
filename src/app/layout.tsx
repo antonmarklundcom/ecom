@@ -16,6 +16,7 @@ import { idiomaActivo } from "@/i18n";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
+import { marcaEfectiva } from "@/lib/marca";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +34,7 @@ const geistMono = Geist_Mono({
  * `TIENDA.titulo` y `TIENDA.descripcion`, como siempre.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const { marca } = await getStoreSettings();
+  const [{ marca }, identidad] = await Promise.all([getStoreSettings(), marcaEfectiva()]);
 
   return {
     // Sin esto, la URL de la imagen de Open Graph sale relativa y ningún
@@ -41,14 +42,17 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: siteOrigin() ?? undefined,
     title: {
       default: marca.seoTitulo ?? TIENDA.titulo,
-      template: `%s · ${TIENDA.nombre}`,
+      template: `%s · ${identidad.nombre}`,
     },
     description: marca.seoDescripcion ?? TIENDA.descripcion,
     openGraph: {
       type: "website",
       locale: TIENDA.ogLocale,
-      siteName: TIENDA.nombre,
+      siteName: identidad.nombre,
     },
+    // El favicon subido en /admin/ajustes → Identidad. Sin él, queda
+    // `src/app/favicon.ico` (el de la tienda o el del template).
+    ...(identidad.faviconUrl ? { icons: { icon: identidad.faviconUrl, apple: identidad.faviconUrl } } : {}),
     // La imagen sale de `opengraph-image.tsx` (o de la del producto, que la
     // pisa); acá sólo se pide que se muestre grande y no como miniatura.
     twitter: { card: "summary_large_image" },
@@ -60,7 +64,11 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   // La foto de integraciones (GA4/Pixel, WhatsApp, Cloudinary) fresca para
   // este render: src/lib/integraciones.ts. Nunca tira.
-  const [{ anuncio }] = await Promise.all([getStoreSettings(), cargarIntegraciones()]);
+  const [{ anuncio }, marca] = await Promise.all([
+    getStoreSettings(),
+    marcaEfectiva(),
+    cargarIntegraciones(),
+  ]);
 
   // El idioma **efectivo** y no el que dice el config: si `TIENDA.lang` apunta
   // a un catálogo que no existe, los textos salen en es-PY y el `lang` del
@@ -70,6 +78,9 @@ export default async function RootLayout({
     <html
       lang={idiomaActivo()}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // El color de marca de /admin/ajustes → Identidad pisa `--primary` del
+      // tema (ya validado como #RRGGBB, con el texto encima por contraste).
+      style={(marca.variablesColor ?? undefined) as React.CSSProperties | undefined}
     >
       <body className="flex min-h-full flex-col">
         {/* Apagada o sin texto no se monta nada (y en /admin se esconde sola). */}

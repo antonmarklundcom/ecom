@@ -206,6 +206,9 @@ const GUARD_ESPERADO: Readonly<Record<string, 'Admin' | 'Staff' | 'Owner'>> = {
   guardarAjustes: 'Owner',
   restaurarAjustes: 'Owner',
   subirImagenPortada: 'Owner',
+  // Logo y favicon: la cara de la tienda, como la portada.
+  subirImagenMarca: 'Owner',
+  quitarImagenMarca: 'Owner',
   quitarImagenPortada: 'Owner',
 
   // El flete es plata que entra en cada pedido, y el error se cobra en

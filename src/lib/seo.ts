@@ -29,6 +29,8 @@ export const RUTAS_PRIVADAS = [
   "/cuenta",
   "/dev",
   "/favoritos",
+  // La configuración inicial (sólo existe con SETUP_SECRET puesto).
+  "/setup",
 ] as const;
 
 export type SitemapEntry = {

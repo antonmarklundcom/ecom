@@ -88,3 +88,18 @@ achicar código desde el test. Si se quiere recuperar ese margen, el candidato e
 cargar `wishlist-header-link` con `next/dynamic` (no hace falta en el primer
 render) — fase aparte.
 
+
+## Presupuesto de JS: home subió el techo por el catálogo de textos — 2026-09-29
+
+El PR de identidad y cuentas desde el panel (nombre, logo, favicon, color,
+`/setup`) pasó el techo de la home por 0,6 KB: 224.6 KB > 224. No es código
+nuevo del lado del cliente en la home: es **el catálogo de mensajes**
+(`src/i18n/es-PY.ts`) que viaja entero al navegador en un solo chunk (~1560
+claves, 28,7 KB comprimido) porque los componentes cliente importan `t()`. Cada
+clave nueva —aunque sea de `/admin` o de `/setup`, que la vidriera nunca
+muestra— suma a todas las páginas. Según la regla del spec, el techo de la
+home pasó al valor medido + 10% (247) en vez de borrar textos desde el test.
+
+Para recuperar el margen (fase aparte): partir el catálogo en uno de vidriera
+y uno de panel, o que los componentes cliente reciban los textos por prop desde
+el servidor en vez de importar el catálogo entero.

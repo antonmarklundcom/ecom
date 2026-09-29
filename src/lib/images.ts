@@ -33,7 +33,7 @@ function cloudName(): string | null {
 /** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
 const DEFAULT_TRANSFORMS = "f_auto,q_auto";
 
-export type ImageSize = "thumb" | "card" | "detail" | "og" | "hero" | "qr";
+export type ImageSize = "thumb" | "card" | "detail" | "og" | "hero" | "qr" | "logo" | "favicon";
 
 /**
  * 1200×630 es la caja que esperan WhatsApp, Instagram y Facebook. `c_fill` y
@@ -64,6 +64,14 @@ const SIZE_TRANSFORMS: Record<ImageSize, string> = {
    * parada frente a la app del banco que no puede pagar.
    */
   qr: "c_fit,w_600,h_600",
+  /**
+   * El logo del header (`/admin/ajustes` → Identidad). `c_fit` para no
+   * recortar un logo apaisado; 96 de alto alcanza para el doble de densidad
+   * del header (h-8/h-10).
+   */
+  logo: "c_fit,h_96,w_480",
+  /** El favicon: cuadrado, chico, recortado al centro. */
+  favicon: "c_fill,w_64,h_64",
 };
 
 /**

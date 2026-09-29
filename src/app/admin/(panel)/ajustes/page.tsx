@@ -4,6 +4,7 @@ import type React from "react";
 
 import {
   HeroImagePanel,
+  MarcaImagenPanel,
   SettingsSectionForm,
   type TipoCampo,
 } from "@/components/admin/store-settings-form";
@@ -22,6 +23,7 @@ import {
 import { t } from "@/i18n";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { cloudinaryConfigured } from "@/lib/cloudinary";
+import { customerSessionConfigured } from "@/lib/customer-session";
 import { comercioWhatsApp } from "@/lib/comercio";
 import { productImageUrl } from "@/lib/images";
 import { paginaEfectiva } from "@/lib/paginas";
@@ -47,9 +49,10 @@ export const dynamic = "force-dynamic";
  * su tienda muestra un texto que no sabe de dónde sale (mismo criterio que
  * `/admin/banco`).
  *
- * El nombre de la tienda **no** está acá: vive en `tienda.ts` porque también
- * es el `<title>` de cada página, el remitente de los mensajes y lo que
- * `pnpm preflight` verifica antes de cobrar.
+ * También la **identidad** (nombre, logo, favicon y color de marca) y el
+ * interruptor de las **cuentas de cliente**: lo que antes obligaba a editar
+ * `tienda.ts` y redeployar para cada tienda clonada. `tienda.ts` sigue siendo
+ * el default de todo lo que el dueño no cargó.
  */
 export default async function AdminAjustesPage() {
   await requireCapabilityPage("ajustes");
@@ -76,6 +79,7 @@ export default async function AdminAjustesPage() {
         </nav>
       </div>
 
+      <IdentidadSection settings={settings} />
       <MarcaSection settings={settings} />
       <AnuncioSection settings={settings} />
       <ContactoSection settings={settings} whatsappEntorno={whatsappEntorno} />
@@ -84,11 +88,13 @@ export default async function AdminAjustesPage() {
       <VidrieraSection settings={settings} />
       <CheckoutSection settings={settings} />
       <StockSection settings={settings} />
+      <CuentasSection settings={settings} />
     </div>
   );
 }
 
 const INDICE = [
+  ["identidad", "panel.ajustes.identidad.titulo"],
   ["marca", "panel.ajustes.marca.titulo"],
   ["anuncio", "panel.ajustes.anuncio.titulo"],
   ["contacto", "panel.ajustes.contacto.titulo"],
@@ -97,6 +103,7 @@ const INDICE = [
   ["vidriera", "panel.ajustes.vidriera.titulo"],
   ["checkout", "panel.ajustes.checkout.tituloSeccion"],
   ["stock", "panel.ajustes.stock.titulo"],
+  ["cuentas", "panel.ajustes.cuentas.titulo"],
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -131,14 +138,6 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
 
   return (
     <Tarjeta id="marca" titulo={t("panel.ajustes.marca.titulo")} bajada={t("panel.ajustes.marca.bajada")}>
-      <div className="border-border bg-muted/30 rounded-lg border p-3 text-sm">
-        <p>
-          <span className="text-muted-foreground">{t("panel.ajustes.marca.nombre")}</span>{" "}
-          <span className="font-medium">{TIENDA.nombre}</span>
-        </p>
-        <p className="text-muted-foreground mt-1 text-xs">{t("panel.ajustes.marca.nombreAyuda")}</p>
-      </div>
-
       <SettingsSectionForm seccion="marca" campos={campos}>
         <div className="grid gap-3 sm:grid-cols-2">
           <CampoTexto
@@ -218,6 +217,106 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
       </SettingsSectionForm>
 
       <HeroImagePanel imagenUrl={imagenUrl} habilitado={cloudinaryConfigured()} />
+    </Tarjeta>
+  );
+}
+
+function IdentidadSection({ settings }: { settings: StoreSettings }) {
+  const i = settings.identidad;
+  const cloudinaryListo = cloudinaryConfigured();
+  const campos: Record<string, TipoCampo> = {
+    nombre: "texto",
+    colorPrimario: "texto",
+    logoId: "texto",
+    faviconId: "texto",
+  };
+  return (
+    <Tarjeta
+      id="identidad"
+      titulo={t("panel.ajustes.identidad.titulo")}
+      bajada={t("panel.ajustes.identidad.bajada")}
+    >
+      <SettingsSectionForm seccion="identidad" campos={campos}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CampoTexto
+            nombre="nombre"
+            etiqueta={t("panel.ajustes.identidad.nombre")}
+            valor={i.nombre}
+            porDefecto={TIENDA.nombre}
+            max={60}
+            ayuda={t("panel.ajustes.identidad.nombreAyuda")}
+          />
+          <div className="grid gap-1.5">
+            <Label htmlFor="ajustes-colorPrimario">{t("panel.ajustes.identidad.color")}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="ajustes-colorPrimario"
+                name="colorPrimario"
+                maxLength={7}
+                autoComplete="off"
+                placeholder="#1f6feb"
+                defaultValue={i.colorPrimario ?? ""}
+                className="font-mono"
+              />
+              {i.colorPrimario ? (
+                <span
+                  aria-hidden
+                  className="border-border size-8 shrink-0 rounded-md border"
+                  style={{ background: i.colorPrimario }}
+                />
+              ) : null}
+            </div>
+            <p className="text-muted-foreground text-xs">{t("panel.ajustes.identidad.colorAyuda")}</p>
+          </div>
+        </div>
+        {/* Las imágenes se suben aparte (abajo); viajan con el formulario
+            para que guardar el nombre o el color no las borre. */}
+        <input type="hidden" name="logoId" defaultValue={i.logoId ?? ""} />
+        <input type="hidden" name="faviconId" defaultValue={i.faviconId ?? ""} />
+      </SettingsSectionForm>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <MarcaImagenPanel
+          tipo="logo"
+          imagenUrl={productImageUrl(i.logoId, "logo")}
+          habilitado={cloudinaryListo}
+        />
+        <MarcaImagenPanel
+          tipo="favicon"
+          imagenUrl={productImageUrl(i.faviconId, "favicon")}
+          habilitado={cloudinaryListo}
+        />
+      </div>
+    </Tarjeta>
+  );
+}
+
+function CuentasSection({ settings }: { settings: StoreSettings }) {
+  const c = settings.cuentas;
+  const porDefecto = TIENDA.cuentasClientes ? t("panel.ajustes.si") : t("panel.ajustes.no");
+  return (
+    <Tarjeta
+      id="cuentas"
+      titulo={t("panel.ajustes.cuentas.titulo")}
+      bajada={t("panel.ajustes.cuentas.bajada")}
+    >
+      <SettingsSectionForm seccion="cuentas" campos={{ activas: "triestado" }}>
+        <CampoSelect
+          nombre="activas"
+          etiqueta={t("panel.ajustes.cuentas.activas")}
+          valor={c.activas === null ? "" : c.activas ? "si" : "no"}
+          opciones={[
+            ["", t("panel.ajustes.cuentas.porDefecto", { valor: porDefecto })],
+            ["si", t("panel.ajustes.cuentas.si")],
+            ["no", t("panel.ajustes.cuentas.no")],
+          ]}
+        />
+        {!customerSessionConfigured() ? (
+          <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm">
+            {t("panel.ajustes.cuentas.sinSecreto")}
+          </p>
+        ) : null}
+      </SettingsSectionForm>
     </Tarjeta>
   );
 }

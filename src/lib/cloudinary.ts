@@ -150,6 +150,14 @@ export function carpetaPortadas(): string {
   return `${folderPrefix()}portadas`;
 }
 
+/**
+ * Carpeta **pública** del logo y el favicon de la tienda, los que el dueño
+ * sube desde `/admin/ajustes` → Identidad.
+ */
+export function carpetaMarca(): string {
+  return `${folderPrefix()}marca`;
+}
+
 /** Carpeta privada: comprobantes de pago, sólo accesibles vía URL firmada. */
 export function carpetaComprobantes(): string {
   return `${folderPrefix()}comprobantes`;
