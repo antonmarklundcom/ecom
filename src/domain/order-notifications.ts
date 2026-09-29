@@ -47,7 +47,7 @@ export type OwnerNotifier = {
  * Con qué mandar el aviso, o `null` si esta tienda no puede mandarlo.
  *
  * `null` es la respuesta esperada en la mayoría de las tiendas: es todo el
- * mecanismo que apaga la feature (regla de `.env.example`: una variable vacía
+ * mecanismo que apaga la feature (regla de `docs/ENV-OPCIONAL.md`: una variable vacía
  * apaga, no rompe).
  */
 export function resolveOwnerNotifier(): OwnerNotifier | null {

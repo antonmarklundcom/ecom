@@ -86,7 +86,7 @@ terceros**, porque son cuentas de otro que nadie puede abrir por vos:
 | Pagopar | el comercio | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
 | Datos bancarios | `/admin/banco`, con la tienda arriba | a dónde transfieren (§4a) |
 | Fotos y favicon | el comercio | `src/app/favicon.ico` y `/admin/productos` |
-| Medición (opcional) | GA4 / Meta Business | `NEXT_PUBLIC_GA4_ID` y/o `NEXT_PUBLIC_META_PIXEL_ID` — con eso el sitio mide visitas y ventas (evento de compra incluido); vacíos, no carga ni un byte de terceros. Ver `.env.example` |
+| Medición (opcional) | GA4 / Meta Business | `NEXT_PUBLIC_GA4_ID` y/o `NEXT_PUBLIC_META_PIXEL_ID` — con eso el sitio mide visitas y ventas (evento de compra incluido); vacíos, no carga ni un byte de terceros. Ver `docs/ENV-OPCIONAL.md` |
 
 El resto de este documento es el detalle de cada paso: leelo si algo no
 cuadra, o si querés saber por qué el wizard hace lo que hace.
@@ -253,6 +253,13 @@ imagen sale relativa y el link se comparte sin foto.
 y el dominio. Lo que falta completar a mano es lo de terceros. La tabla
 entera, para saber qué es cada cosa:
 
+`.env.example` trae **sólo las cinco imprescindibles** (`DATABASE_URL`,
+`SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `SETUP_SECRET`):
+Hostinger lo lee y precarga un campo del hPanel por variable, así que ahí no
+puede haber cuarenta y cinco. Las demás de esta tabla son **opcionales** y
+están documentadas con sus trampas en `docs/ENV-OPCIONAL.md`: vacías o
+ausentes, cada una apaga su feature.
+
 | Variable | Qué es |
 |---|---|
 | `DATABASE_URL` | base local (docker) y después la de Hostinger |
@@ -267,7 +274,9 @@ entera, para saber qué es cada cosa:
 | `PAGOPAR_*` | credenciales del comercio; vacías = sin tarjeta, o `PAGOPAR_MODE="mock"` para demo |
 | `CUSTOMER_SESSION_SECRET` | **sólo** si esta tienda prende las cuentas de cliente (ver abajo). Otro secreto, nunca una copia de `SESSION_SECRET` |
 
-`.env.example` documenta cada trampa — leelo, no lo adivines.
+`.env.example` y `docs/ENV-OPCIONAL.md` documentan cada trampa — leelos, no
+las adivines. `TEST_DATABASE_URL` (tests de integración, sólo desarrollo) está
+en el README: esa base se borra en cada corrida.
 
 ### 4. Base de datos y catálogo
 
@@ -439,7 +448,7 @@ implica antes de prometérselo a un cliente:
    persona, Meta no permite texto libre, y un código de login siempre cae
    fuera. La aprobación puede tardar días.
 
-Las variables están en `.env.example` (`WHATSAPP_CLOUD_*`).
+Las variables están en `docs/ENV-OPCIONAL.md` (`WHATSAPP_CLOUD_*`).
 
 **En dev no hace falta nada de esto:** sin credenciales y con
 `NODE_ENV != production`, el código se imprime en la consola del servidor y el

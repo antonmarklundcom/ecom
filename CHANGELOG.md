@@ -25,6 +25,13 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **`.env.example` mínimo:** trae sólo las cinco imprescindibles
+  (`DATABASE_URL`, `SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`,
+  `SETUP_SECRET`), porque Hostinger lo lee y precarga un campo del hPanel por
+  variable. Las demás —con los mismos comentarios— se mudaron a
+  `docs/ENV-OPCIONAL.md`; `TEST_DATABASE_URL` pasó al README. **Una tienda
+  existente no tiene que hacer nada**: las variables que ya cargó en el hPanel
+  siguen funcionando igual, ninguna cambió de nombre ni de significado.
 - **`template:sync` trae la maquinaria que le falta a la tienda**, aunque el
   template no la haya cambiado desde el baseline. Antes sólo miraba lo que
   cambió en `baseline..objetivo`, y un baseline marcado "al día" con archivos

@@ -8,6 +8,8 @@ import { MARCA_PLACEHOLDER } from '../../src/config/tienda';
 import {
   bloqueHPanel,
   completarEnv,
+  IMPRESCINDIBLES_HPANEL,
+  separarHPanel,
   esPlaceholder,
   esTema,
   escribirTema,
@@ -224,6 +226,32 @@ describe('lo que se pega en el hPanel', () => {
     expect(bloqueHPanel({ SESSION_SECRET: 'abc', PAGOPAR_PUBLIC_KEY: '' })).toBe(
       'SESSION_SECRET=abc',
     );
+  });
+});
+
+describe('el bloque del hPanel separa lo imprescindible de lo opcional', () => {
+  it('las imprescindibles son exactamente las variables de .env.example', () => {
+    // Hostinger precarga un campo por cada variable de `.env.example`: si el
+    // wizard dijera "imprescindible" a otra cosa, las dos listas se
+    // contradirían en la primera pantalla del hPanel.
+    const example = readFileSync(path.join(process.cwd(), '.env.example'), 'utf8');
+    const claves = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map(([, clave]) => clave);
+    expect([...IMPRESCINDIBLES_HPANEL].sort()).toEqual(claves.sort());
+  });
+
+  it('el WhatsApp va aparte, como opcional', () => {
+    expect(
+      separarHPanel({
+        SESSION_SECRET: 'a',
+        CRON_SECRET: 'b',
+        SETUP_SECRET: 'c',
+        WHATSAPP_NUMBER: '+595981000000',
+        NEXT_PUBLIC_SITE_URL: 'https://x.com.py',
+      }),
+    ).toEqual({
+      imprescindibles: ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'NEXT_PUBLIC_SITE_URL'],
+      opcionales: ['WHATSAPP_NUMBER'],
+    });
   });
 });
 

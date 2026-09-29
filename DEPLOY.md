@@ -32,10 +32,18 @@ En el hPanel, dentro del sitio:
    deploy y verificá que quedaron guardados: el panel a veces los vuelve a su
    valor detectado si guardás la sección dos veces.
 
-3. **Environment variables**: cargá una por una las de `.env.example` que la
-   tienda necesita — `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET`,
-   `WHATSAPP_NUMBER`, `CLOUDINARY_*`, `NEXT_PUBLIC_SITE_URL`, `PAGOPAR_*` si va
-   con tarjeta, y `NODE_ENV=production`.
+3. **Environment variables**: Hostinger lee `.env.example` y precarga un campo
+   por variable. Son **sólo las cinco imprescindibles** —`DATABASE_URL`,
+   `SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET` y `SETUP_SECRET`—
+   más `NODE_ENV=production`, que lo pone el hosting (si no, agregalo). Los
+   valores los imprime `pnpm nueva-tienda` listos para pegar; `DATABASE_URL`
+   sale de la base del §2.
+
+   Todo lo demás es **opcional** y está documentado, con sus trampas, en
+   [docs/ENV-OPCIONAL.md](./docs/ENV-OPCIONAL.md): `WHATSAPP_NUMBER`,
+   `CLOUDINARY_*`, `PAGOPAR_*` si va con tarjeta, `WHATSAPP_CLOUD_*`, GA4/Pixel,
+   `ERROR_REPORT_URL`. Agregá a mano (botón "Add") sólo las que esta tienda
+   usa; vacía o ausente, cada una apaga su feature y no rompe nada.
 
    Los `BANCO_*` **ya no hacen falta acá**: los datos bancarios se cargan una
    vez desde `/admin/banco` con la tienda arriba, y eso es lo que conviene —

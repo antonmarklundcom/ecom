@@ -18,7 +18,7 @@ import { log, mensajeDe } from '@/lib/log';
  *    de esa ventana, así que la plantilla no es opcional.
  *
  * El paso 4 es el que sorprende y el que tarda: la aprobación puede demorar
- * días. Está en `.env.example` y en NEW-STORE.md.
+ * días. Está en `docs/ENV-OPCIONAL.md` y en NEW-STORE.md.
  */
 export const WHATSAPP_TEMPLATE_LANGUAGE = 'es';
 

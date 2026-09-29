@@ -35,9 +35,10 @@ function correr(comando: string, args: string[], cwd: string): void {
   execFileSync(comando, args, {
     cwd,
     stdio: ['ignore', 'inherit', 'inherit'],
-    // Vacía a propósito: el `.env.local` que escribe el wizard trae la URL de
-    // la base de tests de `.env.example`, y dotenv no pisa lo que ya está en
-    // process.env. Así `tests/global-setup.ts` no intenta conectarse.
+    // Vacía a propósito: `.env.example` ya no trae TEST_DATABASE_URL, pero la
+    // máquina que corre esto puede tenerla en su entorno (o en un `.env.local`
+    // viejo), y dotenv no pisa lo que ya está en process.env. Así
+    // `tests/global-setup.ts` no intenta conectarse.
     env: { ...process.env, TEST_DATABASE_URL: '' },
   });
 }

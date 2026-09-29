@@ -215,7 +215,7 @@ async function main(): Promise<void> {
   const fotos = await applyCatalogFotos(productos);
   if (fotos.fotosOmitidas > 0) {
     console.log(
-      `⚠ ${fotos.fotosOmitidas} fotos NO se subieron: Cloudinary no está configurado (ver .env.example).`,
+      `⚠ ${fotos.fotosOmitidas} fotos NO se subieron: Cloudinary no está configurado (ver docs/ENV-OPCIONAL.md).`,
     );
   } else if (fotos.fotosSubidas > 0 || fotos.fotosFallidas.length > 0) {
     console.log(`✓ ${fotos.fotosSubidas} fotos subidas`);
