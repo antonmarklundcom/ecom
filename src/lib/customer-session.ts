@@ -1,3 +1,5 @@
+import { hkdfSync } from 'node:crypto';
+
 import { getIronSession, type IronSession, type SessionOptions } from 'iron-session';
 import { cookies } from 'next/headers';
 
@@ -15,12 +17,19 @@ import { cookies } from 'next/headers';
  * | Tabla | `users` | `customers` |
  * | Guard | `requireAdminSession` | `requireCustomerSession` |
  *
- * **El secreto es propio y obligatorio.** Reusar `SESSION_SECRET` haría que
- * una cookie de cliente forjada con ese secreto la pudiera desencriptar el
- * lado del panel: el contenido no coincidiría con lo que espera `requireAdmin`
- * y hoy no pasaría nada, pero es exactamente el tipo de "hoy no pasa nada" que
- * deja de ser cierto con el próximo campo que se agregue. Dos secretos, cero
+ * **El secreto es propio.** Reusar `SESSION_SECRET` haría que una cookie de
+ * cliente forjada con ese secreto la pudiera desencriptar el lado del panel:
+ * el contenido no coincidiría con lo que espera `requireAdmin` y hoy no
+ * pasaría nada, pero es exactamente el tipo de "hoy no pasa nada" que deja de
+ * ser cierto con el próximo campo que se agregue. Dos secretos, cero
  * razonamiento.
+ *
+ * **Ya no hace falta cargarlo en el hosting.** Si `CUSTOMER_SESSION_SECRET`
+ * está vacío, se **deriva** de `SESSION_SECRET` con HKDF-SHA256 y un contexto
+ * propio: es otro secreto (conocer uno no da el otro, y ninguna cookie del
+ * panel abre con él), sin que nadie tenga que generarlo ni pegarlo en el
+ * hPanel. Así las cuentas de cliente se prenden desde `/admin/ajustes` y
+ * listo. Una tienda que ya tiene la variable cargada sigue usando la suya.
  */
 export type CustomerSession = {
   customerId?: number;
@@ -31,13 +40,30 @@ export type CustomerSession = {
 
 export const CUSTOMER_SESSION_COOKIE = 'ecom_cliente';
 
+/**
+ * El secreto de la sesión de cliente: `CUSTOMER_SESSION_SECRET` si está, o
+ * uno derivado de `SESSION_SECRET` (ver arriba). `null` si no hay forma:
+ * variable propia de menos de 32, o `SESSION_SECRET` ausente, corto o el
+ * placeholder de `.env.example`.
+ */
+export function secretoSesionCliente(env: Record<string, string | undefined> = process.env): string | null {
+  const propio = (env.CUSTOMER_SESSION_SECRET ?? '').trim();
+  if (propio !== '') return propio.length >= 32 ? propio : null;
+
+  const base = (env.SESSION_SECRET ?? '').trim();
+  if (base.length < 32 || /changeme|generate/i.test(base)) return null;
+  // 32 bytes → 43 caracteres base64url: más que el mínimo de iron-session.
+  return Buffer.from(
+    hkdfSync('sha256', base, 'ecom/customer-session/v1', 'iron-session:ecom_cliente', 32),
+  ).toString('base64url');
+}
+
 export function customerSessionOptions(): SessionOptions {
-  const password = process.env.CUSTOMER_SESSION_SECRET;
-  if (!password || password.length < 32) {
+  const password = secretoSesionCliente();
+  if (!password) {
     throw new Error(
-      'CUSTOMER_SESSION_SECRET debe existir y tener al menos 32 caracteres cuando ' +
-        'TIENDA.cuentasClientes está prendido. Generalo con: openssl rand -base64 32 ' +
-        '(uno propio: no reuses SESSION_SECRET).',
+      'No hay secreto para la sesión de cliente: SESSION_SECRET falta o es inválido (de ahí ' +
+        'se deriva), o CUSTOMER_SESSION_SECRET está cargado con menos de 32 caracteres.',
     );
   }
   return {
@@ -59,8 +85,7 @@ export function customerSessionOptions(): SessionOptions {
 
 /** ¿Está configurado el secreto? Sin él, la feature no se puede ofrecer. */
 export function customerSessionConfigured(): boolean {
-  const password = process.env.CUSTOMER_SESSION_SECRET;
-  return Boolean(password && password.length >= 32);
+  return secretoSesionCliente() !== null;
 }
 
 export async function getCustomerSession(): Promise<IronSession<CustomerSession>> {

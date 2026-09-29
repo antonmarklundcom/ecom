@@ -10,6 +10,7 @@ import { t } from "@/i18n";
 import { contactoPublico } from "@/lib/comercio";
 import { jsonLdScript, organizationJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
+import { nombreTienda } from "@/lib/marca";
 
 /**
  * Home. ISR: el catálogo cambia poco y las redes móviles paraguayas
@@ -43,14 +44,18 @@ export default async function HomePage() {
 
   // Los ajustes del panel (`/admin/ajustes`) pisan campo por campo la portada
   // de `TIENDA.hero` (o la del template); `null` = el dueño la apagó.
-  const [ajustes, contacto] = await Promise.all([getStoreSettings(), contactoPublico()]);
+  const [ajustes, contacto, nombre] = await Promise.all([
+    getStoreSettings(),
+    contactoPublico(),
+    nombreTienda(),
+  ]);
   const hero = heroEfectivo(ajustes.marca, TIENDA.hero ?? heroPorDefecto(categories[0]?.slug));
 
   // Quién es la tienda, para Google. Sin dominio configurado no sale (ver
   // `organizationJsonLd`).
   const organizacion = organizationJsonLd({
     origin: siteOrigin(),
-    name: TIENDA.nombre,
+    name: nombre,
     telephone: contacto.whatsapp,
     email: contacto.email,
     sameAs: contacto.redes.map((red) => red.url),

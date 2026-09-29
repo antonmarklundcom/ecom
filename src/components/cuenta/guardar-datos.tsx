@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import { currentCustomer } from "@/lib/customer-session";
 import { t } from "@/i18n";
 
@@ -16,7 +16,7 @@ import { t } from "@/i18n";
  * No se muestra con el flag apagado ni a quien ya entró con su cuenta.
  */
 export async function GuardarDatosCta({ orderNumber }: { orderNumber: string }) {
-  if (!cuentasClientesHabilitadas()) return null;
+  if (!(await cuentasClientesHabilitadas())) return null;
   if (await currentCustomer()) return null;
 
   return (

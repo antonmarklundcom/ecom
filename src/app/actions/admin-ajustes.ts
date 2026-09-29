@@ -17,7 +17,7 @@ import {
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
-import { carpetaPortadas, cloudinary } from "@/lib/cloudinary";
+import { carpetaMarca, carpetaPortadas, cloudinary } from "@/lib/cloudinary";
 
 /**
  * Ajustes de la tienda (`/admin/ajustes`). **Todas owner-only**, como el
@@ -127,4 +127,71 @@ export async function quitarImagenPortada(): Promise<AdminActionResult> {
 async function guardarImagenPortada(publicId: string | null, userId: number): Promise<void> {
   const { settings } = await readStoreSettings();
   await saveStoreSettingsSection("marca", { ...settings.marca, heroImagenId: publicId }, { userId });
+}
+
+const TipoImagenMarca = z.enum(["logo", "favicon"]);
+type TipoImagenMarca = z.infer<typeof TipoImagenMarca>;
+
+/**
+ * El logo o el favicon de la tienda (`/admin/ajustes` → Identidad). Mismo
+ * camino que la portada: el tipo se valida por **los bytes**, la carpeta es
+ * pública (`marca/`) y lo que se guarda es el `public_id`.
+ */
+export async function subirImagenMarca(formData: FormData): Promise<AdminActionResult> {
+  try {
+    const actor = await requireOwnerSession();
+
+    const tipo = TipoImagenMarca.safeParse(formData.get("tipo"));
+    if (!tipo.success) return { ok: false, error: t("adminError.revisaDatos") };
+
+    const file = formData.get("file");
+    if (!(file instanceof File)) {
+      return { ok: false, error: t("adminError.ajustes.elegiImagen") };
+    }
+
+    const content = Buffer.from(await file.arrayBuffer());
+    const { mime } = validateProductImage({ bytes: content.byteLength, content });
+
+    const uploaded = await cloudinary.uploader.upload(
+      `data:${mime};base64,${content.toString("base64")}`,
+      { folder: carpetaMarca(), resource_type: "image", overwrite: false },
+    );
+
+    await guardarImagenMarca(tipo.data, uploaded.public_id, actor.userId);
+
+    revalidatePath("/admin/ajustes");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof StoreSettingsError) return { ok: false, error: error.message };
+    return adminActionError("subirImagenMarca", error);
+  }
+}
+
+/** Saca el logo o el favicon (no borra el archivo de Cloudinary). */
+export async function quitarImagenMarca(input: unknown): Promise<AdminActionResult> {
+  try {
+    const actor = await requireOwnerSession();
+
+    const tipo = TipoImagenMarca.safeParse((input as { tipo?: unknown } | null)?.tipo);
+    if (!tipo.success) return { ok: false, error: t("adminError.revisaDatos") };
+
+    await guardarImagenMarca(tipo.data, null, actor.userId);
+
+    revalidatePath("/admin/ajustes");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof StoreSettingsError) return { ok: false, error: error.message };
+    return adminActionError("quitarImagenMarca", error);
+  }
+}
+
+/** Cambia sólo esa imagen: el nombre y el color quedan como estaban. */
+async function guardarImagenMarca(
+  tipo: TipoImagenMarca,
+  publicId: string | null,
+  userId: number,
+): Promise<void> {
+  const { settings } = await readStoreSettings();
+  const campo = tipo === "logo" ? "logoId" : "faviconId";
+  await saveStoreSettingsSection("identidad", { ...settings.identidad, [campo]: publicId }, { userId });
 }

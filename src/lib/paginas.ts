@@ -1,5 +1,4 @@
 import { PAGINAS_DEFAULT } from "@/config/paginas-default";
-import { TIENDA } from "@/config/tienda";
 import type { PaymentMethod } from "@/db/schema";
 import { isPagoparConfigured } from "@/domain/pagopar/config";
 import { offeredPaymentMethods } from "@/domain/shipping";
@@ -10,6 +9,7 @@ import { contactoPublico } from "@/lib/comercio";
 import { listaConY, type ValoresPlaceholder } from "@/lib/placeholders";
 import { formatPhonePY } from "@/lib/py";
 import { siteOrigin } from "@/lib/site-url";
+import { nombreTienda } from "@/lib/marca";
 
 /**
  * Las páginas de políticas, ya resueltas: título y cuerpo efectivos
@@ -67,16 +67,17 @@ export async function mediosDePagoOfrecidos(): Promise<PaymentMethod[]> {
 
 /** Los valores de los `{{…}}`: ajustes → entorno → `tienda.ts`. */
 export async function valoresDePlaceholders(): Promise<ValoresPlaceholder> {
-  const [ajustes, contacto, medios] = await Promise.all([
+  const [ajustes, contacto, medios, nombre] = await Promise.all([
     getStoreSettings(),
     contactoPublico(),
     mediosDePagoOfrecidos(),
+    nombreTienda(),
   ]);
   const origin = siteOrigin();
   const dias = ajustes.envioDevolucion.returnDays;
 
   return {
-    tienda: TIENDA.nombre,
+    tienda: nombre,
     url: origin ? origin.host : null,
     whatsapp: contacto.whatsapp ? formatPhonePY(contacto.whatsapp) : null,
     email: contacto.email,

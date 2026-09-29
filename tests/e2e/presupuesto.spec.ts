@@ -31,9 +31,14 @@ import { TESTIDS } from "./testids";
  * favoritos (el corazón del header y de la ficha) y las reseñas. Medido en
  * CI: producto 229.2 KB, checkout 223.3 KB → +10%, según la regla de arriba.
  * Home no pasó su techo y queda igual. Anotado en `KNOWN-ISSUES.md`.
+ *
+ * 2026-09-29: home pasó su techo por 0,6 KB (224.6 KB) con la identidad y las
+ * cuentas desde el panel. La causa es el catálogo de textos, que viaja entero
+ * al cliente (cada clave nueva, aunque sea del panel, suma a todas las
+ * páginas) → +10%, según la regla de arriba. Anotado en `KNOWN-ISSUES.md`.
  */
 const BUDGET_KB = {
-  home: 224,
+  home: 247,
   producto: 252,
   checkout: 246,
 } as const;

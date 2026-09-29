@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import { currentCustomer } from "@/lib/customer-session";
 import { t } from "@/i18n";
 
@@ -20,7 +20,7 @@ import { t } from "@/i18n";
  * enterarse, no quedarse con una feature silenciosamente rota.
  */
 export async function CuentaHeaderEntry() {
-  if (!cuentasClientesHabilitadas()) return null;
+  if (!(await cuentasClientesHabilitadas())) return null;
 
   const customer = await currentCustomer();
 

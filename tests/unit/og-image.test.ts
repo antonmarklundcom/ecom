@@ -74,13 +74,16 @@ describe('la ficha de producto comparte con foto', () => {
     expect(page).toContain('OG_IMAGE_SIZE.height');
   });
 
-  it('el respaldo del sitio existe y sale de TIENDA, no de un nombre escrito a mano', async () => {
+  it('el respaldo del sitio existe y sale del nombre efectivo, no de un nombre escrito a mano', async () => {
     // Un `og-image.png` commiteado es el archivo que cada tienda nueva se
     // olvida de reemplazar, y publicar el nombre de otro comercio es peor que
-    // no tener imagen.
+    // no tener imagen. El nombre sale de `nombreTienda()`: el de
+    // /admin/ajustes → Identidad, o `TIENDA.nombre` si no hay.
     const fallback = await readCode(path.join('src', 'app', 'opengraph-image.tsx'));
+    const marca = await readCode(path.join('src', 'lib', 'marca.ts'));
 
-    expect(fallback).toContain('TIENDA.nombre');
+    expect(fallback).toContain('nombreTienda()');
+    expect(marca).toContain('TIENDA.nombre');
     expect(fallback).toContain('OG_IMAGE_SIZE');
   });
 });

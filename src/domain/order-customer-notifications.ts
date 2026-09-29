@@ -13,6 +13,7 @@ import { firstName, buyerOrderUrl } from "./order-messages";
 import { NOTICE_REASON_PREFIX, recordOrderEvent } from "./order-events";
 import { log, mensajeDe } from '@/lib/log';
 import { valorIntegracion, type CampoDe } from "@/lib/integraciones";
+import { nombreTienda } from "@/lib/marca";
 
 /**
  * Los avisos por WhatsApp que recibe la COMPRADORA (fase O3, sigue a O2 —
@@ -142,7 +143,7 @@ export type CustomerNoticeOrder = {
 export function customerNoticeBody(
   kind: CustomerNoticeKind,
   order: CustomerNoticeOrder,
-  options: { note?: string | null } = {},
+  options: { note?: string | null; tienda?: string } = {},
 ): string {
   const nombre = firstName(order.customerName);
   const total = formatGs(order.totalPyg);
@@ -151,7 +152,7 @@ export function customerNoticeBody(
 
   if (kind === "confirmado") {
     return [
-      t("wa.cliente.confirmado", { nombre, numero: order.orderNumber, total, tienda: TIENDA.nombre }),
+      t("wa.cliente.confirmado", { nombre, numero: order.orderNumber, total, tienda: options.tienda ?? TIENDA.nombre }),
       ...(metodo ? [t("wa.cliente.confirmado.envio", { metodo })] : []),
       t("wa.cliente.verPedido", { url }),
     ].join("\n");
@@ -269,7 +270,7 @@ export async function notifyCustomerOrderEvent(
       .limit(1);
     if (yaMandado.length > 0) return;
 
-    const body = customerNoticeBody(kind, order, { note: options.note });
+    const body = customerNoticeBody(kind, order, { note: options.note, tienda: await nombreTienda() });
 
     try {
       await withTimeout(

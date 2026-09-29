@@ -5,12 +5,12 @@ import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/admin/print-button";
 import { getAdminOrder } from "@/domain/admin-orders";
 import { adminActor } from "@/lib/admin-guard";
-import { TIENDA } from "@/config/tienda";
 import { formatGs } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { formatDateTimePY, formatPhonePY } from "@/lib/py";
 import { PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { t } from "@/i18n";
+import { nombreTienda } from "@/lib/marca";
 
 export const metadata: Metadata = { title: t("panel.remito.meta") };
 
@@ -54,7 +54,7 @@ export default async function OrderPrintPage({ params }: { params: Params }) {
 
       <header className="flex items-start justify-between gap-4 border-b border-black pb-3">
         <div>
-          <p className="text-lg font-semibold">{TIENDA.nombre}</p>
+          <p className="text-lg font-semibold">{await nombreTienda()}</p>
           <p className="text-xs">{t("panel.remito.titulo")}</p>
         </div>
         <div className="text-right text-xs">

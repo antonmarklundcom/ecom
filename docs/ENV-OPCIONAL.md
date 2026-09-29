@@ -54,19 +54,20 @@ TEST_DATABASE_URL="mysql://ecom:ecom@localhost:3306/ecom_test"
 ## Sesión de cliente (iron-session)
 
 ```dotenv
-# Sólo hace falta si esta tienda prende `cuentasClientes` en
-# `src/config/tienda.ts` (apagado por defecto). Si el flag está apagado, dejalo
-# vacío: nadie lo lee.
+# **Ya no hace falta.** Vacía, el secreto de las sesiones de cliente se deriva
+# de SESSION_SECRET con HKDF (otro secreto, independiente del del panel), y las
+# cuentas se prenden desde /admin/ajustes → Cuentas de cliente. Cargala sólo si
+# querés un secreto propio; una tienda que ya la tenía sigue usando la suya.
 #
-# Trampa importante: tiene que ser **otro** secreto, no una copia de
-# SESSION_SECRET. Son dos poblaciones distintas —empleados del panel y
+# Si la cargás, la trampa de siempre: tiene que ser **otro** secreto, no una
+# copia de SESSION_SECRET. Son dos poblaciones distintas —empleados del panel y
 # compradoras— y compartir el secreto es lo que hace posible que una cookie de
 # una sirva del otro lado. Mismo comando, valor nuevo:
 #   openssl rand -base64 32
 #
-# Si el flag está prendido y esto falta (o mide menos de 32), las rutas de
-# `/cuenta` tiran un error explícito. Es a propósito: una feature de cuentas
-# medio configurada tiene que romper fuerte, no fallar en silencio.
+# Cargada con menos de 32 caracteres, las rutas de `/cuenta` tiran un error
+# explícito (no cae al derivado): una config rota tiene que romper fuerte, no
+# fallar en silencio. `pnpm preflight` lo bloquea si las cuentas están prendidas.
 CUSTOMER_SESSION_SECRET=""
 ```
 

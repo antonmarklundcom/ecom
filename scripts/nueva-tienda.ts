@@ -760,9 +760,11 @@ function imprimirHPanel(contenidoEnv: string, claves: ValoresEnv): void {
     for (const linea of extra.split('\n')) console.log(`    ${linea}`);
   }
   console.log(
-    '\n  SETUP_SECRET va sólo durante el primer deploy y después se borra\n' +
-      '  del hPanel (DEPLOY.md §4). Cambiar una variable en Hostinger no\n' +
-      '  rebuildea: hay que apretar Redeploy a mano.\n',
+    '\n  Con eso deployado, abrí https://TU-DOMINIO/setup para crear la base\n' +
+      '  y la cuenta del dueño (sin terminal). SETUP_SECRET va sólo durante el\n' +
+      '  primer deploy y después se borra del hPanel (DEPLOY.md §4). Cambiar una\n' +
+      '  variable en Hostinger no rebuildea: hay que apretar Redeploy a mano.\n' +
+      '  Nombre, logo, colores, pagos y WhatsApp se cargan después en /admin.\n',
   );
 }
 

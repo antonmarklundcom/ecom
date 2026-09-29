@@ -2,7 +2,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { MARCA_PLACEHOLDER, TIENDA, cuentasClientesHabilitadas } from '@/config/tienda';
+import { MARCA_PLACEHOLDER, TIENDA } from '@/config/tienda';
+import { cuentasClientesHabilitadas } from '@/lib/cuentas';
 
 import { exportedAsyncFunctions, listSourceFiles, readCode } from '../helpers/source';
 
@@ -29,9 +30,10 @@ const FLAG = /cuentasClientesHabilitadas\s*\(/;
 
 describe('flags apagados = la tienda de hoy', () => {
   // El default se verifica solo en el template; cada tienda decide si prende cuentas.
-  it.skipIf(TIENDA.nombre !== MARCA_PLACEHOLDER)('el default que se instala tiene las cuentas de cliente apagadas', () => {
+  it.skipIf(TIENDA.nombre !== MARCA_PLACEHOLDER)('el default que se instala tiene las cuentas de cliente apagadas', async () => {
     expect(TIENDA.cuentasClientes).toBe(false);
-    expect(cuentasClientesHabilitadas()).toBe(false);
+    // Sin ajustes en el panel (acá, sin base: los defaults), manda tienda.ts.
+    expect(await cuentasClientesHabilitadas()).toBe(false);
   });
 
   it('toda la rama /cuenta está detrás del flag', async () => {
@@ -96,6 +98,20 @@ describe('flags apagados = la tienda de hoy', () => {
     // Sí puede *leerla* para prefills y para atar el pedido: eso es
     // `currentCustomer()`, que devuelve null sin sesión y nunca tira.
     expect(checkout).toMatch(/currentCustomer\s*\(/);
+  });
+
+  it('nadie decide con el flag viejo de tienda.ts: todos pasan por el panel', async () => {
+    // `@/config/tienda` sólo sabe lo del archivo; `@/lib/cuentas` mira además
+    // /admin/ajustes. Importar el viejo haría que el interruptor del panel no
+    // apagara (o no prendiera) esa parte de la feature.
+    const offenders: string[] = [];
+    for (const file of await listSourceFiles(['src'])) {
+      const code = await readCode(file);
+      if (/import\s*\{[^}]*cuentasClientesHabilitadas[^}]*\}\s*from\s*["']@\/config\/tienda["']/.test(code)) {
+        offenders.push(file);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it('el panel sólo consulta cuentas si la feature está prendida', async () => {

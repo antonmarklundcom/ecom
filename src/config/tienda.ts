@@ -107,11 +107,11 @@ export const TIENDA: Tienda = {
 };
 
 /**
- * El único lugar que decide si las cuentas de cliente existen.
- *
- * Una función y no el booleano suelto para que haya un solo símbolo que
- * grepear: hay un test de CI que verifica que **toda** ruta y acción de
- * `/cuenta` pase por acá antes de tocar nada.
+ * **Legacy**: lo que dice este archivo, sin mirar el panel. La decisión real
+ * la toma `cuentasClientesHabilitadas()` de `src/lib/cuentas.ts` (async), que
+ * deja que el dueño prenda o apague las cuentas desde `/admin/ajustes` y usa
+ * `TIENDA.cuentasClientes` sólo como default. Queda por compatibilidad con
+ * código de tiendas que todavía la importe.
  */
 export function cuentasClientesHabilitadas(): boolean {
   return TIENDA.cuentasClientes;

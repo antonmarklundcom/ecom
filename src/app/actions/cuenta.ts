@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { cuentasClientesHabilitadas } from "@/config/tienda";
+import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import {
   CustomerError,
   authenticateCustomer,
@@ -76,7 +76,7 @@ const RegisterSchema = z.object({
 });
 
 export async function registrarCliente(input: unknown): Promise<CuentaResult> {
-  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!(await cuentasClientesHabilitadas())) return APAGADO;
 
   const ip = clientIp(await headers());
   if (
@@ -125,7 +125,7 @@ const LoginSchema = z.object({
 });
 
 export async function entrarCliente(input: unknown): Promise<CuentaResult> {
-  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!(await cuentasClientesHabilitadas())) return APAGADO;
 
   const parsed = LoginSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: GENERIC_LOGIN_ERROR };
@@ -164,7 +164,7 @@ export async function entrarCliente(input: unknown): Promise<CuentaResult> {
 }
 
 export async function salirCliente(): Promise<CuentaResult> {
-  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!(await cuentasClientesHabilitadas())) return APAGADO;
 
   await destroyCustomerSession();
   return { ok: true };
@@ -177,7 +177,7 @@ const PerfilSchema = z.object({
 });
 
 export async function guardarPerfil(input: unknown): Promise<CuentaResult> {
-  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!(await cuentasClientesHabilitadas())) return APAGADO;
 
   try {
     // El guard antes de mirar la entrada, igual que en `/admin`.
@@ -219,7 +219,7 @@ const ReclamarSchema = z.object({ orderNumber: z.string().trim().min(3).max(16) 
  * cuenta, así que conocer un número de pedido ajeno no alcanza para adoptarlo.
  */
 export async function reclamarPedido(input: unknown): Promise<CuentaResult> {
-  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!(await cuentasClientesHabilitadas())) return APAGADO;
 
   try {
     const actor = await requireCustomerSession();
@@ -269,7 +269,7 @@ const PedirCodigoSchema = z.object({
  * acción ni existe: el login sólo ofrece contraseña.
  */
 export async function pedirCodigoAcceso(input: unknown): Promise<CuentaResult> {
-  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!(await cuentasClientesHabilitadas())) return APAGADO;
 
   const sender = resolveMessageSender();
   if (!sender) {
@@ -333,7 +333,7 @@ const CanjearSchema = z.object({
  * mismo de siempre.
  */
 export async function entrarConCodigo(input: unknown): Promise<CuentaResult> {
-  if (!cuentasClientesHabilitadas()) return APAGADO;
+  if (!(await cuentasClientesHabilitadas())) return APAGADO;
   if (!resolveMessageSender()) {
     return { ok: false, error: "Esa forma de entrar no está disponible en esta tienda." };
   }

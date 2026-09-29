@@ -47,6 +47,7 @@ export function CheckoutForm({
   pagoparEnabled = false,
   prefill,
   hayCupones = false,
+  nombreTienda = TIENDA.nombre,
 }: {
   cities: string[];
   pagoparEnabled?: boolean;
@@ -64,6 +65,8 @@ export function CheckoutForm({
    * servidor recalcula todo lo que importa igual que antes.
    */
   prefill?: { name?: string; phone?: string; email?: string };
+  /** El nombre efectivo (panel o `tienda.ts`), resuelto en el servidor. */
+  nombreTienda?: string;
 }) {
   const router = useRouter();
   const { lines, clear, freeShipping } = useCart();
@@ -553,7 +556,7 @@ export function CheckoutForm({
         <span>
           <span className="font-medium">{t("checkout.novedades")}</span>
           <span className="text-muted-foreground block text-xs">
-            {t("checkout.novedades.ayuda", { tienda: TIENDA.nombre })}
+            {t("checkout.novedades.ayuda", { tienda: nombreTienda })}
           </span>
         </span>
       </label>

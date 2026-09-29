@@ -5,6 +5,7 @@ import { getCategories } from "@/db/queries";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t } from "@/i18n";
 import { contactoPublico } from "@/lib/comercio";
+import { marcaEfectiva } from "@/lib/marca";
 import { paginasActivas } from "@/lib/paginas";
 import { formatPhonePY } from "@/lib/py";
 
@@ -22,10 +23,11 @@ export async function SiteFooter() {
     // idem SiteHeader: el pie no debería tirar la página abajo.
   }
   // Los tres de abajo no tiran: sin base, los ajustes son los de siempre.
-  const [ajustes, contacto, paginas] = await Promise.all([
+  const [ajustes, contacto, paginas, marca] = await Promise.all([
     getStoreSettings(),
     contactoPublico(),
     paginasActivas(),
+    marcaEfectiva(),
   ]);
   const tagline = ajustes.marca.tagline ?? TIENDA.tagline;
 
@@ -33,7 +35,7 @@ export async function SiteFooter() {
     <footer className="border-border mt-16 border-t">
       <div className="text-muted-foreground mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-foreground font-semibold">{TIENDA.nombre}</p>
+          <p className="text-foreground font-semibold">{marca.nombre}</p>
           <p className="mt-2">{tagline}</p>
           {contacto.redes.length > 0 ? (
             <ul className="mt-3 flex flex-wrap gap-3" aria-label={t("footer.redes")}>

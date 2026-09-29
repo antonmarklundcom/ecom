@@ -25,6 +25,19 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Identidad desde el panel** (`/admin/ajustes` → Identidad): nombre, logo,
+  favicon y color de marca, sin tocar `tienda.ts` ni redeployar. `tienda.ts`
+  queda como default. Todo lo que mostraba `TIENDA.nombre` (header, títulos,
+  Open Graph, remito, mensajes, feed) lee ahora `nombreTienda()`.
+- **Cuentas de cliente desde el panel** (`/admin/ajustes` → Cuentas de
+  cliente), y **`CUSTOMER_SESSION_SECRET` ya no hace falta**: vacío, se deriva
+  de `SESSION_SECRET` con HKDF. Las tiendas que lo tienen cargado siguen igual.
+  `cuentasClientesHabilitadas()` se mudó a `src/lib/cuentas.ts` y es async.
+- **`/setup`**: la configuración inicial desde el navegador (mismo POST que el
+  curl a `/api/setup/init`; sólo existe con `SETUP_SECRET` puesto).
+- Sin migración: todo vive en `store_settings` (JSON). Piel rediseñada: ver
+  NEW-STORE.md §4a-quater para que header y pie propios lean el nombre y el
+  logo del panel.
 - **Integraciones desde el panel (`/admin/integraciones`, sólo el dueño).
   Migración: sí (`0017`, tabla nueva `integration_settings`).** Cloudinary,
   WhatsApp (número del comercio, Cloud API y plantillas), Pagopar, GA4/Pixel y

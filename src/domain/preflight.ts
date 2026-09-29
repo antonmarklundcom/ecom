@@ -175,21 +175,32 @@ function checkLecturaPanel(panel: PreflightPanel): PreflightCheck {
   };
 }
 
+/**
+ * Lo que el dueño cargó en `/admin/ajustes` y cambia la respuesta de algún
+ * control: el nombre de la tienda y si prendió las cuentas de cliente. Lo
+ * lee `scripts/preflight.ts`; sin esto manda `src/config/tienda.ts`.
+ */
+export type PreflightAjustes = {
+  nombreTienda?: string | null;
+  cuentasClientes?: boolean | null;
+};
+
 export function preflight(
   envCrudo: PreflightEnv = process.env,
   panel?: PreflightPanel,
+  ajustes: PreflightAjustes = {},
 ): PreflightReport {
   const { efectivo: env, origenes } = entornoEfectivo(envCrudo, panel);
   const checks: PreflightCheck[] = [
     ...(panel ? [checkLecturaPanel(panel)] : []),
-    checkMarca(),
+    checkMarca(ajustes.nombreTienda),
     checkWebhookEnvelope(env),
     checkPagoparMode(env),
     checkBancoVars(env),
     checkCronSecret(env),
     checkSetupSecret(env),
     checkSessionSecret(env),
-    checkCustomerSessionSecret(env),
+    checkCustomerSessionSecret(env, ajustes.cuentasClientes ?? TIENDA.cuentasClientes),
     checkPagoparCredentials(env),
     checkCloudinary(env),
     checkWhatsApp(env),
@@ -224,8 +235,9 @@ export function preflight(
  * código — pero cobrar con la marca del template es el papelón del primer
  * deploy, y es exactamente el paso 2 de NEW-STORE.md.
  */
-function checkMarca(): PreflightCheck {
-  const nombre = TIENDA.nombre.trim();
+function checkMarca(nombreDelPanel?: string | null): PreflightCheck {
+  // El nombre de /admin/ajustes → Identidad manda sobre el de `tienda.ts`.
+  const nombre = nombreDelPanel?.trim() || TIENDA.nombre.trim();
 
   if (nombre.toLowerCase() !== MARCA_PLACEHOLDER.toLowerCase()) {
     return {
@@ -241,9 +253,11 @@ function checkMarca(): PreflightCheck {
     severity: "bloquea",
     title: "Marca de la tienda",
     detail:
-      `src/config/tienda.ts sigue con el nombre del template ("${MARCA_PLACEHOLDER}"): header, ` +
+      `la tienda sigue con el nombre del template ("${MARCA_PLACEHOLDER}"): header, ` +
       "títulos del navegador y la imagen de Open Graph de cada link compartido van a decir eso. " +
-      "Editá TIENDA (NEW-STORE.md §2) — y de paso el favicon, que ningún control verifica",
+      "Cargá el nombre en /admin/ajustes → Identidad (o editá TIENDA en src/config/tienda.ts, " +
+      "NEW-STORE.md §2) — y de " +
+      "paso el logo y el favicon, que ningún control verifica",
   };
 }
 
@@ -498,22 +512,23 @@ function checkSessionSecret(env: PreflightEnv): PreflightCheck {
 /**
  * El secreto de la sesión de cliente (FASE 2, PR E).
  *
- * Sólo aplica si esta tienda prendió `cuentasClientes`. Con el flag apagado
- * —el default— nadie lee esta variable y no tenerla es lo correcto.
+ * Sólo aplica si esta tienda prendió las cuentas (en `/admin/ajustes` o en
+ * `tienda.ts`). Con el flag apagado —el default— nadie lee esta variable.
  *
- * Con el flag prendido, en cambio, **bloquea**: sin el secreto las rutas de
- * `/cuenta` tiran en runtime, y este script existe justamente para que eso se
- * descubra antes del deploy y no con una compradora en la pantalla.
+ * Vacía está bien: el secreto se deriva de `SESSION_SECRET`. Lo que
+ * **bloquea** es no tener de dónde sacarlo, o una variable propia rota: sin
+ * secreto las rutas de `/cuenta` tiran en runtime, y este script existe
+ * justamente para que eso se descubra antes del deploy.
  *
  * El caso que más se chequea es el que más va a pasar: copiar el valor de
  * `SESSION_SECRET`. Compartir el secreto entre las dos poblaciones —empleados
  * del panel y compradoras— es lo que hace posible que una cookie de una sirva
  * del otro lado.
  */
-function checkCustomerSessionSecret(env: PreflightEnv): PreflightCheck {
+function checkCustomerSessionSecret(env: PreflightEnv, cuentasActivas: boolean): PreflightCheck {
   const title = "Secreto de sesión de cliente";
 
-  if (!TIENDA.cuentasClientes) {
+  if (!cuentasActivas) {
     return {
       id: "customer_session_secret",
       severity: "ok",
@@ -525,12 +540,24 @@ function checkCustomerSessionSecret(env: PreflightEnv): PreflightCheck {
   const secret = value(env, "CUSTOMER_SESSION_SECRET");
 
   if (secret === "") {
+    // Vacío ya no es un error: se deriva de SESSION_SECRET con HKDF
+    // (src/lib/customer-session.ts). Sólo falla si SESSION_SECRET tampoco sirve.
+    const base = value(env, "SESSION_SECRET");
+    if (base.length >= 32 && !/changeme|generate/i.test(base)) {
+      return {
+        id: "customer_session_secret",
+        severity: "ok",
+        title,
+        detail: "derivado de SESSION_SECRET (HKDF, independiente del del panel)",
+      };
+    }
     return {
       id: "customer_session_secret",
       severity: "bloquea",
       title,
       detail:
-        "cuentasClientes está prendido y CUSTOMER_SESSION_SECRET está vacío: /cuenta revienta en runtime",
+        "las cuentas de cliente están prendidas y no hay de dónde sacar su secreto: " +
+        "CUSTOMER_SESSION_SECRET está vacío y SESSION_SECRET no es válido. /cuenta revienta en runtime",
     };
   }
   if (secret.length < 32) {

@@ -266,7 +266,7 @@ describe("preflight · secreto de sesión de cliente", () => {
     expect(buscar(envSano())?.severity).toBe("ok");
   });
 
-  it("con las cuentas prendidas y sin secreto, bloquea", async () => {
+  it("con las cuentas prendidas y sin secreto propio, se deriva de SESSION_SECRET", async () => {
     vi.resetModules();
     vi.doMock("@/config/tienda", () => ({
       MARCA_PLACEHOLDER: "TiendaPY",
@@ -275,9 +275,35 @@ describe("preflight · secreto de sesión de cliente", () => {
     }));
 
     const { preflight: conCuentas } = await import("../../src/domain/preflight");
-    const check = conCuentas(envSano()).checks.find(
-      (c) => c.id === "customer_session_secret",
-    );
+    const check = conCuentas(envSano()).checks.find((c) => c.id === "customer_session_secret");
+
+    // Ya no hay que generar ni pegar otro secreto en el hPanel.
+    expect(check?.severity).toBe("ok");
+    expect(check?.detail).toMatch(/derivado/);
+
+    vi.doUnmock("@/config/tienda");
+    vi.resetModules();
+  });
+
+  it("las cuentas prendidas desde el panel también cuentan", () => {
+    const check = preflight(envSano({ SESSION_SECRET: "" }), undefined, {
+      cuentasClientes: true,
+    }).checks.find((c) => c.id === "customer_session_secret");
+    expect(check?.severity).toBe("bloquea");
+  });
+
+  it("con las cuentas prendidas, sin secreto propio y sin SESSION_SECRET válido, bloquea", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/tienda", () => ({
+      MARCA_PLACEHOLDER: "TiendaPY",
+      TIENDA: { nombre: "Tienda Test", cuentasClientes: true },
+      cuentasClientesHabilitadas: () => true,
+    }));
+
+    const { preflight: conCuentas } = await import("../../src/domain/preflight");
+    const check = conCuentas(
+      envSano({ SESSION_SECRET: "changeme-generate-with-openssl-rand-base64-32" }),
+    ).checks.find((c) => c.id === "customer_session_secret");
 
     // Sin el secreto, /cuenta tira en runtime. Este script existe para que eso
     // se descubra antes del deploy y no con una compradora en la pantalla.
@@ -356,6 +382,25 @@ describe("preflight · marca de la tienda", () => {
     // papelón del primer deploy, y ningún otro control lo mira.
     expect(check?.severity).toBe("bloquea");
     expect(check?.detail).toMatch(/tienda\.ts/);
+
+    vi.doUnmock("@/config/tienda");
+    vi.resetModules();
+  });
+
+  it("el nombre cargado en /admin/ajustes cuenta como renombrada", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/tienda", () => ({
+      MARCA_PLACEHOLDER: "TiendaPY",
+      TIENDA: { nombre: "TiendaPY", cuentasClientes: false },
+      cuentasClientesHabilitadas: () => false,
+    }));
+
+    const { preflight: conPanel } = await import("../../src/domain/preflight");
+    const check = conPanel(envSano(), undefined, { nombreTienda: "Mascota Feliz" }).checks.find(
+      (c) => c.id === "marca",
+    );
+    expect(check?.severity).toBe("ok");
+    expect(check?.detail).toContain("Mascota Feliz");
 
     vi.doUnmock("@/config/tienda");
     vi.resetModules();
