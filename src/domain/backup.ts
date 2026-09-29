@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { BACKUP_TABLES, type BackupTable } from '@/db/schema';
-import { CLOUDINARY_BACKUPS_FOLDER, cloudinary, cloudinaryConfigured } from '@/lib/cloudinary';
+import { carpetaBackups, cloudinary, cloudinaryConfigured } from '@/lib/cloudinary';
 import { log } from '@/lib/log';
 import { PY_TIMEZONE } from '@/lib/py';
 
@@ -185,7 +185,7 @@ export async function uploadBackup(
       {
         resource_type: 'raw',
         type: 'authenticated',
-        folder: CLOUDINARY_BACKUPS_FOLDER,
+        folder: carpetaBackups(),
         public_id: publicId,
         overwrite: false,
       },
@@ -215,7 +215,7 @@ export async function pruneBackups(
   const listado = await cloudinary.api.resources({
     resource_type: 'raw',
     type: 'authenticated',
-    prefix: `${CLOUDINARY_BACKUPS_FOLDER}/`,
+    prefix: `${carpetaBackups()}/`,
     max_results: 500,
   });
 
@@ -289,6 +289,7 @@ export const PRIMARY_KEY: Record<BackupTable, string | null> = {
   job_runs: null,
   bank_details: null,
   store_settings: null,
+  integration_settings: null,
   users: 'id',
   customers: 'id',
   categories: 'id',

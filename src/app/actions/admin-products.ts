@@ -32,7 +32,7 @@ import {
 } from "@/domain/admin-bulk";
 import { sweepBackInStock } from "@/domain/stock-alerts";
 import { validateProductImage } from "@/domain/product-images";
-import { CLOUDINARY_PRODUCTS_FOLDER, cloudinary } from "@/lib/cloudinary";
+import { carpetaProductos, cloudinary } from "@/lib/cloudinary";
 import { slugify } from "@/lib/slug";
 import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from "@/lib/spreadsheet";
 import {
@@ -238,7 +238,7 @@ export async function uploadProductImage(formData: FormData): Promise<AdminActio
 
     const uploaded = await cloudinary.uploader.upload(
       `data:${mime};base64,${content.toString("base64")}`,
-      { folder: CLOUDINARY_PRODUCTS_FOLDER, resource_type: "image", overwrite: false },
+      { folder: carpetaProductos(), resource_type: "image", overwrite: false },
     );
 
     const alt = String(formData.get("alt") ?? "").trim();

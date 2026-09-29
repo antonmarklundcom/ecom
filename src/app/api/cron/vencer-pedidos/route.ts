@@ -2,6 +2,7 @@ import { recordJobRun } from "@/domain/job-runs";
 import { runMaintenance } from "@/domain/maintenance";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
 import { log, mensajeDe } from '@/lib/log';
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * Cron de Hostinger (PLAN.md 4.8).
@@ -37,6 +38,9 @@ async function handle(request: Request): Promise<Response> {
   // compartan exactamente la misma puerta). El comportamiento no cambió.
   const auth = requireCronSecret(request);
   if (!auth.ok) return auth.response;
+
+  // Plantillas y credenciales pueden venir de /admin/integraciones.
+  await cargarIntegraciones();
 
   try {
     const report = await runMaintenance();

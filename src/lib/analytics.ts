@@ -1,5 +1,5 @@
 /**
- * Medición por tienda: GA4 y/o Meta Pixel, desde el entorno.
+ * Medición por tienda: GA4 y/o Meta Pixel, desde el panel o el entorno.
  *
  * "Vender más" empieza por saber qué pasa: cuánta gente entra, desde dónde,
  * y cuántos de los que llegan al checkout terminan comprando. Sin medición,
@@ -20,6 +20,8 @@
  * por eso el prefijo `NEXT_PUBLIC_` acá es correcto y no una fuga.
  */
 
+import { integracion } from "./integraciones";
+
 /** `G-XXXXXXXXXX` — el "ID de medición" de un flujo web de GA4. */
 const GA4_ID_RE = /^G-[A-Z0-9]{4,20}$/;
 
@@ -31,9 +33,19 @@ export type AnalyticsConfig = {
   metaPixelId: string | null;
 };
 
-export function analyticsConfig(env: Record<string, string | undefined> = process.env): AnalyticsConfig {
-  const ga4 = (env.NEXT_PUBLIC_GA4_ID ?? "").trim();
-  const pixel = (env.NEXT_PUBLIC_META_PIXEL_ID ?? "").trim();
+/**
+ * Los medidores con formato válido.
+ *
+ * Sin argumento lee la config efectiva: `/admin/integraciones` → Medición, o
+ * si no `NEXT_PUBLIC_GA4_ID` / `NEXT_PUBLIC_META_PIXEL_ID`
+ * (`src/lib/integraciones.ts`). Con `env`, sólo ese objeto — es lo que usan
+ * los tests. El regex vale igual para las dos fuentes: un id cargado desde el
+ * panel tampoco puede inyectar JS.
+ */
+export function analyticsConfig(env?: Record<string, string | undefined>): AnalyticsConfig {
+  const efectiva = env === undefined ? integracion("analitica").valores : null;
+  const ga4 = (efectiva ? efectiva.ga4Id ?? "" : env?.NEXT_PUBLIC_GA4_ID ?? "").trim();
+  const pixel = (efectiva ? efectiva.metaPixelId ?? "" : env?.NEXT_PUBLIC_META_PIXEL_ID ?? "").trim();
 
   return {
     ga4Id: GA4_ID_RE.test(ga4) ? ga4 : null,
@@ -42,7 +54,7 @@ export function analyticsConfig(env: Record<string, string | undefined> = proces
 }
 
 /** ¿Hay al menos un medidor configurado y con formato válido? */
-export function analyticsActivo(env: Record<string, string | undefined> = process.env): boolean {
+export function analyticsActivo(env?: Record<string, string | undefined>): boolean {
   const config = analyticsConfig(env);
   return config.ga4Id !== null || config.metaPixelId !== null;
 }

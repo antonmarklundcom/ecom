@@ -12,6 +12,7 @@ import { motivoDeAviso, withTimeout } from "./notify-timing";
 import { firstName, buyerOrderUrl } from "./order-messages";
 import { NOTICE_REASON_PREFIX, recordOrderEvent } from "./order-events";
 import { log, mensajeDe } from '@/lib/log';
+import { valorIntegracion, type CampoDe } from "@/lib/integraciones";
 
 /**
  * Los avisos por WhatsApp que recibe la COMPRADORA (fase O3, sigue a O2 —
@@ -54,25 +55,30 @@ const AVISO_TIMEOUT_MS = 10_000;
 
 export type CustomerNoticeKind = "confirmado" | "pagado" | "enviado" | "recordatorio" | "resena";
 
-const TEMPLATE_ENV_VAR: Record<CustomerNoticeKind, string> = {
-  confirmado: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO",
-  pagado: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO",
-  enviado: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO",
+/**
+ * El campo de `/admin/integraciones` → WhatsApp de cada aviso. El fallback de
+ * entorno de siempre (`WHATSAPP_CLOUD_TEMPLATE_CLIENTE_*`) está declarado en
+ * `src/lib/integraciones.ts`.
+ */
+const TEMPLATE_CAMPO = {
+  confirmado: "plantillaClienteConfirmado",
+  pagado: "plantillaClientePagado",
+  enviado: "plantillaClienteEnviado",
   // O15. No lo dispara una transición sino el cron, y por eso su idempotencia
   // no vive en `order_events` como la de los otros tres sino en una columna
   // propia (`orders.payment_reminder_sent_at`): el cron corre cada 15 minutos
   // y una fila de evento no se puede pedir "sólo si no existe" en una sola
   // sentencia. El detalle está en `src/domain/payment-reminders.ts`.
-  recordatorio: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO",
+  recordatorio: "plantillaClienteRecordatorio",
   // Pedido de reseña: sale al entrar a `entregado`, por el mismo hook y con
   // la misma idempotencia en `order_events` que "enviado". El link es el del
   // pedido, que es donde está el formulario (`src/domain/reviews.ts`).
-  resena: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA",
-};
+  resena: "plantillaClienteResena",
+} as const satisfies Record<CustomerNoticeKind, CampoDe<"whatsapp">>;
 
 /** El nombre de la plantilla de Meta para este aviso, o `null` si no se cargó. */
 export function customerNoticeTemplate(kind: CustomerNoticeKind): string | null {
-  return process.env[TEMPLATE_ENV_VAR[kind]]?.trim() || null;
+  return valorIntegracion("whatsapp", TEMPLATE_CAMPO[kind]);
 }
 
 export type CustomerNotifier = {

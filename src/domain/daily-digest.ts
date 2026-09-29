@@ -14,6 +14,7 @@ import type { Executor } from './executor';
 import { resolveMessageSender, type MessageSender } from './messaging';
 import { withTimeout } from './notify-timing';
 import { log, mensajeDe } from '@/lib/log';
+import { valorIntegracion } from "@/lib/integraciones";
 
 /**
  * El resumen de la mañana que el dueño recibe por WhatsApp (plan-operacion
@@ -46,7 +47,7 @@ const AVISO_TIMEOUT_MS = 10_000;
 
 /** El nombre de la plantilla de Meta, o `null` si esta tienda no la cargó. */
 export function digestTemplate(): string | null {
-  return process.env.WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO?.trim() || null;
+  return valorIntegracion("whatsapp", "plantillaResumenDiario");
 }
 
 export type DigestNotifier = {

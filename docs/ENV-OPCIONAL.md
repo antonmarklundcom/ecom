@@ -23,6 +23,21 @@ Reglas que siguen valiendo para todas:
   después hay que apretar **Redeploy**: cambiar una variable no rebuildea.
 - Ningún secreto lleva el prefijo `NEXT_PUBLIC_`.
 
+**La mayoría ni siquiera hace falta en el hPanel.** Cloudinary
+(`CLOUDINARY_*`), WhatsApp (`WHATSAPP_NUMBER`, `WHATSAPP_CLOUD_*`), Pagopar
+(`PAGOPAR_PUBLIC_KEY`, `PAGOPAR_PRIVATE_KEY`, `PAGOPAR_BASE_URL`), la medición
+(`NEXT_PUBLIC_GA4_ID`, `NEXT_PUBLIC_META_PIXEL_ID`) y `ERROR_REPORT_URL` se
+cargan desde **`/admin/integraciones`**, sin redeploy, con los secretos
+cifrados en la base (NEW-STORE.md §4a-ter). Precedencia: **lo del panel > la
+variable de este archivo > apagado**. Las variables siguen andando como
+fallback — una tienda que ya las tiene cargadas no cambia en nada — y los
+comentarios de abajo valen igual para los dos lugares (las trampas de Meta, de
+Pagopar y de Cloudinary son las mismas).
+
+Se quedan sólo en el entorno: `CUSTOMER_SESSION_SECRET`, `PAGOPAR_MODE`, las
+`PAGOPAR_SANDBOX_*` (tests), `FACTURAPY_*` (sin uso todavía), los `OWNER_*` y
+los `BANCO_*` (esos se cargan en `/admin/banco`).
+
 `TEST_DATABASE_URL` (la base de los tests de integración) también está acá
 abajo y en el README: es sólo de desarrollo, y en `.env.example` era una
 trampa — si alguien la apuntaba a la base real, el runner de tests la borra.

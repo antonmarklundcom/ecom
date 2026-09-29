@@ -17,7 +17,7 @@ import {
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
-import { cloudinary, CLOUDINARY_CATEGORIES_FOLDER } from "@/lib/cloudinary";
+import { cloudinary, carpetaCategorias } from "@/lib/cloudinary";
 import { log, mensajeDe } from "@/lib/log";
 import { t } from "@/i18n";
 
@@ -159,7 +159,7 @@ export async function uploadCategoryImage(formData: FormData): Promise<AdminActi
 
     const uploaded = await cloudinary.uploader.upload(
       `data:${mime};base64,${content.toString("base64")}`,
-      { folder: CLOUDINARY_CATEGORIES_FOLDER, resource_type: "image", overwrite: false },
+      { folder: carpetaCategorias(), resource_type: "image", overwrite: false },
     );
 
     const altRaw = String(formData.get("alt") ?? "").trim();

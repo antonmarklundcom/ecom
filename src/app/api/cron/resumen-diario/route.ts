@@ -3,6 +3,7 @@ import { claimJob, finishJob } from "@/domain/job-runs";
 import { sweepBackInStock } from "@/domain/stock-alerts";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
 import { log, mensajeDe } from '@/lib/log';
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * El cron del resumen diario (plan-operacion §5.2 C).
@@ -41,6 +42,9 @@ export async function POST(request: Request): Promise<Response> {
 async function handle(request: Request): Promise<Response> {
   const auth = requireCronSecret(request);
   if (!auth.ok) return auth.response;
+
+  // Plantillas y credenciales pueden venir de /admin/integraciones.
+  await cargarIntegraciones();
 
   const claim = await claimJob("resumen_diario", { onceEvery: "dia" });
   if (!claim.claimed) {

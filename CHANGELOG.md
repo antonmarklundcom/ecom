@@ -25,6 +25,17 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Integraciones desde el panel (`/admin/integraciones`, sólo el dueño).
+  Migración: sí (`0017`, tabla nueva `integration_settings`).** Cloudinary,
+  WhatsApp (número del comercio, Cloud API y plantillas), Pagopar, GA4/Pixel y
+  el reporte de errores se cargan sin tocar el hPanel ni redeployar. Precedencia
+  panel > entorno > apagado; secretos cifrados con AES-256-GCM (clave derivada
+  de `SESSION_SECRET`), nunca devueltos al navegador; "Probar conexión";
+  `pnpm preflight` dice de dónde sale cada valor; el CSP sigue a la medición
+  efectiva. **Las tiendas existentes no tienen que hacer nada**: sin filas en
+  la tabla, todo sale de sus variables de entorno como antes. Después del sync,
+  correr el setup para aplicar la migración (NEW-STORE.md § "Migraciones que
+  llegan por `template:sync`").
 - **`.env.example` mínimo:** trae sólo las cinco imprescindibles
   (`DATABASE_URL`, `SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`,
   `SETUP_SECRET`), porque Hostinger lo lee y precarga un campo del hPanel por

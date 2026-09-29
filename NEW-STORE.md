@@ -82,11 +82,11 @@ terceros**, porque son cuentas de otro que nadie puede abrir por vos:
 |---|---|---|
 | Hosting y base | hPanel de Hostinger | `DATABASE_URL` y el deploy (DEPLOY.md) |
 | Dominio | tu registrador | `NEXT_PUBLIC_SITE_URL` — el wizard ya lo escribe, falta apuntarlo |
-| Cloudinary | cloudinary.com | fotos de producto y comprobantes de pago |
-| Pagopar | el comercio | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
+| Cloudinary | cloudinary.com → `/admin/integraciones` | fotos de producto y comprobantes de pago (§4a-ter) |
+| Pagopar | el comercio → `/admin/integraciones` | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
 | Datos bancarios | `/admin/banco`, con la tienda arriba | a dónde transfieren (§4a) |
 | Fotos y favicon | el comercio | `src/app/favicon.ico` y `/admin/productos` |
-| Medición (opcional) | GA4 / Meta Business | `NEXT_PUBLIC_GA4_ID` y/o `NEXT_PUBLIC_META_PIXEL_ID` — con eso el sitio mide visitas y ventas (evento de compra incluido); vacíos, no carga ni un byte de terceros. Ver `docs/ENV-OPCIONAL.md` |
+| Medición (opcional) | GA4 / Meta Business → `/admin/integraciones` | el ID de GA4 y/o del Pixel — con eso el sitio mide visitas y ventas (evento de compra incluido); vacíos, no carga ni un byte de terceros |
 
 El resto de este documento es el detalle de cada paso: leelo si algo no
 cuadra, o si querés saber por qué el wizard hace lo que hace.
@@ -397,6 +397,49 @@ Una tienda que ya rediseñó `site-footer.tsx`, `layout.tsx` o `page.tsx` (piel)
 trae esto por `template:sync` se queda con los suyos: la barra de anuncio, los
 links a las páginas y el contacto nuevo del pie no aparecen hasta sumarlos a
 mano (las páginas en sí sí existen).
+
+### 4a-ter. Integraciones desde el panel: Cloudinary, WhatsApp, Pagopar, medición
+
+**`/admin/integraciones`** (sólo el dueño) carga lo que antes eran variables del
+hPanel, con la tienda ya arriba y sin redeploy:
+
+| Tarjeta | Qué carga | Fallback de entorno |
+|---|---|---|
+| Cloudinary | cloud name, API key, **API secret**, prefijo de carpetas | `CLOUDINARY_*` |
+| WhatsApp | número del comercio (avisos al dueño), phone number ID, **token**, versión de la API, las nueve plantillas | `WHATSAPP_NUMBER`, `WHATSAPP_CLOUD_*` |
+| Pagopar | clave pública, **clave privada**, URL de la API | `PAGOPAR_PUBLIC_KEY`, `PAGOPAR_PRIVATE_KEY`, `PAGOPAR_BASE_URL` |
+| Medición | ID de GA4, ID del Pixel | `NEXT_PUBLIC_GA4_ID`, `NEXT_PUBLIC_META_PIXEL_ID` |
+| Reporte de errores | URL del webhook | `ERROR_REPORT_URL` |
+
+Las reglas, todas en `src/lib/integraciones.ts`:
+
+- **Precedencia: fila de la base > variable de entorno > apagado**, igual que
+  `/admin/banco` con `BANCO_*`. Vacío en el panel = vuelve a mandar el entorno;
+  sin ninguno de los dos, la función queda apagada (nunca rota). El botón
+  "Borrar lo del panel" devuelve una integración entera al entorno.
+- **Las credenciales que van juntas no se mezclan**: si el panel tiene alguna
+  de las de Cloudinary (o de Pagopar, o phone ID + token de WhatsApp), el grupo
+  entero sale del panel. Las plantillas y el prefijo se resuelven de a uno.
+- **Los secretos se guardan cifrados** (AES-256-GCM, clave derivada de
+  `SESSION_SECRET` por HKDF, una por campo) y **nunca vuelven al navegador**: la
+  pantalla muestra "Configurado ••••1234" y sólo deja reemplazar o borrar. Sin
+  `SESSION_SECRET` válido no se lee ni se guarda nada. **Cambiar
+  `SESSION_SECRET` deja ilegibles los secretos guardados** — la pantalla lo dice
+  y hay que volver a cargarlos.
+- **"Probar conexión"** para Cloudinary (ping de la Admin API), WhatsApp (lee
+  el número en la Graph API, no manda nada) y Pagopar (sólo que el host
+  conteste por https: sus claves sólo se verifican con una transacción del
+  sandbox). Cada guardado y cada prueba quedan en el log del hPanel con quién y
+  qué campos, nunca valores.
+- `pnpm preflight` lee las dos fuentes y dice de dónde sale cada valor.
+- `PAGOPAR_MODE`, `CUSTOMER_SESSION_SECRET`, `FACTURAPY_*` y los `OWNER_*` se
+  quedan en el entorno: el modo mock es de desarrollo, el secreto de clientes
+  es material de sesión, FacturaPY no se usa todavía, y el dueño se crea con
+  `/api/setup/init` o `pnpm create-owner`.
+
+La lectura usa una foto en memoria que se recarga cada 30 segundos y se tira
+al guardar: en el mismo proceso el cambio es inmediato; el CSP del proxy puede
+tardar hasta 30 s en abrirse a un GA4 recién cargado.
 
 ### 4b. ¿Esta tienda quiere cuentas de cliente?
 
@@ -1026,6 +1069,16 @@ La `0013` (plan de crecimiento, fase O14) agrega una sola columna,
 el recordatorio de pago. Nullable, sin backfill — un pedido viejo sin la marca
 es exactamente lo que corresponde. Sin ella, la tienda anda igual; lo que no
 anda es el recordatorio que agrega O15.
+
+La `0017` (integraciones desde el panel, §4a-ter) crea una tabla nueva,
+`integration_settings`, vacía. **Una tienda existente no pierde nada**: sin
+filas, cada integración sale de sus variables de entorno exactamente como
+antes, así que el PR `template/sync` se mergea, se corre el setup y la tienda
+sigue igual. Pasar una integración al panel es opcional y se hace de a una:
+cargarla en `/admin/integraciones`, probar la conexión, y recién después borrar
+esas variables del hPanel (Redeploy), para no dejar dos verdades. Si la tienda
+sincroniza el código antes de migrar, la lectura de la tabla falla en silencio
+(queda en el log) y todo sigue saliendo del entorno.
 
 Sigue valiendo lo de siempre: Dependabot no mueve nada de esto y las columnas
 no se agregan a mano en el hPanel — la migración es la única fuente.

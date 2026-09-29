@@ -18,6 +18,7 @@ export const PRICE_ADJUSTMENTS_ACTOR_FK = 'price_adjustments_actor_fk';
 export const PRODUCT_REVIEWS_MODERATOR_FK = 'product_reviews_moderator_fk';
 export const ORDER_RETURNS_ACTOR_FK = 'order_returns_actor_fk';
 export const STORE_SETTINGS_UPDATED_BY_FK = 'store_settings_updated_by_fk';
+export const INTEGRATION_SETTINGS_UPDATED_BY_FK = 'integration_settings_updated_by_fk';
 
 export async function applySchemaExtras(pool: Pool): Promise<string[]> {
   const applied: string[] = [];
@@ -184,6 +185,21 @@ export async function applySchemaExtras(pool: Pool): Promise<string[]> {
         'FOREIGN KEY (`updated_by_user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE',
     );
     applied.push('FK store_settings.updated_by_user_id → users.id');
+  }
+
+  // Lo mismo para las integraciones: borrar al usuario que guardó una
+  // credencial no puede borrar la credencial.
+  const [integrationSettingsFk] = await pool.query<never>(
+    `SELECT COUNT(*) AS n FROM information_schema.table_constraints
+      WHERE table_schema = DATABASE() AND table_name = 'integration_settings' AND constraint_name = ?`,
+    [INTEGRATION_SETTINGS_UPDATED_BY_FK],
+  );
+  if (count(integrationSettingsFk) === 0) {
+    await pool.query(
+      `ALTER TABLE \`integration_settings\` ADD CONSTRAINT \`${INTEGRATION_SETTINGS_UPDATED_BY_FK}\` ` +
+        'FOREIGN KEY (`updated_by_user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE',
+    );
+    applied.push('FK integration_settings.updated_by_user_id → users.id');
   }
 
   await pool.query(

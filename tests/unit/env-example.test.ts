@@ -27,6 +27,7 @@ const IMPRESCINDIBLES = [
 /** Las pone el hosting, el build o la terminal: no son configuración de la tienda. */
 const NO_DOCUMENTADAS = new Set([
   'NODE_ENV',
+  'NEXT_RUNTIME',
   'BUILD_SHA',
   'BUILD_AT',
   'MYSQL_PWD',

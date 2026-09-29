@@ -7,7 +7,28 @@
  * caerse porque el comercio todavía no cargó las credenciales.
  */
 
-const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+
+/** Lo registra `src/lib/integraciones.ts` al cargarse (ver `cloudName`). */
+const LECTOR_CLOUD_NAME = Symbol.for("ecom.integraciones.cloudName");
+
+/**
+ * El `cloud_name`, panel > entorno (src/lib/integraciones.ts). Se lee en cada
+ * llamada: el dueño lo puede cargar desde el panel sin redeploy.
+ *
+ * **No importa `integraciones.ts`**, a propósito: este archivo lo usan
+ * componentes cliente, y ese módulo (con la tabla de campos de todas las
+ * integraciones) inflaba el JS de la home por encima del presupuesto de
+ * `tests/e2e/presupuesto.spec.ts`. En el servidor, `integraciones.ts` deja un
+ * lector en `globalThis` al cargarse (lo carga `instrumentation.ts` al
+ * arrancar); sin él, el entorno de siempre. En el navegador no hay ni lector
+ * ni entorno y da `null`, como siempre.
+ */
+function cloudName(): string | null {
+  const lector = (globalThis as { [LECTOR_CLOUD_NAME]?: () => string | null })[LECTOR_CLOUD_NAME];
+  if (lector) return lector();
+  if (typeof process === "undefined") return null;
+  return (process.env.CLOUDINARY_CLOUD_NAME ?? "").trim() || null;
+}
 
 /** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
 const DEFAULT_TRANSFORMS = "f_auto,q_auto";
@@ -54,9 +75,10 @@ export function productImageUrl(
   cloudinaryId: string | null | undefined,
   size: ImageSize = "card"
 ): string | null {
-  if (!CLOUD_NAME || !cloudinaryId) return null;
+  const cloud = cloudName();
+  if (!cloud || !cloudinaryId) return null;
   const transforms = `${DEFAULT_TRANSFORMS},${SIZE_TRANSFORMS[size]}`;
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${transforms}/${cloudinaryId}`;
+  return `https://res.cloudinary.com/${cloud}/image/upload/${transforms}/${cloudinaryId}`;
 }
 
 /**

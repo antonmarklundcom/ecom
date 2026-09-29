@@ -15,6 +15,7 @@ import { linkSeguro } from "@/domain/store-settings-schema";
 import { idiomaActivo } from "@/i18n";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +58,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const { anuncio } = await getStoreSettings();
+  // La foto de integraciones (GA4/Pixel, WhatsApp, Cloudinary) fresca para
+  // este render: src/lib/integraciones.ts. Nunca tira.
+  const [{ anuncio }] = await Promise.all([getStoreSettings(), cargarIntegraciones()]);
 
   // El idioma **efectivo** y no el que dice el config: si `TIENDA.lang` apunta
   // a un catálogo que no existe, los textos salen en es-PY y el `lang` del

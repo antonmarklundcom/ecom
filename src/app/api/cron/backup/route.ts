@@ -4,6 +4,7 @@ import { claimJob, finishJob } from "@/domain/job-runs";
 import { withTimeout } from "@/domain/notify-timing";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
 import { log } from "@/lib/log";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * El cron de la copia de seguridad (plan-operacion §5.4 A).
@@ -46,6 +47,9 @@ export async function POST(request: Request): Promise<Response> {
 async function handle(request: Request): Promise<Response> {
   const auth = requireCronSecret(request);
   if (!auth.ok) return auth.response;
+
+  // Plantillas y credenciales pueden venir de /admin/integraciones.
+  await cargarIntegraciones();
 
   // Sin Cloudinary no hay dónde guardar la copia. Se contesta 200 y no un
   // error: no es una falla de esta corrida, es una tienda que no configuró la

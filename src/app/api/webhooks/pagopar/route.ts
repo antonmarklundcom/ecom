@@ -19,6 +19,7 @@ import {
   rateLimit,
 } from "@/lib/rate-limit";
 import { log, mensajeDe } from '@/lib/log';
+import { cargarIntegraciones } from '@/lib/integraciones-store';
 
 /**
  * Aviso de pago de Pagopar (PLAN.md 5.2, ARCH.md §4).
@@ -50,6 +51,9 @@ export const runtime = "nodejs";
 const DEADLINE_MS = 4_000;
 
 export async function POST(request: Request): Promise<Response> {
+  // La clave puede venir de /admin/integraciones: se asegura la foto fresca
+  // antes de leerla. Sin clave en ninguna fuente, 503 como siempre.
+  await cargarIntegraciones();
   const privateKey = pagoparPrivateKey();
   if (!privateKey) {
     // Sin clave no se puede verificar nada, y una ruta de pagos que acepta

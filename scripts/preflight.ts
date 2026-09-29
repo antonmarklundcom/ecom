@@ -7,6 +7,7 @@ import {
 } from "../src/domain/admin-shipping-methods";
 import { preflight, type PreflightCheck } from "../src/domain/preflight";
 import { listShippingZones } from "../src/domain/shipping";
+import { leerIntegracionesDelPanel } from "../src/lib/integraciones-store";
 
 /**
  * `pnpm preflight` — ¿podemos cobrar plata de verdad?
@@ -16,9 +17,12 @@ import { listShippingZones } from "../src/domain/shipping";
  * no sobre el repo. Sale con código 1 si hay algo que bloquea, para que un
  * deploy automatizado se frene solo.
  *
- * El reporte de arriba —el que decide el código de salida— **no toca la base
- * ni la red**, a propósito: se corre en el servidor de producción y no puede
- * depender de que MySQL esté arriba. Después de imprimirlo, y sólo después,
+ * El reporte de arriba —el que decide el código de salida— **no depende de la
+ * base**, a propósito: se corre en el servidor de producción y no puede
+ * depender de que MySQL esté arriba. Lo único que lee de ahí, antes, es la
+ * configuración de `/admin/integraciones` (sólo lectura), para saber si lo
+ * que falta en el entorno está cargado en el panel; si la base no contesta,
+ * lo avisa y sigue con el entorno. Después de imprimirlo, y sólo después,
  * hay un bloque aparte que **sí lee la base** (los métodos de envío) porque no
  * hay forma de saberlo desde el entorno. Es de sólo lectura, nunca bloquea, y
  * si la base no contesta lo dice y sigue.
@@ -95,7 +99,12 @@ async function revisarMetodosDeEnvio(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const report = preflight();
+  // Lo cargado en /admin/integraciones manda sobre el entorno: se lee (sólo
+  // lectura) para que el reporte diga lo que la tienda usa de verdad y de
+  // dónde sale. Si la base no contesta, el reporte sigue con el entorno y lo
+  // dice en un control propio.
+  const panel = await leerIntegracionesDelPanel();
+  const report = preflight(process.env, panel);
 
   console.log("\nPreflight — lo que falta para cobrar de verdad\n");
 

@@ -135,4 +135,6 @@ const KNOWN_DOMAIN_ERRORS = [
   "ReturnError",
   // Ajustes de la tienda: "el link tiene que empezar con https://".
   "StoreSettingsError",
+  // Integraciones: "el ID de GA4 tiene la forma G-…", "falta SESSION_SECRET".
+  "IntegracionError",
 ];
