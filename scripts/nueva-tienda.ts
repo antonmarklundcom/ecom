@@ -437,6 +437,34 @@ export function bloqueHPanel(valores: ValoresEnv): string {
     .join('\n');
 }
 
+/**
+ * Las cinco de `.env.example` —las que una tienda necesita en el hosting para
+ * arrancar— y el resto. Hostinger precarga un campo por cada variable de
+ * `.env.example`, así que el bloque principal tiene que coincidir con esa
+ * lista: lo que no está ahí es opcional (docs/ENV-OPCIONAL.md) y se imprime
+ * aparte, para que nadie lo tome por obligatorio.
+ */
+export const IMPRESCINDIBLES_HPANEL = [
+  'DATABASE_URL',
+  'SESSION_SECRET',
+  'NEXT_PUBLIC_SITE_URL',
+  'CRON_SECRET',
+  'SETUP_SECRET',
+] as const;
+
+export function separarHPanel(valores: ValoresEnv): {
+  imprescindibles: string[];
+  opcionales: string[];
+} {
+  const esImprescindible = (clave: string): boolean =>
+    (IMPRESCINDIBLES_HPANEL as readonly string[]).includes(clave);
+  const claves = Object.keys(valores);
+  return {
+    imprescindibles: claves.filter(esImprescindible),
+    opcionales: claves.filter((clave) => !esImprescindible(clave)),
+  };
+}
+
 /** `tienda.com.py` / `https://tienda.com.py/` → `https://tienda.com.py`. */
 export function normalizarDominio(entrada: string): string {
   const limpio = entrada.trim().replace(/\/+$/, '');
@@ -682,6 +710,7 @@ async function main(): Promise<void> {
     '\n  Falta lo que no depende de este repo (NEW-STORE.md):\n' +
       '    · el favicon (src/app/favicon.ico) — ningún control lo verifica\n' +
       '    · Cloudinary, la base de Hostinger y, si va con tarjeta, Pagopar\n' +
+      '      (variables opcionales, documentadas en docs/ENV-OPCIONAL.md)\n' +
       '    · los datos bancarios, que se cargan desde /admin/banco\n\n' +
       '  Y después, la base:\n\n' +
       '    docker compose up -d && pnpm db:push && pnpm db:seed && pnpm create-owner\n' +
@@ -716,12 +745,20 @@ export function leerValorEnv(contenido: string, clave: string): string {
  * en Hostinger es ése y no uno nuevo que nadie va a usar.
  */
 function imprimirHPanel(contenidoEnv: string, claves: ValoresEnv): void {
-  const finales: ValoresEnv = {};
-  for (const clave of Object.keys(claves)) finales[clave] = leerValorEnv(contenidoEnv, clave);
+  const { imprescindibles, opcionales } = separarHPanel(claves);
+  const leer = (lista: string[]): ValoresEnv =>
+    Object.fromEntries(lista.map((clave) => [clave, leerValorEnv(contenidoEnv, clave)]));
 
   console.log('\n  Para pegar en el hPanel de Hostinger (una por una):\n');
-  for (const linea of bloqueHPanel(finales).split('\n')) console.log(`    ${linea}`);
+  for (const linea of bloqueHPanel(leer(imprescindibles)).split('\n')) console.log(`    ${linea}`);
+  console.log('    DATABASE_URL=<la de la base MySQL de Hostinger, DEPLOY.md §2>');
   console.log('    NODE_ENV=production');
+
+  const extra = bloqueHPanel(leer(opcionales));
+  if (extra !== '') {
+    console.log('\n  Opcionales (docs/ENV-OPCIONAL.md) — sólo si no las cargás desde el panel:\n');
+    for (const linea of extra.split('\n')) console.log(`    ${linea}`);
+  }
   console.log(
     '\n  SETUP_SECRET va sólo durante el primer deploy y después se borra\n' +
       '  del hPanel (DEPLOY.md §4). Cambiar una variable en Hostinger no\n' +

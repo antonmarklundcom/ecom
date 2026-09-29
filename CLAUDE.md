@@ -52,8 +52,13 @@ NEW-STORE.md §5 y `src/lib/testids.ts`.
   nombre de la tienda en otro archivo (`tests/unit/marca-centralizada.test.ts`
   lo bloquea).
 - No inventes credenciales de terceros ni valores "por si acaso" (ver
-  `.env.example`): una variable vacía debe apagar la feature, no fallar en
-  silencio ni usar un default inventado.
+  `.env.example` y `docs/ENV-OPCIONAL.md`): una variable vacía debe apagar la
+  feature, no fallar en silencio ni usar un default inventado.
+- `.env.example` tiene **sólo las cinco imprescindibles** (`DATABASE_URL`,
+  `SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `SETUP_SECRET`):
+  Hostinger lo lee y precarga un campo del hPanel por variable. Una variable
+  opcional nueva se documenta en `docs/ENV-OPCIONAL.md`, nunca en
+  `.env.example` (`tests/unit/env-example.test.ts` lo bloquea).
 - Cambios de schema van con su migración generada y commiteada
   (`pnpm db:generate`) — CI falla si `schema.ts` se despega de `drizzle/`.
 - Antes de dar por terminado algo: `pnpm typecheck && pnpm lint && pnpm test`.

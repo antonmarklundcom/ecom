@@ -116,7 +116,15 @@ export function esSoloTemplate(ruta: string): boolean {
  * editaron el mismo doc antes que el commit de maquinaria que se está trayendo
  * (así chocó `KNOWN-ISSUES.md` en #109). Gana la versión del template.
  */
-export const DOCS_DEL_TEMPLATE = ['KNOWN-ISSUES.md', 'ARCH.md', 'NEW-STORE.md', 'CHANGELOG.md'] as const;
+export const DOCS_DEL_TEMPLATE = [
+  'KNOWN-ISSUES.md',
+  'ARCH.md',
+  'NEW-STORE.md',
+  'CHANGELOG.md',
+  // La referencia de las variables opcionales (lo que salió de `.env.example`).
+  // Describe la maquinaria, no la tienda: una tienda no tiene nada suyo ahí.
+  'docs/ENV-OPCIONAL.md',
+] as const;
 
 export const BASELINE_FILE = '.template-baseline';
 

@@ -61,10 +61,16 @@ describe('secretos', () => {
   });
 
   it('.env.example no trae valores reales y .env.local está ignorado', async () => {
-    const example = await readFile(path.join(process.cwd(), '.env.example'), 'utf8');
+    // `.env.example` trae sólo las imprescindibles; el resto está documentado en
+    // docs/ENV-OPCIONAL.md con el mismo formato. Ninguno de los dos puede
+    // traer un secreto con valor real.
+    const example =
+      (await readFile(path.join(process.cwd(), '.env.example'), 'utf8')) +
+      '\n' +
+      (await readFile(path.join(process.cwd(), 'docs/ENV-OPCIONAL.md'), 'utf8'));
 
     // Los secretos del ejemplo tienen que ser placeholders evidentes.
-    const filled = [...example.matchAll(/^(CLOUDINARY_API_SECRET|PAGOPAR_PRIVATE_KEY|CRON_SECRET|SESSION_SECRET)="?([^"\n]*)"?$/gm)]
+    const filled = [...example.matchAll(/^(CLOUDINARY_API_SECRET|PAGOPAR_PRIVATE_KEY|WHATSAPP_CLOUD_ACCESS_TOKEN|CUSTOMER_SESSION_SECRET|CRON_SECRET|SESSION_SECRET|SETUP_SECRET)="?([^"\n]*)"?$/gm)]
       .filter(([, , value]) => {
         const text = (value ?? '').trim();
         if (text === '') return false;

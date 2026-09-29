@@ -31,7 +31,7 @@ function configure(): typeof sdk {
   if (missing.length > 0) {
     throw new Error(
       `Faltan variables de Cloudinary (${missing.join(" / ")}). ` +
-        "Completalas en .env.local — ver .env.example.",
+        "Completalas en .env.local — ver docs/ENV-OPCIONAL.md.",
     );
   }
 

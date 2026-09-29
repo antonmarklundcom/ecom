@@ -17,7 +17,8 @@ Guaraníes enteros, español (voseo), WhatsApp-first, mobile-first.
 | [TASKS.md](./TASKS.md) | Checklist por PR |
 | [NEW-STORE.md](./NEW-STORE.md) | Checklist para arrancar una tienda nueva desde este template |
 | [DEPLOY.md](./DEPLOY.md) | Runbook del deploy a Hostinger: git deploy, variables, base, cron, prueba de humo |
-| [.env.example](./.env.example) | Todas las variables de entorno con sus trampas documentadas |
+| [.env.example](./.env.example) | Las cinco variables imprescindibles (lo que Hostinger precarga en el hPanel) |
+| [docs/ENV-OPCIONAL.md](./docs/ENV-OPCIONAL.md) | Todas las demás variables, opcionales, con sus trampas documentadas |
 | `fable/…` (las filas de abajo) | Sólo existen en el template: `pnpm nueva-tienda` borra `fable/` en cada tienda, así que ahí estos links no llevan a ningún lado |
 | [fable/REVIEW.md](./fable/REVIEW.md) | Revisión de Fable (2026-09-11): diagnóstico completo sobre el que salió `fable/plan-crecimiento.md`. La última de maquinaria es [fable/REVIEW-2026-09-13.md](./fable/REVIEW-2026-09-13.md), ya aplicada (#109); la próxima arranca desde `fable/PROMPT.md` |
 | [fable/TEMPLATE-REVIEW.md](./fable/TEMPLATE-REVIEW.md) | Auditoría del template como fábrica de tiendas (2026-09-19): wizard, bootstrap, `template:sync`, CI. Hallazgos T1–T7, todos cerrados |
@@ -49,6 +50,21 @@ pnpm dev                            # http://localhost:3000 · panel en /admin
 
 Para ver la tienda con pedidos de verdad en vez de un catálogo vacío, `pnpm demo`
 reemplaza los pasos `db:seed` de arriba — ver la sección de abajo.
+
+### La base de los tests de integración (`TEST_DATABASE_URL`)
+
+Los tests de integración corren contra una base **aparte** que el runner
+**borra y recrea en cada corrida**. Por eso no está en `.env.example` (Hostinger
+lo lee como plantilla del servidor, y una copia apuntada a la base real la
+borraría): agregala a mano en tu `.env.local`, sólo en desarrollo.
+
+```dotenv
+# El nombre tiene que contener "test": el runner se niega a tocar otra base.
+TEST_DATABASE_URL="mysql://ecom:ecom@localhost:3306/ecom_test"
+```
+
+Vacía o ausente, esos tests se saltan solos y los unitarios siguen corriendo.
+Nunca la apuntes a la base de una tienda — ver `docs/ENV-OPCIONAL.md`.
 
 | Comando | Qué hace |
 |---|---|

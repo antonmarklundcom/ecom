@@ -5,7 +5,7 @@
  * nombre que se ve en el header, el pie y los títulos del navegador, la
  * descripción para buscadores y el idioma. Los datos que sí son secretos o
  * cambian por ambiente (WhatsApp, banco, Pagopar, Cloudinary) siguen en el
- * entorno — ver `.env.example` y `src/lib/comercio.ts`.
+ * entorno — ver `docs/ENV-OPCIONAL.md` y `src/lib/comercio.ts`.
  *
  * Regla para no romper el template: nada del dominio (checkout, pedidos,
  * panel) lee este archivo. Es sólo presentación. Si aparece la tentación de
