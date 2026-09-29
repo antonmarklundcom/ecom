@@ -16,7 +16,7 @@ import {
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
-import { CLOUDINARY_BANK_FOLDER, cloudinary } from "@/lib/cloudinary";
+import { carpetaBanco, cloudinary } from "@/lib/cloudinary";
 
 /**
  * Datos bancarios del comercio (PLAN.md FASE 2, PR T). **Todas owner-only.**
@@ -88,7 +88,7 @@ export async function subirQrBancario(formData: FormData): Promise<AdminActionRe
 
     const uploaded = await cloudinary.uploader.upload(
       `data:${mime};base64,${content.toString("base64")}`,
-      { folder: CLOUDINARY_BANK_FOLDER, resource_type: "image", overwrite: false },
+      { folder: carpetaBanco(), resource_type: "image", overwrite: false },
     );
 
     await setBankQr({ qrCloudinaryId: uploaded.public_id, actorUserId: actor.userId });

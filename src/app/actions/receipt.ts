@@ -8,8 +8,9 @@ import {
   recordReceipt,
   validateReceipt,
 } from "@/domain/receipts";
-import { CLOUDINARY_RECEIPTS_FOLDER, cloudinary } from "@/lib/cloudinary";
+import { carpetaComprobantes, cloudinary } from "@/lib/cloudinary";
 import { t } from "@/i18n";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * Subida del comprobante de transferencia (PLAN.md 3.5).
@@ -22,6 +23,8 @@ import { t } from "@/i18n";
 export type UploadReceiptResult = { ok: true } | { ok: false; error: string };
 
 export async function uploadReceipt(formData: FormData): Promise<UploadReceiptResult> {
+  // Cloudinary puede estar configurado desde /admin/integraciones.
+  await cargarIntegraciones();
   const orderNumber = String(formData.get("orderNumber") ?? "");
   const token = String(formData.get("token") ?? "");
   const file = formData.get("file");
@@ -56,7 +59,7 @@ export async function uploadReceipt(formData: FormData): Promise<UploadReceiptRe
     const uploaded = await cloudinary.uploader.upload(
       `data:${mime};base64,${content.toString("base64")}`,
       {
-        folder: CLOUDINARY_RECEIPTS_FOLDER,
+        folder: carpetaComprobantes(),
         // `authenticated` = sin URL pública: sólo se ve con firma y TTL.
         type: "authenticated",
         resource_type: mime === "application/pdf" ? "image" : "image",

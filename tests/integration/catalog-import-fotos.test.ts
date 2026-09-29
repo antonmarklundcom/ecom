@@ -69,7 +69,7 @@ describe.skipIf(!hasTestDb)('applyCatalogFotos', () => {
     vi.resetModules();
     vi.doMock('@/lib/cloudinary', () => ({
       cloudinaryConfigured: () => true,
-      CLOUDINARY_PRODUCTS_FOLDER: 'productos',
+      carpetaProductos: () => 'productos',
       cloudinary: {
         uploader: {
           upload: vi.fn(async (url: string) => ({
@@ -136,7 +136,7 @@ describe.skipIf(!hasTestDb)('applyCatalogFotos', () => {
     vi.resetModules();
     vi.doMock('@/lib/cloudinary', () => ({
       cloudinaryConfigured: () => true,
-      CLOUDINARY_PRODUCTS_FOLDER: 'productos',
+      carpetaProductos: () => 'productos',
       cloudinary: {
         uploader: {
           upload: vi.fn(async (url: string) => {

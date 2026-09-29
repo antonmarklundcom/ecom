@@ -1231,6 +1231,43 @@ export const storeSettings = mysqlTable('store_settings', {
   updatedByUserId: int('updated_by_user_id'),
 });
 
+// ---------------------------------------------------------------------------
+// Integraciones — credenciales de terceros editables desde /admin/integraciones
+// ---------------------------------------------------------------------------
+
+/**
+ * Cloudinary, WhatsApp, Pagopar, la medición y el reporte de errores,
+ * cargados por el dueño desde el panel en vez del hPanel (una fila por
+ * integración). La lectura y la precedencia —**esta fila > variable de
+ * entorno > apagado**— viven en `src/lib/integraciones.ts`; la escritura en
+ * `src/lib/integraciones-store.ts`.
+ *
+ * Dos columnas JSON y no una columna por campo, por lo mismo que
+ * `store_settings`: son configuraciones opcionales que van a seguir creciendo
+ * (una plantilla de WhatsApp nueva no puede ser una migración que viaja a
+ * todas las tiendas).
+ *
+ * - `data`: los valores **no** secretos, en claro (`cloudName`, `ga4Id`…).
+ * - `secrets`: campo → blob `v1.…` de AES-256-GCM (`src/lib/secret-box.ts`),
+ *   con una clave derivada de `SESSION_SECRET` que **no está en la base**. Un
+ *   backup (que sale de la máquina, a Cloudinary) trae los secretos cifrados
+ *   y nada con qué abrirlos.
+ *
+ * Sin fila, la integración sale del entorno, como siempre.
+ */
+export const integrationSettings = mysqlTable('integration_settings', {
+  /** `cloudinary` | `whatsapp` | `pagopar` | `analitica` | `errores`. */
+  integration: varchar('integration', { length: 32 }).primaryKey(),
+  data: json('data').notNull(),
+  secrets: json('secrets').notNull(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+  /**
+   * Quién guardó por última vez. La FK (`ON DELETE SET NULL`) la pone
+   * `applySchemaExtras`, igual que la de `store_settings`.
+   */
+  updatedByUserId: int('updated_by_user_id'),
+});
+
 /**
  * Idempotencia y lock de los trabajos programados (plan-operacion §2, §0.5).
  *
@@ -1297,6 +1334,9 @@ export const BACKUP_TABLES = [
   // Cuelgan de las de arriba.
   'bank_details',
   'store_settings',
+  // Los secretos viajan cifrados: la clave sale de SESSION_SECRET, que no
+  // está en la base ni en el backup.
+  'integration_settings',
   'login_tokens',
   'products',
   'product_images',

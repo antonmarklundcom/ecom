@@ -3,7 +3,8 @@ import { count, eq, inArray, sql } from "drizzle-orm";
 import { categories, productImages, products, variants } from "@/db/schema";
 import { getDb } from "@/db";
 import { slugify } from "@/lib/slug";
-import { CLOUDINARY_PRODUCTS_FOLDER, cloudinary, cloudinaryConfigured } from "@/lib/cloudinary";
+import { carpetaProductos, cloudinary, cloudinaryConfigured } from "@/lib/cloudinary";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 import { addProductImage } from "./admin-products";
 import { parseCatalogo, type CatalogoProducto } from "./catalog-import";
@@ -223,6 +224,8 @@ export async function applyCatalogFotos(
     return { fotosSubidas: 0, fotosOmitidas: 0, fotosFallidas: [] };
   }
 
+  // Cloudinary puede venir de /admin/integraciones (también desde el script).
+  await cargarIntegraciones();
   if (!cloudinaryConfigured()) {
     const total = conFotos.reduce((acc, p) => acc + p.fotos.length, 0);
     return { fotosSubidas: 0, fotosOmitidas: total, fotosFallidas: [] };
@@ -258,7 +261,7 @@ export async function applyCatalogFotos(
       for (const [index, url] of grupo.urls.entries()) {
         try {
           const uploaded = await cloudinary.uploader.upload(url, {
-            folder: CLOUDINARY_PRODUCTS_FOLDER,
+            folder: carpetaProductos(),
             resource_type: "image",
           });
           await addProductImage(

@@ -59,6 +59,7 @@ const TABLES = [
   // Antes que `users`, que la referencia con FK (updated_by).
   'bank_details',
   'store_settings',
+  'integration_settings',
   'users',
   // Antes que `customers`, que la referencia con FK.
   'login_tokens',

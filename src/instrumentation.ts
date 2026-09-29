@@ -1,3 +1,4 @@
+import { valorIntegracion } from '@/lib/integraciones';
 import { log, withRequestContext } from '@/lib/log';
 
 /**
@@ -67,7 +68,8 @@ function hayCupo(ahora = Date.now()): boolean {
  * cualquiera en el camino.
  */
 export function errorReportUrl(): string | null {
-  const raw = process.env.ERROR_REPORT_URL?.trim();
+  // Panel (`/admin/integraciones` → Errores) > `ERROR_REPORT_URL` > nada.
+  const raw = valorIntegracion('errores', 'reportUrl');
   if (!raw) return null;
   try {
     const url = new URL(raw);
@@ -112,6 +114,20 @@ export function cuerpoDelReporte(error: unknown, info: RequestErrorInfo): string
  * El hook de Next. **No tira nunca**: corre en el camino de un error que ya
  * pasó, y hacerlo fallar de nuevo sólo taparía el original.
  */
+/**
+ * Al arrancar el servidor: la foto de integraciones (`src/lib/integraciones.ts`)
+ * se carga antes del primer request, así las lecturas síncronas —el CSP del
+ * proxy, los senders de WhatsApp— ya ven lo que el dueño cargó en el panel.
+ *
+ * Import dinámico y sólo en Node: este archivo también se carga en el runtime
+ * edge, donde la base no existe. Nunca tira: sin base, todo sale del entorno.
+ */
+export async function register(): Promise<void> {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  const { cargarIntegraciones } = await import('@/lib/integraciones-store');
+  await cargarIntegraciones({ forzar: true });
+}
+
 export async function onRequestError(
   error: unknown,
   request: { path?: string; method?: string; headers?: Record<string, string | undefined> },

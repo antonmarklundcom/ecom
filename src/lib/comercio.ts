@@ -3,9 +3,11 @@ import { getStoreSettings } from "@/domain/store-settings";
 import { contactoEfectivo, type ContactoEfectivo } from "@/domain/store-settings-schema";
 import { bankQrUrl } from "@/lib/images";
 import { normalizePhonePY, waLink } from "@/lib/py";
+import { valorIntegracion } from "@/lib/integraciones";
 
 /**
- * Datos del comercio, leídos del entorno **del servidor**.
+ * Datos del comercio, leídos del servidor: el panel o el entorno
+ * (`src/lib/integraciones.ts`).
  *
  * El número de WhatsApp no lleva `NEXT_PUBLIC_`: los links se arman en
  * Server Components y llegan al navegador ya hechos. Que el dato termine
@@ -13,7 +15,8 @@ import { normalizePhonePY, waLink } from "@/lib/py";
  * bundle — la regla es que el cliente no lee `process.env`.
  */
 export function comercioWhatsApp(): string | null {
-  return normalizePhonePY(process.env.WHATSAPP_NUMBER ?? "");
+  // Panel (`/admin/integraciones` → WhatsApp) > `WHATSAPP_NUMBER` > nada.
+  return normalizePhonePY(valorIntegracion("whatsapp", "numeroComercio") ?? "");
 }
 
 export function comercioWaLink(text: string): string | null {
@@ -26,10 +29,11 @@ export function comercioWaLink(text: string): string | null {
  * El WhatsApp **público** de la tienda: el que ve la compradora en el botón
  * flotante, el pie, las políticas y los "consultá por WhatsApp".
  *
- * Gana el que el dueño cargó en `/admin/ajustes`; sin ése, `WHATSAPP_NUMBER`.
- * Los avisos **al dueño** (pedido nuevo, comprobante) siguen yendo a
- * `comercioWhatsApp()`, o sea al entorno: cambiar el número que se publica
- * no puede desviar en silencio los avisos internos a otro teléfono.
+ * Gana el que el dueño cargó en `/admin/ajustes`; sin ése, el del comercio
+ * (`/admin/integraciones` → WhatsApp, o `WHATSAPP_NUMBER`). Los avisos **al
+ * dueño** (pedido nuevo, comprobante) siguen yendo a `comercioWhatsApp()`:
+ * cambiar el número que se publica no puede desviar en silencio los avisos
+ * internos a otro teléfono. Son dos campos distintos en dos pantallas.
  *
  * Async porque toca la base (una vez por request: `getStoreSettings` está
  * memoizado). Los componentes cliente reciben el número ya resuelto por prop.

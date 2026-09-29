@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { v2 as sdk } from "cloudinary";
 
+import { integracion } from "./integraciones";
+
 /**
  * Cliente de Cloudinary, configurado **perezosamente**.
  *
@@ -17,31 +19,36 @@ import { v2 as sdk } from "cloudinary";
  * por la que `src/lib/images.ts` arma las URLs públicas sin tocar este módulo.
  */
 
-let configured = false;
+/** La última config aplicada al SDK: si el panel la cambia, se reconfigura. */
+let aplicada: string | null = null;
 
 function configure(): typeof sdk {
-  if (configured) return sdk;
+  // Panel > entorno > nada (src/lib/integraciones.ts). Sin credenciales en
+  // ninguna de las dos fuentes, tira nombrando las variables de siempre.
+  const { valores } = integracion("cloudinary");
+  const faltan = [
+    ...(valores.cloudName ? [] : ["CLOUDINARY_CLOUD_NAME"]),
+    ...(valores.apiKey ? [] : ["CLOUDINARY_API_KEY"]),
+    ...(valores.apiSecret ? [] : ["CLOUDINARY_API_SECRET"]),
+  ];
 
-  const missing = [
-    "CLOUDINARY_CLOUD_NAME",
-    "CLOUDINARY_API_KEY",
-    "CLOUDINARY_API_SECRET",
-  ].filter((name) => !process.env[name]);
-
-  if (missing.length > 0) {
+  if (faltan.length > 0) {
     throw new Error(
-      `Faltan variables de Cloudinary (${missing.join(" / ")}). ` +
-        "Completalas en .env.local — ver docs/ENV-OPCIONAL.md.",
+      `Faltan variables de Cloudinary (${faltan.join(" / ")}). ` +
+        "Cargalas en /admin/integraciones, o en .env.local — ver docs/ENV-OPCIONAL.md.",
     );
   }
 
+  const firma = `${valores.cloudName}\u0000${valores.apiKey}\u0000${valores.apiSecret}`;
+  if (aplicada === firma) return sdk;
+
   sdk.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+    cloud_name: valores.cloudName ?? undefined,
+    api_key: valores.apiKey ?? undefined,
+    api_secret: valores.apiSecret ?? undefined,
     secure: true,
   });
-  configured = true;
+  aplicada = firma;
   return sdk;
 }
 
@@ -49,8 +56,10 @@ function configure(): typeof sdk {
  * Prefijo opcional de todas las carpetas de esta tienda (PLAN.md FASE 2, PR U).
  *
  * Vacío por defecto, que es el comportamiento de siempre: `productos/`,
- * `comprobantes/`, `banco/`. Con `CLOUDINARY_FOLDER_PREFIX="lenceria"` pasan a
- * ser `lenceria/productos/` y compañía.
+ * `comprobantes/`, `banco/`. Con `CLOUDINARY_FOLDER_PREFIX="lenceria"` (o el
+ * prefijo cargado en `/admin/integraciones`) pasan a ser `lenceria/productos/`
+ * y compañía. Se resuelve en cada subida, no al importar: el panel lo puede
+ * cambiar sin redeploy.
  *
  * Existe por una razón concreta y no por prolijidad: **el `public_id` de un
  * comprobante sale del número de pedido**, y los números de pedido se repiten
@@ -70,7 +79,7 @@ function configure(): typeof sdk {
  * elegilo al crear la tienda y no lo toques más.
  */
 function folderPrefix(): string {
-  const raw = (process.env.CLOUDINARY_FOLDER_PREFIX ?? "").trim();
+  const raw = integracion("cloudinary").valores.folderPrefix ?? "";
   // Se acepta lo que escriba una persona apurada —`/lenceria/`, `lenceria//`—
   // y se guarda una sola forma: sin barras en las puntas.
   const limpio = raw.replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
@@ -78,7 +87,9 @@ function folderPrefix(): string {
 }
 
 /** Carpeta pública: imágenes de producto, servidas directamente por CDN. */
-export const CLOUDINARY_PRODUCTS_FOLDER = `${folderPrefix()}productos`;
+export function carpetaProductos(): string {
+  return `${folderPrefix()}productos`;
+}
 
 /**
  * Carpeta pública: la foto de portada de cada categoría (O7).
@@ -88,7 +99,9 @@ export const CLOUDINARY_PRODUCTS_FOLDER = `${folderPrefix()}productos`;
  * carpeta y entender qué hay. Bajo el mismo prefijo, así que dos tiendas en la
  * misma cuenta de Cloudinary no se pisan.
  */
-export const CLOUDINARY_CATEGORIES_FOLDER = `${folderPrefix()}categorias`;
+export function carpetaCategorias(): string {
+  return `${folderPrefix()}categorias`;
+}
 
 /**
  * Carpeta **privada** de las copias de seguridad (O8).
@@ -98,7 +111,9 @@ export const CLOUDINARY_CATEGORIES_FOLDER = `${folderPrefix()}categorias`;
  * entera del comercio servida por CDN a quien adivine la URL — con los
  * teléfonos, las direcciones y los comprobantes de todas las compradoras.
  */
-export const CLOUDINARY_BACKUPS_FOLDER = `${folderPrefix()}backups`;
+export function carpetaBackups(): string {
+  return `${folderPrefix()}backups`;
+}
 
 /**
  * ¿Hay credenciales de Cloudinary?
@@ -108,9 +123,8 @@ export const CLOUDINARY_BACKUPS_FOLDER = `${folderPrefix()}backups`;
  * `pnpm preflight` para avisarlo.
  */
 export function cloudinaryConfigured(): boolean {
-  return ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"].every(
-    (name) => (process.env[name] ?? "").trim() !== "",
-  );
+  const { valores } = integracion("cloudinary");
+  return Boolean(valores.cloudName && valores.apiKey && valores.apiSecret);
 }
 
 /**
@@ -123,17 +137,23 @@ export function cloudinaryConfigured(): boolean {
  * sería, además, poner un archivo del comercio adentro del folder donde viven
  * los comprobantes de pago de sus clientas.
  */
-export const CLOUDINARY_BANK_FOLDER = `${folderPrefix()}banco`;
+export function carpetaBanco(): string {
+  return `${folderPrefix()}banco`;
+}
 
 /**
  * Carpeta **pública** de la foto de portada de la home, la que el dueño sube
  * desde `/admin/ajustes`. Separada de `productos/` para que un backup o una
  * limpieza del catálogo no se la lleve puesta.
  */
-export const CLOUDINARY_HERO_FOLDER = `${folderPrefix()}portadas`;
+export function carpetaPortadas(): string {
+  return `${folderPrefix()}portadas`;
+}
 
 /** Carpeta privada: comprobantes de pago, sólo accesibles vía URL firmada. */
-export const CLOUDINARY_RECEIPTS_FOLDER = `${folderPrefix()}comprobantes`;
+export function carpetaComprobantes(): string {
+  return `${folderPrefix()}comprobantes`;
+}
 
 /**
  * Genera una URL firmada de corta duración para un recurso privado
@@ -166,5 +186,5 @@ export const cloudinary: typeof sdk = new Proxy(sdk, {
 
 /** Sólo para tests: obliga a reconfigurar en el próximo uso. */
 export function resetCloudinaryConfigForTests(): void {
-  configured = false;
+  aplicada = null;
 }

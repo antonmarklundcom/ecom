@@ -379,3 +379,69 @@ describe("preflight · marca de la tienda", () => {
   });
 
 });
+
+describe("preflight entiende las dos fuentes: /admin/integraciones y el entorno", () => {
+  const sinCloudinaryNiWhatsApp = envSano({
+    CLOUDINARY_CLOUD_NAME: "",
+    CLOUDINARY_API_KEY: "",
+    CLOUDINARY_API_SECRET: "",
+    WHATSAPP_NUMBER: "",
+  });
+
+  function check(env: PreflightEnv, panel: Parameters<typeof preflight>[1], id: string) {
+    const encontrado = preflight(env, panel).checks.find((item) => item.id === id);
+    if (!encontrado) throw new Error(`no existe el control "${id}"`);
+    return encontrado;
+  }
+
+  it("lo cargado en el panel destraba lo que falta en el entorno, y lo dice", () => {
+    const panel = {
+      lectura: "ok" as const,
+      filas: {
+        cloudinary: {
+          valores: { cloudName: "nube", apiKey: "123", apiSecret: "secreto-del-panel-largo" },
+          ilegibles: [],
+        },
+        whatsapp: { valores: { numeroComercio: "+595971000222" }, ilegibles: [] },
+      },
+    };
+
+    const cloudinary = check(sinCloudinaryNiWhatsApp, panel, "cloudinary");
+    expect(cloudinary.severity).toBe("ok");
+    expect(cloudinary.detail).toContain("desde el panel");
+    // Nunca el valor de un secreto.
+    expect(JSON.stringify(preflight(sinCloudinaryNiWhatsApp, panel))).not.toContain(
+      "secreto-del-panel-largo",
+    );
+
+    expect(check(sinCloudinaryNiWhatsApp, panel, "whatsapp").severity).toBe("ok");
+    expect(check(sinCloudinaryNiWhatsApp, panel, "integraciones_panel").detail).toContain("cloudinary");
+  });
+
+  it("sin panel, lo del entorno se marca como del entorno", () => {
+    const cloudinary = check(envSano(), { lectura: "ok", filas: {} }, "cloudinary");
+    expect(cloudinary.severity).toBe("ok");
+    expect(cloudinary.detail).toContain("desde el entorno");
+  });
+
+  it("sin nada en ninguna de las dos, bloquea igual que antes", () => {
+    expect(check(sinCloudinaryNiWhatsApp, { lectura: "ok", filas: {} }, "cloudinary").severity).toBe(
+      "bloquea",
+    );
+    expect(check(sinCloudinaryNiWhatsApp, { lectura: "ok", filas: {} }, "whatsapp").severity).toBe(
+      "bloquea",
+    );
+  });
+
+  it("si la base no contesta, lo avisa y revisa sólo el entorno", () => {
+    const panel = { lectura: "fallo" as const, motivo: "ECONNREFUSED" };
+    const lectura = check(envSano(), panel, "integraciones_panel");
+    expect(lectura.severity).toBe("advierte");
+    expect(lectura.detail).toContain("ECONNREFUSED");
+    expect(check(envSano(), panel, "cloudinary").severity).toBe("ok");
+  });
+
+  it("sin panel (llamada sólo con el entorno) no aparece el control de lectura", () => {
+    expect(preflight(envSano()).checks.some((item) => item.id === "integraciones_panel")).toBe(false);
+  });
+});

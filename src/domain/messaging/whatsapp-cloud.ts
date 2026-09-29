@@ -1,5 +1,6 @@
 import { MessageSendError, type MessageSender, type OutgoingMessage } from './sender';
 import { log, mensajeDe } from '@/lib/log';
+import { integracion, valorIntegracion } from '@/lib/integraciones';
 
 /**
  * WhatsApp Cloud API de Meta (PLAN.md FASE 2, PR F.2).
@@ -22,6 +23,9 @@ import { log, mensajeDe } from '@/lib/log';
  */
 export const WHATSAPP_TEMPLATE_LANGUAGE = 'es';
 
+/** La versión de la Graph API cuando la tienda no eligió otra. */
+export const WHATSAPP_API_VERSION_DEFAULT = 'v21.0';
+
 export type WhatsappCloudConfig = {
   phoneNumberId: string;
   accessToken: string;
@@ -31,14 +35,14 @@ export type WhatsappCloudConfig = {
 };
 
 /**
- * Lee la configuración del entorno. Devuelve `null` si falta cualquier cosa —
+ * Lee la configuración: `/admin/integraciones` → WhatsApp, o si no el
+ * entorno (`src/lib/integraciones.ts`). Devuelve `null` si falta cualquier cosa —
  * "configurado a medias" es lo mismo que "no configurado", porque una llamada
  * con la mitad de las credenciales falla igual pero más tarde y peor.
  */
 export function whatsappCloudConfig(): WhatsappCloudConfig | null {
-  const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID?.trim();
-  const accessToken = process.env.WHATSAPP_CLOUD_ACCESS_TOKEN?.trim();
-  const templateName = process.env.WHATSAPP_CLOUD_TEMPLATE_NAME?.trim();
+  const { valores } = integracion('whatsapp');
+  const { phoneNumberId, accessToken, plantillaLogin: templateName } = valores;
 
   if (!phoneNumberId || !accessToken || !templateName) return null;
 
@@ -46,7 +50,7 @@ export function whatsappCloudConfig(): WhatsappCloudConfig | null {
     phoneNumberId,
     accessToken,
     templateName,
-    apiVersion: process.env.WHATSAPP_CLOUD_API_VERSION?.trim() || 'v21.0',
+    apiVersion: valores.apiVersion || WHATSAPP_API_VERSION_DEFAULT,
   };
 }
 
@@ -60,7 +64,7 @@ export function whatsappCloudConfig(): WhatsappCloudConfig | null {
  * aviso queda apagado y el resto de la tienda no cambia en nada.
  */
 export function whatsappOwnerTemplate(): string | null {
-  return process.env.WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO?.trim() || null;
+  return valorIntegracion('whatsapp', 'plantillaPedidoNuevo');
 }
 
 export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageSender {

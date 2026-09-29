@@ -1,6 +1,6 @@
 import { sealData } from 'iron-session';
 import { NextRequest } from 'next/server';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
  * El único test que **ejecuta** `proxy()`.
@@ -191,6 +191,27 @@ describe('idDeRequest', () => {
     for (const malo of ['', '   ', 'corto', 'con espacio', 'con\nsalto', 'x'.repeat(200)]) {
       expect(idDeRequest(malo)).not.toBe(malo);
       expect(idDeRequest(malo)).toMatch(/^[0-9a-f-]{36}$/);
+    }
+  });
+});
+
+describe('el CSP sigue a la medición efectiva (panel > entorno)', () => {
+  it('un GA4 cargado desde /admin/integraciones abre sólo sus hosts', async () => {
+    const { publicarFoto, resetIntegracionesForTests } = await import('@/lib/integraciones');
+    vi.stubEnv('NEXT_PUBLIC_GA4_ID', '');
+    vi.stubEnv('NEXT_PUBLIC_META_PIXEL_ID', '');
+    try {
+      resetIntegracionesForTests();
+      expect(csp(await proxy(pedido('/checkout')))).not.toContain('googletagmanager');
+
+      // El proxy se compila aparte, pero comparte la foto por globalThis.
+      publicarFoto({ analitica: { valores: { ga4Id: 'G-PANEL1234' }, ilegibles: [] } });
+      const conPanel = csp(await proxy(pedido('/checkout')));
+      expect(conPanel).toContain('https://www.googletagmanager.com');
+      expect(conPanel).not.toContain('connect.facebook.net');
+    } finally {
+      resetIntegracionesForTests();
+      vi.unstubAllEnvs();
     }
   });
 });

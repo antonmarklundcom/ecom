@@ -18,6 +18,7 @@ import {
   clientIp,
   rateLimit,
 } from "@/lib/rate-limit";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * Server action del checkout.
@@ -83,6 +84,8 @@ export type CheckoutResult =
     };
 
 export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
+  // Pagopar puede estar configurado desde /admin/integraciones.
+  await cargarIntegraciones();
   // Antes de mirar el cuerpo: lo caro de este endpoint no es validarlo sino la
   // transacción que reserva stock al final.
   const ip = clientIp(await headers());

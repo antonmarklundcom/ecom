@@ -1,5 +1,6 @@
 /**
- * Configuración de Pagopar, leída del entorno del servidor.
+ * Configuración de Pagopar, leída del servidor: `/admin/integraciones` o, si
+ * no, el entorno de siempre (`src/lib/integraciones.ts`).
  *
  * Ninguna de estas variables lleva `NEXT_PUBLIC_`: `PAGOPAR_PRIVATE_KEY` firma
  * el token de cada petición y el guard del webhook. Si se filtra, cualquiera
@@ -16,6 +17,8 @@
  * `.env`; si están las credenciales reales igual no se usan, que es lo que uno
  * quiere de un modo llamado "mock".
  */
+
+import { integracion } from "@/lib/integraciones";
 
 import { MOCK_PRIVATE_KEY, mockCheckoutUrl, mockPagoparConfig } from "./mock";
 import { isPagoparMockMode } from "./mode";
@@ -34,8 +37,21 @@ export class PagoparNotConfiguredError extends Error {
   }
 }
 
-function read(name: string): string {
-  return (process.env[name] ?? "").trim();
+/**
+ * Las tres credenciales, de `/admin/integraciones` → Pagopar o del entorno de
+ * siempre (`src/lib/integraciones.ts`). Van juntas: si el panel tiene alguna,
+ * las tres salen del panel — nunca la clave privada de una cuenta con la URL
+ * de otra. La lógica de abajo (qué falta, el mock, la firma) no cambió.
+ */
+function read(name: "PAGOPAR_PUBLIC_KEY" | "PAGOPAR_PRIVATE_KEY" | "PAGOPAR_BASE_URL"): string {
+  const { valores } = integracion("pagopar");
+  const valor =
+    name === "PAGOPAR_PUBLIC_KEY"
+      ? valores.publicKey
+      : name === "PAGOPAR_PRIVATE_KEY"
+        ? valores.privateKey
+        : valores.baseUrl;
+  return (valor ?? "").trim();
 }
 
 /**

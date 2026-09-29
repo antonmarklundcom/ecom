@@ -17,7 +17,7 @@ import {
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
-import { CLOUDINARY_HERO_FOLDER, cloudinary } from "@/lib/cloudinary";
+import { carpetaPortadas, cloudinary } from "@/lib/cloudinary";
 
 /**
  * Ajustes de la tienda (`/admin/ajustes`). **Todas owner-only**, como el
@@ -92,7 +92,7 @@ export async function subirImagenPortada(formData: FormData): Promise<AdminActio
 
     const uploaded = await cloudinary.uploader.upload(
       `data:${mime};base64,${content.toString("base64")}`,
-      { folder: CLOUDINARY_HERO_FOLDER, resource_type: "image", overwrite: false },
+      { folder: carpetaPortadas(), resource_type: "image", overwrite: false },
     );
 
     await guardarImagenPortada(uploaded.public_id, actor.userId);

@@ -7,7 +7,16 @@
  * caerse porque el comercio todavía no cargó las credenciales.
  */
 
-const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+import { integracion } from "./integraciones";
+
+/**
+ * El `cloud_name`, panel > entorno (src/lib/integraciones.ts). Se lee en cada
+ * llamada: el dueño lo puede cargar desde el panel sin redeploy. En el
+ * navegador no hay ni foto ni entorno y da `null`, como siempre.
+ */
+function cloudName(): string | null {
+  return integracion("cloudinary").valores.cloudName;
+}
 
 /** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
 const DEFAULT_TRANSFORMS = "f_auto,q_auto";
@@ -54,9 +63,10 @@ export function productImageUrl(
   cloudinaryId: string | null | undefined,
   size: ImageSize = "card"
 ): string | null {
-  if (!CLOUD_NAME || !cloudinaryId) return null;
+  const cloud = cloudName();
+  if (!cloud || !cloudinaryId) return null;
   const transforms = `${DEFAULT_TRANSFORMS},${SIZE_TRANSFORMS[size]}`;
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${transforms}/${cloudinaryId}`;
+  return `https://res.cloudinary.com/${cloud}/image/upload/${transforms}/${cloudinaryId}`;
 }
 
 /**

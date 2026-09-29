@@ -45,6 +45,12 @@ En el hPanel, dentro del sitio:
    `ERROR_REPORT_URL`. Agregá a mano (botón "Add") sólo las que esta tienda
    usa; vacía o ausente, cada una apaga su feature y no rompe nada.
 
+   Mejor todavía: **no las cargues en el hPanel**. Cloudinary, WhatsApp
+   (número y Cloud API), Pagopar, GA4/Pixel y `ERROR_REPORT_URL` se cargan
+   desde `/admin/integraciones` con la tienda arriba, cifrados en la base y sin
+   Redeploy (NEW-STORE.md §4a-ter). Las variables siguen funcionando como
+   fallback: lo que se carga en el panel manda sobre ellas.
+
    Los `BANCO_*` **ya no hacen falta acá**: los datos bancarios se cargan una
    vez desde `/admin/banco` con la tienda arriba, y eso es lo que conviene —
    corregir un dígito del número de cuenta desde el hPanel obliga a un

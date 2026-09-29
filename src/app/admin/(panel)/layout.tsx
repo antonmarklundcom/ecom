@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import { UnauthorizedError, getSession, requireAdmin, type AdminActor } from "@/lib/session";
 import { t } from "@/i18n";
 import { TESTIDS } from "@/lib/testids";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * Puerta del panel. Todo lo que cuelga de este layout exige sesión de admin.
@@ -20,6 +21,7 @@ import { TESTIDS } from "@/lib/testids";
 export const dynamic = "force-dynamic";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
+  await cargarIntegraciones();
   let actor: AdminActor;
   try {
     actor = requireAdmin(await getSession());
@@ -89,6 +91,9 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             ) : null}
             {can(actor.role, "ajustes") ? (
               <NavLink href="/admin/ajustes">{t("panel.nav.ajustes")}</NavLink>
+            ) : null}
+            {can(actor.role, "integraciones") ? (
+              <NavLink href="/admin/integraciones">{t("panel.nav.integraciones")}</NavLink>
             ) : null}
             {can(actor.role, "usuarios") ? (
               <NavLink href="/admin/usuarios">{t("panel.nav.usuarios")}</NavLink>

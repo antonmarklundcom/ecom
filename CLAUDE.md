@@ -59,6 +59,11 @@ NEW-STORE.md §5 y `src/lib/testids.ts`.
   Hostinger lo lee y precarga un campo del hPanel por variable. Una variable
   opcional nueva se documenta en `docs/ENV-OPCIONAL.md`, nunca en
   `.env.example` (`tests/unit/env-example.test.ts` lo bloquea).
+- Credenciales de integraciones (Cloudinary, WhatsApp, Pagopar, GA4/Pixel,
+  reporte de errores) se leen **sólo** por `src/lib/integraciones.ts`
+  (panel `/admin/integraciones` > entorno > apagado), nunca con `process.env`
+  directo. Los secretos van cifrados (`src/lib/secret-box.ts`) y no vuelven al
+  navegador. NEW-STORE.md §4a-ter.
 - Cambios de schema van con su migración generada y commiteada
   (`pnpm db:generate`) — CI falla si `schema.ts` se despega de `drizzle/`.
 - Antes de dar por terminado algo: `pnpm typecheck && pnpm lint && pnpm test`.

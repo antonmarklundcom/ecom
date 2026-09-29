@@ -1,4 +1,13 @@
 import { MARCA_PLACEHOLDER, TIENDA } from "@/config/tienda";
+import {
+  CAMPOS,
+  INTEGRACIONES,
+  resolverIntegracion,
+  type CampoDef,
+  type FilaIntegracion,
+  type Fuente,
+  type Integracion,
+} from "@/lib/integraciones";
 
 import { WEBHOOK_ENVELOPE_CONFIRMED } from "./pagopar/protocol";
 import { PAGOPAR_MOCK_MODE } from "./pagopar/mode";
@@ -17,9 +26,14 @@ import { PAGOPAR_MOCK_MODE } from "./pagopar/mode";
  *  - `advierte` — funciona, pero degradado y conviene saberlo. Salida 0.
  *  - `ok`       — verificado.
  *
- * No se conecta a la base ni a la red: lee el entorno y constantes del código,
- * así que se puede correr en el servidor de producción sin efectos. Y nunca
- * imprime el **valor** de un secreto: sólo si está, y si tiene largo suficiente.
+ * No se conecta a la base ni a la red: lee el entorno, constantes del código
+ * y —si quien llama se la pasa— la configuración de integraciones que el
+ * dueño cargó en `/admin/integraciones` (`scripts/preflight.ts` la lee de la
+ * base, sólo lectura, y si no puede lo dice y sigue con el entorno). Con las
+ * dos fuentes aplica la misma precedencia que la tienda —panel > entorno >
+ * apagado, `src/lib/integraciones.ts`— y cada control dice **de dónde** sale
+ * lo que verificó. Nunca imprime el **valor** de un secreto: sólo si está, y
+ * si tiene largo suficiente.
  */
 
 export type PreflightSeverity = "bloquea" | "advierte" | "ok";
@@ -61,8 +75,113 @@ const BANCO_VARS = [
   "BANCO_TIPO_CUENTA",
 ] as const;
 
-export function preflight(env: PreflightEnv = process.env): PreflightReport {
+/**
+ * Lo que `scripts/preflight.ts` leyó de `/admin/integraciones`. Sin esto
+ * (tests, o quien llame sólo con el entorno) se revisa sólo el entorno.
+ */
+export type PreflightPanel =
+  | { lectura: "ok"; filas: Partial<Record<Integracion, FilaIntegracion>> }
+  | { lectura: "fallo"; motivo: string };
+
+type Origenes = Record<string, Fuente | null>;
+
+/**
+ * El entorno **efectivo**: cada variable de integración reemplazada por lo que
+ * la tienda usa de verdad (panel > entorno), y de dónde salió cada una. Los
+ * controles de abajo no cambiaron: siguen leyendo `CLOUDINARY_API_SECRET` y
+ * compañía, sólo que ahora de esta vista.
+ */
+function entornoEfectivo(
+  env: PreflightEnv,
+  panel: PreflightPanel | undefined,
+): { efectivo: PreflightEnv; origenes: Origenes } {
+  const efectivo: PreflightEnv = { ...env };
+  const origenes: Origenes = {};
+  const filas = panel?.lectura === "ok" ? panel.filas : {};
+
+  for (const nombre of INTEGRACIONES) {
+    const config = resolverIntegracion(nombre, filas[nombre], env);
+    const valores = config.valores as Record<string, string | null>;
+    const fuentes = config.fuentes as Record<string, Fuente | null>;
+    const defs: readonly CampoDef[] = CAMPOS[nombre];
+    for (const def of defs) {
+      efectivo[def.env] = valores[def.campo] ?? "";
+      origenes[def.env] = fuentes[def.campo] ?? null;
+    }
+  }
+  return { efectivo, origenes };
+}
+
+/** Qué variables mira cada control, para decir de dónde salieron. */
+const VARIABLES_DEL_CONTROL: Record<string, readonly string[]> = {
+  cloudinary: ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+  backups: ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+  pagopar_credenciales: ["PAGOPAR_PUBLIC_KEY", "PAGOPAR_PRIVATE_KEY", "PAGOPAR_BASE_URL"],
+  whatsapp: ["WHATSAPP_NUMBER"],
+  aviso_pedido_nuevo: [
+    "WHATSAPP_CLOUD_PHONE_NUMBER_ID",
+    "WHATSAPP_CLOUD_ACCESS_TOKEN",
+    "WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO",
+  ],
+  resumen_diario: [
+    "WHATSAPP_CLOUD_PHONE_NUMBER_ID",
+    "WHATSAPP_CLOUD_ACCESS_TOKEN",
+    "WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO",
+  ],
+  aviso_cliente_confirmado: ["WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO"],
+  aviso_cliente_pagado: ["WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO"],
+  aviso_cliente_enviado: ["WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"],
+  aviso_cliente_recordatorio: ["WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO"],
+  aviso_cliente_resena: ["WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA"],
+};
+
+/** `configurado` → `configurado · desde el panel`. Sin valores, sólo el origen. */
+function conOrigen(check: PreflightCheck, origenes: Origenes): PreflightCheck {
+  const variables = VARIABLES_DEL_CONTROL[check.id];
+  if (!variables) return check;
+  const usados = new Set(variables.map((name) => origenes[name]).filter((origen) => origen != null));
+  if (usados.size === 0) return check;
+  const texto =
+    usados.size === 2
+      ? "desde el panel y el entorno"
+      : usados.has("panel")
+        ? "desde el panel (/admin/integraciones)"
+        : "desde el entorno";
+  return { ...check, detail: `${check.detail} · ${texto}` };
+}
+
+/** Si se pudo leer lo cargado en el panel. Sólo aparece cuando se intentó. */
+function checkLecturaPanel(panel: PreflightPanel): PreflightCheck {
+  const title = "Integraciones cargadas en el panel";
+  if (panel.lectura === "fallo") {
+    return {
+      id: "integraciones_panel",
+      severity: "advierte",
+      title,
+      detail:
+        `no se pudo leer /admin/integraciones (${panel.motivo}): lo de abajo revisa sólo el ` +
+        "entorno, y lo que el dueño haya cargado en el panel puede cambiar el resultado",
+    };
+  }
+  const cargadas = INTEGRACIONES.filter((nombre) => panel.filas[nombre] !== undefined);
+  return {
+    id: "integraciones_panel",
+    severity: "ok",
+    title,
+    detail:
+      cargadas.length === 0
+        ? "ninguna: todo sale del entorno"
+        : `${cargadas.join(", ")} (mandan sobre el entorno)`,
+  };
+}
+
+export function preflight(
+  envCrudo: PreflightEnv = process.env,
+  panel?: PreflightPanel,
+): PreflightReport {
+  const { efectivo: env, origenes } = entornoEfectivo(envCrudo, panel);
   const checks: PreflightCheck[] = [
+    ...(panel ? [checkLecturaPanel(panel)] : []),
     checkMarca(),
     checkWebhookEnvelope(env),
     checkPagoparMode(env),
@@ -87,7 +206,7 @@ export function preflight(env: PreflightEnv = process.env): PreflightReport {
     checkBackups(env),
     checkDatabaseUrl(env),
     checkSiteUrl(env),
-  ];
+  ].map((check) => conOrigen(check, origenes));
 
   const blocking = checks.filter((check) => check.severity === "bloquea").length;
   const warnings = checks.filter((check) => check.severity === "advierte").length;
@@ -470,7 +589,9 @@ function checkPagoparCredentials(env: PreflightEnv): PreflightCheck {
     id: "pagopar_credenciales",
     severity: "advierte",
     title: "Credenciales de Pagopar",
-    detail: `faltan ${missing.join(", ")}: el checkout no va a ofrecer tarjeta`,
+    detail:
+      `faltan ${missing.join(", ")} (en /admin/integraciones o en el entorno): el checkout no ` +
+      "va a ofrecer tarjeta",
   };
 }
 
@@ -497,7 +618,8 @@ function checkCloudinary(env: PreflightEnv): PreflightCheck {
     severity: "bloquea",
     title: "Cloudinary",
     detail:
-      `faltan ${missing.join(", ")}. Sin esto el comprador no puede subir el comprobante, ` +
+      `faltan ${missing.join(", ")} (cargalas en /admin/integraciones o en el entorno). Sin ` +
+      "esto el comprador no puede subir el comprobante, " +
       "que es el único paso que convierte una transferencia en un pedido verificable",
   };
 }
@@ -519,7 +641,9 @@ function checkWhatsApp(env: PreflightEnv): PreflightCheck {
       id: "whatsapp",
       severity: "bloquea",
       title: "WhatsApp del comercio",
-      detail: "WHATSAPP_NUMBER vacío: el comprador no tiene botón para avisar del pedido",
+      detail:
+        "sin WhatsApp del comercio (ni en /admin/integraciones ni en WHATSAPP_NUMBER): el " +
+        "comprador no tiene botón para avisar del pedido",
     };
   }
   if (phone.replace(/[^\d+]/g, "") === WHATSAPP_DE_EJEMPLO) {

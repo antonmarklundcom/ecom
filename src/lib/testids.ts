@@ -195,6 +195,14 @@ export const TESTIDS = {
   wishlistShareWhatsapp: "wishlist-share-whatsapp",
   /** "Guardar todos en mis favoritos" al ver una lista compartida (`?p=`). */
   wishlistSaveAll: "wishlist-save-all",
+
+  // == Integraciones (/admin/integraciones) ==
+  /** La tarjeta de una integración, con `data-integracion` y `data-estado`. */
+  integracionCard: "integracion-card",
+  /** "Guardar" de una integración. */
+  integracionGuardar: "integracion-guardar",
+  /** "Probar conexión" de una integración. */
+  integracionProbar: "integracion-probar",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];
