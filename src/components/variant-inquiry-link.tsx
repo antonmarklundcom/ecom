@@ -2,7 +2,7 @@
 
 import { MessageCircle } from "lucide-react";
 
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { waLink } from "@/lib/py";
 import { TESTIDS } from "@/lib/testids";
 
@@ -33,7 +33,11 @@ export function VariantInquiryLink({
 }) {
   if (!phone) return null;
 
-  const base = t("producto.consultaVariante", { producto: productName, variante: variantLabel, sku });
+  const base = t("producto.consultaVariante", {
+    producto: productName,
+    variante: variantLabel,
+    sku,
+  });
   const text = productUrl ? `${base} — ${productUrl}` : base;
 
   let href: string;

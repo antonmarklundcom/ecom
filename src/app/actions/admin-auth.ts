@@ -80,6 +80,7 @@ export async function loginAdmin(formData: FormData): Promise<LoginResult> {
   session.userId = user.id;
   session.email = user.email;
   session.role = user.role;
+  session.sessionVersion = user.sessionVersion;
   await session.save();
 
   redirect(safeNextPath(parsed.data.next));

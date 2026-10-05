@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * Barra de compra fija abajo en el celular (`/admin/ajustes` → vidriera).
@@ -58,7 +58,7 @@ export function StickyBuyBar({
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "center" });
     const foco = target.querySelector<HTMLElement>(
-      "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])",
+      "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])"
     );
     foco?.focus({ preventScroll: true });
   };
@@ -72,7 +72,11 @@ export function StickyBuyBar({
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{name}</p>
-          {price ? <p className="text-muted-foreground text-xs tabular-nums">{price}</p> : null}
+          {price ? (
+            <p className="text-muted-foreground text-xs tabular-nums">
+              {price}
+            </p>
+          ) : null}
         </div>
         <Button type="button" onClick={irAlBloque}>
           {t("producto.barraCompra.boton")}

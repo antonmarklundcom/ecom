@@ -1,5 +1,7 @@
 "use server";
 
+import { safeError } from "@/lib/safe-error";
+
 import { requireOrderAccess } from "@/domain/order-access";
 import { transitionOrder } from "@/domain/orders";
 import {
@@ -22,7 +24,9 @@ import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 export type UploadReceiptResult = { ok: true } | { ok: false; error: string };
 
-export async function uploadReceipt(formData: FormData): Promise<UploadReceiptResult> {
+export async function uploadReceipt(
+  formData: FormData
+): Promise<UploadReceiptResult> {
   // Cloudinary puede estar configurado desde /admin/integraciones.
   await cargarIntegraciones();
   const orderNumber = String(formData.get("orderNumber") ?? "");
@@ -43,7 +47,11 @@ export async function uploadReceipt(formData: FormData): Promise<UploadReceiptRe
     if (order.paymentMethod !== "transferencia") {
       throw new ReceiptError("error.comprobante.noEsTransferencia");
     }
-    if (!["pendiente_pago", "rechazado", "esperando_verificacion"].includes(order.status)) {
+    if (
+      !["pendiente_pago", "rechazado", "esperando_verificacion"].includes(
+        order.status
+      )
+    ) {
       throw new ReceiptError("error.comprobante.noEsperaComprobante");
     }
 
@@ -77,14 +85,19 @@ export async function uploadReceipt(formData: FormData): Promise<UploadReceiptRe
 
     // El estado sólo se mueve por acá. Si ya estaba esperando verificación
     // (segundo comprobante), transitionOrder lo trata como no-op.
-    await transitionOrder(order.id, "esperando_verificacion", "buyer", "comprobante subido");
+    await transitionOrder(
+      order.id,
+      "esperando_verificacion",
+      "buyer",
+      "comprobante subido"
+    );
 
     return { ok: true };
   } catch (error) {
     if (error instanceof ReceiptError) {
       return { ok: false, error: error.message };
     }
-    console.error("uploadReceipt falló", error);
+    console.error("uploadReceipt falló", safeError(error).message);
     return { ok: false, error: t("error.comprobante.generico") };
   }
 }

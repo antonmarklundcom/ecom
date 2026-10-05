@@ -5,11 +5,15 @@ import { Heart } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { sendFunnelEvent } from "@/lib/funnel";
 import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
-import { wishlistHas, wishlistSubscribe, wishlistToggle } from "@/lib/wishlist-store";
+import {
+  wishlistHas,
+  wishlistSubscribe,
+  wishlistToggle,
+} from "@/lib/wishlist-store";
 
 /**
  * El corazón de favoritos. Dos formas, mismo componente:

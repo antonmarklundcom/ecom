@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import { currentCustomer } from "@/lib/customer-session";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * "¿Querés guardar tus datos?" — el upsell de la cuenta, **después** de la
@@ -15,7 +15,11 @@ import { t } from "@/i18n";
  *
  * No se muestra con el flag apagado ni a quien ya entró con su cuenta.
  */
-export async function GuardarDatosCta({ orderNumber }: { orderNumber: string }) {
+export async function GuardarDatosCta({
+  orderNumber,
+}: {
+  orderNumber: string;
+}) {
   if (!(await cuentasClientesHabilitadas())) return null;
   if (await currentCustomer()) return null;
 

@@ -1,12 +1,19 @@
-import { eq, sql } from 'drizzle-orm';
+import { safeError } from "@/lib/safe-error";
+import { eq, sql } from "drizzle-orm";
 
-import { getDb } from '@/db';
-import { users, type UserRole } from '@/db/schema';
+import { getDb } from "@/db";
+import { users, type UserRole } from "@/db/schema";
 
-import type { Executor } from '@/domain/executor';
-import { hashPassword, verifyPassword } from './password';
+import type { Executor } from "@/domain/executor";
+import { hashPassword, verifyPassword } from "./password";
 
-export type AuthenticatedUser = { id: number; email: string; role: UserRole; name: string | null };
+export type AuthenticatedUser = {
+  id: number;
+  email: string;
+  role: UserRole;
+  name: string | null;
+  sessionVersion: number;
+};
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -19,7 +26,7 @@ export function normalizeEmail(email: string): string {
 export async function authenticate(
   email: string,
   password: string,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<AuthenticatedUser | null> {
   const tx = executor ?? getDb();
   const rows = await tx
@@ -44,12 +51,21 @@ export async function authenticate(
   // No revienta el login si falla: quedarse afuera del panel porque no se pudo
   // escribir una columna informativa sería un caso peor que el que resuelve.
   try {
-    await tx.update(users).set({ lastLoginAt: sql`NOW()` }).where(eq(users.id, user.id));
+    await tx
+      .update(users)
+      .set({ lastLoginAt: sql`NOW()` })
+      .where(eq(users.id, user.id));
   } catch (error) {
-    console.error('No pude registrar last_login_at', error);
+    console.error("No pude registrar last_login_at", safeError(error).message);
   }
 
-  return { id: user.id, email: user.email, role: user.role, name: user.name };
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    sessionVersion: user.sessionVersion,
+  };
 }
 
 /**
@@ -58,8 +74,13 @@ export async function authenticate(
  * `requireOwner()`.
  */
 export async function createUser(
-  input: { email: string; password: string; name?: string | null; role: UserRole },
-  executor?: Executor,
+  input: {
+    email: string;
+    password: string;
+    name?: string | null;
+    role: UserRole;
+  },
+  executor?: Executor
 ): Promise<{ id: number; email: string; role: UserRole }> {
   const tx = executor ?? getDb();
   const email = normalizeEmail(input.email);
@@ -72,7 +93,11 @@ export async function createUser(
     role: input.role,
   });
 
-  const rows = await tx.select().from(users).where(eq(users.email, email)).limit(1);
+  const rows = await tx
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
   const created = rows[0];
   if (!created) throw new Error(`No pude crear el usuario ${email}`);
   return { id: created.id, email: created.email, role: created.role };

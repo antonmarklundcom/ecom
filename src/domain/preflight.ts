@@ -1,3 +1,4 @@
+import { validSessionSecret } from "@/lib/session-secret";
 import { MARCA_PLACEHOLDER, TIENDA } from "@/config/tienda";
 import {
   CAMPOS,
@@ -93,7 +94,7 @@ type Origenes = Record<string, Fuente | null>;
  */
 function entornoEfectivo(
   env: PreflightEnv,
-  panel: PreflightPanel | undefined,
+  panel: PreflightPanel | undefined
 ): { efectivo: PreflightEnv; origenes: Origenes } {
   const efectivo: PreflightEnv = { ...env };
   const origenes: Origenes = {};
@@ -114,9 +115,21 @@ function entornoEfectivo(
 
 /** Qué variables mira cada control, para decir de dónde salieron. */
 const VARIABLES_DEL_CONTROL: Record<string, readonly string[]> = {
-  cloudinary: ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
-  backups: ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
-  pagopar_credenciales: ["PAGOPAR_PUBLIC_KEY", "PAGOPAR_PRIVATE_KEY", "PAGOPAR_BASE_URL"],
+  cloudinary: [
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+  ],
+  backups: [
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+  ],
+  pagopar_credenciales: [
+    "PAGOPAR_PUBLIC_KEY",
+    "PAGOPAR_PRIVATE_KEY",
+    "PAGOPAR_BASE_URL",
+  ],
   whatsapp: ["WHATSAPP_NUMBER"],
   aviso_pedido_nuevo: [
     "WHATSAPP_CLOUD_PHONE_NUMBER_ID",
@@ -139,7 +152,9 @@ const VARIABLES_DEL_CONTROL: Record<string, readonly string[]> = {
 function conOrigen(check: PreflightCheck, origenes: Origenes): PreflightCheck {
   const variables = VARIABLES_DEL_CONTROL[check.id];
   if (!variables) return check;
-  const usados = new Set(variables.map((name) => origenes[name]).filter((origen) => origen != null));
+  const usados = new Set(
+    variables.map((name) => origenes[name]).filter((origen) => origen != null)
+  );
   if (usados.size === 0) return check;
   const texto =
     usados.size === 2
@@ -163,7 +178,9 @@ function checkLecturaPanel(panel: PreflightPanel): PreflightCheck {
         "entorno, y lo que el dueño haya cargado en el panel puede cambiar el resultado",
     };
   }
-  const cargadas = INTEGRACIONES.filter((nombre) => panel.filas[nombre] !== undefined);
+  const cargadas = INTEGRACIONES.filter(
+    (nombre) => panel.filas[nombre] !== undefined
+  );
   return {
     id: "integraciones_panel",
     severity: "ok",
@@ -188,7 +205,7 @@ export type PreflightAjustes = {
 export function preflight(
   envCrudo: PreflightEnv = process.env,
   panel?: PreflightPanel,
-  ajustes: PreflightAjustes = {},
+  ajustes: PreflightAjustes = {}
 ): PreflightReport {
   const { efectivo: env, origenes } = entornoEfectivo(envCrudo, panel);
   const checks: PreflightCheck[] = [
@@ -200,18 +217,33 @@ export function preflight(
     checkCronSecret(env),
     checkSetupSecret(env),
     checkSessionSecret(env),
-    checkCustomerSessionSecret(env, ajustes.cuentasClientes ?? TIENDA.cuentasClientes),
+    checkCustomerSessionSecret(
+      env,
+      ajustes.cuentasClientes ?? TIENDA.cuentasClientes
+    ),
     checkPagoparCredentials(env),
     checkCloudinary(env),
     checkWhatsApp(env),
     checkAvisoPedidoNuevo(env),
-    checkAvisoCliente(env, "confirmado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO"),
+    checkAvisoCliente(
+      env,
+      "confirmado",
+      "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO"
+    ),
     checkAvisoCliente(env, "pagado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO"),
-    checkAvisoCliente(env, "enviado", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"),
+    checkAvisoCliente(
+      env,
+      "enviado",
+      "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO"
+    ),
     // O15. Advertencia, nunca bloqueo: sin esta plantilla la tienda cobra
     // exactamente igual que antes — lo que pierde son los pedidos que vencen
     // sin que nadie les haya dicho nada.
-    checkAvisoCliente(env, "recordatorio", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO"),
+    checkAvisoCliente(
+      env,
+      "recordatorio",
+      "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO"
+    ),
     checkAvisoCliente(env, "resena", "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA"),
     checkResumenDiario(env),
     checkBackups(env),
@@ -219,8 +251,12 @@ export function preflight(
     checkSiteUrl(env),
   ].map((check) => conOrigen(check, origenes));
 
-  const blocking = checks.filter((check) => check.severity === "bloquea").length;
-  const warnings = checks.filter((check) => check.severity === "advierte").length;
+  const blocking = checks.filter(
+    (check) => check.severity === "bloquea"
+  ).length;
+  const warnings = checks.filter(
+    (check) => check.severity === "advierte"
+  ).length;
 
   return { checks, ok: blocking === 0, blocking, warnings };
 }
@@ -284,9 +320,11 @@ function checkWebhookEnvelope(env: PreflightEnv): PreflightCheck {
     };
   }
 
-  const sinCredenciales = ["PAGOPAR_PUBLIC_KEY", "PAGOPAR_PRIVATE_KEY", "PAGOPAR_BASE_URL"].every(
-    (name) => value(env, name) === "",
-  );
+  const sinCredenciales = [
+    "PAGOPAR_PUBLIC_KEY",
+    "PAGOPAR_PRIVATE_KEY",
+    "PAGOPAR_BASE_URL",
+  ].every((name) => value(env, name) === "");
 
   if (sinCredenciales) {
     return {
@@ -417,7 +455,8 @@ function checkCronSecret(env: PreflightEnv): PreflightCheck {
       id: "cron_secret",
       severity: "bloquea",
       title: "Secreto del cron",
-      detail: "CRON_SECRET vacío: la ruta responde 503 y no se vence ningún pedido",
+      detail:
+        "CRON_SECRET vacío: la ruta responde 503 y no se vence ningún pedido",
     };
   }
   if (secret.length < 16) {
@@ -429,7 +468,12 @@ function checkCronSecret(env: PreflightEnv): PreflightCheck {
     };
   }
 
-  return { id: "cron_secret", severity: "ok", title: "Secreto del cron", detail: "configurado" };
+  return {
+    id: "cron_secret",
+    severity: "ok",
+    title: "Secreto del cron",
+    detail: "configurado",
+  };
 }
 
 /**
@@ -453,7 +497,8 @@ function checkSetupSecret(env: PreflightEnv): PreflightCheck {
       id: "setup_secret",
       severity: "ok",
       title: "Secreto del setup",
-      detail: "SETUP_SECRET no está: /api/setup/init responde 503, que es como tiene que quedar",
+      detail:
+        "SETUP_SECRET no está: /api/setup/init responde 503, que es como tiene que quedar",
     };
   }
 
@@ -497,7 +542,7 @@ function checkSessionSecret(env: PreflightEnv): PreflightCheck {
       detail: `SESSION_SECRET tiene ${secret.length} caracteres; iron-session exige 32 o más`,
     };
   }
-  if (/changeme|generate/i.test(secret)) {
+  if (!validSessionSecret(secret)) {
     return {
       id: "session_secret",
       severity: "bloquea",
@@ -506,7 +551,12 @@ function checkSessionSecret(env: PreflightEnv): PreflightCheck {
     };
   }
 
-  return { id: "session_secret", severity: "ok", title: "Secreto de sesión", detail: "configurado" };
+  return {
+    id: "session_secret",
+    severity: "ok",
+    title: "Secreto de sesión",
+    detail: "configurado",
+  };
 }
 
 /**
@@ -525,7 +575,10 @@ function checkSessionSecret(env: PreflightEnv): PreflightCheck {
  * del panel y compradoras— es lo que hace posible que una cookie de una sirva
  * del otro lado.
  */
-function checkCustomerSessionSecret(env: PreflightEnv, cuentasActivas: boolean): PreflightCheck {
+function checkCustomerSessionSecret(
+  env: PreflightEnv,
+  cuentasActivas: boolean
+): PreflightCheck {
   const title = "Secreto de sesión de cliente";
 
   if (!cuentasActivas) {
@@ -543,12 +596,13 @@ function checkCustomerSessionSecret(env: PreflightEnv, cuentasActivas: boolean):
     // Vacío ya no es un error: se deriva de SESSION_SECRET con HKDF
     // (src/lib/customer-session.ts). Sólo falla si SESSION_SECRET tampoco sirve.
     const base = value(env, "SESSION_SECRET");
-    if (base.length >= 32 && !/changeme|generate/i.test(base)) {
+    if (validSessionSecret(base)) {
       return {
         id: "customer_session_secret",
         severity: "ok",
         title,
-        detail: "derivado de SESSION_SECRET (HKDF, independiente del del panel)",
+        detail:
+          "derivado de SESSION_SECRET (HKDF, independiente del del panel)",
       };
     }
     return {
@@ -579,7 +633,7 @@ function checkCustomerSessionSecret(env: PreflightEnv, cuentasActivas: boolean):
         "openssl rand -base64 32",
     };
   }
-  if (/changeme|generate/i.test(secret)) {
+  if (!validSessionSecret(secret)) {
     return {
       id: "customer_session_secret",
       severity: "bloquea",
@@ -588,7 +642,12 @@ function checkCustomerSessionSecret(env: PreflightEnv, cuentasActivas: boolean):
     };
   }
 
-  return { id: "customer_session_secret", severity: "ok", title, detail: "configurado" };
+  return {
+    id: "customer_session_secret",
+    severity: "ok",
+    title,
+    detail: "configurado",
+  };
 }
 
 /**
@@ -599,9 +658,11 @@ function checkCustomerSessionSecret(env: PreflightEnv, cuentasActivas: boolean):
  * tarjeta.
  */
 function checkPagoparCredentials(env: PreflightEnv): PreflightCheck {
-  const missing = ["PAGOPAR_PUBLIC_KEY", "PAGOPAR_PRIVATE_KEY", "PAGOPAR_BASE_URL"].filter(
-    (name) => value(env, name) === "",
-  );
+  const missing = [
+    "PAGOPAR_PUBLIC_KEY",
+    "PAGOPAR_PRIVATE_KEY",
+    "PAGOPAR_BASE_URL",
+  ].filter((name) => value(env, name) === "");
 
   if (missing.length === 0) {
     return {
@@ -624,12 +685,14 @@ function checkPagoparCredentials(env: PreflightEnv): PreflightCheck {
 
 /** Sin Cloudinary no hay comprobantes: el comprador no puede probar que pagó. */
 function checkCloudinary(env: PreflightEnv): PreflightCheck {
-  const missing = ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"].filter(
-    (name) => {
-      const current = value(env, name);
-      return current === "" || /changeme/i.test(current);
-    },
-  );
+  const missing = [
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+  ].filter((name) => {
+    const current = value(env, name);
+    return current === "" || /changeme/i.test(current);
+  });
 
   if (missing.length === 0) {
     return {
@@ -688,11 +751,17 @@ function checkWhatsApp(env: PreflightEnv): PreflightCheck {
       id: "whatsapp",
       severity: "advierte",
       title: "WhatsApp del comercio",
-      detail: "WHATSAPP_NUMBER no tiene la forma +5959XXXXXXXX; wa.me puede rechazarlo",
+      detail:
+        "WHATSAPP_NUMBER no tiene la forma +5959XXXXXXXX; wa.me puede rechazarlo",
     };
   }
 
-  return { id: "whatsapp", severity: "ok", title: "WhatsApp del comercio", detail: "configurado" };
+  return {
+    id: "whatsapp",
+    severity: "ok",
+    title: "WhatsApp del comercio",
+    detail: "configurado",
+  };
 }
 
 /**
@@ -748,9 +817,11 @@ function checkAvisoPedidoNuevo(env: PreflightEnv): PreflightCheck {
  * la llama nunca. Eso está en DEPLOY.md §5 y hay que mirarlo a mano.
  */
 function checkBackups(env: PreflightEnv): PreflightCheck {
-  const faltan = ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"].filter(
-    (name) => value(env, name) === "",
-  );
+  const faltan = [
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+  ].filter((name) => value(env, name) === "");
 
   if (faltan.length > 0) {
     return {
@@ -767,7 +838,8 @@ function checkBackups(env: PreflightEnv): PreflightCheck {
     id: "backups",
     severity: "ok",
     title: "Copias de seguridad automáticas",
-    detail: "Cloudinary configurado (falta verificar la entrada de cron del hPanel, DEPLOY.md §5)",
+    detail:
+      "Cloudinary configurado (falta verificar la entrada de cron del hPanel, DEPLOY.md §5)",
   };
 }
 
@@ -814,7 +886,8 @@ function checkResumenDiario(env: PreflightEnv): PreflightCheck {
     id: "resumen_diario",
     severity: "ok",
     title: "Resumen diario",
-    detail: "configurado (acordate de la entrada de cron diaria del hPanel, DEPLOY.md)",
+    detail:
+      "configurado (acordate de la entrada de cron diaria del hPanel, DEPLOY.md)",
   };
 }
 
@@ -830,7 +903,7 @@ function checkResumenDiario(env: PreflightEnv): PreflightCheck {
 function checkAvisoCliente(
   env: PreflightEnv,
   id: "confirmado" | "pagado" | "enviado" | "recordatorio" | "resena",
-  templateVar: string,
+  templateVar: string
 ): PreflightCheck {
   const template = value(env, templateVar);
   const cloudListo =
@@ -896,7 +969,12 @@ function checkDatabaseUrl(env: PreflightEnv): PreflightCheck {
     };
   }
 
-  return { id: "database_url", severity: "ok", title: "Base de datos", detail: "configurada" };
+  return {
+    id: "database_url",
+    severity: "ok",
+    title: "Base de datos",
+    detail: "configurada",
+  };
 }
 
 /** Los links de WhatsApp que se le mandan al comprador salen de acá. */
@@ -923,5 +1001,10 @@ function checkSiteUrl(env: PreflightEnv): PreflightCheck {
     };
   }
 
-  return { id: "site_url", severity: "ok", title: "URL del sitio", detail: url };
+  return {
+    id: "site_url",
+    severity: "ok",
+    title: "URL del sitio",
+    detail: url,
+  };
 }

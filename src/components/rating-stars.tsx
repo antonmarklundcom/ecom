@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,7 +24,14 @@ export function RatingStars({
   const label = t("estrellas.label", { valor: formatRating(clamped) });
 
   return (
-    <span role="img" aria-label={label} className={cn("inline-flex items-center gap-0.5 text-amber-500", className)}>
+    <span
+      role="img"
+      aria-label={label}
+      className={cn(
+        "inline-flex items-center gap-0.5 text-amber-500",
+        className
+      )}
+    >
       {[0, 1, 2, 3, 4].map((index) => {
         const fill = Math.max(0, Math.min(1, clamped - index));
         return <Star key={index} fill={fill} size={size} />;
@@ -35,7 +42,10 @@ export function RatingStars({
 
 /** "4.6" → "4,6": coma decimal, como se escribe en Paraguay. */
 export function formatRating(value: number): string {
-  return value.toLocaleString("es-PY", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+  return value.toLocaleString("es-PY", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
 }
 
 const STAR_PATH =
@@ -44,12 +54,24 @@ const STAR_PATH =
 function Star({ fill, size }: { fill: number; size: number }) {
   const percent = Math.round(fill * 100);
   return (
-    <span aria-hidden className="relative inline-block" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 24 24" width={size} height={size} className="absolute inset-0 opacity-30">
+    <span
+      aria-hidden
+      className="relative inline-block"
+      style={{ width: size, height: size }}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width={size}
+        height={size}
+        className="absolute inset-0 opacity-30"
+      >
         <path d={STAR_PATH} fill="currentColor" />
       </svg>
       {percent > 0 ? (
-        <span className="absolute inset-0 overflow-hidden" style={{ width: `${percent}%` }}>
+        <span
+          className="absolute inset-0 overflow-hidden"
+          style={{ width: `${percent}%` }}
+        >
           <svg viewBox="0 0 24 24" width={size} height={size}>
             <path d={STAR_PATH} fill="currentColor" />
           </svg>

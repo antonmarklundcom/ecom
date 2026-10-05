@@ -1,16 +1,23 @@
 "use client";
 
+import {
+  browserOperation,
+  finishBrowserOperation,
+} from "@/lib/browser-operation";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { submitCheckout } from "@/app/actions/checkout";
-import { quoteCartShipping, type CartQuote } from "@/app/actions/shipping-quote";
+import {
+  quoteCartShipping,
+  type CartQuote,
+} from "@/app/actions/shipping-quote";
 import { TIENDA } from "@/config/tienda";
 import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { couponRejectionMessage } from "@/lib/coupon-messages";
 import { Label } from "@/components/ui/label";
 import { describeIssue } from "@/lib/cart-issues";
@@ -31,8 +38,14 @@ type MedioDePago = (typeof PAGOS)[number];
 
 /** Título y aclaración de cada medio de pago. */
 const PAGO_TEXTOS: Record<MedioDePago, [string, string]> = {
-  transferencia: [t("checkout.pago.transferencia"), t("checkout.pago.transferencia.ayuda")],
-  contra_entrega: [t("checkout.pago.contraEntrega"), t("checkout.pago.contraEntrega.ayuda")],
+  transferencia: [
+    t("checkout.pago.transferencia"),
+    t("checkout.pago.transferencia.ayuda"),
+  ],
+  contra_entrega: [
+    t("checkout.pago.contraEntrega"),
+    t("checkout.pago.contraEntrega.ayuda"),
+  ],
   tarjeta: [t("checkout.pago.tarjeta"), t("checkout.pago.tarjeta.ayuda")],
 };
 
@@ -45,12 +58,16 @@ const PAGO_TEXTOS: Record<MedioDePago, [string, string]> = {
 export function CheckoutForm({
   cities,
   pagoparEnabled = false,
+  readyPayments = ["contra_entrega"],
+  contactHref = null,
   prefill,
   hayCupones = false,
   nombreTienda = TIENDA.nombre,
 }: {
   cities: string[];
   pagoparEnabled?: boolean;
+  readyPayments?: readonly MedioDePago[];
+  contactHref?: string | null;
   /**
    * ¿Esta tienda tiene algún cupón usable? Lo cuenta el servidor. Sin cupones
    * cargados el campo no se dibuja: cero filas = invisible.
@@ -73,7 +90,9 @@ export function CheckoutForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [docType, setDocType] = useState<"NINGUNO" | "CI" | "RUC">("NINGUNO");
-  const [paymentMethod, setPaymentMethod] = useState<MedioDePago>("transferencia");
+  const [paymentMethod, setPaymentMethod] = useState<MedioDePago>(
+    readyPayments[0] ?? "contra_entrega"
+  );
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [isGift, setIsGift] = useState(false);
   const [city, setCity] = useState("");
@@ -84,7 +103,9 @@ export function CheckoutForm({
    * métodos y sólo existe el implícito.
    */
   const [shippingMethodId, setShippingMethodId] = useState<number | null>(null);
-  const [quote, setQuote] = useState<(CartQuote & { itemsKey: string }) | null>(null);
+  const [quote, setQuote] = useState<(CartQuote & { itemsKey: string }) | null>(
+    null
+  );
   const [isQuoting, setIsQuoting] = useState(false);
   const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quoteTicket = useRef(0);
@@ -114,7 +135,12 @@ export function CheckoutForm({
    * radio no frena un POST armado a mano (ARCH.md §1 regla 2).
    */
   const opcionesDePago = (allowed: readonly MedioDePago[]): MedioDePago[] =>
-    PAGOS.filter((value) => allowed.includes(value) && (value !== "tarjeta" || pagoparEnabled));
+    PAGOS.filter(
+      (value) =>
+        allowed.includes(value) &&
+        readyPayments.includes(value) &&
+        (value !== "tarjeta" || pagoparEnabled)
+    );
 
   /**
    * Al cambiar de método de envío, el medio de pago que tenía marcado puede
@@ -124,7 +150,9 @@ export function CheckoutForm({
    */
   const ajustarPago = (allowed: readonly MedioDePago[]): void => {
     const posibles = opcionesDePago(allowed);
-    setPaymentMethod((actual) => (posibles.includes(actual) ? actual : (posibles[0] ?? actual)));
+    setPaymentMethod((actual) =>
+      posibles.includes(actual) ? actual : (posibles[0] ?? actual)
+    );
   };
 
   /**
@@ -133,13 +161,15 @@ export function CheckoutForm({
    * carrito. Es sólo lectura y no crea nada (ver `quoteCartShipping`), así que
    * se puede volver a pedir en cada corrección.
    */
-  const itemsKey = lines.map((line) => `${line.variantId}x${line.qty}`).join(",");
+  const itemsKey = lines
+    .map((line) => `${line.variantId}x${line.qty}`)
+    .join(",");
 
   const requestQuote = (
     nextCity: string,
     delayMs = 400,
     code = couponApplied,
-    methodId: number | null = shippingMethodId,
+    methodId: number | null = shippingMethodId
   ) => {
     if (quoteTimer.current) clearTimeout(quoteTimer.current);
 
@@ -183,7 +213,7 @@ export function CheckoutForm({
           setQuote(result.shipping ? { ...result, itemsKey } : null);
           setShippingMethodId(result.shippingMethodId);
           const elegido = result.methods.find(
-            (method) => method.id === result.shippingMethodId,
+            (method) => method.id === result.shippingMethodId
           );
           if (elegido) ajustarPago(elegido.allowedPaymentMethods);
           setIsQuoting(false);
@@ -209,8 +239,11 @@ export function CheckoutForm({
    * siempre: el checkout de antes, sin una sola pantalla nueva.
    */
   const metodoElegido =
-    currentQuote?.methods.find((method) => method.id === shippingMethodId) ?? null;
-  const pagosVisibles = opcionesDePago(metodoElegido?.allowedPaymentMethods ?? PAGOS);
+    currentQuote?.methods.find((method) => method.id === shippingMethodId) ??
+    null;
+  const pagosVisibles = opcionesDePago(
+    metodoElegido?.allowedPaymentMethods ?? PAGOS
+  );
   /**
    * ¿Esta tienda tiene métodos de verdad, o sólo el implícito? Con el
    * implícito no se dibuja ninguna pregunta nueva: es literalmente el envío a
@@ -239,8 +272,11 @@ export function CheckoutForm({
         const data = new FormData(event.currentTarget);
 
         startTransition(async () => {
-          const result = await submitCheckout({
-            items: lines.map((line) => ({ variantId: line.variantId, qty: line.qty })),
+          const payload = {
+            items: lines.map((line) => ({
+              variantId: line.variantId,
+              qty: line.qty,
+            })),
             customerName: String(data.get("customerName") ?? ""),
             customerPhone: String(data.get("customerPhone") ?? ""),
             customerEmail: String(data.get("customerEmail") ?? ""),
@@ -262,12 +298,17 @@ export function CheckoutForm({
             // coincide con lo que corresponde cobrar. Si nunca vio un total
             // —no llegó a poner la ciudad— no va nada y no hay nada que
             // comparar.
-            expectedTotalPyg: expectedTotal ?? currentQuote?.totalPyg ?? undefined,
-          });
+            expectedTotalPyg:
+              expectedTotal ?? currentQuote?.totalPyg ?? undefined,
+          };
+          const operationKey = await browserOperation("checkout", payload);
+          const result = await submitCheckout({ ...payload, operationKey });
 
           if (!result.ok) {
             setError(result.error);
-            result.issues?.forEach((issue) => toast.error(describeIssue(issue)));
+            result.issues?.forEach((issue) =>
+              toast.error(describeIssue(issue))
+            );
             if (result.totalChanged) {
               // El pedido NO se creó. Se guarda el total nuevo —el que acaba
               // de calcular el servidor— para que el segundo click pase, y se
@@ -280,6 +321,7 @@ export function CheckoutForm({
             return;
           }
 
+          finishBrowserOperation("checkout");
           clear();
           // La pasarela de Pagopar vive en otro dominio: `router.push` es
           // para rutas internas, así que un link externo necesita navegación
@@ -329,7 +371,9 @@ export function CheckoutForm({
       <div className="grid gap-1.5">
         <Label htmlFor="customerEmail">
           {t("checkout.email")}{" "}
-          <span className="text-muted-foreground font-normal">{t("checkout.opcional")}</span>
+          <span className="text-muted-foreground font-normal">
+            {t("checkout.opcional")}
+          </span>
         </Label>
         <Input
           id="customerEmail"
@@ -340,7 +384,9 @@ export function CheckoutForm({
           autoComplete="email"
           placeholder={t("checkout.email.placeholder")}
         />
-        <p className="text-muted-foreground text-xs">{t("checkout.email.ayuda")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("checkout.email.ayuda")}
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -351,7 +397,9 @@ export function CheckoutForm({
             name="docType"
             data-testid={TESTIDS.checkoutDocType}
             value={docType}
-            onChange={(event) => setDocType(event.target.value as typeof docType)}
+            onChange={(event) =>
+              setDocType(event.target.value as typeof docType)
+            }
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
           >
             <option value="NINGUNO">{t("checkout.documento.ninguno")}</option>
@@ -362,7 +410,9 @@ export function CheckoutForm({
         {docType !== "NINGUNO" ? (
           <div className="grid gap-1.5">
             <Label htmlFor="docNumber">
-              {docType === "RUC" ? t("checkout.documento.rucLabel") : t("checkout.documento.ciLabel")}
+              {docType === "RUC"
+                ? t("checkout.documento.rucLabel")
+                : t("checkout.documento.ciLabel")}
             </Label>
             <Input
               id="docNumber"
@@ -420,7 +470,11 @@ export function CheckoutForm({
 
       <div className="grid gap-1.5">
         <Label htmlFor="shipReference">{t("checkout.referencia")}</Label>
-        <Input id="shipReference" name="shipReference" placeholder={t("checkout.referencia.placeholder")} />
+        <Input
+          id="shipReference"
+          name="shipReference"
+          placeholder={t("checkout.referencia.placeholder")}
+        />
       </div>
 
       {/*
@@ -430,7 +484,9 @@ export function CheckoutForm({
       */}
       {metodosConfigurados && currentQuote ? (
         <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-medium">{t("checkout.envio.pregunta")}</legend>
+          <legend className="mb-1 text-sm font-medium">
+            {t("checkout.envio.pregunta")}
+          </legend>
           {currentQuote.methods.map((method) => (
             <label
               key={method.id ?? "implicito"}
@@ -457,11 +513,15 @@ export function CheckoutForm({
                 <span className="flex flex-wrap items-baseline justify-between gap-x-3">
                   <span className="font-medium">{method.name}</span>
                   <span className="tabular-nums">
-                    {method.isFree ? t("checkout.envioGratis") : formatGs(method.shippingPyg)}
+                    {method.isFree
+                      ? t("checkout.envioGratis")
+                      : formatGs(method.shippingPyg)}
                   </span>
                 </span>
                 {method.description ? (
-                  <span className="text-muted-foreground block text-xs">{method.description}</span>
+                  <span className="text-muted-foreground block text-xs">
+                    {method.description}
+                  </span>
                 ) : null}
               </span>
             </label>
@@ -482,9 +542,13 @@ export function CheckoutForm({
       ) : null}
 
       <fieldset className="grid gap-2">
-        <legend className="mb-1 text-sm font-medium">{t("checkout.pago.pregunta")}</legend>
+        <legend className="mb-1 text-sm font-medium">
+          {t("checkout.pago.pregunta")}
+        </legend>
         {pagosVisibles.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("checkout.pago.sinOpciones")}</p>
+          <p className="text-muted-foreground text-sm">
+            {t("checkout.pago.sinOpciones")}
+          </p>
         ) : null}
         {pagosVisibles.map((value) => {
           const [label, hint] = PAGO_TEXTOS[value];
@@ -505,7 +569,9 @@ export function CheckoutForm({
               />
               <span>
                 <span className="font-medium">{label}</span>
-                <span className="text-muted-foreground block text-xs">{hint}</span>
+                <span className="text-muted-foreground block text-xs">
+                  {hint}
+                </span>
               </span>
             </label>
           );
@@ -523,7 +589,9 @@ export function CheckoutForm({
           />
           <span>
             <span className="font-medium">{t("checkout.regalo")}</span>
-            <span className="text-muted-foreground block text-xs">{t("checkout.regalo.ayuda")}</span>
+            <span className="text-muted-foreground block text-xs">
+              {t("checkout.regalo.ayuda")}
+            </span>
           </span>
         </label>
 
@@ -568,7 +636,9 @@ export function CheckoutForm({
       {currentQuote && currentQuote.issues.length > 0 ? (
         <ul className="border-border bg-muted/40 space-y-1 rounded-lg border p-3 text-xs">
           {currentQuote.issues.map((issue) => (
-            <li key={`${issue.type}-${issue.variantId}`}>{describeIssue(issue)}</li>
+            <li key={`${issue.type}-${issue.variantId}`}>
+              {describeIssue(issue)}
+            </li>
           ))}
         </ul>
       ) : null}
@@ -586,7 +656,9 @@ export function CheckoutForm({
                 <Input
                   id="couponCode"
                   value={couponInput}
-                  onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+                  onChange={(event) =>
+                    setCouponInput(event.target.value.toUpperCase())
+                  }
                   placeholder={t("checkout.cupon.placeholder")}
                   maxLength={40}
                   autoComplete="off"
@@ -640,7 +712,9 @@ export function CheckoutForm({
               ) : null}
 
               {city.trim().length < 2 ? (
-                <p className="text-muted-foreground text-xs">{t("checkout.cupon.faltaCiudad")}</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("checkout.cupon.faltaCiudad")}
+                </p>
               ) : null}
             </div>
           ) : (
@@ -657,8 +731,12 @@ export function CheckoutForm({
 
       <div className="border-border grid gap-1 border-t pt-4 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">{t("checkout.subtotal")}</span>
-          <span className="tabular-nums">{formatGs(currentQuote?.subtotalPyg ?? subtotal)}</span>
+          <span className="text-muted-foreground">
+            {t("checkout.subtotal")}
+          </span>
+          <span className="tabular-nums">
+            {formatGs(currentQuote?.subtotalPyg ?? subtotal)}
+          </span>
         </div>
 
         {/* El descuento se muestra **arriba** del envío y con signo, porque es
@@ -667,10 +745,14 @@ export function CheckoutForm({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">
               {currentQuote.couponCode
-                ? t("checkout.descuentoCon", { codigo: currentQuote.couponCode })
+                ? t("checkout.descuentoCon", {
+                    codigo: currentQuote.couponCode,
+                  })
                 : t("checkout.descuento")}
             </span>
-            <span className="tabular-nums">−{formatGs(currentQuote.discountPyg)}</span>
+            <span className="tabular-nums">
+              −{formatGs(currentQuote.discountPyg)}
+            </span>
           </div>
         ) : null}
 
@@ -679,7 +761,9 @@ export function CheckoutForm({
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">
                 {currentQuote.shipping.match === "exacta"
-                  ? t("checkout.envioCon", { zona: currentQuote.shipping.zoneName })
+                  ? t("checkout.envioCon", {
+                      zona: currentQuote.shipping.zoneName,
+                    })
                   : t("checkout.envio")}
                 {isQuoting ? "…" : ""}
               </span>
@@ -709,7 +793,9 @@ export function CheckoutForm({
         {!currentQuote?.shipping
           ? t("checkout.nota.faltaCiudad")
           : currentQuote.shipping.match === "mas_cara"
-            ? t("checkout.nota.masCara", { zona: currentQuote.shipping.zoneName })
+            ? t("checkout.nota.masCara", {
+                zona: currentQuote.shipping.zoneName,
+              })
             : // `exacta` y `sin_zonas` comparten esta línea: en la segunda el
               // envío es ₲0 de verdad, así que no hay nada que aclararle a
               // quien compra (el que tiene que configurar zonas es el dueño).
@@ -727,10 +813,25 @@ export function CheckoutForm({
         type="submit"
         size="lg"
         data-testid={TESTIDS.checkoutSubmit}
-        disabled={isPending || pagosVisibles.length === 0 || currentQuote?.methods.length === 0}
+        disabled={
+          isPending ||
+          pagosVisibles.length === 0 ||
+          currentQuote?.methods.length === 0
+        }
       >
         {isPending ? t("checkout.confirmando") : t("checkout.confirmar")}
       </Button>
+      {contactHref &&
+      (pagosVisibles.length === 0 || currentQuote?.methods.length === 0) ? (
+        <a
+          href={contactHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+        >
+          {t("checkout.consultar")}
+        </a>
+      ) : null}
     </form>
   );
 }

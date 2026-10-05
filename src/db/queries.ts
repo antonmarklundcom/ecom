@@ -15,7 +15,14 @@ import {
 } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { categories, orderItems, orders, productImages, products, variants } from "@/db/schema";
+import {
+  categories,
+  orderItems,
+  orders,
+  productImages,
+  products,
+  variants,
+} from "@/db/schema";
 
 import type { Executor } from "@/domain/executor";
 import { getRatingSummaries, type RatingSummary } from "@/domain/reviews";
@@ -37,6 +44,8 @@ export type CatalogImage = {
 };
 
 export type CatalogProduct = {
+  saleMode?: "stock" | "enquiry" | "showcase";
+  showPrice?: boolean;
   id: number;
   slug: string;
   name: string;
@@ -75,20 +84,32 @@ export type CatalogProductDetail = CatalogProduct & {
  * La única que no lo hacía era la del sitemap, y ahora lo hace.
  */
 const PUBLISHED = () =>
-  and(eq(products.isActive, true), isNotNull(products.publishedAt), eq(categories.isActive, true));
+  and(
+    eq(products.isActive, true),
+    isNotNull(products.publishedAt),
+    eq(categories.isActive, true)
+  );
 
-export type CatalogSort = "relevancia" | "precio-asc" | "precio-desc" | "nuevos";
+export type CatalogSort =
+  "relevancia" | "precio-asc" | "precio-desc" | "nuevos";
 
-export const CATALOG_SORTS: CatalogSort[] = ["relevancia", "precio-asc", "precio-desc", "nuevos"];
+export const CATALOG_SORTS: CatalogSort[] = [
+  "relevancia",
+  "precio-asc",
+  "precio-desc",
+  "nuevos",
+];
 
 export function isCatalogSort(value: string | undefined): value is CatalogSort {
   return value !== undefined && (CATALOG_SORTS as string[]).includes(value);
 }
 
 /** Precio mínimo por producto — es el número por el que la gente ordena y filtra. */
-const minPriceSql = sql<number>`MIN(${variants.pricePyg})`;
+const minPriceSql = sql<number>`MIN(CASE WHEN ${products.showPrice} THEN ${variants.pricePyg} ELSE NULL END)`;
 
 type ProductRow = {
+  saleMode: "stock" | "enquiry" | "showcase";
+  showPrice: boolean;
   id: number;
   slug: string;
   name: string;
@@ -104,7 +125,10 @@ type ProductRow = {
  * disponibilidad en vivo y el resumen de reseñas aprobadas. Cuatro queries
  * acotadas por ids (la de reseñas, agrupada), no N+1.
  */
-async function hydrate(tx: Executor, rows: ProductRow[]): Promise<CatalogProduct[]> {
+async function hydrate(
+  tx: Executor,
+  rows: ProductRow[]
+): Promise<CatalogProduct[]> {
   if (rows.length === 0) return [];
   const productIds = rows.map((row) => row.id);
 
@@ -119,7 +143,9 @@ async function hydrate(tx: Executor, rows: ProductRow[]): Promise<CatalogProduct
       onHand: variants.onHand,
     })
     .from(variants)
-    .where(and(eq(variants.isActive, true), inArray(variants.productId, productIds)))
+    .where(
+      and(eq(variants.isActive, true), inArray(variants.productId, productIds))
+    )
     .orderBy(asc(variants.productId), asc(variants.position));
 
   const imageRows = await tx
@@ -158,11 +184,17 @@ async function hydrate(tx: Executor, rows: ProductRow[]): Promise<CatalogProduct
   const imagesByProduct = new Map<number, CatalogImage[]>();
   for (const row of imageRows) {
     const list = imagesByProduct.get(row.productId) ?? [];
-    list.push({ cloudinaryId: row.cloudinaryId, blurDataUrl: row.blurDataUrl, alt: row.alt });
+    list.push({
+      cloudinaryId: row.cloudinaryId,
+      blurDataUrl: row.blurDataUrl,
+      alt: row.alt,
+    });
     imagesByProduct.set(row.productId, list);
   }
 
   return rows.map((row) => ({
+    saleMode: row.saleMode,
+    showPrice: row.showPrice,
     id: row.id,
     slug: row.slug,
     name: row.name,
@@ -171,12 +203,16 @@ async function hydrate(tx: Executor, rows: ProductRow[]): Promise<CatalogProduct
     categoryName: row.categoryName,
     categorySlug: row.categorySlug,
     image: imagesByProduct.get(row.id)?.[0] ?? null,
-    variants: variantsByProduct.get(row.id) ?? [],
+    variants: (variantsByProduct.get(row.id) ?? []).map((variant) =>
+      row.showPrice ? variant : { ...variant, pricePyg: 0, compareAtPyg: null }
+    ),
     ...(ratings.has(row.id) ? { rating: ratings.get(row.id) } : {}),
   }));
 }
 
 const PRODUCT_COLUMNS = {
+  saleMode: products.saleMode,
+  showPrice: products.showPrice,
   id: products.id,
   slug: products.slug,
   name: products.name,
@@ -200,7 +236,9 @@ export async function getCatalog(
     .where(
       and(
         PUBLISHED(),
-        options.categorySlug ? eq(categories.slug, options.categorySlug) : undefined,
+        options.categorySlug
+          ? eq(categories.slug, options.categorySlug)
+          : undefined,
         options.featured ? eq(products.isFeatured, true) : undefined
       )
     )
@@ -280,8 +318,12 @@ export async function getCategoryProducts(
   );
 
   const havingParts = [
-    query.minPricePyg !== undefined ? gte(minPriceSql, query.minPricePyg) : undefined,
-    query.maxPricePyg !== undefined ? lte(minPriceSql, query.maxPricePyg) : undefined,
+    query.minPricePyg !== undefined
+      ? gte(minPriceSql, query.minPricePyg)
+      : undefined,
+    query.maxPricePyg !== undefined
+      ? lte(minPriceSql, query.maxPricePyg)
+      : undefined,
   ].filter(Boolean);
   const having = havingParts.length > 0 ? and(...havingParts) : undefined;
 
@@ -302,12 +344,20 @@ export async function getCategoryProducts(
     .select({ ...PRODUCT_COLUMNS, minPrice: minPriceSql })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .innerJoin(variants, and(eq(variants.productId, products.id), eq(variants.isActive, true)))
+    .innerJoin(
+      variants,
+      and(eq(variants.productId, products.id), eq(variants.isActive, true))
+    )
     .where(filters)
     .groupBy(products.id, categories.name, categories.slug);
 
   const rows = await (having ? grouped.having(having) : grouped)
-    .orderBy(orderBy)
+    .orderBy(
+      ...(query.sort?.startsWith("precio-")
+        ? [sql`${minPriceSql} IS NULL`]
+        : []),
+      orderBy
+    )
     .limit(perPage)
     .offset((page - 1) * perPage);
 
@@ -315,7 +365,10 @@ export async function getCategoryProducts(
     .select({ id: products.id })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .innerJoin(variants, and(eq(variants.productId, products.id), eq(variants.isActive, true)))
+    .innerJoin(
+      variants,
+      and(eq(variants.productId, products.id), eq(variants.isActive, true))
+    )
     .where(filters)
     .groupBy(products.id);
   const total = (await (having ? counted.having(having) : counted)).length;
@@ -374,7 +427,11 @@ export async function searchProducts(
   executor?: Executor
 ): Promise<CatalogProduct[]> {
   const tx = executor ?? getDb();
-  const cleaned = term.trim().replace(/[+\-><()~*"@]/g, " ").replace(/\s+/g, " ").trim();
+  const cleaned = term
+    .trim()
+    .replace(/[+\-><()~*"@]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (cleaned.length < 2) return [];
 
   const limit = options.limit ?? 40;
@@ -403,14 +460,21 @@ export async function searchProducts(
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(
-      and(PUBLISHED(), sql`(${products.name} LIKE ${like} OR ${products.brand} LIKE ${like})`)
+      and(
+        PUBLISHED(),
+        sql`(${products.name} LIKE ${like} OR ${products.brand} LIKE ${like})`
+      )
     )
     .limit(limit);
 
   return hydrate(tx, fallback);
 }
 
-export type SearchSuggestion = { slug: string; name: string; brand: string | null };
+export type SearchSuggestion = {
+  slug: string;
+  name: string;
+  brand: string | null;
+};
 
 /**
  * Sugerencias para el buscador mientras se escribe (FASE 2, PR N).
@@ -429,10 +493,18 @@ export async function suggestProducts(
   executor?: Executor
 ): Promise<SearchSuggestion[]> {
   const tx = executor ?? getDb();
-  const cleaned = term.trim().replace(/[+\-><()~*"@]/g, " ").replace(/\s+/g, " ").trim();
+  const cleaned = term
+    .trim()
+    .replace(/[+\-><()~*"@]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (cleaned.length < 2) return [];
 
-  const columns = { slug: products.slug, name: products.name, brand: products.brand };
+  const columns = {
+    slug: products.slug,
+    name: products.name,
+    brand: products.brand,
+  };
   const booleanTerm = cleaned
     .split(" ")
     .map((word) => `${word}*`)
@@ -457,7 +529,12 @@ export async function suggestProducts(
     .select(columns)
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .where(and(PUBLISHED(), sql`(${products.name} LIKE ${like} OR ${products.brand} LIKE ${like})`))
+    .where(
+      and(
+        PUBLISHED(),
+        sql`(${products.name} LIKE ${like} OR ${products.brand} LIKE ${like})`
+      )
+    )
     .limit(limit);
 }
 
@@ -501,12 +578,20 @@ export async function getBrands(
     .select({ brand: products.brand, total: count(products.id) })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .where(and(PUBLISHED(), eq(categories.slug, categorySlug), isNotNull(products.brand)))
+    .where(
+      and(
+        PUBLISHED(),
+        eq(categories.slug, categorySlug),
+        isNotNull(products.brand)
+      )
+    )
     .groupBy(products.brand)
     .orderBy(asc(products.brand));
 
   return rows
-    .filter((row): row is { brand: string; total: number } => Boolean(row.brand))
+    .filter((row): row is { brand: string; total: number } =>
+      Boolean(row.brand)
+    )
     .map((row) => ({ brand: row.brand, total: Number(row.total) }));
 }
 
@@ -518,7 +603,12 @@ export async function getBrands(
  * a pagar (o pagó y se le devolvió, `reembolsado`, que tampoco cuenta como
  * venta).
  */
-const CO_PURCHASE_STATUSES = ["pagado", "preparando", "enviado", "entregado"] as const;
+const CO_PURCHASE_STATUSES = [
+  "pagado",
+  "preparando",
+  "enviado",
+  "entregado",
+] as const;
 
 const CO_PURCHASE_MAX_ORDERS = 500;
 
@@ -547,7 +637,12 @@ async function getCoPurchasedProducts(
     .from(orderItems)
     .innerJoin(variants, eq(variants.id, orderItems.variantId))
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
-    .where(and(eq(variants.productId, productId), inArray(orders.status, CO_PURCHASE_STATUSES)))
+    .where(
+      and(
+        eq(variants.productId, productId),
+        inArray(orders.status, CO_PURCHASE_STATUSES)
+      )
+    )
     // Tope: un producto con miles de ventas no puede convertir la segunda
     // consulta en un `IN (...)` de miles de ids en cada render de la ficha.
     // Los 500 pedidos más nuevos alcanzan para rankear, y siguen la moda.
@@ -564,12 +659,20 @@ async function getCoPurchasedProducts(
     .from(orderItems)
     .innerJoin(
       variants,
-      and(eq(variants.id, orderItems.variantId), eq(variants.isActive, true), gt(variants.onHand, 0))
+      and(
+        eq(variants.id, orderItems.variantId),
+        eq(variants.isActive, true),
+        gt(variants.onHand, 0)
+      )
     )
     .innerJoin(products, eq(products.id, variants.productId))
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(
-      and(inArray(orderItems.orderId, coOrderIds), ne(products.id, productId), PUBLISHED())
+      and(
+        inArray(orderItems.orderId, coOrderIds),
+        ne(products.id, productId),
+        PUBLISHED()
+      )
     )
     .groupBy(products.id, categories.name, categories.slug)
     .orderBy(desc(coPurchasedOrders), asc(products.name))
@@ -578,7 +681,9 @@ async function getCoPurchasedProducts(
   const hydrated = await hydrate(tx, rows);
 
   return hydrated
-    .filter((product) => product.variants.some((variant) => variant.available > 0))
+    .filter((product) =>
+      product.variants.some((variant) => variant.available > 0)
+    )
     .slice(0, limit);
 }
 
@@ -605,7 +710,12 @@ async function getCoPurchasedProducts(
  */
 async function getSameCategoryRelated(
   tx: Executor,
-  input: { productId: number; categorySlug: string; brand: string | null; pricePyg?: number },
+  input: {
+    productId: number;
+    categorySlug: string;
+    brand: string | null;
+    pricePyg?: number;
+  },
   limit: number,
   excludeIds: number[]
 ): Promise<CatalogProduct[]> {
@@ -631,7 +741,10 @@ async function getSameCategoryRelated(
     .select({ ...PRODUCT_COLUMNS, minPrice: minPriceSql })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .innerJoin(variants, and(eq(variants.productId, products.id), eq(variants.isActive, true)))
+    .innerJoin(
+      variants,
+      and(eq(variants.productId, products.id), eq(variants.isActive, true))
+    )
     .where(
       and(
         PUBLISHED(),
@@ -648,7 +761,9 @@ async function getSameCategoryRelated(
   const hydrated = await hydrate(tx, rows);
 
   return hydrated
-    .filter((product) => product.variants.some((variant) => variant.available > 0))
+    .filter((product) =>
+      product.variants.some((variant) => variant.available > 0)
+    )
     .slice(0, limit);
 }
 
@@ -665,7 +780,12 @@ async function getSameCategoryRelated(
  * compras juntas la sección cae al criterio de siempre.
  */
 export async function getRelatedProducts(
-  input: { productId: number; categorySlug: string; brand: string | null; pricePyg?: number },
+  input: {
+    productId: number;
+    categorySlug: string;
+    brand: string | null;
+    pricePyg?: number;
+  },
   limit = 4,
   executor?: Executor
 ): Promise<CatalogProduct[]> {
@@ -752,13 +872,21 @@ export async function getSitemapEntries(executor?: Executor): Promise<{
  * con variantes, disponibilidad en vivo y **todas** las fotos. Mismo
  * `PUBLISHED()` que la vidriera: lo que no se ve, no se anuncia.
  */
-export async function getFeedProducts(executor?: Executor): Promise<CatalogProductDetail[]> {
+export async function getFeedProducts(
+  executor?: Executor
+): Promise<CatalogProductDetail[]> {
   const tx = executor ?? getDb();
   const rows = await tx
     .select(PRODUCT_COLUMNS)
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .where(PUBLISHED())
+    .where(
+      and(
+        PUBLISHED(),
+        eq(products.saleMode, "stock"),
+        eq(products.showPrice, true)
+      )
+    )
     .orderBy(asc(products.slug));
   if (rows.length === 0) return [];
 
@@ -771,7 +899,12 @@ export async function getFeedProducts(executor?: Executor): Promise<CatalogProdu
       alt: productImages.alt,
     })
     .from(productImages)
-    .where(inArray(productImages.productId, rows.map((row) => row.id)))
+    .where(
+      inArray(
+        productImages.productId,
+        rows.map((row) => row.id)
+      )
+    )
     .orderBy(asc(productImages.productId), asc(productImages.position));
 
   const imagesByProduct = new Map<number, CatalogImage[]>();

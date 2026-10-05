@@ -1,12 +1,17 @@
-import '@/lib/load-env';
+import "@/lib/load-env";
 
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql } from "drizzle-orm";
 
-import { closePool, getDb } from '@/db';
-import { categories, products, shippingZones, variants } from '@/db/schema';
-import { assertGs } from '@/lib/money';
+import { closePool, getDb } from "@/db";
+import { categories, products, shippingZones, variants } from "@/db/schema";
+import { assertGs } from "@/lib/money";
+import { safeError } from "@/lib/safe-error";
 
-import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_SHIPPING_ZONES } from './seed-data';
+import {
+  SEED_CATEGORIES,
+  SEED_PRODUCTS,
+  SEED_SHIPPING_ZONES,
+} from "./seed-data";
 
 /**
  * Seed idempotente: se puede correr N veces.
@@ -16,7 +21,7 @@ import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_SHIPPING_ZONES } from './seed-data
  * actualiza precios y textos **sin** duplicar filas ni pisar `on_hand` de
  * variantes ya existentes… salvo que se pida con `--reset-stock`.
  */
-const RESET_STOCK = process.argv.includes('--reset-stock');
+const RESET_STOCK = process.argv.includes("--reset-stock");
 
 /** Una zona tal como la escribe el seed o el cuerpo de `/api/setup/init`. */
 export type SeedShippingZone = {
@@ -45,14 +50,17 @@ export type SeedShippingZone = {
  */
 export async function upsertShippingZones(
   zonas: readonly SeedShippingZone[],
-  executor?: ReturnType<typeof getDb>,
+  executor?: ReturnType<typeof getDb>
 ): Promise<number> {
   const db = executor ?? getDb();
 
   for (const zone of zonas) {
     assertGs(zone.pricePyg, `shipping_zones.${zone.slug}.price_pyg`);
     if (zone.freeThresholdPyg !== null) {
-      assertGs(zone.freeThresholdPyg, `shipping_zones.${zone.slug}.free_threshold_pyg`);
+      assertGs(
+        zone.freeThresholdPyg,
+        `shipping_zones.${zone.slug}.free_threshold_pyg`
+      );
     }
 
     await db
@@ -88,6 +96,8 @@ export async function upsertShippingZones(
  * segundo lugar donde olvidarse del `assertGs` o del "no pisar `on_hand`".
  */
 export type CatalogProductUpsert = {
+  saleMode?: "stock" | "enquiry" | "showcase";
+  showPrice?: boolean;
   slug: string;
   name: string;
   description: string | null;
@@ -116,7 +126,10 @@ export type CatalogProductUpsert = {
  */
 export async function upsertCatalogProducts(
   items: readonly CatalogProductUpsert[],
-  { resetStock = false, publishedAt = new Date() }: { resetStock?: boolean; publishedAt?: Date } = {},
+  {
+    resetStock = false,
+    publishedAt = new Date(),
+  }: { resetStock?: boolean; publishedAt?: Date } = {}
 ): Promise<number> {
   const db = getDb();
   let variantCount = 0;
@@ -125,6 +138,8 @@ export async function upsertCatalogProducts(
     await db
       .insert(products)
       .values({
+        saleMode: product.saleMode,
+        showPrice: product.showPrice,
         slug: product.slug,
         name: product.name,
         description: product.description,
@@ -136,6 +151,8 @@ export async function upsertCatalogProducts(
       })
       .onDuplicateKeyUpdate({
         set: {
+          saleMode: product.saleMode,
+          showPrice: product.showPrice,
           name: product.name,
           description: product.description,
           categoryId: product.categoryId,
@@ -146,9 +163,14 @@ export async function upsertCatalogProducts(
       });
 
     const productRow = (
-      await db.select({ id: products.id }).from(products).where(eq(products.slug, product.slug)).limit(1)
+      await db
+        .select({ id: products.id })
+        .from(products)
+        .where(eq(products.slug, product.slug))
+        .limit(1)
     )[0];
-    if (!productRow) throw new Error(`No pude releer el producto ${product.slug}`);
+    if (!productRow)
+      throw new Error(`No pude releer el producto ${product.slug}`);
 
     for (const [index, variant] of product.variants.entries()) {
       assertGs(variant.pricePyg, `${variant.sku}.price_pyg`);
@@ -195,22 +217,34 @@ export async function upsertCatalogProducts(
  * con la creación de pedidos de ejemplo sin levantar un segundo proceso ni
  * una segunda conexión a la base.
  */
-export async function seedCatalog(resetStock: boolean = RESET_STOCK): Promise<void> {
+export async function seedCatalog(
+  resetStock: boolean = RESET_STOCK
+): Promise<void> {
   const db = getDb();
 
   // --- Categorías ---------------------------------------------------------
   for (const category of SEED_CATEGORIES) {
     await db
       .insert(categories)
-      .values({ slug: category.slug, name: category.name, position: category.position })
+      .values({
+        slug: category.slug,
+        name: category.name,
+        position: category.position,
+      })
       .onDuplicateKeyUpdate({
-        set: { name: category.name, position: category.position, isActive: true },
+        set: {
+          name: category.name,
+          position: category.position,
+          isActive: true,
+        },
       });
   }
   const categoryRows = await db
     .select({ id: categories.id, slug: categories.slug })
     .from(categories);
-  const categoryIdBySlug = new Map(categoryRows.map((row) => [row.slug, row.id]));
+  const categoryIdBySlug = new Map(
+    categoryRows.map((row) => [row.slug, row.id])
+  );
   console.log(`✓ ${SEED_CATEGORIES.length} categorías`);
 
   // --- Zonas de envío -----------------------------------------------------
@@ -221,7 +255,9 @@ export async function seedCatalog(resetStock: boolean = RESET_STOCK): Promise<vo
   const items: CatalogProductUpsert[] = SEED_PRODUCTS.map((product) => {
     const categoryId = categoryIdBySlug.get(product.categorySlug);
     if (!categoryId) {
-      throw new Error(`Categoría inexistente: ${product.categorySlug} (producto ${product.slug})`);
+      throw new Error(
+        `Categoría inexistente: ${product.categorySlug} (producto ${product.slug})`
+      );
     }
     return {
       slug: product.slug,
@@ -243,11 +279,17 @@ export async function seedCatalog(resetStock: boolean = RESET_STOCK): Promise<vo
   const variantCount = await upsertCatalogProducts(items, {
     resetStock,
     // Fija, para que re-sembrar sea reproducible y no "recién publicado".
-    publishedAt: new Date('2026-01-15T12:00:00Z'),
+    publishedAt: new Date("2026-01-15T12:00:00Z"),
   });
 
-  console.log(`✓ ${SEED_PRODUCTS.length} productos · ${variantCount} variantes`);
-  console.log(resetStock ? '↺ stock reseteado a los valores del seed' : '· stock existente respetado (--reset-stock para pisarlo)');
+  console.log(
+    `✓ ${SEED_PRODUCTS.length} productos · ${variantCount} variantes`
+  );
+  console.log(
+    resetStock
+      ? "↺ stock reseteado a los valores del seed"
+      : "· stock existente respetado (--reset-stock para pisarlo)"
+  );
 }
 
 async function main(): Promise<void> {
@@ -259,7 +301,7 @@ async function main(): Promise<void> {
 // sólo se ejecuta cuando `seed.ts` es el script invocado directamente.
 if (process.argv[1] && /seed\.ts$/.test(process.argv[1])) {
   main().catch(async (error) => {
-    console.error(error);
+    console.error(safeError(error).message);
     await closePool();
     process.exit(1);
   });

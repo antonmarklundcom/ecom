@@ -60,7 +60,9 @@ export type StoreSettingsRow = {
 };
 
 /** La fila cruda, parseada. Tira si la base tira: es para el panel y los tests. */
-export async function readStoreSettings(executor?: Executor): Promise<StoreSettingsRow> {
+export async function readStoreSettings(
+  executor?: Executor
+): Promise<StoreSettingsRow> {
   const tx = executor ?? getDb();
   const [fila] = await tx
     .select()
@@ -68,7 +70,12 @@ export async function readStoreSettings(executor?: Executor): Promise<StoreSetti
     .where(eq(storeSettings.id, SINGLETON_ID))
     .limit(1);
 
-  if (!fila) return { settings: DEFAULT_STORE_SETTINGS, updatedAt: null, updatedByUserId: null };
+  if (!fila)
+    return {
+      settings: DEFAULT_STORE_SETTINGS,
+      updatedAt: null,
+      updatedByUserId: null,
+    };
   return {
     settings: parseStoreSettings(fila.data),
     updatedAt: fila.updatedAt,
@@ -87,9 +94,12 @@ export const getStoreSettings = cache(async (): Promise<StoreSettings> => {
   try {
     return (await readStoreSettings()).settings;
   } catch (error) {
-    log.warn("no se pudieron leer los ajustes de la tienda; van los de siempre", {
-      error: mensajeDe(error),
-    });
+    log.warn(
+      "no se pudieron leer los ajustes de la tienda; van los de siempre",
+      {
+        error: mensajeDe(error),
+      }
+    );
     return DEFAULT_STORE_SETTINGS;
   }
 });
@@ -107,7 +117,7 @@ export const getStoreSettings = cache(async (): Promise<StoreSettings> => {
 export async function saveStoreSettingsSection(
   section: StoreSettingsSection,
   values: unknown,
-  actor: { userId: number | null },
+  actor: { userId: number | null }
 ): Promise<StoreSettings> {
   const schema = SECTION_INPUT[section];
   if (!schema) throw new StoreSettingsError("adminError.ajustes.seccion");
@@ -127,15 +137,23 @@ export async function saveStoreSettingsSection(
       .limit(1)
       .for("update");
 
-    const actual = fila ? parseStoreSettings(fila.data) : DEFAULT_STORE_SETTINGS;
+    const actual = fila
+      ? parseStoreSettings(fila.data)
+      : DEFAULT_STORE_SETTINGS;
     const nuevaSeccion =
       section === "paginas"
-        ? { ...actual.paginas, ...definidos(parsed.data as Record<string, unknown>) }
+        ? {
+            ...actual.paginas,
+            ...definidos(parsed.data as Record<string, unknown>),
+          }
         : parsed.data;
 
     // Se vuelve a pasar por el schema de lectura: lo que queda en la base es
     // siempre algo que la vidriera sabe leer.
-    const siguiente = StoreSettingsSchema.parse({ ...actual, [section]: nuevaSeccion });
+    const siguiente = StoreSettingsSchema.parse({
+      ...actual,
+      [section]: nuevaSeccion,
+    });
 
     if (fila) {
       await tx
@@ -145,7 +163,11 @@ export async function saveStoreSettingsSection(
     } else {
       await tx
         .insert(storeSettings)
-        .values({ id: SINGLETON_ID, data: siguiente, updatedByUserId: actor.userId });
+        .values({
+          id: SINGLETON_ID,
+          data: siguiente,
+          updatedByUserId: actor.userId,
+        });
     }
     return siguiente;
   });
@@ -157,15 +179,15 @@ export async function saveStoreSettingsSection(
 /** Vuelve una sección entera a sus valores por defecto. */
 export async function resetStoreSettingsSection(
   section: StoreSettingsSection,
-  actor: { userId: number | null },
+  actor: { userId: number | null }
 ): Promise<StoreSettings> {
   const porDefecto =
     section === "paginas"
       ? Object.fromEntries(
           Object.keys(DEFAULT_STORE_SETTINGS.paginas).map((slug) => [
             slug,
-            { activo: true, titulo: null, cuerpo: null },
-          ]),
+            { activo: false, titulo: null, cuerpo: null },
+          ])
         )
       : sinNulosDeTexto(DEFAULT_STORE_SETTINGS[section]);
   return saveStoreSettingsSection(section, porDefecto, actor);
@@ -180,7 +202,9 @@ function revalidarVidriera(): void {
 }
 
 function definidos(objeto: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(objeto).filter(([, valor]) => valor !== undefined));
+  return Object.fromEntries(
+    Object.entries(objeto).filter(([, valor]) => valor !== undefined)
+  );
 }
 
 /**
@@ -189,6 +213,9 @@ function definidos(objeto: Record<string, unknown>): Record<string, unknown> {
  */
 function sinNulosDeTexto(valor: object): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(valor).map(([clave, v]) => [clave, clave === "confianzaLineas" && v === null ? [] : v]),
+    Object.entries(valor).map(([clave, v]) => [
+      clave,
+      clave === "confianzaLineas" && v === null ? [] : v,
+    ])
   );
 }

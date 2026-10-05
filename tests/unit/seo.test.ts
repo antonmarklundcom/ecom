@@ -81,6 +81,8 @@ describe("robots.txt", () => {
 
     for (const ruta of RUTAS_PRIVADAS) {
       expect(reglas.disallow).toContain(`${ruta}/`);
+      expect(reglas.disallow).toContain(`${ruta}$`);
+      expect(reglas.disallow).toContain(`${ruta}?`);
     }
   });
 
@@ -204,9 +206,15 @@ describe("productJsonLd", () => {
       ...base,
       origin: new URL("https://tienda.com.py"),
       images: ["https://res.cloudinary.com/x/image/upload/a.jpg"],
-    }) as { image: string[]; url: string; offers: Array<Record<string, unknown>> };
+    }) as {
+      image: string[];
+      url: string;
+      offers: Array<Record<string, unknown>>;
+    };
 
-    expect(jsonLd.image).toEqual(["https://res.cloudinary.com/x/image/upload/a.jpg"]);
+    expect(jsonLd.image).toEqual([
+      "https://res.cloudinary.com/x/image/upload/a.jpg",
+    ]);
     expect(jsonLd.url).toBe("https://tienda.com.py/producto/conjunto-encaje");
     expect(jsonLd.offers[0]).toMatchObject({
       url: "https://tienda.com.py/producto/conjunto-encaje",
@@ -214,7 +222,9 @@ describe("productJsonLd", () => {
       availability: "https://schema.org/InStock",
       priceCurrency: "PYG",
     });
-    expect(jsonLd.offers[1]?.availability).toBe("https://schema.org/OutOfStock");
+    expect(jsonLd.offers[1]?.availability).toBe(
+      "https://schema.org/OutOfStock"
+    );
   });
 
   it("sin foto ni dominio, omite los campos en vez de inventarlos", () => {
@@ -249,7 +259,10 @@ describe("productJsonLd · reseñas verificadas", () => {
       ...base,
       rating: { average: 4.6, count: 12 },
       reviews: resenas,
-    }) as { aggregateRating: Record<string, unknown>; review: Array<Record<string, unknown>> };
+    }) as {
+      aggregateRating: Record<string, unknown>;
+      review: Array<Record<string, unknown>>;
+    };
 
     expect(jsonLd.aggregateRating).toEqual({
       "@type": "AggregateRating",
@@ -261,7 +274,12 @@ describe("productJsonLd · reseñas verificadas", () => {
     expect(jsonLd.review).toHaveLength(5);
     expect(jsonLd.review[0]).toEqual({
       "@type": "Review",
-      reviewRating: { "@type": "Rating", ratingValue: 5, bestRating: 5, worstRating: 1 },
+      reviewRating: {
+        "@type": "Rating",
+        ratingValue: 5,
+        bestRating: 5,
+        worstRating: 1,
+      },
       author: { "@type": "Person", name: "Rosa A." },
       // El día de Asunción, no el de UTC.
       datePublished: "2026-03-14",
@@ -274,7 +292,11 @@ describe("productJsonLd · reseñas verificadas", () => {
 
   it("con cero reseñas no aparece ninguna de las dos claves", () => {
     const sinNada = productJsonLd(base);
-    const conCero = productJsonLd({ ...base, rating: { average: 0, count: 0 }, reviews: [] });
+    const conCero = productJsonLd({
+      ...base,
+      rating: { average: 0, count: 0 },
+      reviews: [],
+    });
 
     for (const jsonLd of [sinNada, conCero]) {
       expect(jsonLd).not.toHaveProperty("aggregateRating");
@@ -337,25 +359,45 @@ describe("productJsonLd · envío y devoluciones (ajustes de la tienda)", () => 
     for (const offer of offers(envio)) {
       expect(offer.shippingDetails).toEqual({
         "@type": "OfferShippingDetails",
-        shippingRate: { "@type": "MonetaryAmount", value: 25_000, currency: "PYG" },
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          value: 25_000,
+          currency: "PYG",
+        },
         shippingDestination: { "@type": "DefinedRegion", addressCountry: "PY" },
         deliveryTime: {
           "@type": "ShippingDeliveryTime",
-          handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
-          transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 3, unitCode: "DAY" },
+          handlingTime: {
+            "@type": "QuantitativeValue",
+            minValue: 0,
+            maxValue: 1,
+            unitCode: "DAY",
+          },
+          transitTime: {
+            "@type": "QuantitativeValue",
+            minValue: 1,
+            maxValue: 3,
+            unitCode: "DAY",
+          },
         },
       });
     }
   });
 
   it("un envío a medias no se publica: falta un rango o falta el precio", () => {
-    expect(offers({ ...envio, transitDaysMax: null })[0]).not.toHaveProperty("shippingDetails");
-    expect(offers({ ...envio, shippingFromPyg: null })[0]).not.toHaveProperty("shippingDetails");
+    expect(offers({ ...envio, transitDaysMax: null })[0]).not.toHaveProperty(
+      "shippingDetails"
+    );
+    expect(offers({ ...envio, shippingFromPyg: null })[0]).not.toHaveProperty(
+      "shippingDetails"
+    );
   });
 
   it("envío gratis (₲0) sí es un dato y se publica", () => {
     const [offer] = offers({ ...envio, shippingFromPyg: 0 });
-    expect(offer?.shippingDetails).toMatchObject({ shippingRate: { value: 0, currency: "PYG" } });
+    expect(offer?.shippingDetails).toMatchObject({
+      shippingRate: { value: 0, currency: "PYG" },
+    });
   });
 
   it("acepta devoluciones: ventana finita, días, costo y método", () => {
@@ -369,7 +411,8 @@ describe("productJsonLd · envío y devoluciones (ajustes de la tienda)", () => 
     expect(offer?.hasMerchantReturnPolicy).toEqual({
       "@type": "MerchantReturnPolicy",
       applicableCountry: "PY",
-      returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+      returnPolicyCategory:
+        "https://schema.org/MerchantReturnFiniteReturnWindow",
       merchantReturnDays: 7,
       returnFees: "https://schema.org/ReturnFeesCustomerResponsibility",
       returnMethod: "https://schema.org/ReturnByMail",
@@ -386,12 +429,20 @@ describe("productJsonLd · envío y devoluciones (ajustes de la tienda)", () => 
     });
     expect(offer?.hasMerchantReturnPolicy).toMatchObject({
       returnFees: "https://schema.org/FreeReturn",
-      returnMethod: ["https://schema.org/ReturnByMail", "https://schema.org/ReturnInStore"],
+      returnMethod: [
+        "https://schema.org/ReturnByMail",
+        "https://schema.org/ReturnInStore",
+      ],
     });
   });
 
   it("sin costo ni método cargados, esos campos se omiten", () => {
-    const [offer] = offers({ ...vacio, acceptsReturns: true, returnDays: 10, returnMethod: "local" });
+    const [offer] = offers({
+      ...vacio,
+      acceptsReturns: true,
+      returnDays: 10,
+      returnMethod: "local",
+    });
     expect(offer?.hasMerchantReturnPolicy).not.toHaveProperty("returnFees");
     expect(offer?.hasMerchantReturnPolicy).toMatchObject({
       returnMethod: "https://schema.org/ReturnInStore",
@@ -409,7 +460,7 @@ describe("productJsonLd · envío y devoluciones (ajustes de la tienda)", () => 
 
   it("acepta devoluciones pero sin días: no inventa una ventana", () => {
     expect(offers({ ...vacio, acceptsReturns: true })[0]).not.toHaveProperty(
-      "hasMerchantReturnPolicy",
+      "hasMerchantReturnPolicy"
     );
   });
 });
@@ -427,7 +478,7 @@ describe("organizationJsonLd", () => {
         telephone: "+595981123456",
         email: "hola@tienda.com.py",
         sameAs: ["https://instagram.com/tienda"],
-      }),
+      })
     ).toEqual({
       "@context": "https://schema.org",
       "@type": "Organization",
@@ -446,7 +497,10 @@ describe("organizationJsonLd", () => {
   });
 
   it("sin teléfono ni email ni redes, sólo nombre y url", () => {
-    const jsonLd = organizationJsonLd({ origin: new URL("https://tienda.com.py"), name: "Tienda" });
+    const jsonLd = organizationJsonLd({
+      origin: new URL("https://tienda.com.py"),
+      name: "Tienda",
+    });
     expect(jsonLd).not.toHaveProperty("contactPoint");
     expect(jsonLd).not.toHaveProperty("sameAs");
     expect(jsonLd).not.toHaveProperty("email");

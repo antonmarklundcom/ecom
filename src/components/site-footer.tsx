@@ -3,7 +3,7 @@ import Link from "next/link";
 import { TIENDA } from "@/config/tienda";
 import { getCategories } from "@/db/queries";
 import { getStoreSettings } from "@/domain/store-settings";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { contactoPublico } from "@/lib/comercio";
 import { marcaEfectiva } from "@/lib/marca";
 import { paginasActivas } from "@/lib/paginas";
@@ -38,7 +38,10 @@ export async function SiteFooter() {
           <p className="text-foreground font-semibold">{marca.nombre}</p>
           <p className="mt-2">{tagline}</p>
           {contacto.redes.length > 0 ? (
-            <ul className="mt-3 flex flex-wrap gap-3" aria-label={t("footer.redes")}>
+            <ul
+              className="mt-3 flex flex-wrap gap-3"
+              aria-label={t("footer.redes")}
+            >
               {contacto.redes.map((red) => (
                 <li key={red.red}>
                   <a
@@ -56,11 +59,16 @@ export async function SiteFooter() {
         </div>
 
         <div>
-          <p className="text-foreground font-medium">{t("footer.categorias")}</p>
+          <p className="text-foreground font-medium">
+            {t("footer.categorias")}
+          </p>
           <ul className="mt-2 space-y-1">
             {categories.map((category) => (
               <li key={category.id}>
-                <Link href={`/categoria/${category.slug}`} className="hover:text-foreground">
+                <Link
+                  href={`/categoria/${category.slug}`}
+                  className="hover:text-foreground"
+                >
                   {category.name}
                 </Link>
               </li>
@@ -72,11 +80,18 @@ export async function SiteFooter() {
           <p className="text-foreground font-medium">{t("footer.contacto")}</p>
           <ul className="mt-2 space-y-1">
             {contacto.whatsapp ? (
-              <li>{t("footer.whatsapp", { telefono: formatPhonePY(contacto.whatsapp) })}</li>
+              <li>
+                {t("footer.whatsapp", {
+                  telefono: formatPhonePY(contacto.whatsapp),
+                })}
+              </li>
             ) : null}
             {contacto.email ? (
               <li>
-                <a href={`mailto:${contacto.email}`} className="hover:text-foreground">
+                <a
+                  href={`mailto:${contacto.email}`}
+                  className="hover:text-foreground"
+                >
                   {contacto.email}
                 </a>
               </li>
@@ -97,7 +112,10 @@ export async function SiteFooter() {
             <ul className="mt-2 space-y-1">
               {paginas.map((pagina) => (
                 <li key={pagina.slug}>
-                  <Link href={`/${pagina.slug}`} className="hover:text-foreground">
+                  <Link
+                    href={`/${pagina.slug}`}
+                    className="hover:text-foreground"
+                  >
                     {pagina.titulo}
                   </Link>
                 </li>

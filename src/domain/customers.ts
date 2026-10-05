@@ -1,15 +1,16 @@
-import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import type { MessageKey, Params } from '@/i18n';
+import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { timingSafeEqual } from "node:crypto";
+import type { MessageKey, Params } from "@/i18n";
 
-import { DomainError } from './errors';
+import { DomainError } from "./errors";
 
-import { getDb } from '@/db';
-import { customers, orders, type OrderStatus } from '@/db/schema';
-import { hashPassword, verifyPassword } from '@/lib/password';
-import { normalizePhonePY } from '@/lib/py';
+import { getDb } from "@/db";
+import { customers, orders, type OrderStatus } from "@/db/schema";
+import { hashPassword, verifyPassword } from "@/lib/password";
+import { normalizePhonePY } from "@/lib/py";
 
-import type { Executor } from './executor';
-import { log, mensajeDe } from '@/lib/log';
+import type { Executor } from "./executor";
+import { log, mensajeDe } from "@/lib/log";
 
 /**
  * Cuentas de cliente (PLAN.md FASE 2, PR E).
@@ -27,7 +28,7 @@ import { log, mensajeDe } from '@/lib/log';
 export class CustomerError extends DomainError {
   constructor(code: MessageKey, params?: Params) {
     super(code, params);
-    this.name = 'CustomerError';
+    this.name = "CustomerError";
   }
 }
 
@@ -38,10 +39,27 @@ export type Customer = {
   name: string;
   marketingOptIn: boolean | null;
   phoneVerifiedAt: Date | null;
+  sessionVersion: number;
+  hasPassword: boolean;
 };
 
 export function normalizeCustomerEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+/** Revocation persists across reactivation; previously issued cookies stay invalid. */
+export async function setCustomerActive(
+  customerId: number,
+  isActive: boolean,
+  executor?: Executor
+): Promise<void> {
+  const tx = executor ?? getDb();
+  await tx
+    .update(customers)
+    .set({ isActive, sessionVersion: sql`${customers.sessionVersion} + 1` })
+    .where(
+      and(eq(customers.id, customerId), eq(customers.isActive, !isActive))
+    );
 }
 
 /**
@@ -60,15 +78,15 @@ export async function registerCustomer(
     email?: string | null;
     marketingOptIn?: boolean;
   },
-  executor?: Executor,
+  executor?: Executor
 ): Promise<Customer> {
   const tx = executor ?? getDb();
 
   const phone = normalizePhonePY(input.phone);
-  if (!phone) throw new CustomerError('error.cuenta.telefono');
+  if (!phone) throw new CustomerError("error.cuenta.telefono");
 
   const name = input.name.trim();
-  if (name.length < 3) throw new CustomerError('error.cuenta.nombre');
+  if (name.length < 3) throw new CustomerError("error.cuenta.nombre");
 
   const email = input.email ? normalizeCustomerEmail(input.email) : null;
   const passwordHash = await hashPassword(input.password);
@@ -76,11 +94,15 @@ export async function registerCustomer(
   const existing = await tx
     .select({ id: customers.id })
     .from(customers)
-    .where(email ? or(eq(customers.phone, phone), eq(customers.email, email)) : eq(customers.phone, phone))
+    .where(
+      email
+        ? or(eq(customers.phone, phone), eq(customers.email, email))
+        : eq(customers.phone, phone)
+    )
     .limit(1);
 
   if (existing[0]) {
-    throw new CustomerError('error.cuenta.yaExiste');
+    throw new CustomerError("error.cuenta.yaExiste");
   }
 
   await tx.insert(customers).values({
@@ -94,16 +116,20 @@ export async function registerCustomer(
   });
 
   const created = await findCustomerByPhone(phone, tx);
-  if (!created) throw new CustomerError('error.cuenta.noPude');
+  if (!created) throw new CustomerError("error.cuenta.noPude");
   return created;
 }
 
 export async function findCustomerByPhone(
   phone: string,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<Customer | null> {
   const tx = executor ?? getDb();
-  const rows = await tx.select().from(customers).where(eq(customers.phone, phone)).limit(1);
+  const rows = await tx
+    .select()
+    .from(customers)
+    .where(eq(customers.phone, phone))
+    .limit(1);
   const row = rows[0];
   if (!row) return null;
   return {
@@ -113,15 +139,21 @@ export async function findCustomerByPhone(
     name: row.name,
     marketingOptIn: row.marketingOptIn,
     phoneVerifiedAt: row.phoneVerifiedAt,
+    sessionVersion: row.sessionVersion,
+    hasPassword: row.passwordHash !== null,
   };
 }
 
 export async function findCustomerById(
   id: number,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<Customer | null> {
   const tx = executor ?? getDb();
-  const rows = await tx.select().from(customers).where(eq(customers.id, id)).limit(1);
+  const rows = await tx
+    .select()
+    .from(customers)
+    .where(eq(customers.id, id))
+    .limit(1);
   const row = rows[0];
   if (!row || !row.isActive) return null;
   return {
@@ -131,6 +163,8 @@ export async function findCustomerById(
     name: row.name,
     marketingOptIn: row.marketingOptIn,
     phoneVerifiedAt: row.phoneVerifiedAt,
+    sessionVersion: row.sessionVersion,
+    hasPassword: row.passwordHash !== null,
   };
 }
 
@@ -148,13 +182,15 @@ export async function findCustomerById(
 export async function authenticateCustomer(
   identifier: string,
   password: string,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<Customer | null> {
   const tx = executor ?? getDb();
 
   // El identificador puede ser un teléfono en cualquier formato o un email.
   const phone = normalizePhonePY(identifier);
-  const email = identifier.includes('@') ? normalizeCustomerEmail(identifier) : null;
+  const email = identifier.includes("@")
+    ? normalizeCustomerEmail(identifier)
+    : null;
   if (!phone && !email) {
     // Igual corremos un bcrypt: salir antes convertiría un identificador mal
     // formado en una respuesta notablemente más rápida.
@@ -165,7 +201,13 @@ export async function authenticateCustomer(
   const rows = await tx
     .select()
     .from(customers)
-    .where(phone && email ? or(eq(customers.phone, phone), eq(customers.email, email)) : phone ? eq(customers.phone, phone) : eq(customers.email, email!))
+    .where(
+      phone && email
+        ? or(eq(customers.phone, phone), eq(customers.email, email))
+        : phone
+          ? eq(customers.phone, phone)
+          : eq(customers.email, email!)
+    )
     .limit(1);
 
   const row = rows[0];
@@ -173,9 +215,14 @@ export async function authenticateCustomer(
   if (!ok || !row || !row.isActive) return null;
 
   try {
-    await tx.update(customers).set({ lastLoginAt: sql`NOW()` }).where(eq(customers.id, row.id));
+    await tx
+      .update(customers)
+      .set({ lastLoginAt: sql`NOW()` })
+      .where(eq(customers.id, row.id));
   } catch (error) {
-    log.error('No pude registrar last_login_at del cliente', { error: mensajeDe(error) });
+    log.error("No pude registrar last_login_at del cliente", {
+      error: mensajeDe(error),
+    });
   }
 
   return {
@@ -185,6 +232,8 @@ export async function authenticateCustomer(
     name: row.name,
     marketingOptIn: row.marketingOptIn,
     phoneVerifiedAt: row.phoneVerifiedAt,
+    sessionVersion: row.sessionVersion,
+    hasPassword: row.passwordHash !== null,
   };
 }
 
@@ -192,12 +241,12 @@ export async function authenticateCustomer(
 export async function updateCustomerProfile(
   customerId: number,
   input: { name: string; email?: string | null; marketingOptIn: boolean },
-  executor?: Executor,
+  executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
 
   const name = input.name.trim();
-  if (name.length < 3) throw new CustomerError('error.cuenta.nombre');
+  if (name.length < 3) throw new CustomerError("error.cuenta.nombre");
 
   const email = input.email ? normalizeCustomerEmail(input.email) : null;
 
@@ -208,7 +257,7 @@ export async function updateCustomerProfile(
       .where(eq(customers.email, email))
       .limit(1);
     if (taken[0] && taken[0].id !== customerId) {
-      throw new CustomerError('error.cuenta.emailUsado');
+      throw new CustomerError("error.cuenta.emailUsado");
     }
   }
 
@@ -257,12 +306,15 @@ export type CustomerOrderRow = {
  */
 export async function listCustomerOrders(
   customerId: number,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<CustomerOrderRow[]> {
   const tx = executor ?? getDb();
 
   const account = await tx
-    .select({ phone: customers.phone, phoneVerifiedAt: customers.phoneVerifiedAt })
+    .select({
+      phone: customers.phone,
+      phoneVerifiedAt: customers.phoneVerifiedAt,
+    })
     .from(customers)
     .where(eq(customers.id, customerId))
     .limit(1);
@@ -272,7 +324,10 @@ export async function listCustomerOrders(
 
   const linkedToMe = eq(orders.customerId, customerId);
   const where = me.phoneVerifiedAt
-    ? or(linkedToMe, and(isNull(orders.customerId), eq(orders.customerPhone, me.phone)))
+    ? or(
+        linkedToMe,
+        and(isNull(orders.customerId), eq(orders.customerPhone, me.phone))
+      )
     : linkedToMe;
 
   const rows = await tx
@@ -312,17 +367,31 @@ export async function listCustomerOrders(
 export async function claimGuestOrder(
   customerId: number,
   orderNumber: string,
-  executor?: Executor,
+  accessToken: string,
+  executor?: Executor
 ): Promise<boolean> {
   const tx = executor ?? getDb();
 
   const account = await tx
-    .select({ phone: customers.phone })
+    .select({ isActive: customers.isActive })
     .from(customers)
     .where(eq(customers.id, customerId))
     .limit(1);
   const me = account[0];
-  if (!me) return false;
+  if (!me?.isActive || !accessToken) return false;
+  const [order] = await tx
+    .select()
+    .from(orders)
+    .where(eq(orders.orderNumber, orderNumber))
+    .limit(1);
+  if (!order || order.customerId !== null) return false;
+  const supplied = Buffer.from(accessToken);
+  const expected = Buffer.from(order.accessToken);
+  if (
+    supplied.length !== expected.length ||
+    !timingSafeEqual(supplied, expected)
+  )
+    return false;
 
   const result = await tx
     .update(orders)
@@ -331,8 +400,8 @@ export async function claimGuestOrder(
       and(
         eq(orders.orderNumber, orderNumber),
         isNull(orders.customerId),
-        eq(orders.customerPhone, me.phone),
-      ),
+        eq(orders.accessToken, accessToken)
+      )
     );
 
   // mysql2 devuelve `affectedRows` en el header del resultado.
@@ -343,7 +412,7 @@ export async function claimGuestOrder(
 /** Para el panel: qué compradores tienen cuenta, por teléfono. */
 export async function customersByPhone(
   phones: readonly string[],
-  executor?: Executor,
+  executor?: Executor
 ): Promise<Map<string, { marketingOptIn: boolean | null; createdAt: Date }>> {
   if (phones.length === 0) return new Map();
   const tx = executor ?? getDb();
@@ -357,11 +426,18 @@ export async function customersByPhone(
     .from(customers)
     .where(sql`${customers.phone} IN ${phones}`);
 
-  return new Map(rows.map((row) => [row.phone, { marketingOptIn: row.marketingOptIn, createdAt: row.createdAt }]));
+  return new Map(
+    rows.map((row) => [
+      row.phone,
+      { marketingOptIn: row.marketingOptIn, createdAt: row.createdAt },
+    ])
+  );
 }
 
 /** La lista de marketing: cuentas activas que dijeron que sí. Owner-only. */
-export async function listMarketingOptIns(executor?: Executor): Promise<
+export async function listMarketingOptIns(
+  executor?: Executor
+): Promise<
   Array<{ phone: string; email: string | null; name: string; since: Date }>
 > {
   const tx = executor ?? getDb();
@@ -374,7 +450,13 @@ export async function listMarketingOptIns(executor?: Executor): Promise<
       createdAt: customers.createdAt,
     })
     .from(customers)
-    .where(and(eq(customers.isActive, true), eq(customers.marketingOptIn, true), isNotNull(customers.phone)))
+    .where(
+      and(
+        eq(customers.isActive, true),
+        eq(customers.marketingOptIn, true),
+        isNotNull(customers.phone)
+      )
+    )
     .orderBy(desc(customers.createdAt));
 
   return rows.map((row) => ({

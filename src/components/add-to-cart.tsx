@@ -15,7 +15,7 @@ import { recallVariant, rememberVariant } from "@/lib/variant-memory";
 import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
 import type { CatalogProductDetail } from "@/db/queries";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * Selector de variante + agregar al carrito.
@@ -36,14 +36,20 @@ export function AddToCart({
   stockAlertsEnabled = false,
   whatsappPhone = null,
   productUrl = null,
+  inquiryLinks = {},
 }: {
   product: CatalogProductDetail;
   stockAlertsEnabled?: boolean;
   whatsappPhone?: string | null;
   productUrl?: string | null;
+  inquiryLinks?: Record<number, string>;
 }) {
+  const purchasable =
+    (product.saleMode ?? "stock") === "stock" && product.showPrice !== false;
   const add = useCart((state) => state.add);
-  const firstAvailable = product.variants.find((variant) => variant.available > 0);
+  const firstAvailable = product.variants.find(
+    (variant) => variant.available > 0
+  );
   const [picked, setPicked] = useState<number | undefined>(undefined);
   const [qty, setQty] = useState(1);
 
@@ -64,22 +70,26 @@ export function AddToCart({
   // Sólo vale si esa variante sigue existiendo y con stock: es un atajo, no
   // una decisión. Todo lo que se cobra lo recalcula el servidor.
   const remembered = product.variants.find(
-    (variant) => variant.id === rememberedId && variant.available > 0
+    (variant) =>
+      variant.id === rememberedId && (!purchasable || variant.available > 0)
   );
 
-  const variantId = picked ?? remembered?.id ?? firstAvailable?.id ?? product.variants[0]?.id;
+  const variantId =
+    picked ?? remembered?.id ?? firstAvailable?.id ?? product.variants[0]?.id;
   const selected = product.variants.find((variant) => variant.id === variantId);
   const max = Math.max(1, Math.min(99, selected?.available ?? 0));
-  const canAdd = Boolean(selected && selected.available > 0);
+  const canAdd = Boolean(purchasable && selected && selected.available > 0);
 
   return (
     <div className="space-y-4">
       {product.variants.length > 1 ? (
         <fieldset>
-          <legend className="mb-2 text-sm font-medium">{t("producto.elegiOpcion")}</legend>
+          <legend className="mb-2 text-sm font-medium">
+            {t("producto.elegiOpcion")}
+          </legend>
           <div className="flex flex-wrap gap-2">
             {product.variants.map((variant) => {
-              const disabled = variant.available <= 0;
+              const disabled = purchasable && variant.available <= 0;
               return (
                 <button
                   key={variant.id}
@@ -95,7 +105,8 @@ export function AddToCart({
                     variant.id === variantId
                       ? "border-foreground bg-foreground text-background"
                       : "border-border hover:border-foreground/40",
-                    disabled && "text-muted-foreground cursor-not-allowed line-through opacity-60"
+                    disabled &&
+                      "text-muted-foreground cursor-not-allowed line-through opacity-60"
                   )}
                 >
                   {variant.label}
@@ -108,62 +119,96 @@ export function AddToCart({
 
       {selected ? (
         <div className="flex flex-wrap items-center gap-3">
-          <PriceTag
-            pricePyg={selected.pricePyg}
-            compareAtPyg={selected.compareAtPyg}
-            size="lg"
-            showIvaNote
-          />
-          <StockBadge available={selected.available} />
+          {product.showPrice !== false ? (
+            <PriceTag
+              pricePyg={selected.pricePyg}
+              compareAtPyg={selected.compareAtPyg}
+              size="lg"
+              showIvaNote={purchasable}
+            />
+          ) : null}
+          {purchasable ? (
+            <StockBadge available={selected.available} />
+          ) : (
+            <span className="text-sm">
+              {t(
+                product.saleMode === "enquiry"
+                  ? "producto.soloConsulta"
+                  : "producto.muestra"
+              )}
+            </span>
+          )}
+          {!purchasable && product.showPrice !== false ? (
+            <p className="text-sm">{t("producto.precioOrientativo")}</p>
+          ) : null}
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <QuantityStepper value={qty} onChange={setQty} max={max} />
-        <Button
-          size="lg"
-          disabled={!canAdd}
-          data-testid={TESTIDS.productAddToCart}
-          onClick={() => {
-            if (!selected) return;
-            rememberVariant(product.slug, selected.id);
-            add(
-              {
-                variantId: selected.id,
-                productSlug: product.slug,
-                name: product.name,
-                variantLabel: selected.label,
-                unitPricePyg: selected.pricePyg,
-                sku: selected.sku,
-              },
-              qty
-            );
-            // Para GA4 / Meta (src/lib/funnel.ts). Sin medidores no hace nada.
-            sendFunnelEvent("add_to_cart", [
-              { id: selected.sku, name: product.name, pricePyg: selected.pricePyg, qty },
-            ]);
-            toast.success(t("producto.agregado"), {
-              description: `${product.name} — ${selected.label}`,
-            });
-          }}
+      {purchasable ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <QuantityStepper value={qty} onChange={setQty} max={max} />
+          <Button
+            size="lg"
+            disabled={!canAdd}
+            data-testid={TESTIDS.productAddToCart}
+            onClick={() => {
+              if (!selected) return;
+              rememberVariant(product.slug, selected.id);
+              add(
+                {
+                  variantId: selected.id,
+                  productSlug: product.slug,
+                  name: product.name,
+                  variantLabel: selected.label,
+                  unitPricePyg: selected.pricePyg,
+                  sku: selected.sku,
+                },
+                qty
+              );
+              // Para GA4 / Meta (src/lib/funnel.ts). Sin medidores no hace nada.
+              sendFunnelEvent("add_to_cart", [
+                {
+                  id: selected.sku,
+                  name: product.name,
+                  pricePyg: selected.pricePyg,
+                  qty,
+                },
+              ]);
+              toast.success(t("producto.agregado"), {
+                description: `${product.name} — ${selected.label}`,
+              });
+            }}
+          >
+            {canAdd ? t("producto.agregar") : t("stock.sin")}
+          </Button>
+          {selected ? (
+            <VariantInquiryLink
+              phone={whatsappPhone}
+              productName={product.name}
+              variantLabel={selected.label}
+              sku={selected.sku}
+              productUrl={productUrl}
+            />
+          ) : null}
+        </div>
+      ) : selected &&
+        product.saleMode === "enquiry" &&
+        inquiryLinks[selected.id] ? (
+        <a
+          href={inquiryLinks[selected.id]}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={TESTIDS.variantInquiryLink}
+          className="inline-flex rounded-lg border px-4 py-3"
         >
-          {canAdd ? t("producto.agregar") : t("stock.sin")}
-        </Button>
-        {selected ? (
-          <VariantInquiryLink
-            phone={whatsappPhone}
-            productName={product.name}
-            variantLabel={selected.label}
-            sku={selected.sku}
-            productUrl={productUrl}
-          />
-        ) : null}
-      </div>
+          {t("producto.consultarWhatsApp")}
+        </a>
+      ) : null}
 
       {/* Sólo cuando la variante elegida no tiene disponibilidad y la page
           confirmó que hay con qué avisar — nunca un formulario que no puede
           funcionar (plan-operacion §6.3). */}
-      {selected && !canAdd && stockAlertsEnabled ? (
+      {purchasable && selected && !canAdd && stockAlertsEnabled ? (
         <StockAlertForm variantId={selected.id} />
       ) : null}
     </div>

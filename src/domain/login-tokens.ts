@@ -1,217 +1,166 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { MessageKey, Params } from '@/i18n';
+import { createHmac, hkdfSync, randomInt, timingSafeEqual } from "node:crypto";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { getDb } from "@/db";
+import { withLockRetry } from "@/db/retry";
+import { customers, loginTokens } from "@/db/schema";
+import { normalizePhonePY } from "@/lib/py";
+import { validSessionSecret } from "@/lib/session-secret";
+import type { MessageKey, Params } from "@/i18n";
+import { DomainError } from "./errors";
+import type { Executor } from "./executor";
+import type { MessageChannel } from "./messaging";
 
-import { DomainError } from './errors';
-
-import { and, eq, isNull, sql } from 'drizzle-orm';
-
-import { getDb } from '@/db';
-import { customers, loginTokens } from '@/db/schema';
-
-import type { Executor } from './executor';
-import type { MessageChannel } from './messaging';
-
-/**
- * Códigos de un solo uso para entrar sin contraseña (PLAN.md FASE 2, PR F.1).
- *
- * Las cinco propiedades que lo hacen seguro, y por qué cada una:
- *
- * 1. **Se guarda el hash, nunca el código.** Un dump de la base, un backup o
- *    una consulta de soporte no pueden abrir la sesión de nadie.
- * 2. **Un solo uso.** `consumed_at` se escribe adentro de la transacción que
- *    lo canjea, con un UPDATE condicional: dos pestañas con el mismo código no
- *    abren dos sesiones.
- * 3. **Expira a los 10 minutos.** Es el tiempo de mirar el teléfono, no el de
- *    encontrar un WhatsApp viejo el mes que viene.
- * 4. **Pedir uno nuevo invalida los anteriores.** Si no, cada pedido suma otro
- *    código vivo y la ventana de adivinación crece con cada intento.
- * 5. **Comparación en tiempo constante.** Sobre el hash, con `timingSafeEqual`.
- *
- * El código es de 6 dígitos porque se tipea desde un mensaje; lo que compensa
- * ese espacio chico es el rate limit y la expiración, no el largo.
- */
-
-/** 10 minutos, como pide el plan. */
 export const LOGIN_TOKEN_TTL_MS = 10 * 60 * 1000;
-
-const CODE_DIGITS = 6;
-
+export const LOGIN_TOKEN_MAX_ATTEMPTS = 5;
 export class LoginTokenError extends DomainError {
   constructor(code: MessageKey, params?: Params) {
     super(code, params);
-    this.name = 'LoginTokenError';
+    this.name = "LoginTokenError";
   }
 }
-
-/**
- * Seis dígitos con aleatoriedad criptográfica y **sin sesgo**.
- *
- * `randomBytes % 1000000` parece equivalente y no lo es: los primeros valores
- * quedan levemente más probables. Se descarta y se vuelve a tirar en vez de
- * repartir mal el espacio, que es chico de por sí.
- */
 export function generateLoginCode(): string {
-  const limit = 10 ** CODE_DIGITS;
-  const max = Math.floor(0xffffffff / limit) * limit;
-
-  for (;;) {
-    const value = randomBytes(4).readUInt32BE(0);
-    if (value < max) return String(value % limit).padStart(CODE_DIGITS, '0');
-  }
+  return String(randomInt(1_000_000)).padStart(6, "0");
 }
 
-/** SHA-256 hex. Ver el comentario de la tabla: no hace falta bcrypt acá. */
-export function hashLoginCode(code: string): string {
-  return createHash('sha256').update(code.trim()).digest('hex');
+/** Phone-bound HMAC prevents searching the six-digit space from a leaked DB. */
+export function hashLoginCode(customerId: number, code: string): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!validSessionSecret(secret)) throw new Error("SESSION_SECRET inválido");
+  const key = Buffer.from(
+    hkdfSync("sha256", secret, "ecom/login-code/v1", "challenge", 32)
+  );
+  return createHmac("sha256", key)
+    .update(`${customerId}:${code.trim()}`)
+    .digest("hex");
 }
-
-/**
- * Emite un código para esta cuenta e invalida los anteriores.
- *
- * Devuelve el código **en claro una sola vez**: es lo único que se le manda a
- * la persona, y no vuelve a existir en ningún lado.
- */
 export async function issueLoginToken(
   customerId: number,
   channel: MessageChannel,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<{ code: string; expiresAt: Date }> {
-  const tx = executor ?? getDb();
-  const expiresAt = new Date(Date.now() + LOGIN_TOKEN_TTL_MS);
-
-  // Invalidar primero: si esto fallara después de insertar, quedarían dos
-  // códigos vivos, que es exactamente lo que la regla 4 evita.
-  await tx
-    .update(loginTokens)
-    .set({ invalidatedAt: sql`NOW()` })
-    .where(
-      and(
-        eq(loginTokens.customerId, customerId),
-        isNull(loginTokens.consumedAt),
-        isNull(loginTokens.invalidatedAt),
-      ),
-    );
-
-  /**
-   * Reintentar ante una colisión de hash.
-   *
-   * `token_hash` es UNIQUE sobre **toda la tabla**, y las filas no se borran
-   * nunca (consumidas e invalidadas se conservan para poder reconstruir un
-   * incidente). Con seis dígitos, el código nuevo que choca contra *cualquiera*
-   * de los históricos rompe el INSERT — y el efecto es el peor posible: la
-   * persona nunca recibe su código y no hay nada en pantalla que lo explique.
-   *
-   * La probabilidad crece con el uso: son N/1.000.000 por emisión, con N el
-   * total histórico. Arranca en cero y a los diez mil logins ya es un 1%.
-   *
-   * La unicidad global **tiene** que quedarse: `consumeLoginToken` busca sólo
-   * por hash, y dos filas con el mismo hash harían ambigua esa búsqueda. Lo
-   * que se arregla es la reacción — tirar de nuevo, que es gratis.
-   */
-  for (let intento = 0; intento < 5; intento += 1) {
-    const code = generateLoginCode();
-    const tokenHash = hashLoginCode(code);
-
-    try {
-      await tx.insert(loginTokens).values({ customerId, tokenHash, channel, expiresAt });
-      return { code, expiresAt };
-    } catch (error) {
-      if (!esColisionDeHash(error)) throw error;
-    }
-  }
-
-  throw new LoginTokenError('error.cuenta.codigoNoPude');
-}
-
-export type ConsumedToken = { customerId: number };
-
-/**
- * Canjea un código. Devuelve `null` en **cualquier** fallo, sin distinguir
- * cuál: no existe, ya se usó, venció, lo invalidó otro pedido, o la cuenta se
- * desactivó. Distinguirlos convertiría este formulario en un oráculo.
- *
- * El `UPDATE ... WHERE consumed_at IS NULL` es lo que hace el único uso real:
- * dos pestañas con el mismo código corren la misma sentencia y sólo una toca
- * una fila.
- */
-export async function consumeLoginToken(code: string): Promise<ConsumedToken | null> {
-  const candidate = code.trim();
-  if (!/^\d{6}$/.test(candidate)) return null;
-
-  const tokenHash = hashLoginCode(candidate);
-
-  return getDb().transaction(async (tx) => {
-    const rows = await tx
-      .select({
-        id: loginTokens.id,
-        customerId: loginTokens.customerId,
-        tokenHash: loginTokens.tokenHash,
-        expiresAt: loginTokens.expiresAt,
-        consumedAt: loginTokens.consumedAt,
-        invalidatedAt: loginTokens.invalidatedAt,
-      })
-      .from(loginTokens)
-      .where(eq(loginTokens.tokenHash, tokenHash))
-      .limit(1)
-      .for('update');
-
-    const token = rows[0];
-    if (!token) return null;
-
-    // Sobre el hash y en tiempo constante. La consulta de arriba ya seleccionó
-    // por igualdad —o sea que MySQL ya comparó—, pero la comparación explícita
-    // es la que sobrevive a que alguien cambie ese WHERE por un LIKE o por una
-    // búsqueda por prefijo.
-    const esperado = Buffer.from(token.tokenHash, 'utf8');
-    const recibido = Buffer.from(tokenHash, 'utf8');
-    if (esperado.length !== recibido.length || !timingSafeEqual(esperado, recibido)) return null;
-
-    if (token.consumedAt || token.invalidatedAt) return null;
-    if (token.expiresAt.getTime() < Date.now()) return null;
-
-    const active = await tx
-      .select({ id: customers.id, isActive: customers.isActive })
+  const run = async (tx: Executor) => {
+    // Same first lock as consume: issuance never leaves two live challenges.
+    const [customer] = await tx
+      .select()
       .from(customers)
-      .where(eq(customers.id, token.customerId))
-      .limit(1);
-    if (!active[0]?.isActive) return null;
-
-    // El UPDATE condicional es el candado real del "un solo uso".
+      .where(eq(customers.id, customerId))
+      .for("update");
+    if (!customer?.isActive)
+      throw new LoginTokenError("error.cuenta.codigoNoPude");
     await tx
       .update(loginTokens)
-      .set({ consumedAt: sql`NOW()` })
-      .where(and(eq(loginTokens.id, token.id), isNull(loginTokens.consumedAt)));
-
-    const confirmed = await tx
-      .select({ consumedAt: loginTokens.consumedAt })
-      .from(loginTokens)
-      .where(eq(loginTokens.id, token.id))
-      .limit(1);
-    if (!confirmed[0]?.consumedAt) return null;
-
-    /**
-     * Entrar con un código que llegó al teléfono **prueba** que ese teléfono es
-     * suyo, que es justo lo que faltaba en el PR E. A partir de acá `/cuenta`
-     * puede mostrarle los pedidos viejos que hizo como invitada con ese
-     * número: ya no es "alguien que tipeó un número", es su número.
-     */
+      .set({ invalidatedAt: sql`NOW()` })
+      .where(
+        and(
+          eq(loginTokens.customerId, customerId),
+          isNull(loginTokens.consumedAt),
+          isNull(loginTokens.invalidatedAt)
+        )
+      );
+    const code = generateLoginCode();
+    const expiresAt = new Date(Date.now() + LOGIN_TOKEN_TTL_MS);
     await tx
-      .update(customers)
-      .set({ phoneVerifiedAt: sql`NOW()`, lastLoginAt: sql`NOW()` })
-      .where(eq(customers.id, token.customerId));
-
-    return { customerId: token.customerId };
-  });
+      .insert(loginTokens)
+      .values({
+        customerId,
+        tokenHash: hashLoginCode(customerId, code),
+        channel,
+        expiresAt,
+      });
+    return { code, expiresAt };
+  };
+  return executor
+    ? run(executor)
+    : withLockRetry(() => getDb().transaction(run));
 }
+export type ConsumedToken = {
+  customerId: number;
+  passwordResetRequired: boolean;
+};
 
-/** El INSERT chocó contra el UNIQUE de `token_hash` y no contra otra cosa. */
-function esColisionDeHash(error: unknown): boolean {
-  const code = (error as { code?: string; errno?: number } | null)?.code;
-  const errno = (error as { errno?: number } | null)?.errno;
-  return code === 'ER_DUP_ENTRY' || errno === 1062;
+/** A code alone never identifies an account. Attempts survive process restarts. */
+export async function consumeLoginToken(
+  phone: string,
+  code: string
+): Promise<ConsumedToken | null> {
+  const normalized = normalizePhonePY(phone);
+  if (!normalized || !/^\d{6}$/.test(code.trim())) return null;
+  return withLockRetry(() =>
+    getDb().transaction(async (tx) => {
+      const [customer] = await tx
+        .select()
+        .from(customers)
+        .where(eq(customers.phone, normalized))
+        .for("update");
+      if (!customer?.isActive) {
+        timingSafeEqual(Buffer.alloc(64), Buffer.from(hashLoginCode(0, code)));
+        return null;
+      }
+      const [token] = await tx
+        .select()
+        .from(loginTokens)
+        .where(
+          and(
+            eq(loginTokens.customerId, customer.id),
+            isNull(loginTokens.consumedAt),
+            isNull(loginTokens.invalidatedAt),
+            gt(loginTokens.expiresAt, new Date())
+          )
+        )
+        .orderBy(desc(loginTokens.id))
+        .limit(1)
+        .for("update");
+      if (!token) return null;
+      const expected = Buffer.from(token.tokenHash);
+      const actual = Buffer.from(hashLoginCode(customer.id, code));
+      const attempts = token.attempts + 1;
+      if (
+        token.attempts >= LOGIN_TOKEN_MAX_ATTEMPTS ||
+        expected.length !== actual.length ||
+        !timingSafeEqual(expected, actual)
+      ) {
+        await tx
+          .update(loginTokens)
+          .set({
+            attempts,
+            ...(attempts >= LOGIN_TOKEN_MAX_ATTEMPTS
+              ? { invalidatedAt: sql`NOW()` }
+              : {}),
+          })
+          .where(eq(loginTokens.id, token.id));
+        return null;
+      }
+      await tx
+        .update(loginTokens)
+        .set({ consumedAt: sql`NOW()` })
+        .where(eq(loginTokens.id, token.id));
+      const firstVerification = customer.phoneVerifiedAt === null;
+      await tx
+        .update(customers)
+        .set({
+          phoneVerifiedAt: customer.phoneVerifiedAt ?? sql`NOW()`,
+          lastLoginAt: sql`NOW()`,
+          // The registrant never proved the phone. Discard their password and cookies.
+          ...(firstVerification
+            ? {
+                passwordHash: null,
+                sessionVersion: sql`${customers.sessionVersion} + 1`,
+              }
+            : {}),
+        })
+        .where(eq(customers.id, customer.id));
+      return {
+        customerId: customer.id,
+        passwordResetRequired: firstVerification,
+      };
+    })
+  );
 }
-
-/** El texto que se manda. Corto: entra entero en la notificación del celular. */
+export async function purgeLoginTokens(): Promise<void> {
+  await getDb()
+    .delete(loginTokens)
+    .where(sql`${loginTokens.createdAt} < NOW() - INTERVAL 7 DAY`);
+}
 export function loginCodeMessage(code: string): string {
   return `${code} es tu código para entrar. Vence en 10 minutos. Si no lo pediste, ignorá este mensaje.`;
 }

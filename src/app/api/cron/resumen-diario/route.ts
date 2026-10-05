@@ -1,9 +1,12 @@
+import { safeError } from "@/lib/safe-error";
 import { sendDailyDigest } from "@/domain/daily-digest";
 import { claimJob, finishJob } from "@/domain/job-runs";
 import { sweepBackInStock } from "@/domain/stock-alerts";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
-import { log, mensajeDe } from '@/lib/log';
+import { log, mensajeDe } from "@/lib/log";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
+import { purgeLoginTokens } from "@/domain/login-tokens";
+import { purgeOperationKeys } from "@/domain/operation-keys";
 
 /**
  * El cron del resumen diario (plan-operacion §5.2 C).
@@ -55,6 +58,8 @@ async function handle(request: Request): Promise<Response> {
 
   try {
     const resumen = await sendDailyDigest();
+    await purgeLoginTokens();
+    await purgeOperationKeys();
     const barrido = await sweepBackInStock();
 
     // Sólo cantidades: los logs de Hostinger los ve cualquiera con acceso al
@@ -93,12 +98,12 @@ async function handle(request: Request): Promise<Response> {
       avisosStock: barrido.enviadas,
     });
   } catch (error) {
-    log.error('cron resumen: falló la corrida', { error: mensajeDe(error) });
+    log.error("cron resumen: falló la corrida", { error: mensajeDe(error) });
     // Acá sí falla de verdad (la base se cayó a mitad): `last_ok_at` no se
     // mueve, así que la corrida siguiente del mismo día vuelve a intentar.
     await finishJob("resumen_diario", {
       ok: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: safeError(error).message,
     });
     return cronJson({ error: "internal_error" }, 500);
   }

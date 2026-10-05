@@ -1,9 +1,9 @@
-import path from 'node:path';
+import path from "node:path";
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
-import { ivaBreakdown, ivaIncluded } from '../../src/lib/money';
-import { listSourceFiles, readCode } from '../helpers/source';
+import { ivaBreakdown, ivaIncluded } from "../../src/lib/money";
+import { listSourceFiles, readCode } from "../helpers/source";
 
 /**
  * Auditoría del dinero (PLAN.md 4.10).
@@ -13,33 +13,35 @@ import { listSourceFiles, readCode } from '../helpers/source';
  * nadie mete un `toFixed`/`parseFloat` en el camino del dinero.
  */
 
-describe('cero float / decimal en las columnas de dinero', () => {
-  it('el schema declara todo `*_pyg` como BIGINT UNSIGNED', async () => {
-    const schema = await readCode(path.join('src', 'db', 'schema.ts'));
+describe("cero float / decimal en las columnas de dinero", () => {
+  it("el schema declara todo `*_pyg` como BIGINT UNSIGNED", async () => {
+    const schema = await readCode(path.join("src", "db", "schema.ts"));
 
     // El helper `pyg()` es el único constructor de columnas de plata.
-    expect(schema).toContain("bigint(name, { mode: 'number', unsigned: true })");
+    expect(schema).toMatch(
+      /bigint\(name,\s*\{\s*mode:\s*['"]number['"],\s*unsigned:\s*true\s*,?\s*\}\)/
+    );
 
     // Cualquier `algo_pyg: <lo que sea>` que no salga de pyg() es sospechoso.
     const declarations = [...schema.matchAll(/(\w*[Pp]yg)\s*:\s*(\w+)\s*\(/g)];
     expect(declarations.length).toBeGreaterThan(0);
 
     const offenders = declarations
-      .filter(([, , builder]) => builder !== 'pyg')
+      .filter(([, , builder]) => builder !== "pyg")
       .map(([full]) => full);
     expect(offenders).toEqual([]);
   });
 
-  it('las migraciones no crean ninguna columna de plata como FLOAT/DOUBLE/DECIMAL', async () => {
-    const { readdir, readFile } = await import('node:fs/promises');
-    const dir = path.join(process.cwd(), 'drizzle');
-    const files = (await readdir(dir)).filter((file) => file.endsWith('.sql'));
+  it("las migraciones no crean ninguna columna de plata como FLOAT/DOUBLE/DECIMAL", async () => {
+    const { readdir, readFile } = await import("node:fs/promises");
+    const dir = path.join(process.cwd(), "drizzle");
+    const files = (await readdir(dir)).filter((file) => file.endsWith(".sql"));
     expect(files.length).toBeGreaterThan(0);
 
     const offenders: string[] = [];
     for (const file of files) {
-      const sql = await readFile(path.join(dir, file), 'utf8');
-      for (const line of sql.split('\n')) {
+      const sql = await readFile(path.join(dir, file), "utf8");
+      for (const line of sql.split("\n")) {
         if (!/_pyg`?\s/i.test(line)) continue;
         if (/\b(float|double|decimal|numeric|real)\b/i.test(line)) {
           offenders.push(`${file}: ${line.trim()}`);
@@ -49,13 +51,15 @@ describe('cero float / decimal en las columnas de dinero', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('ningún módulo del camino del dinero usa float, toFixed o parseFloat', async () => {
+  it("ningún módulo del camino del dinero usa float, toFixed o parseFloat", async () => {
     // `src/domain` es todo el camino del dinero; de `src/lib` interesan los
     // módulos que lo tocan. Se listan por directorio porque `listSourceFiles`
     // camina carpetas, no archivos sueltos.
-    const MONEY_FILES = (await listSourceFiles([path.join('src', 'domain')])).concat(
-      path.join('src', 'lib', 'money.ts'),
-      path.join('src', 'lib', 'schemas.ts'),
+    const MONEY_FILES = (
+      await listSourceFiles([path.join("src", "domain")])
+    ).concat(
+      path.join("src", "lib", "money.ts"),
+      path.join("src", "lib", "schemas.ts")
     );
 
     const offenders: string[] = [];
@@ -71,7 +75,7 @@ describe('cero float / decimal en las columnas de dinero', () => {
   });
 });
 
-describe('el IVA se redondea por línea, nunca sobre el total', () => {
+describe("el IVA se redondea por línea, nunca sobre el total", () => {
   /**
    * El caso que separa las dos implementaciones. Tres líneas de ₲ 33.333 al
    * 10%:
@@ -79,7 +83,7 @@ describe('el IVA se redondea por línea, nunca sobre el total', () => {
    *   - sobre el total: round(99999 × 10/110) = 9091
    * Un guaraní de diferencia, todos los días, contra la factura.
    */
-  it('sumar el IVA de cada línea no da lo mismo que calcularlo sobre el total', () => {
+  it("sumar el IVA de cada línea no da lo mismo que calcularlo sobre el total", () => {
     const lines = [
       { lineTotalPyg: 33333, ivaRate: 10 },
       { lineTotalPyg: 33333, ivaRate: 10 },
@@ -89,7 +93,7 @@ describe('el IVA se redondea por línea, nunca sobre el total', () => {
     const perLine = ivaBreakdown(lines).iva10Pyg;
     const onTotal = ivaIncluded(
       lines.reduce((sum, line) => sum + line.lineTotalPyg, 0),
-      10,
+      10
     );
 
     expect(perLine).toBe(9090);
@@ -98,7 +102,7 @@ describe('el IVA se redondea por línea, nunca sobre el total', () => {
     expect(perLine).not.toBe(onTotal);
   });
 
-  it('mezcla de tasas: cada línea va a su balde', () => {
+  it("mezcla de tasas: cada línea va a su balde", () => {
     const breakdown = ivaBreakdown([
       { lineTotalPyg: 110000, ivaRate: 10 },
       { lineTotalPyg: 105000, ivaRate: 5 },
@@ -108,7 +112,7 @@ describe('el IVA se redondea por línea, nunca sobre el total', () => {
     expect(breakdown).toEqual({ iva10Pyg: 10000, iva5Pyg: 5000 });
   });
 
-  it('todos los resultados son enteros', () => {
+  it("todos los resultados son enteros", () => {
     for (const total of [1, 7, 99, 33333, 1234567, 999999999]) {
       for (const rate of [10, 5, 0]) {
         expect(Number.isInteger(ivaIncluded(total, rate))).toBe(true);
@@ -116,9 +120,11 @@ describe('el IVA se redondea por línea, nunca sobre el total', () => {
     }
   });
 
-  it('`createOrder` calcula el IVA con ivaIncluded/ivaBreakdown y no a mano', async () => {
-    const createOrder = await readCode(path.join('src', 'domain', 'create-order.ts'));
-    const cart = await readCode(path.join('src', 'domain', 'cart.ts'));
+  it("`createOrder` calcula el IVA con ivaIncluded/ivaBreakdown y no a mano", async () => {
+    const createOrder = await readCode(
+      path.join("src", "domain", "create-order.ts")
+    );
+    const cart = await readCode(path.join("src", "domain", "cart.ts"));
 
     expect(`${createOrder}${cart}`).toMatch(/iva(Included|Breakdown)\s*\(/);
     // Nada de `* 0.1` ni `/ 1.1`: la tasa entra como entero y la división la

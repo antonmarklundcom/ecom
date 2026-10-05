@@ -1,4 +1,5 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { AsyncLocalStorage } from "node:async_hooks";
+import { safeError } from "./safe-error";
 
 /**
  * El logger del servidor (plan-operacion §5.4 C).
@@ -25,7 +26,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * configure `ERROR_REPORT_URL`.
  */
 
-export type LogLevel = 'info' | 'warn' | 'error';
+export type LogLevel = "info" | "warn" | "error";
 
 /** Campos que se guardan por request y viajan solos en cada línea. */
 export type RequestContext = { reqId: string };
@@ -57,24 +58,31 @@ export function currentRequestId(): string | undefined {
  * variable.
  */
 const CAMPOS_PROHIBIDOS = [
-  'phone',
-  'telefono',
-  'teléfono',
-  'token',
-  'secret',
-  'secreto',
-  'password',
-  'contrasena',
-  'contraseña',
-  'hash',
-  'authorization',
-  'cookie',
-  'accesstoken',
-  'apikey',
-  'body',
+  "phone",
+  "telefono",
+  "teléfono",
+  "token",
+  "secret",
+  "secreto",
+  "password",
+  "contrasena",
+  "contraseña",
+  "hash",
+  "authorization",
+  "cookie",
+  "accesstoken",
+  "apikey",
+  "body",
+  "email",
+  "customername",
+  "address",
+  "direccion",
+  "docnumber",
+  "params",
+  "rawpayload",
 ] as const;
 
-export const REDACTED = '[redacted]';
+export const REDACTED = "[redacted]";
 
 function esProhibido(nombre: string): boolean {
   const normalizado = nombre.toLowerCase();
@@ -90,21 +98,26 @@ function esProhibido(nombre: string): boolean {
  * está intentando registrar.
  */
 function redactar(valor: unknown, profundidad = 0): unknown {
-  if (profundidad > 4) return '[…]';
-  if (valor === null || typeof valor !== 'object') return valor;
+  if (profundidad > 4) return "[…]";
+  if (valor === null || typeof valor !== "object") return valor;
 
   if (Array.isArray(valor)) {
     return valor.slice(0, 20).map((item) => redactar(item, profundidad + 1));
   }
 
   if (valor instanceof Error) {
-    return { name: valor.name, message: valor.message };
+    const { name, message } = safeError(valor);
+    return { name, message };
   }
   if (valor instanceof Date) return valor.toISOString();
 
   const salida: Record<string, unknown> = {};
-  for (const [clave, item] of Object.entries(valor as Record<string, unknown>)) {
-    salida[clave] = esProhibido(clave) ? REDACTED : redactar(item, profundidad + 1);
+  for (const [clave, item] of Object.entries(
+    valor as Record<string, unknown>
+  )) {
+    salida[clave] = esProhibido(clave)
+      ? REDACTED
+      : redactar(item, profundidad + 1);
   }
   return salida;
 }
@@ -112,7 +125,11 @@ function redactar(valor: unknown, profundidad = 0): unknown {
 export type LogFields = Record<string, unknown>;
 
 /** La línea, ya armada. Separada del `console` para poder testearla. */
-export function formatLine(level: LogLevel, msg: string, fields: LogFields = {}): string {
+export function formatLine(
+  level: LogLevel,
+  msg: string,
+  fields: LogFields = {}
+): string {
   const reqId = currentRequestId();
   const linea = {
     ts: new Date().toISOString(),
@@ -127,7 +144,13 @@ export function formatLine(level: LogLevel, msg: string, fields: LogFields = {})
   } catch {
     // Un campo que no se puede serializar (una referencia cíclica que se
     // escapó de `redactar`) no puede hacer perder el evento entero.
-    return JSON.stringify({ ts: linea.ts, level, msg, reqId, fields: '[no serializable]' });
+    return JSON.stringify({
+      ts: linea.ts,
+      level,
+      msg,
+      reqId,
+      fields: "[no serializable]",
+    });
   }
 }
 
@@ -135,14 +158,15 @@ function emitir(level: LogLevel, msg: string, fields?: LogFields): void {
   const linea = formatLine(level, msg, fields);
   // `console.error` para warn y error: en Hostinger stderr y stdout se leen
   // por separado, y lo que hay que mirar primero es lo que salió mal.
-  if (level === 'error' || level === 'warn') console.error(linea);
+  if (level === "error" || level === "warn") console.error(linea);
   else console.info(linea);
 }
 
 export const log = {
-  info: (msg: string, fields?: LogFields): void => emitir('info', msg, fields),
-  warn: (msg: string, fields?: LogFields): void => emitir('warn', msg, fields),
-  error: (msg: string, fields?: LogFields): void => emitir('error', msg, fields),
+  info: (msg: string, fields?: LogFields): void => emitir("info", msg, fields),
+  warn: (msg: string, fields?: LogFields): void => emitir("warn", msg, fields),
+  error: (msg: string, fields?: LogFields): void =>
+    emitir("error", msg, fields),
 };
 
 /**
@@ -152,5 +176,5 @@ export const log = {
  * una línea, y el stack completo del error ya va por `onRequestError`.
  */
 export function mensajeDe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return safeError(error).message;
 }

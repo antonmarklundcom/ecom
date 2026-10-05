@@ -1,8 +1,9 @@
+import { enqueueOrderNotice, kickOrderNotices } from "./notification-outbox";
+import { readyPaymentMethods } from "./payment-readiness";
 import { randomBytes } from "node:crypto";
 
 import { eq } from "drizzle-orm";
 
-import { getDb } from "@/db";
 import {
   orderItems,
   orders,
@@ -15,7 +16,6 @@ import { normalizePhonePY, validateDoc } from "@/lib/py";
 
 import type { CartInput } from "./cart";
 import { lockCouponForUse, type CouponRejection } from "./coupons";
-import { notifyCustomerOrderEvent } from "./order-customer-notifications";
 import { recordOrderEvent } from "./order-events";
 import { nextOrderNumber } from "./order-number";
 import { computeOrderTotals } from "./order-totals";
@@ -25,7 +25,7 @@ import type { MessageKey, Params } from "@/i18n";
 import type { CartIssue } from "@/lib/cart-issues";
 
 import { DomainError } from "./errors";
-import { log, mensajeDe } from '@/lib/log';
+import { operationTransaction } from "./operation-keys";
 
 /**
  * Creación del pedido (PLAN.md 3.3).
@@ -40,6 +40,7 @@ import { log, mensajeDe } from '@/lib/log';
  */
 
 export type CreateOrderInput = {
+  operationKey?: string;
   items: readonly CartInput[];
   customerName: string;
   customerPhone: string;
@@ -114,7 +115,10 @@ export type CreatedOrder = {
 export class CheckoutError extends DomainError {
   readonly issues: CartIssue[];
 
-  constructor(code: MessageKey, options: { params?: Params; issues?: CartIssue[] } = {}) {
+  constructor(
+    code: MessageKey,
+    options: { params?: Params; issues?: CartIssue[] } = {}
+  ) {
     super(code, options.params);
     this.issues = options.issues ?? [];
     this.name = "CheckoutError";
@@ -178,7 +182,7 @@ export class ShippingMethodRejectedError extends CheckoutError {
     super(
       reason === "sin_metodos"
         ? "error.checkout.sinMetodoEnvio"
-        : "error.checkout.metodoEnvioCaido",
+        : "error.checkout.metodoEnvioCaido"
     );
     this.name = "ShippingMethodRejectedError";
   }
@@ -196,7 +200,7 @@ export class ShippingMethodRejectedError extends CheckoutError {
 export class PaymentMethodNotAllowedError extends CheckoutError {
   constructor(
     readonly methodName: string,
-    readonly paymentMethod: PaymentMethod,
+    readonly paymentMethod: PaymentMethod
   ) {
     super("error.checkout.pagoNoPermitido", {
       params: { envio: methodName, pago: t(`metodo.${paymentMethod}`) },
@@ -210,7 +214,9 @@ function mintAccessToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder> {
+export async function createOrder(
+  input: CreateOrderInput
+): Promise<CreatedOrder> {
   const phone = normalizePhonePY(input.customerPhone);
   if (!phone) {
     throw new CheckoutError("error.checkout.telefono");
@@ -228,203 +234,219 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
     throw new CheckoutError("error.checkout.carritoVacio");
   }
 
-  const created = await getDb().transaction(async (tx) => {
-    // 1 y 2. Re-precio y envío, con el executor de **esta** transacción. Es la
-    //    misma función que usa la cotización pública (`computeOrderTotals`),
-    //    corrida de nuevo acá: lo que la compradora vio en pantalla no viaja
-    //    en el input y no se compara con nada, se recalcula.
-    const {
-      cart,
-      shipping,
-      shippingMethod,
-      shippingMethodRejection,
-      subtotalPyg,
-      discountPyg,
-      shippingPyg,
-      totalPyg,
-      iva10Pyg,
-      iva5Pyg,
-      coupon,
-      couponRejection,
-    } = await computeOrderTotals(input.items, input.shipCity, {
-      executor: tx,
-      shippingMethodId: input.shippingMethodId ?? null,
-      couponCode: input.couponCode ?? null,
-      customerId: input.customerId ?? null,
-      customerPhone: phone,
-    });
-
-    // Si mandó un código y no sirve, el pedido **no** se crea en silencio sin
-    // el descuento: ella lo confirmó contando con ese precio. Se lo decimos y
-    // vuelve a confirmar, igual que con un cambio de total.
-    if (couponRejection) {
-      throw new CouponRejectedError(couponRejection);
-    }
-
-    // 1.b. El método de envío, re-validado acá adentro y no en el formulario
-    //      (FASE 3). Lo que llegó del navegador es un **id**; que ese id siga
-    //      activo, que aplique a la ciudad que finalmente puso y que acepte el
-    //      medio de pago que eligió se decide contra la DB, en esta
-    //      transacción. El precio ya salió de la misma consulta: el número que
-    //      la compradora tenía en pantalla no participa del cobro.
-    if (shippingMethodRejection !== null || shippingMethod === null) {
-      throw new ShippingMethodRejectedError(shippingMethodRejection ?? "sin_metodos");
-    }
-    if (!shippingMethod.allowedPaymentMethods.includes(input.paymentMethod)) {
-      throw new PaymentMethodNotAllowedError(shippingMethod.name, input.paymentMethod);
-    }
-
-    const blocking = cart.issues.filter((issue) => issue.type !== "precio_cambio");
-    if (cart.lines.length === 0 || blocking.length > 0) {
-      throw new CheckoutError("error.checkout.noDisponible", { issues: cart.issues });
-    }
-
-    // 2.b. ¿Le estamos por cobrar algo distinto de lo que vio?
-    //
-    //      La comparación va **adentro** de la transacción y antes de
-    //      escribir nada: si no coincide, esto tira y no queda ni el pedido,
-    //      ni el número consumido, ni la reserva. El número del navegador no
-    //      participa del cobro en ningún caso — sólo dice qué había en
-    //      pantalla.
-    if (
-      input.expectedTotalPyg !== undefined &&
-      input.expectedTotalPyg !== null &&
-      input.expectedTotalPyg !== totalPyg
-    ) {
-      throw new TotalChangedError(input.expectedTotalPyg, totalPyg);
-    }
-
-    // 2.c. Gastar el uso del cupón, **con la fila bloqueada**.
-    //
-    //       La validación de arriba pasó antes del candado, así que no decide
-    //       nada por sí sola: dos checkouts simultáneos con un cupón de un
-    //       solo uso la pasan los dos. Lo que decide es esta re-lectura con
-    //       `FOR UPDATE`, exactamente igual que el stock. El que pierde la
-    //       carrera recibe `CouponRaceError` y no se crea su pedido.
-    if (coupon) {
-      await lockCouponForUse(tx, coupon.coupon.id, {
+  const { result: stored } = await operationTransaction(
+    { scope: "checkout", key: input.operationKey, payload: input },
+    async (tx) => {
+      if (!(await readyPaymentMethods(tx)).includes(input.paymentMethod))
+        throw new CheckoutError("error.checkout.pagoNoDisponible");
+      // 1 y 2. Re-precio y envío, con el executor de **esta** transacción. Es la
+      //    misma función que usa la cotización pública (`computeOrderTotals`),
+      //    corrida de nuevo acá: lo que la compradora vio en pantalla no viaja
+      //    en el input y no se compara con nada, se recalcula.
+      const {
+        cart,
+        shipping,
+        shippingMethod,
+        shippingMethodRejection,
+        subtotalPyg,
+        discountPyg,
+        shippingPyg,
+        totalPyg,
+        iva10Pyg,
+        iva5Pyg,
+        coupon,
+        couponRejection,
+      } = await computeOrderTotals(input.items, input.shipCity, {
+        executor: tx,
+        shippingMethodId: input.shippingMethodId ?? null,
+        couponCode: input.couponCode ?? null,
         customerId: input.customerId ?? null,
         customerPhone: phone,
       });
-    }
 
-    // 3. Número de pedido del contador, adentro de la misma transacción.
-    const orderNumber = await nextOrderNumber(tx);
-    const accessToken = mintAccessToken();
-    const reservedUntil = new Date(
-      Date.now() + RESERVATION_TTL_MINUTES[input.paymentMethod] * 60_000
-    );
+      // Si mandó un código y no sirve, el pedido **no** se crea en silencio sin
+      // el descuento: ella lo confirmó contando con ese precio. Se lo decimos y
+      // vuelve a confirmar, igual que con un cambio de total.
+      if (couponRejection) {
+        throw new CouponRejectedError(couponRejection);
+      }
 
-    await tx.insert(orders).values({
-      orderNumber,
-      accessToken,
-      status: "pendiente_pago",
-      customerName: input.customerName.trim(),
-      customerPhone: phone,
-      customerEmail: input.customerEmail?.trim() || null,
-      docType: input.docType,
-      docNumber: doc.normalized ?? null,
-      isConsumidorFinal: input.isConsumidorFinal,
-      shipCity: input.shipCity.trim(),
-      shipBarrio: input.shipBarrio?.trim() || null,
-      shipAddress: input.shipAddress.trim(),
-      shipReference: input.shipReference?.trim() || null,
-      shipMapsUrl: input.shipMapsUrl?.trim() || null,
-      shippingZoneId: shipping.zoneId,
-      shippingMethodId: shippingMethod.id,
-      // Snapshot del nombre, como el código del cupón: si mañana el dueño
-      // borra "Moto Asunción", este pedido tiene que seguir diciendo cómo se
-      // entregó.
-      shippingMethodName: shippingMethod.name,
-      subtotalPyg,
-      shippingPyg,
-      totalPyg,
-      iva10Pyg,
-      iva5Pyg,
-      paymentMethod: input.paymentMethod,
-      customerId: input.customerId ?? null,
-      couponId: coupon?.coupon.id ?? null,
-      // Snapshot del código, como los nombres de los ítems: si mañana el dueño
-      // borra el cupón, este pedido tiene que seguir explicando su descuento.
-      couponCode: coupon?.coupon.code ?? null,
-      discountPyg,
-      reservedUntil,
-      isGift: input.isGift ?? false,
-      // La nota se descarta si el pedido no es un regalo: si no, destildar la
-      // casilla dejaría el mensaje viejo colgado y alguien lo imprimiría.
-      giftNote: input.isGift ? input.giftNote?.trim() || null : null,
-      marketingOptIn: input.marketingOptIn ?? null,
-      // La fecha acompaña a cualquier respuesta explícita, no sólo al "sí":
-      // saber cuándo dijo que no es lo que después evita mandarle igual.
-      marketingOptInAt: input.marketingOptIn === null || input.marketingOptIn === undefined
-        ? null
-        : new Date(),
-    });
+      // 1.b. El método de envío, re-validado acá adentro y no en el formulario
+      //      (FASE 3). Lo que llegó del navegador es un **id**; que ese id siga
+      //      activo, que aplique a la ciudad que finalmente puso y que acepte el
+      //      medio de pago que eligió se decide contra la DB, en esta
+      //      transacción. El precio ya salió de la misma consulta: el número que
+      //      la compradora tenía en pantalla no participa del cobro.
+      if (shippingMethodRejection !== null || shippingMethod === null) {
+        throw new ShippingMethodRejectedError(
+          shippingMethodRejection ?? "sin_metodos"
+        );
+      }
+      if (!shippingMethod.allowedPaymentMethods.includes(input.paymentMethod)) {
+        throw new PaymentMethodNotAllowedError(
+          shippingMethod.name,
+          input.paymentMethod
+        );
+      }
 
-    const inserted = await tx
-      .select({ id: orders.id })
-      .from(orders)
-      .where(eq(orders.orderNumber, orderNumber))
-      .limit(1);
-    const orderId = inserted[0]?.id;
-    if (!orderId) throw new CheckoutError("error.checkout.noPude");
+      const blocking = cart.issues.filter(
+        (issue) => issue.type !== "precio_cambio"
+      );
+      if (cart.lines.length === 0 || blocking.length > 0) {
+        throw new CheckoutError("error.checkout.noDisponible", {
+          issues: cart.issues,
+        });
+      }
 
-    // 4. Ítems con snapshot: lo que el comprador aceptó, congelado.
-    await tx.insert(orderItems).values(
-      cart.lines.map((line) => ({
-        orderId,
-        variantId: line.variantId,
-        nameSnapshot: `${line.name} — ${line.variantLabel}`,
-        skuSnapshot: line.sku,
-        unitPricePyg: line.unitPricePyg,
-        qty: line.qty,
-        ivaRate: line.ivaRate,
-        lineTotalPyg: line.lineTotalPyg,
-      }))
-    );
+      // 2.b. ¿Le estamos por cobrar algo distinto de lo que vio?
+      //
+      //      La comparación va **adentro** de la transacción y antes de
+      //      escribir nada: si no coincide, esto tira y no queda ni el pedido,
+      //      ni el número consumido, ni la reserva. El número del navegador no
+      //      participa del cobro en ningún caso — sólo dice qué había en
+      //      pantalla.
+      if (
+        input.expectedTotalPyg !== undefined &&
+        input.expectedTotalPyg !== null &&
+        input.expectedTotalPyg !== totalPyg
+      ) {
+        throw new TotalChangedError(input.expectedTotalPyg, totalPyg);
+      }
 
-    // 5. Reservas: FOR UPDATE sobre cada variante y re-chequeo adentro de la
-    //    misma transacción. Acá se corta el sobreventa.
-    await reserveStock(
-      orderId,
-      cart.lines.map((line) => ({ variantId: line.variantId, qty: line.qty })),
-      { expiresAt: reservedUntil, executor: tx }
-    );
+      // 2.c. Gastar el uso del cupón, **con la fila bloqueada**.
+      //
+      //       La validación de arriba pasó antes del candado, así que no decide
+      //       nada por sí sola: dos checkouts simultáneos con un cupón de un
+      //       solo uso la pasan los dos. Lo que decide es esta re-lectura con
+      //       `FOR UPDATE`, exactamente igual que el stock. El que pierde la
+      //       carrera recibe `CouponRaceError` y no se crea su pedido.
+      if (coupon) {
+        await lockCouponForUse(tx, coupon.coupon.id, {
+          customerId: input.customerId ?? null,
+          customerPhone: phone,
+        });
+      }
 
-    // 6. Primera fila del log. No es una transición (no hubo cambio de
-    //    estado), así que no pasa por transitionOrder.
-    await recordOrderEvent(
-      {
-        orderId,
+      // 3. Número de pedido del contador, adentro de la misma transacción.
+      const orderNumber = await nextOrderNumber(tx);
+      const accessToken = mintAccessToken();
+      const reservedUntil = new Date(
+        Date.now() + RESERVATION_TTL_MINUTES[input.paymentMethod] * 60_000
+      );
+
+      await tx.insert(orders).values({
+        orderNumber,
+        accessToken,
         status: "pendiente_pago",
-        actor: "buyer",
-        reason: `pedido creado (${input.paymentMethod}, ${shippingMethod.name})`,
-      },
-      { executor: tx },
-    );
+        customerName: input.customerName.trim(),
+        customerPhone: phone,
+        customerEmail: input.customerEmail?.trim() || null,
+        docType: input.docType,
+        docNumber: doc.normalized ?? null,
+        isConsumidorFinal: input.isConsumidorFinal,
+        shipCity: input.shipCity.trim(),
+        shipBarrio: input.shipBarrio?.trim() || null,
+        shipAddress: input.shipAddress.trim(),
+        shipReference: input.shipReference?.trim() || null,
+        shipMapsUrl: input.shipMapsUrl?.trim() || null,
+        shippingZoneId: shipping.zoneId,
+        shippingMethodId: shippingMethod.id,
+        // Snapshot del nombre, como el código del cupón: si mañana el dueño
+        // borra "Moto Asunción", este pedido tiene que seguir diciendo cómo se
+        // entregó.
+        shippingMethodName: shippingMethod.name,
+        subtotalPyg,
+        shippingPyg,
+        totalPyg,
+        iva10Pyg,
+        iva5Pyg,
+        paymentMethod: input.paymentMethod,
+        customerId: input.customerId ?? null,
+        couponId: coupon?.coupon.id ?? null,
+        // Snapshot del código, como los nombres de los ítems: si mañana el dueño
+        // borra el cupón, este pedido tiene que seguir explicando su descuento.
+        couponCode: coupon?.coupon.code ?? null,
+        discountPyg,
+        reservedUntil,
+        isGift: input.isGift ?? false,
+        // La nota se descarta si el pedido no es un regalo: si no, destildar la
+        // casilla dejaría el mensaje viejo colgado y alguien lo imprimiría.
+        giftNote: input.isGift ? input.giftNote?.trim() || null : null,
+        marketingOptIn: input.marketingOptIn ?? null,
+        // La fecha acompaña a cualquier respuesta explícita, no sólo al "sí":
+        // saber cuándo dijo que no es lo que después evita mandarle igual.
+        marketingOptInAt:
+          input.marketingOptIn === null || input.marketingOptIn === undefined
+            ? null
+            : new Date(),
+      });
 
-    return {
-      orderId,
-      orderNumber,
-      accessToken,
-      subtotalPyg,
-      shippingPyg,
-      totalPyg,
-      iva10Pyg,
-      iva5Pyg,
-      reservedUntil,
-    };
-  });
+      const inserted = await tx
+        .select({ id: orders.id })
+        .from(orders)
+        .where(eq(orders.orderNumber, orderNumber))
+        .limit(1);
+      const orderId = inserted[0]?.id;
+      if (!orderId) throw new CheckoutError("error.checkout.noPude");
 
-  // Aviso "confirmado" a la compradora (fase O3), sin `await` y ya con el
-  // commit hecho: nada de lo que pase con Meta puede tocar el pedido que
-  // ella acaba de conseguir. Va acá y no en la server action del checkout
-  // (`submitCheckout`) a propósito — createOrder es el único lugar por el
-  // que pasa TODO pedido nuevo, y así queda un solo punto que mantener en
-  // vez de uno por cada forma de llegar a un pedido.
-  void notifyCustomerOrderEvent(created.orderId, "confirmado").catch((error) => {
-    log.error('notifyCustomerOrderEvent rechazó', { error: mensajeDe(error) });
-  });
+      // 4. Ítems con snapshot: lo que el comprador aceptó, congelado.
+      await tx.insert(orderItems).values(
+        cart.lines.map((line) => ({
+          orderId,
+          variantId: line.variantId,
+          nameSnapshot: `${line.name} — ${line.variantLabel}`,
+          skuSnapshot: line.sku,
+          unitPricePyg: line.unitPricePyg,
+          qty: line.qty,
+          ivaRate: line.ivaRate,
+          lineTotalPyg: line.lineTotalPyg,
+        }))
+      );
+
+      // 5. Reservas: FOR UPDATE sobre cada variante y re-chequeo adentro de la
+      //    misma transacción. Acá se corta el sobreventa.
+      await reserveStock(
+        orderId,
+        cart.lines.map((line) => ({
+          variantId: line.variantId,
+          qty: line.qty,
+        })),
+        { expiresAt: reservedUntil, executor: tx }
+      );
+
+      // 6. Primera fila del log. No es una transición (no hubo cambio de
+      //    estado), así que no pasa por transitionOrder.
+      await recordOrderEvent(
+        {
+          orderId,
+          status: "pendiente_pago",
+          actor: "buyer",
+          reason: `pedido creado (${input.paymentMethod}, ${shippingMethod.name})`,
+        },
+        { executor: tx }
+      );
+
+      await enqueueOrderNotice(tx, orderId, "confirmado", "pendiente_pago");
+      await enqueueOrderNotice(tx, orderId, "dueno", "pendiente_pago");
+      return {
+        orderId,
+        orderNumber,
+        accessToken,
+        subtotalPyg,
+        shippingPyg,
+        totalPyg,
+        iva10Pyg,
+        iva5Pyg,
+        reservedUntil,
+      };
+    }
+  );
+  const created: CreatedOrder = {
+    ...stored,
+    reservedUntil: new Date(stored.reservedUntil),
+  };
+
+  kickOrderNotices(created.orderId);
 
   return created;
 }

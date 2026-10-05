@@ -18,7 +18,12 @@ import { eq } from "drizzle-orm";
 
 import { reserveStock } from "@/domain/stock";
 
-import { TEST_DATABASE_URL, closeTestDb, hasTestDb, resetTables } from "../helpers/db";
+import {
+  TEST_DATABASE_URL,
+  closeTestDb,
+  hasTestDb,
+  resetTables,
+} from "../helpers/db";
 import { createOrder } from "../helpers/factories";
 
 const run = promisify(execFile);
@@ -26,12 +31,16 @@ const run = promisify(execFile);
 describe.skipIf(!hasTestDb)("queries del catálogo", () => {
   beforeAll(async () => {
     await resetTables();
-    await run("pnpm", ["exec", "tsx", "scripts/seed.ts"], {
-      // Que no quede colgado para siempre si la DB no responde.
-      timeout: 90_000,
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
-    });
+    await run(
+      process.execPath,
+      [process.env.npm_execpath!, "exec", "tsx", "scripts/seed.ts"],
+      {
+        // Que no quede colgado para siempre si la DB no responde.
+        timeout: 90_000,
+        cwd: process.cwd(),
+        env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+      }
+    );
   }, 120_000);
   afterAll(closeTestDb);
 
@@ -46,12 +55,20 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
   });
 
   it("pagina la categoría", async () => {
-    const first = await getCategoryProducts({ categorySlug: "moda", perPage: 4, page: 1 });
+    const first = await getCategoryProducts({
+      categorySlug: "moda",
+      perPage: 4,
+      page: 1,
+    });
     expect(first.products).toHaveLength(4);
     expect(first.total).toBe(6);
     expect(first.totalPages).toBe(2);
 
-    const second = await getCategoryProducts({ categorySlug: "moda", perPage: 4, page: 2 });
+    const second = await getCategoryProducts({
+      categorySlug: "moda",
+      perPage: 4,
+      page: 2,
+    });
     expect(second.products).toHaveLength(2);
 
     const overlap = first.products.filter((product) =>
@@ -86,7 +103,9 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
       perPage: 60,
     });
     for (const product of baratos.products) {
-      expect(Math.min(...product.variants.map((v) => v.pricePyg))).toBeLessThanOrEqual(100000);
+      expect(
+        Math.min(...product.variants.map((v) => v.pricePyg))
+      ).toBeLessThanOrEqual(100000);
     }
 
     const brands = await getBrands("moda");
@@ -98,7 +117,9 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
       brand: "Basics PY",
       perPage: 60,
     });
-    expect(soloBasics.products.every((product) => product.brand === "Basics PY")).toBe(true);
+    expect(
+      soloBasics.products.every((product) => product.brand === "Basics PY")
+    ).toBe(true);
     expect(soloBasics.total).toBe(soloBasics.products.length);
 
     // El conteo del filtro tiene que ser el mismo número que va a aparecer al
@@ -116,11 +137,15 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
     // que "Ñande Moda" va antes que "Totto". El `.sort()` de JS compara code
     // points y la manda al final — no es que la consulta esté desordenada, es
     // que son dos alfabetos distintos.
-    expect(nombres).toEqual([...nombres].sort((a, b) => a.localeCompare(b, "es")));
+    expect(nombres).toEqual(
+      [...nombres].sort((a, b) => a.localeCompare(b, "es"))
+    );
     expect(new Set(nombres).size).toBe(nombres.length);
     expect(moda.every((facet) => facet.total > 0)).toBe(true);
 
-    const electronica = (await getBrands("electronica")).map((facet) => facet.brand);
+    const electronica = (await getBrands("electronica")).map(
+      (facet) => facet.brand
+    );
     expect(electronica).not.toContain("Basics PY");
   });
 
@@ -128,7 +153,10 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
     const product = await getProductBySlug("auriculares-bluetooth-tws");
     expect(product).not.toBeNull();
     expect(product?.categorySlug).toBe("electronica");
-    expect(product?.variants.map((variant) => variant.label).sort()).toEqual(["Blanco", "Negro"]);
+    expect(product?.variants.map((variant) => variant.label).sort()).toEqual([
+      "Blanco",
+      "Negro",
+    ]);
     expect(product?.variants[0]?.available).toBeGreaterThan(0);
   });
 
@@ -153,10 +181,14 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
 
   it("busca por FULLTEXT y por prefijo", async () => {
     const exact = await searchProducts("auriculares");
-    expect(exact.map((product) => product.slug)).toContain("auriculares-bluetooth-tws");
+    expect(exact.map((product) => product.slug)).toContain(
+      "auriculares-bluetooth-tws"
+    );
 
     const prefix = await searchProducts("auricu");
-    expect(prefix.map((product) => product.slug)).toContain("auriculares-bluetooth-tws");
+    expect(prefix.map((product) => product.slug)).toContain(
+      "auriculares-bluetooth-tws"
+    );
   });
 
   it("cae al LIKE con términos cortos que FULLTEXT ignora", async () => {
@@ -173,7 +205,9 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
   });
 
   it("no rompe con caracteres especiales del modo booleano", async () => {
-    await expect(searchProducts('remera +-><()~*"@')).resolves.toBeInstanceOf(Array);
+    await expect(searchProducts('remera +-><()~*"@')).resolves.toBeInstanceOf(
+      Array
+    );
   });
 
   /**
@@ -190,7 +224,9 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
       "moda",
       "deportes",
     ]);
-    expect(antes.products.map((product) => product.slug)).toContain("jean-slim-hombre");
+    expect(antes.products.map((product) => product.slug)).toContain(
+      "jean-slim-hombre"
+    );
 
     await getDb()
       .update(products)
@@ -198,7 +234,9 @@ describe.skipIf(!hasTestDb)("queries del catálogo", () => {
       .where(eq(products.slug, "jean-slim-hombre"));
 
     const despues = await getSitemapEntries();
-    expect(despues.products.map((product) => product.slug)).not.toContain("jean-slim-hombre");
+    expect(despues.products.map((product) => product.slug)).not.toContain(
+      "jean-slim-hombre"
+    );
     expect(despues.products).toHaveLength(antes.products.length - 1);
 
     await getDb()

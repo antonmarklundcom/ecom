@@ -7,10 +7,14 @@ import { registrarCliente } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MIN_PASSWORD_LENGTH } from "@/lib/password";
-import { t } from "@/i18n";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
+import { t } from "@/i18n/client";
 
-export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: string }) {
+export function CustomerRegisterForm({
+  defaultPhone = "",
+}: {
+  defaultPhone?: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +57,13 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
 
       <div className="grid gap-1.5">
         <Label htmlFor="name">{t("checkout.nombre")}</Label>
-        <Input id="name" name="name" required minLength={3} autoComplete="name" />
+        <Input
+          id="name"
+          name="name"
+          required
+          minLength={3}
+          autoComplete="name"
+        />
       </div>
 
       <div className="grid gap-1.5">
@@ -67,13 +77,17 @@ export function CustomerRegisterForm({ defaultPhone = "" }: { defaultPhone?: str
           autoComplete="tel"
           placeholder={t("checkout.whatsapp.placeholder")}
         />
-        <p className="text-muted-foreground text-xs">{t("cuenta.registro.telefonoAyuda")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("cuenta.registro.telefonoAyuda")}
+        </p>
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="email">
           {t("checkout.email")}{" "}
-          <span className="text-muted-foreground font-normal">{t("checkout.opcional")}</span>
+          <span className="text-muted-foreground font-normal">
+            {t("checkout.opcional")}
+          </span>
         </Label>
         <Input id="email" name="email" type="email" autoComplete="email" />
       </div>

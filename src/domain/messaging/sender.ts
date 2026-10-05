@@ -12,7 +12,7 @@
  * no sabe si el problema es suyo.
  */
 
-export type MessageChannel = 'whatsapp' | 'consola';
+export type MessageChannel = "whatsapp" | "consola";
 
 export type OutgoingMessage = {
   /** `+595XXXXXXXXX`, ya normalizado. */
@@ -38,12 +38,15 @@ export interface MessageSender {
   readonly channel: MessageChannel;
   /** Nombre para mostrarle a la persona: "WhatsApp". */
   readonly label: string;
-  send(message: OutgoingMessage): Promise<void>;
+  send(message: OutgoingMessage): Promise<void | { messageId?: string }>;
 }
 
 export class MessageSendError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly outcome: "rejected" | "unknown" = "unknown"
+  ) {
     super(message);
-    this.name = 'MessageSendError';
+    this.name = "MessageSendError";
   }
 }

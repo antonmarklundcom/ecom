@@ -17,6 +17,7 @@ import { currentCustomer } from "@/lib/customer-session";
 import { nombreMedioDePago } from "@/lib/paginas";
 import { formatPhonePY } from "@/lib/py";
 import { nombreTienda } from "@/lib/marca";
+import { readyPaymentMethods } from "@/domain/payment-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,12 @@ export const metadata: Metadata = {
 
 export default async function CheckoutPage() {
   const zones = await listShippingZones().catch(() => []);
-  const cities = zones.flatMap((zone) => zone.cities).sort((a, b) => a.localeCompare(b, "es"));
+  const cities = zones
+    .flatMap((zone) => zone.cities)
+    .sort((a, b) => a.localeCompare(b, "es"));
   const pagoparEnabled = isPagoparConfigured();
+  const readyPayments = await readyPaymentMethods();
+  const contactHref = await waLinkPublico(t("checkout.confianza.waMensaje"));
   // Sin cupones cargados el campo de descuento no se dibuja.
   const hayCupones = await hasUsableCoupons().catch(() => false);
 
@@ -40,24 +45,33 @@ export default async function CheckoutPage() {
   // "Comprá tranquilo" (`/admin/ajustes` → checkout). Los medios de pago son
   // los que este checkout ofrece de verdad, no una lista fija.
   const { checkout: confianza } = await getStoreSettings();
-  const [medios, waHref]: [PaymentMethod[], string | null] = confianza.confianzaActiva
-    ? await Promise.all([
-        offeredPaymentMethods({ cardEnabled: pagoparEnabled }).catch((): PaymentMethod[] => []),
-        waLinkPublico(t("checkout.confianza.waMensaje")),
-      ])
-    : [[], null];
+  const [medios, waHref]: [PaymentMethod[], string | null] =
+    confianza.confianzaActiva
+      ? await Promise.all([
+          offeredPaymentMethods({ cardEnabled: pagoparEnabled }).catch(
+            (): PaymentMethod[] => []
+          ),
+          waLinkPublico(t("checkout.confianza.waMensaje")),
+        ])
+      : [[], null];
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">{t("checkout.titulo")}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {t("checkout.titulo")}
+      </h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        {customer ? t("checkout.bajadaConCuenta") : t("checkout.bajadaInvitado")}
+        {customer
+          ? t("checkout.bajadaConCuenta")
+          : t("checkout.bajadaInvitado")}
       </p>
 
       <div className="mt-6">
         <CheckoutForm
           cities={cities}
           pagoparEnabled={pagoparEnabled}
+          readyPayments={readyPayments}
+          contactHref={contactHref}
           hayCupones={hayCupones}
           nombreTienda={await nombreTienda()}
           prefill={
@@ -79,7 +93,10 @@ export default async function CheckoutPage() {
           <CheckoutTrust
             titulo={confianza.confianzaTitulo ?? t("checkout.confianza.titulo")}
             lineas={lineasDeConfianza(confianza)}
-            mediosDePago={medios.map((method) => ({ method, nombre: nombreMedioDePago(method) }))}
+            mediosDePago={medios.map((method) => ({
+              method,
+              nombre: nombreMedioDePago(method),
+            }))}
             waHref={waHref}
           />
         </div>

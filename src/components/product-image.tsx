@@ -1,7 +1,11 @@
 import Image from "next/image";
 
-import { t } from "@/i18n";
-import { categoryPlaceholderSrc, productImageUrl, type ImageSize } from "@/lib/images";
+import { t } from "@/i18n/client";
+import {
+  categoryPlaceholderSrc,
+  productImageUrl,
+  type ImageSize,
+} from "@/lib/images";
 import { cn } from "@/lib/utils";
 import type { CatalogImage } from "@/db/queries";
 
@@ -15,7 +19,12 @@ import type { CatalogImage } from "@/db/queries";
  * quinta categoría "conocida" en `images.ts`, este set no se entera —está
  * documentado acá para que quien la agregue sepa dónde mirar.
  */
-const CATEGORIAS_CONOCIDAS = new Set(["electronica", "hogar-y-cocina", "moda", "deportes"]);
+const CATEGORIAS_CONOCIDAS = new Set([
+  "electronica",
+  "hogar-y-cocina",
+  "moda",
+  "deportes",
+]);
 
 /** `"hogar-y-cocina"` → `"Hogar y cocina"`. Sólo para el texto del placeholder. */
 function nombreLegible(categorySlug: string): string {
@@ -53,7 +62,10 @@ export function ProductImage({
   sizes?: string;
 }) {
   const url = productImageUrl(image?.cloudinaryId, size);
-  const wrapper = cn("bg-muted relative aspect-square overflow-hidden rounded-lg", className);
+  const wrapper = cn(
+    "bg-muted relative aspect-square overflow-hidden rounded-lg",
+    className
+  );
 
   if (!url) {
     // == S18 == Una categoría fuera de las cuatro del seed (una tienda que
@@ -74,7 +86,7 @@ export function ProductImage({
             sizes={sizes ?? "(max-width: 640px) 50vw, 300px"}
             className="object-cover"
           />
-          <span className="text-muted-foreground absolute inset-x-3 bottom-3 truncate rounded bg-background/80 px-2 py-1 text-center text-xs font-medium">
+          <span className="text-muted-foreground bg-background/80 absolute inset-x-3 bottom-3 truncate rounded px-2 py-1 text-center text-xs font-medium">
             {t("catalogo.sinFoto", { nombre: nombreLegible(categorySlug) })}
           </span>
         </div>

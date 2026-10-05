@@ -23,6 +23,7 @@ import { t } from "@/i18n";
  */
 
 const ReturnSchema = z.object({
+  operationKey: z.uuid(),
   orderId: z.number().int().positive(),
   reason: z.string().max(RETURN_REASON_MAX * 2),
   items: z
@@ -31,21 +32,23 @@ const ReturnSchema = z.object({
         orderItemId: z.number().int().positive(),
         qty: z.number().int().nonnegative(),
         restock: z.boolean(),
-      }),
+      })
     )
     .max(200),
 });
 
 export async function registrarDevolucion(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ returnId: number }>> {
   try {
     const actor = await requireStaffSession();
 
     const parsed = ReturnSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.mercaderia") };
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.noEntendi.mercaderia") };
 
     const result = await registerReturn({
+      operationKey: parsed.data.operationKey,
       orderId: parsed.data.orderId,
       reason: parsed.data.reason,
       // El formulario manda todas las líneas, con 0 en las que no vuelven.

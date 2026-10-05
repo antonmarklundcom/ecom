@@ -1,6 +1,6 @@
 import { MessageCircle } from "lucide-react";
 
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { waLinkPublico } from "@/lib/comercio";
 
 /**

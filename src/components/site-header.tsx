@@ -6,7 +6,7 @@ import { CuentaHeaderEntry } from "@/components/cuenta/header-entry";
 import { SearchBox } from "@/components/search-box";
 import { WishlistHeaderLink } from "@/components/wishlist-header-link";
 import { getCategories } from "@/db/queries";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { marcaEfectiva } from "@/lib/marca";
 import { TESTIDS } from "@/lib/testids";
 
@@ -27,7 +27,11 @@ export async function SiteHeader() {
           {marca.logoUrl ? (
             // `<img>` y no `next/image`: Cloudinary ya lo entrega al tamaño justo.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={marca.logoUrl} alt={marca.nombre} className="h-8 w-auto sm:h-10" />
+            <img
+              src={marca.logoUrl}
+              alt={marca.nombre}
+              className="h-8 w-auto sm:h-10"
+            />
           ) : (
             marca.nombre
           )}
@@ -48,7 +52,10 @@ export async function SiteHeader() {
         </div>
       </div>
 
-      <nav aria-label={t("header.categorias")} className="border-border/60 border-t">
+      <nav
+        aria-label={t("header.categorias")}
+        className="border-border/60 border-t"
+      >
         {/* == S18 ==
             Fade del borde derecho (plan-crecimiento §6.2.C) con el truco de
             "scroll shadows" — dos degradés a `--background`, uno pegado al

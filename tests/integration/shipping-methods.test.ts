@@ -1,7 +1,13 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { orderEvents, orders, shippingMethods, shippingZones } from "@/db/schema";
+import {
+  orderEvents,
+  orders,
+  shippingMethods,
+  shippingZones,
+} from "@/db/schema";
 import {
   AdminShippingMethodError,
   createShippingMethod,
@@ -84,6 +90,7 @@ function input(overrides: Partial<CreateOrderInput> = {}): CreateOrderInput {
 describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
   });
   afterAll(closeTestDb);
 
@@ -98,7 +105,10 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
     expect(order.shippingPyg).toBe(25_000);
     expect(order.totalPyg).toBe(125_000);
 
-    const [fila] = await getTestDb().select().from(orders).where(eq(orders.id, order.orderId));
+    const [fila] = await getTestDb()
+      .select()
+      .from(orders)
+      .where(eq(orders.id, order.orderId));
     expect(fila?.shippingMethodId).toBeNull();
     expect(fila?.shippingMethodName).toBe("Envío a domicilio");
   });
@@ -107,8 +117,14 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
     await seedZonas();
     const variantId = await createVariant({ onHand: 5, pricePyg: 100_000 });
 
-    for (const paymentMethod of ["transferencia", "contra_entrega", "tarjeta"] as const) {
-      const order = await createOrder(input({ items: [{ variantId, qty: 1 }], paymentMethod }));
+    for (const paymentMethod of [
+      "transferencia",
+      "contra_entrega",
+      "tarjeta",
+    ] as const) {
+      const order = await createOrder(
+        input({ items: [{ variantId, qty: 1 }], paymentMethod })
+      );
       expect(order.shippingPyg).toBe(25_000);
     }
   });
@@ -139,13 +155,16 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
         items: [{ variantId, qty: 1 }],
         shippingMethodId: moto.id,
         paymentMethod: "contra_entrega",
-      }),
+      })
     );
 
     expect(order.shippingPyg).toBe(15_000);
     expect(order.totalPyg).toBe(115_000);
 
-    const [fila] = await getTestDb().select().from(orders).where(eq(orders.id, order.orderId));
+    const [fila] = await getTestDb()
+      .select()
+      .from(orders)
+      .where(eq(orders.id, order.orderId));
     expect(fila?.shippingMethodId).toBe(moto.id);
     expect(fila?.shippingMethodName).toBe("Moto Asunción");
   });
@@ -166,7 +185,7 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
     });
 
     const order = await createOrder(
-      input({ items: [{ variantId, qty: 1 }], shippingMethodId: retiro.id }),
+      input({ items: [{ variantId, qty: 1 }], shippingMethodId: retiro.id })
     );
 
     expect(order.shippingPyg).toBe(0);
@@ -201,8 +220,8 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
           shipCity: "Encarnación",
           shippingMethodId: moto.id,
           paymentMethod: "contra_entrega",
-        }),
-      ),
+        })
+      )
     ).rejects.toBeInstanceOf(ShippingMethodRejectedError);
 
     // Ni pedido, ni número consumido, ni reserva: es un error del dominio y no
@@ -233,7 +252,9 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
     await setShippingMethodActive({ methodId: courier.id, isActive: false });
 
     await expect(
-      createOrder(input({ items: [{ variantId, qty: 1 }], shippingMethodId: courier.id })),
+      createOrder(
+        input({ items: [{ variantId, qty: 1 }], shippingMethodId: courier.id })
+      )
     ).rejects.toBeInstanceOf(ShippingMethodRejectedError);
   });
 
@@ -257,7 +278,7 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
         items: [{ variantId, qty: 1 }],
         shippingMethodId: courier.id,
         paymentMethod: "contra_entrega",
-      }),
+      })
     );
 
     await expect(promesa).rejects.toBeInstanceOf(PaymentMethodNotAllowedError);
@@ -294,11 +315,14 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
         items: [{ variantId, qty: 1 }],
         shippingMethodId: courier.id,
         expectedTotalPyg: 115_000,
-      }),
+      })
     );
 
     await expect(promesa).rejects.toBeInstanceOf(TotalChangedError);
-    await expect(promesa).rejects.toMatchObject({ before: 115_000, after: 125_000 });
+    await expect(promesa).rejects.toMatchObject({
+      before: 115_000,
+      after: 125_000,
+    });
     expect(await getTestDb().select().from(orders)).toHaveLength(0);
   });
 
@@ -316,7 +340,9 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
     });
 
     await expect(
-      createOrder(input({ items: [{ variantId, qty: 1 }], shipCity: "Encarnación" })),
+      createOrder(
+        input({ items: [{ variantId, qty: 1 }], shipCity: "Encarnación" })
+      )
     ).rejects.toMatchObject({ reason: "sin_metodos" });
   });
 
@@ -334,7 +360,7 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
     });
 
     const order = await createOrder(
-      input({ items: [{ variantId, qty: 1 }], shippingMethodId: retiro.id }),
+      input({ items: [{ variantId, qty: 1 }], shippingMethodId: retiro.id })
     );
 
     const [evento] = await getTestDb()
@@ -345,104 +371,117 @@ describe.skipIf(!hasTestDb)("createOrder con métodos de envío", () => {
   });
 });
 
-describe.skipIf(!hasTestDb)("la cotización y el cobro son la misma función", () => {
-  beforeEach(async () => {
-    await resetTables();
-  });
-  afterAll(closeTestDb);
+describe.skipIf(!hasTestDb)(
+  "la cotización y el cobro son la misma función",
+  () => {
+    beforeEach(async () => {
+      await resetTables();
+      await seedPaymentReadiness();
+    });
+    afterAll(closeTestDb);
 
-  it("el total cotizado con un método es el que después se cobra", async () => {
-    const { asuncionId } = await seedZonas();
-    const variantId = await createVariant({ onHand: 5, pricePyg: 100_000 });
+    it("el total cotizado con un método es el que después se cobra", async () => {
+      const { asuncionId } = await seedZonas();
+      const variantId = await createVariant({ onHand: 5, pricePyg: 100_000 });
 
-    const moto = await createShippingMethod({
-      name: "Moto Asunción",
-      kind: "local",
-      pricing: "fijo",
-      fixedPricePyg: 15_000,
-      zoneIds: [asuncionId],
-      allowedPaymentMethods: ["contra_entrega"],
+      const moto = await createShippingMethod({
+        name: "Moto Asunción",
+        kind: "local",
+        pricing: "fijo",
+        fixedPricePyg: 15_000,
+        zoneIds: [asuncionId],
+        allowedPaymentMethods: ["contra_entrega"],
+      });
+
+      const cotizado = await computeOrderTotals(
+        [{ variantId, qty: 1 }],
+        "Asunción",
+        {
+          shippingMethodId: moto.id,
+        }
+      );
+      const order = await createOrder(
+        input({
+          items: [{ variantId, qty: 1 }],
+          shippingMethodId: moto.id,
+          paymentMethod: "contra_entrega",
+          expectedTotalPyg: cotizado.totalPyg,
+        })
+      );
+
+      expect(order.totalPyg).toBe(cotizado.totalPyg);
     });
 
-    const cotizado = await computeOrderTotals([{ variantId, qty: 1 }], "Asunción", {
-      shippingMethodId: moto.id,
-    });
-    const order = await createOrder(
-      input({
-        items: [{ variantId, qty: 1 }],
-        shippingMethodId: moto.id,
-        paymentMethod: "contra_entrega",
-        expectedTotalPyg: cotizado.totalPyg,
-      }),
-    );
+    it("quoteShippingMethods devuelve los válidos para la ciudad, ya cotizados", async () => {
+      const { asuncionId, interiorId } = await seedZonas();
 
-    expect(order.totalPyg).toBe(cotizado.totalPyg);
-  });
+      await createShippingMethod({
+        name: "Courier nacional",
+        kind: "courier",
+        pricing: "zona",
+        fixedPricePyg: null,
+        zoneIds: [],
+        allowedPaymentMethods: ["transferencia"],
+      });
+      await createShippingMethod({
+        name: "Moto Asunción",
+        kind: "local",
+        pricing: "fijo",
+        fixedPricePyg: 15_000,
+        zoneIds: [asuncionId],
+        allowedPaymentMethods: ["contra_entrega"],
+      });
+      await createShippingMethod({
+        name: "Moto Encarnación",
+        kind: "local",
+        pricing: "fijo",
+        fixedPricePyg: 12_000,
+        zoneIds: [interiorId],
+        allowedPaymentMethods: ["contra_entrega"],
+      });
 
-  it("quoteShippingMethods devuelve los válidos para la ciudad, ya cotizados", async () => {
-    const { asuncionId, interiorId } = await seedZonas();
+      const asuncion = await quoteShippingMethods("Asunción", 100_000);
+      expect(
+        asuncion.methods.map((method) => [method.name, method.shippingPyg])
+      ).toEqual([
+        ["Courier nacional", 25_000],
+        ["Moto Asunción", 15_000],
+      ]);
 
-    await createShippingMethod({
-      name: "Courier nacional",
-      kind: "courier",
-      pricing: "zona",
-      fixedPricePyg: null,
-      zoneIds: [],
-      allowedPaymentMethods: ["transferencia"],
-    });
-    await createShippingMethod({
-      name: "Moto Asunción",
-      kind: "local",
-      pricing: "fijo",
-      fixedPricePyg: 15_000,
-      zoneIds: [asuncionId],
-      allowedPaymentMethods: ["contra_entrega"],
-    });
-    await createShippingMethod({
-      name: "Moto Encarnación",
-      kind: "local",
-      pricing: "fijo",
-      fixedPricePyg: 12_000,
-      zoneIds: [interiorId],
-      allowedPaymentMethods: ["contra_entrega"],
-    });
-
-    const asuncion = await quoteShippingMethods("Asunción", 100_000);
-    expect(asuncion.methods.map((method) => [method.name, method.shippingPyg])).toEqual([
-      ["Courier nacional", 25_000],
-      ["Moto Asunción", 15_000],
-    ]);
-
-    const encarnacion = await quoteShippingMethods("Encarnación", 100_000);
-    expect(encarnacion.methods.map((method) => [method.name, method.shippingPyg])).toEqual([
-      ["Courier nacional", 60_000],
-      ["Moto Encarnación", 12_000],
-    ]);
-  });
-
-  it("el umbral de envío gratis de la zona se conserva con `pricing = zona`", async () => {
-    await seedZonas();
-
-    await createShippingMethod({
-      name: "Courier nacional",
-      kind: "courier",
-      pricing: "zona",
-      fixedPricePyg: null,
-      zoneIds: [],
-      allowedPaymentMethods: ["transferencia"],
+      const encarnacion = await quoteShippingMethods("Encarnación", 100_000);
+      expect(
+        encarnacion.methods.map((method) => [method.name, method.shippingPyg])
+      ).toEqual([
+        ["Courier nacional", 60_000],
+        ["Moto Encarnación", 12_000],
+      ]);
     });
 
-    const chico = await quoteShippingMethods("Asunción", 100_000);
-    expect(chico.methods[0]?.shippingPyg).toBe(25_000);
+    it("el umbral de envío gratis de la zona se conserva con `pricing = zona`", async () => {
+      await seedZonas();
 
-    const grande = await quoteShippingMethods("Asunción", 500_000);
-    expect(grande.methods[0]).toMatchObject({ shippingPyg: 0, isFree: true });
-  });
-});
+      await createShippingMethod({
+        name: "Courier nacional",
+        kind: "courier",
+        pricing: "zona",
+        fixedPricePyg: null,
+        zoneIds: [],
+        allowedPaymentMethods: ["transferencia"],
+      });
+
+      const chico = await quoteShippingMethods("Asunción", 100_000);
+      expect(chico.methods[0]?.shippingPyg).toBe(25_000);
+
+      const grande = await quoteShippingMethods("Asunción", 500_000);
+      expect(grande.methods[0]).toMatchObject({ shippingPyg: 0, isFree: true });
+    });
+  }
+);
 
 describe.skipIf(!hasTestDb)("ABM de métodos de envío", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
   });
   afterAll(closeTestDb);
 
@@ -458,7 +497,11 @@ describe.skipIf(!hasTestDb)("ABM de métodos de envío", () => {
       allowedPaymentMethods: ["transferencia"],
     });
 
-    expect(retiro).toMatchObject({ pricing: "fijo", fixedPricePyg: 0, zoneIds: [] });
+    expect(retiro).toMatchObject({
+      pricing: "fijo",
+      fixedPricePyg: 0,
+      zoneIds: [],
+    });
   });
 
   it("una tarifa plana sin precio no se guarda", async () => {
@@ -470,7 +513,7 @@ describe.skipIf(!hasTestDb)("ABM de métodos de envío", () => {
         fixedPricePyg: null,
         zoneIds: [],
         allowedPaymentMethods: ["contra_entrega"],
-      }),
+      })
     ).rejects.toBeInstanceOf(AdminShippingMethodError);
   });
 
@@ -483,7 +526,7 @@ describe.skipIf(!hasTestDb)("ABM de métodos de envío", () => {
         fixedPricePyg: null,
         zoneIds: [],
         allowedPaymentMethods: [],
-      }),
+      })
     ).rejects.toBeInstanceOf(AdminShippingMethodError);
   });
 
@@ -496,7 +539,7 @@ describe.skipIf(!hasTestDb)("ABM de métodos de envío", () => {
         fixedPricePyg: null,
         zoneIds: [4242],
         allowedPaymentMethods: ["contra_entrega"],
-      }),
+      })
     ).rejects.toBeInstanceOf(AdminShippingMethodError);
   });
 
@@ -520,7 +563,7 @@ describe.skipIf(!hasTestDb)("ABM de métodos de envío", () => {
         fixedPricePyg: null,
         zoneIds: [],
         allowedPaymentMethods: ["contra_entrega"],
-      }),
+      })
     ).rejects.toBeInstanceOf(AdminShippingMethodError);
   });
 

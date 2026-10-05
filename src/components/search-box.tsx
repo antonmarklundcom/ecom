@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { sugerirProductos } from "@/app/actions/search-suggest";
 import type { SearchSuggestion } from "@/db/queries";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { Input } from "@/components/ui/input";
 
 /** Lo que se espera a que la persona deje de tipear antes de consultar. */
@@ -129,7 +129,7 @@ export function SearchBox({ className }: { className?: string }) {
               } else if (event.key === "ArrowUp") {
                 event.preventDefault();
                 setHighlighted((index) =>
-                  index <= 0 ? suggestions.length - 1 : index - 1,
+                  index <= 0 ? suggestions.length - 1 : index - 1
                 );
               } else if (event.key === "Escape") {
                 setOpen(false);
@@ -176,7 +176,9 @@ export function SearchBox({ className }: { className?: string }) {
                   >
                     <span>{item.name}</span>
                     {item.brand ? (
-                      <span className="text-muted-foreground text-xs">{item.brand}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {item.brand}
+                      </span>
                     ) : null}
                   </button>
                 </li>

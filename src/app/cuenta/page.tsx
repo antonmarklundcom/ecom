@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CustomerProfileForm } from "@/components/cuenta/profile-form";
+import { CustomerPasswordForm } from "@/components/cuenta/password-form";
 import { CustomerLogoutButton } from "@/components/cuenta/logout-button";
 import { findCustomerByPhone, listCustomerOrders } from "@/domain/customers";
 import { orderUrl } from "@/domain/order-access";
@@ -61,12 +62,18 @@ export default async function CuentaPage() {
                   className="hover:bg-muted/50 block p-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium tabular-nums">{order.orderNumber}</span>
-                    <span className="text-sm">{ORDER_STATUS_LABEL_COMPRADOR[order.status]}</span>
+                    <span className="font-medium tabular-nums">
+                      {order.orderNumber}
+                    </span>
+                    <span className="text-sm">
+                      {ORDER_STATUS_LABEL_COMPRADOR[order.status]}
+                    </span>
                   </div>
                   <p className="text-muted-foreground mt-1 flex justify-between gap-4 text-xs">
                     <span>{formatDateTimePY(order.createdAt)}</span>
-                    <span className="tabular-nums">{formatGs(order.totalPyg)}</span>
+                    <span className="tabular-nums">
+                      {formatGs(order.totalPyg)}
+                    </span>
                   </p>
                 </Link>
               </li>
@@ -81,7 +88,9 @@ export default async function CuentaPage() {
           WhatsApp es tuyo — ver `listCustomerOrders`.
         */}
         {customer.phoneVerifiedAt ? null : (
-          <p className="text-muted-foreground mt-3 text-xs">{t("cuenta.pedidos.invitada")}</p>
+          <p className="text-muted-foreground mt-3 text-xs">
+            {t("cuenta.pedidos.invitada")}
+          </p>
         )}
       </section>
 
@@ -90,7 +99,9 @@ export default async function CuentaPage() {
         <p className="text-muted-foreground mt-1 text-sm">
           {t("cuenta.datos.whatsapp")}{" "}
           <span className="tabular-nums">{formatPhonePY(customer.phone)}</span>
-          <span className="block text-xs">{t("cuenta.datos.whatsappNota")}</span>
+          <span className="block text-xs">
+            {t("cuenta.datos.whatsappNota")}
+          </span>
         </p>
 
         <div className="mt-4">
@@ -103,6 +114,7 @@ export default async function CuentaPage() {
           />
         </div>
       </section>
+      <CustomerPasswordForm required={!customer.hasPassword} />
     </main>
   );
 }

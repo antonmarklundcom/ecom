@@ -20,7 +20,11 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: RUTAS_PRIVADAS.map((ruta) => `${ruta}/`),
+      disallow: RUTAS_PRIVADAS.flatMap((ruta) => [
+        `${ruta}$`,
+        `${ruta}/`,
+        `${ruta}?`,
+      ]),
     },
     ...(origin ? { sitemap: `${origin.origin}/sitemap.xml` } : {}),
   };

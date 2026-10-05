@@ -1,6 +1,9 @@
 import { readBankDetails } from "@/domain/admin-bank";
 import { getStoreSettings } from "@/domain/store-settings";
-import { contactoEfectivo, type ContactoEfectivo } from "@/domain/store-settings-schema";
+import {
+  contactoEfectivo,
+  type ContactoEfectivo,
+} from "@/domain/store-settings-schema";
 import { bankQrUrl } from "@/lib/images";
 import { normalizePhonePY, waLink } from "@/lib/py";
 import { valorIntegracion } from "@/lib/integraciones";
@@ -89,8 +92,10 @@ export type DatosBancarios = {
  * lo pasa a quien lo necesite (ver `recoveryMessage`): antes de esto, el
  * listado de "por cobrar" lo releía una vez por fila.
  */
-export async function getDatosBancarios(): Promise<DatosBancarios | null> {
-  const fila = await readBankDetails();
+export async function getDatosBancarios(
+  executor?: import("@/domain/executor").Executor
+): Promise<DatosBancarios | null> {
+  const fila = await readBankDetails(executor);
 
   if (fila) {
     return {

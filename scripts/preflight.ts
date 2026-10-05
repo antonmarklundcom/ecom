@@ -1,5 +1,7 @@
 import "../src/lib/load-env";
 
+import { safeError } from "../src/lib/safe-error";
+
 import { closePool } from "../src/db";
 import {
   listAdminShippingMethods,
@@ -63,21 +65,23 @@ async function revisarMetodosDeEnvio(): Promise<void> {
 
     const huerfanos = shippingMethodsWithoutZones(
       methods,
-      zones.map((zone) => zone.id),
+      zones.map((zone) => zone.id)
     );
 
     if (methods.length === 0) {
       console.log("  ✓ Formas de entrega");
       console.log(
-        "      ninguna configurada: el checkout ofrece \"Envío a domicilio\" con el precio de " +
-          "la zona y los tres medios de pago, que es el comportamiento de siempre",
+        '      ninguna configurada: el checkout ofrece "Envío a domicilio" con el precio de ' +
+          "la zona y los medios de pago que tengan su configuración completa"
       );
       return;
     }
 
     if (huerfanos.length === 0) {
       console.log("  ✓ Formas de entrega");
-      console.log(`      ${methods.length} configurada(s), todas con al menos una zona activa`);
+      console.log(
+        `      ${methods.length} configurada(s), todas con al menos una zona activa`
+      );
       return;
     }
 
@@ -85,14 +89,14 @@ async function revisarMetodosDeEnvio(): Promise<void> {
     console.log(
       "      activas y sin ninguna zona activa que las habilite: " +
         `${huerfanos.join(", ")}. Hoy no le aparecen a nadie en el checkout — prendé esas ` +
-        "zonas, o sacales la restricción de zonas desde /admin/envios",
+        "zonas, o sacales la restricción de zonas desde /admin/envios"
     );
   } catch (error) {
-    const motivo = error instanceof Error ? error.message : String(error);
+    const motivo = safeError(error).message;
     console.log("  · Formas de entrega");
     console.log(
       `      no se pudo revisar (${motivo}). Es el único control que necesita la base; ` +
-        "todo lo de arriba ya corrió",
+        "todo lo de arriba ya corrió"
     );
   } finally {
     await closePool();
@@ -119,9 +123,15 @@ async function main(): Promise<void> {
 
   // Primero lo que bloquea: si alguien lee sólo las tres primeras líneas, que
   // sean las que importan.
-  const order: Array<PreflightCheck["severity"]> = ["bloquea", "advierte", "ok"];
+  const order: Array<PreflightCheck["severity"]> = [
+    "bloquea",
+    "advierte",
+    "ok",
+  ];
   for (const severity of order) {
-    for (const check of report.checks.filter((item) => item.severity === severity)) {
+    for (const check of report.checks.filter(
+      (item) => item.severity === severity
+    )) {
       console.log(`  ${ICON[check.severity]} ${check.title}`);
       console.log(`      ${check.detail}`);
     }
@@ -133,11 +143,11 @@ async function main(): Promise<void> {
     console.log(
       report.warnings === 0
         ? "✓ Nada bloquea el cobro."
-        : `✓ Nada bloquea el cobro (${report.warnings} advertencia(s) para mirar).`,
+        : `✓ Nada bloquea el cobro (${report.warnings} advertencia(s) para mirar).`
     );
   } else {
     console.error(
-      `✗ ${report.blocking} cosa(s) bloquean el cobro. No deployees a producción así.`,
+      `✗ ${report.blocking} cosa(s) bloquean el cobro. No deployees a producción así.`
     );
     process.exitCode = 1;
   }

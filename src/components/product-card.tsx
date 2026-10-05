@@ -6,7 +6,7 @@ import { RatingStars, formatRating } from "@/components/rating-stars";
 import { StockBadge } from "@/components/stock-badge";
 import { WishlistButton } from "@/components/wishlist-button";
 import type { CatalogProduct } from "@/db/queries";
-import { t, tPlural } from "@/i18n";
+import { t, tPlural } from "@/i18n/client";
 import { TESTIDS } from "@/lib/testids";
 
 export function ProductCard({
@@ -29,9 +29,16 @@ export function ProductCard({
   const inStock = product.variants.filter((variant) => variant.available > 0);
   const shown = (inStock.length > 0 ? inStock : product.variants).reduce<
     CatalogProduct["variants"][number] | undefined
-  >((cheapest, variant) => (!cheapest || variant.pricePyg < cheapest.pricePyg ? variant : cheapest), undefined);
+  >(
+    (cheapest, variant) =>
+      !cheapest || variant.pricePyg < cheapest.pricePyg ? variant : cheapest,
+    undefined
+  );
 
-  const totalAvailable = product.variants.reduce((total, variant) => total + variant.available, 0);
+  const totalAvailable = product.variants.reduce(
+    (total, variant) => total + variant.available,
+    0
+  );
   const hasVariantRange = product.variants.length > 1;
 
   return (
@@ -48,11 +55,18 @@ export function ProductCard({
           categorySlug={product.categorySlug}
           priority={priority}
         />
-        <WishlistButton slug={product.slug} name={product.name} sku={shown?.sku} pricePyg={shown?.pricePyg} />
+        <WishlistButton
+          slug={product.slug}
+          name={product.name}
+          sku={shown?.sku}
+          pricePyg={product.showPrice === false ? undefined : shown?.pricePyg}
+        />
       </div>
 
       <div className="mt-3 flex flex-1 flex-col gap-1">
-        <p className="text-muted-foreground text-xs">{product.brand ?? product.categoryName}</p>
+        <p className="text-muted-foreground text-xs">
+          {product.brand ?? product.categoryName}
+        </p>
         <h3 className="group-hover:text-foreground line-clamp-2 text-sm font-medium">
           {product.name}
         </h3>
@@ -65,7 +79,7 @@ export function ProductCard({
         ) : null}
 
         <div className="mt-auto pt-2">
-          {shown ? (
+          {shown && product.showPrice !== false ? (
             <PriceTag
               pricePyg={shown.pricePyg}
               compareAtPyg={shown.compareAtPyg}
@@ -73,7 +87,17 @@ export function ProductCard({
             />
           ) : null}
           <div className="mt-2 flex items-center gap-2">
-            <StockBadge available={totalAvailable} />
+            {(product.saleMode ?? "stock") === "stock" ? (
+              <StockBadge available={totalAvailable} />
+            ) : (
+              <span className="text-xs">
+                {t(
+                  product.saleMode === "enquiry"
+                    ? "producto.soloConsulta"
+                    : "producto.muestra"
+                )}
+              </span>
+            )}
             {hasVariantRange ? (
               <span className="text-muted-foreground text-xs">
                 {t("catalogo.opciones", { n: product.variants.length })}

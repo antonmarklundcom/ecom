@@ -40,7 +40,13 @@ export async function generateStaticParams() {
   }
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SearchParams;
+}): Promise<Metadata> {
   const { slug } = await params;
   const category = await loadCategory(slug).catch(() => null);
   if (!category) return { title: t("categoria.meta") };
@@ -52,15 +58,29 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     markdownToText(category.description).slice(0, 160) ||
     t("categoria.metaDescripcion", { nombre: category.name });
 
-  // == S17 == `alternates.canonical` a la URL sin query: `/categoria/slug`
-  // siempre es la misma página sin importar `?orden=` o `?precio=`, y sin eso
-  // Google indexaba cada combinación de filtros como si fuera contenido
-  // distinto. `siteOrigin()` devuelve `null` sin `NEXT_PUBLIC_SITE_URL` — sin
-  // origen conocido no se emite nada inventado (plan-crecimiento.md §6.1 F).
+  // Cada página sin filtros tiene su canonical. Las combinaciones de filtros
+  // quedan fuera del índice y apuntan a la categoría base.
   const origin = siteOrigin();
-  const canonical = origin ? new URL(`/categoria/${slug}`, origin).toString() : undefined;
+  const query = await searchParams;
+  const parsedPage = Number(first(query.page));
+  const page =
+    Number.isSafeInteger(parsedPage) && parsedPage > 1 ? parsedPage : 1;
+  const filtered = Object.keys(query).some(
+    (key) => key !== "page" && Boolean(first(query[key]))
+  );
+  const canonical = origin
+    ? new URL(
+        `/categoria/${slug}${page > 1 && !filtered ? `?page=${page}` : ""}`,
+        origin
+      ).toString()
+    : undefined;
 
-  return { title: category.name, description, ...(canonical ? { alternates: { canonical } } : {}) };
+  return {
+    title: category.name,
+    description,
+    ...(filtered ? { robots: { index: false, follow: true } } : {}),
+    ...(canonical ? { alternates: { canonical } } : {}),
+  };
 }
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -88,7 +108,11 @@ export default async function CategoryPage({
 
   const sortParam = first(query.orden);
   const { min, max } = parsePriceRange(first(query.precio));
-  const page = Number.parseInt(first(query.page) ?? "1", 10) || 1;
+  const requestedPage = Number(first(query.page));
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 1
+      ? requestedPage
+      : 1;
 
   const { vidriera } = await getStoreSettings();
   const [result, brands] = await Promise.all([
@@ -145,9 +169,12 @@ export default async function CategoryPage({
         <span className="text-foreground">{category.name}</span>
       </nav>
 
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">{category.name}</h1>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+        {category.name}
+      </h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        {tPlural("catalogo.productos", result.total)} · {t("catalogo.ivaIncluidoNota")}
+        {tPlural("catalogo.productos", result.total)} ·{" "}
+        {t("catalogo.ivaIncluidoNota")}
       </p>
 
       {/* Sin foto ni descripción cargadas (O7, `/admin/categorias`), esta
@@ -185,7 +212,9 @@ export default async function CategoryPage({
       {result.products.length === 0 ? (
         <div className="border-border mt-8 rounded-xl border border-dashed p-10 text-center">
           <p className="font-medium">{t("categoria.sinResultados")}</p>
-          <p className="text-muted-foreground mt-1 text-sm">{t("categoria.sinResultados.ayuda")}</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {t("categoria.sinResultados.ayuda")}
+          </p>
           <Button asChild variant="outline" className="mt-4">
             <Link href={`/categoria/${slug}`}>{t("categoria.verTodo")}</Link>
           </Button>
@@ -209,7 +238,10 @@ export default async function CategoryPage({
       )}
 
       {result.totalPages > 1 ? (
-        <nav className="mt-8 flex items-center justify-center gap-3" aria-label={t("nav.paginacion")}>
+        <nav
+          className="mt-8 flex items-center justify-center gap-3"
+          aria-label={t("nav.paginacion")}
+        >
           {/* == S17 == En los bordes, un `<span aria-disabled>` con el mismo
               estilo del botón deshabilitado — no un `<Link>`: un `<a href>`
               sigue siendo clickeable (y navegable con teclado) aunque el
@@ -217,7 +249,9 @@ export default async function CategoryPage({
               pasaba acá antes de este PR. */}
           {result.page > 1 ? (
             <Button asChild variant="outline" size="sm">
-              <Link href={buildPageHref(result.page - 1)}>{t("nav.anterior")}</Link>
+              <Link href={buildPageHref(result.page - 1)}>
+                {t("nav.anterior")}
+              </Link>
             </Button>
           ) : (
             <span
@@ -232,7 +266,9 @@ export default async function CategoryPage({
           </span>
           {result.page < result.totalPages ? (
             <Button asChild variant="outline" size="sm">
-              <Link href={buildPageHref(result.page + 1)}>{t("nav.siguiente")}</Link>
+              <Link href={buildPageHref(result.page + 1)}>
+                {t("nav.siguiente")}
+              </Link>
             </Button>
           ) : (
             <span

@@ -3,7 +3,10 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 
-import { freeShippingForZone, type FreeShippingProgress } from "@/domain/free-shipping";
+import {
+  freeShippingForZone,
+  type FreeShippingProgress,
+} from "@/domain/free-shipping";
 import type { CouponRejection } from "@/domain/coupons";
 import { computeOrderTotals } from "@/domain/order-totals";
 import type {
@@ -13,7 +16,14 @@ import type {
 } from "@/domain/shipping";
 import type { CartIssue } from "@/lib/cart-issues";
 import { currentCustomer } from "@/lib/customer-session";
-import { QUOTE_LIMIT, QUOTE_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-limit";
+import { readyPaymentMethods } from "@/domain/payment-readiness";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
+import {
+  QUOTE_LIMIT,
+  QUOTE_WINDOW_MS,
+  clientIp,
+  rateLimit,
+} from "@/lib/rate-limit";
 
 /**
  * Cotización de envío **antes** de crear el pedido.
@@ -125,8 +135,12 @@ const EMPTY_QUOTE: CartQuote = {
 };
 
 export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
+  await cargarIntegraciones();
   const ip = clientIp(await headers());
-  if (!rateLimit(`quote:${ip}`, { limit: QUOTE_LIMIT, windowMs: QUOTE_WINDOW_MS }).ok) {
+  if (
+    !rateLimit(`quote:${ip}`, { limit: QUOTE_LIMIT, windowMs: QUOTE_WINDOW_MS })
+      .ok
+  ) {
     // Sin número en vez de un número viejo: la pantalla vuelve a decir que el
     // envío se confirma al crear el pedido, que es lo que decía antes.
     return EMPTY_QUOTE;
@@ -154,6 +168,7 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
     customerPhone: customer?.phone ?? null,
   });
 
+  const ready = await readyPaymentMethods();
   return {
     subtotalPyg: totals.subtotalPyg,
     totalPyg: totals.totalPyg,
@@ -179,7 +194,9 @@ export async function quoteCartShipping(input: unknown): Promise<CartQuote> {
       description: method.description,
       shippingPyg: method.shippingPyg,
       isFree: method.isFree,
-      allowedPaymentMethods: method.allowedPaymentMethods,
+      allowedPaymentMethods: method.allowedPaymentMethods.filter((payment) =>
+        ready.includes(payment)
+      ),
     })),
     shippingMethodId: totals.shippingMethod?.id ?? null,
     shippingMethodRejection: totals.shippingMethodRejection,

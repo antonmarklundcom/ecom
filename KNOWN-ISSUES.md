@@ -88,7 +88,6 @@ achicar código desde el test. Si se quiere recuperar ese margen, el candidato e
 cargar `wishlist-header-link` con `next/dynamic` (no hace falta en el primer
 render) — fase aparte.
 
-
 ## Presupuesto de JS: home subió el techo por el catálogo de textos — 2026-09-29
 
 El PR de identidad y cuentas desde el panel (nombre, logo, favicon, color,
@@ -100,6 +99,10 @@ clave nueva —aunque sea de `/admin` o de `/setup`, que la vidriera nunca
 muestra— suma a todas las páginas. Según la regla del spec, el techo de la
 home pasó al valor medido + 10% (247) en vez de borrar textos desde el test.
 
-Para recuperar el margen (fase aparte): partir el catálogo en uno de vidriera
-y uno de panel, o que los componentes cliente reciban los textos por prop desde
-el servidor en vez de importar el catálogo entero.
+Resuelto en el hardening del template (2026-10-05): `src/i18n/client.ts` usa
+un catálogo público generado que excluye panel, setup y preflight. Las formas
+de cuenta importan sólo la política de contraseña, sin incluir bcrypt.
+Chromium midió 235,1 KB en home, 246,4 KB en producto y 240,4 KB en checkout
+con el catálogo poblado. Los límites anteriores no se aumentaron. Esto
+resuelve la importación del diccionario completo; los bundles de Next y las
+otras funciones del cliente siguen formando parte del presupuesto.

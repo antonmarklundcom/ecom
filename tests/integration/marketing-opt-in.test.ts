@@ -1,3 +1,4 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -30,7 +31,11 @@ function input(overrides: Partial<CreateOrderInput> = {}): CreateOrderInput {
 }
 
 async function readOrder(orderId: number) {
-  const rows = await getTestDb().select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  const rows = await getTestDb()
+    .select()
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
   const row = rows[0];
   if (!row) throw new Error("pedido inexistente");
   return row;
@@ -39,15 +44,23 @@ async function readOrder(orderId: number) {
 describe.skipIf(!hasTestDb)("consentimiento de novedades", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
     await getTestDb()
       .insert(shippingZones)
-      .values({ slug: "asuncion", name: "Asunción", cities: ["Asunción"], pricePyg: 25000 });
+      .values({
+        slug: "asuncion",
+        name: "Asunción",
+        cities: ["Asunción"],
+        pricePyg: 25000,
+      });
   });
   afterAll(closeTestDb);
 
   it("sin respuesta queda NULL y sin fecha: no se preguntó no es un no", async () => {
     const variantId = await createVariant({ onHand: 3 });
-    const created = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
+    const created = await createOrder(
+      input({ items: [{ variantId, qty: 1 }] })
+    );
 
     const order = await readOrder(created.orderId);
     expect(order.marketingOptIn).toBeNull();
@@ -65,7 +78,9 @@ describe.skipIf(!hasTestDb)("consentimiento de novedades", () => {
     expect(order.marketingOptIn).toBe(true);
     expect(order.marketingOptInAt).toBeInstanceOf(Date);
     // Sin fecha, un "sí" no prueba nada dentro de un año.
-    expect(order.marketingOptInAt!.getTime()).toBeGreaterThanOrEqual(before - 60_000);
+    expect(order.marketingOptInAt!.getTime()).toBeGreaterThanOrEqual(
+      before - 60_000
+    );
   });
 
   it("dijo que no: guarda false, también con fecha", async () => {

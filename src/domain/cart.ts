@@ -76,6 +76,8 @@ export async function priceCart(
       name: products.name,
       ivaRate: products.ivaRate,
       productActive: products.isActive,
+      saleMode: products.saleMode,
+      showPrice: products.showPrice,
       publishedAt: products.publishedAt,
       categoryActive: categories.isActive,
     })
@@ -123,10 +125,22 @@ export async function priceCart(
     }
 
     const available = Math.max(0, row.onHand - (held.get(row.variantId) ?? 0));
+    if (row.saleMode !== "stock" || !row.showPrice) {
+      issues.push({
+        type: "solo_consulta",
+        variantId: item.variantId,
+        name: row.name,
+      });
+      continue;
+    }
     const displayName = `${row.name} — ${row.variantLabel}`;
 
     if (available <= 0) {
-      issues.push({ type: "no_disponible", variantId: row.variantId, name: displayName });
+      issues.push({
+        type: "no_disponible",
+        variantId: row.variantId,
+        name: displayName,
+      });
       continue;
     }
 
@@ -166,7 +180,10 @@ export async function priceCart(
     });
   }
 
-  const subtotalPyg = lines.reduce((total, line) => total + line.lineTotalPyg, 0);
+  const subtotalPyg = lines.reduce(
+    (total, line) => total + line.lineTotalPyg,
+    0
+  );
   const { iva10Pyg, iva5Pyg } = ivaBreakdown(lines);
 
   return { lines, subtotalPyg, iva10Pyg, iva5Pyg, issues };
@@ -178,7 +195,10 @@ function normalize(input: readonly CartInput[]): CartInput[] {
   for (const item of input) {
     if (!Number.isInteger(item.variantId) || item.variantId <= 0) continue;
     if (!Number.isInteger(item.qty) || item.qty <= 0) continue;
-    merged.set(item.variantId, Math.min(99, (merged.get(item.variantId) ?? 0) + item.qty));
+    merged.set(
+      item.variantId,
+      Math.min(99, (merged.get(item.variantId) ?? 0) + item.qty)
+    );
   }
   return [...merged].map(([variantId, qty]) => ({ variantId, qty }));
 }

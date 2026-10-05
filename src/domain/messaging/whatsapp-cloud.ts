@@ -1,6 +1,10 @@
-import { MessageSendError, type MessageSender, type OutgoingMessage } from './sender';
-import { log, mensajeDe } from '@/lib/log';
-import { integracion, valorIntegracion } from '@/lib/integraciones';
+import {
+  MessageSendError,
+  type MessageSender,
+  type OutgoingMessage,
+} from "./sender";
+import { log, mensajeDe } from "@/lib/log";
+import { integracion, valorIntegracion } from "@/lib/integraciones";
 
 /**
  * WhatsApp Cloud API de Meta (PLAN.md FASE 2, PR F.2).
@@ -21,10 +25,10 @@ import { integracion, valorIntegracion } from '@/lib/integraciones';
  * El paso 4 es el que sorprende y el que tarda: la aprobación puede demorar
  * días. Está en `docs/ENV-OPCIONAL.md` y en NEW-STORE.md.
  */
-export const WHATSAPP_TEMPLATE_LANGUAGE = 'es';
+export const WHATSAPP_TEMPLATE_LANGUAGE = "es";
 
 /** La versión de la Graph API cuando la tienda no eligió otra. */
-export const WHATSAPP_API_VERSION_DEFAULT = 'v21.0';
+export const WHATSAPP_API_VERSION_DEFAULT = "v21.0";
 
 export type WhatsappCloudConfig = {
   phoneNumberId: string;
@@ -40,9 +44,12 @@ export type WhatsappCloudConfig = {
  * "configurado a medias" es lo mismo que "no configurado", porque una llamada
  * con la mitad de las credenciales falla igual pero más tarde y peor.
  */
-export function whatsappCloudConfig(): WhatsappCloudConfig | null {
-  const { valores } = integracion('whatsapp');
-  const { phoneNumberId, accessToken, plantillaLogin: templateName } = valores;
+export function whatsappCloudConfig(
+  templateOverride?: string
+): WhatsappCloudConfig | null {
+  const { valores } = integracion("whatsapp");
+  const { phoneNumberId, accessToken } = valores;
+  const templateName = templateOverride ?? valores.plantillaLogin;
 
   if (!phoneNumberId || !accessToken || !templateName) return null;
 
@@ -64,40 +71,47 @@ export function whatsappCloudConfig(): WhatsappCloudConfig | null {
  * aviso queda apagado y el resto de la tienda no cambia en nada.
  */
 export function whatsappOwnerTemplate(): string | null {
-  return valorIntegracion('whatsapp', 'plantillaPedidoNuevo');
+  return valorIntegracion("whatsapp", "plantillaPedidoNuevo");
 }
 
-export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageSender {
+export function createWhatsappCloudSender(
+  config: WhatsappCloudConfig
+): MessageSender {
   return {
-    channel: 'whatsapp',
-    label: 'WhatsApp',
+    channel: "whatsapp",
+    label: "WhatsApp",
 
-    async send(message: OutgoingMessage): Promise<void> {
+    async send(message: OutgoingMessage): Promise<{ messageId?: string }> {
       const url = `https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/messages`;
 
       // Plantilla y no `type: "text"`: fuera de la ventana de 24 h Meta
       // rechaza el texto libre, y un código de login siempre está fuera.
       const payload = {
-        messaging_product: 'whatsapp',
+        messaging_product: "whatsapp",
         // Meta quiere el número sin `+`.
-        to: message.to.replace(/^\+/, ''),
-        type: 'template',
+        to: message.to.replace(/^\+/, ""),
+        type: "template",
         template: {
           // Cada mensaje con la suya: el aviso al dueño no puede salir con la
           // plantilla del código de login (ver `OutgoingMessage.templateName`).
           name: message.templateName?.trim() || config.templateName,
           language: { code: WHATSAPP_TEMPLATE_LANGUAGE },
-          components: [{ type: 'body', parameters: [{ type: 'text', text: message.body }] }],
+          components: [
+            {
+              type: "body",
+              parameters: [{ type: "text", text: message.body }],
+            },
+          ],
         },
       };
 
       let response: Response;
       try {
         response = await fetch(url, {
-          method: 'POST',
+          method: "POST",
           headers: {
             authorization: `Bearer ${config.accessToken}`,
-            'content-type': 'application/json',
+            "content-type": "application/json",
           },
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(10_000),
@@ -105,20 +119,25 @@ export function createWhatsappCloudSender(config: WhatsappCloudConfig): MessageS
       } catch (error) {
         // El detalle al log del servidor; hacia afuera, nada. El mensaje de
         // error de Meta puede incluir el número de destino.
-        log.error('WhatsApp Cloud: la llamada falló', { error: mensajeDe(error) });
-        throw new MessageSendError('No pudimos mandar el mensaje.');
+        log.error("WhatsApp Cloud: la llamada falló", {
+          error: mensajeDe(error),
+        });
+        throw new MessageSendError("No pudimos mandar el mensaje.");
       }
 
       if (!response.ok) {
-        log.error('WhatsApp Cloud rechazó el envío', {
+        log.error("WhatsApp Cloud rechazó el envío", {
           status: response.status,
-          // El cuerpo del error de Meta dice qué plantilla falló y por qué;
-          // no trae datos de la compradora (el `to` va en el request, no en
-          // la respuesta). Se recorta igual: no es un volcado.
-          respuesta: (await response.text().catch(() => '(sin cuerpo)')).slice(0, 500),
         });
-        throw new MessageSendError('No pudimos mandar el mensaje.');
+        throw new MessageSendError(
+          "No pudimos mandar el mensaje.",
+          response.status < 500 ? "rejected" : "unknown"
+        );
       }
+      const result = (await response.json()) as {
+        messages?: Array<{ id?: string }>;
+      };
+      return { messageId: result.messages?.[0]?.id };
     },
   };
 }

@@ -167,7 +167,14 @@ export function productJsonLd(input: {
   brand?: string | null;
   /** URLs absolutas de las fotos (Cloudinary), en orden. */
   images: string[];
-  variants: { sku: string; label: string; pricePyg: number; available: number }[];
+  variants: {
+    sku: string;
+    label: string;
+    pricePyg: number;
+    available: number;
+  }[];
+  saleMode?: "stock" | "enquiry" | "showcase";
+  showPrice?: boolean;
   /**
    * Promedio y cantidad de reseñas **aprobadas** (`getProductRatingSummary`).
    * Con `count` 0 o ausente no sale ni `aggregateRating` ni `review`: un
@@ -183,9 +190,13 @@ export function productJsonLd(input: {
    */
   merchant?: MerchantPoliciesLd;
 }): JsonLd {
-  const url = input.origin ? `${input.origin.origin}/producto/${input.slug}` : undefined;
+  const url = input.origin
+    ? `${input.origin.origin}/producto/${input.slug}`
+    : undefined;
   const conResenas = input.rating !== undefined && input.rating.count >= 1;
-  const shippingDetails = input.merchant ? offerShippingLd(input.merchant) : null;
+  const shippingDetails = input.merchant
+    ? offerShippingLd(input.merchant)
+    : null;
   const returnPolicy = input.merchant ? returnPolicyLd(input.merchant) : null;
   return {
     "@context": "https://schema.org",
@@ -196,19 +207,25 @@ export function productJsonLd(input: {
     url,
     brand: input.brand ? { "@type": "Brand", name: input.brand } : undefined,
     sku: input.variants[0]?.sku,
-    offers: input.variants.map((variant) => ({
-      "@type": "Offer",
-      sku: variant.sku,
-      name: variant.label,
-      price: variant.pricePyg,
-      priceCurrency: "PYG",
-      itemCondition: "https://schema.org/NewCondition",
-      url,
-      availability:
-        variant.available > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      ...(shippingDetails ? { shippingDetails } : {}),
-      ...(returnPolicy ? { hasMerchantReturnPolicy: returnPolicy } : {}),
-    })),
+    offers:
+      (input.saleMode === undefined || input.saleMode === "stock") &&
+      input.showPrice !== false
+        ? input.variants.map((variant) => ({
+            "@type": "Offer",
+            sku: variant.sku,
+            name: variant.label,
+            price: variant.pricePyg,
+            priceCurrency: "PYG",
+            itemCondition: "https://schema.org/NewCondition",
+            url,
+            availability:
+              variant.available > 0
+                ? "https://schema.org/InStock"
+                : "https://schema.org/OutOfStock",
+            ...(shippingDetails ? { shippingDetails } : {}),
+            ...(returnPolicy ? { hasMerchantReturnPolicy: returnPolicy } : {}),
+          }))
+        : undefined,
     ...(conResenas && input.rating
       ? {
           aggregateRating: {
@@ -242,7 +259,12 @@ const MAX_REVIEWS_LD = 5;
 function reviewLd(review: ProductReviewLd): JsonLd {
   return {
     "@type": "Review",
-    reviewRating: { "@type": "Rating", ratingValue: review.rating, bestRating: 5, worstRating: 1 },
+    reviewRating: {
+      "@type": "Rating",
+      ratingValue: review.rating,
+      bestRating: 5,
+      worstRating: 1,
+    },
     author: { "@type": "Person", name: review.author },
     datePublished: isoDatePY(review.date),
     ...(review.title ? { name: review.title } : {}),
@@ -288,7 +310,11 @@ export function offerShippingLd(m: MerchantPoliciesLd): JsonLd | null {
 
   return {
     "@type": "OfferShippingDetails",
-    shippingRate: { "@type": "MonetaryAmount", value: m.shippingFromPyg, currency: "PYG" },
+    shippingRate: {
+      "@type": "MonetaryAmount",
+      value: m.shippingFromPyg,
+      currency: "PYG",
+    },
     shippingDestination: { "@type": "DefinedRegion", addressCountry: "PY" },
     deliveryTime: {
       "@type": "ShippingDeliveryTime",
@@ -386,6 +412,8 @@ export function organizationJsonLd(input: {
     url: `${input.origin.origin}/`,
     ...(input.email ? { email: input.email } : {}),
     ...contacto,
-    ...(input.sameAs && input.sameAs.length > 0 ? { sameAs: input.sameAs } : {}),
+    ...(input.sameAs && input.sameAs.length > 0
+      ? { sameAs: input.sameAs }
+      : {}),
   };
 }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Heart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { TESTIDS } from "@/lib/testids";
 import { useWishlist, wishlistCount } from "@/lib/wishlist-store";
 
@@ -28,7 +28,9 @@ export function WishlistHeaderLink() {
       variant="outline"
       size="sm"
       className="relative"
-      aria-label={count > 0 ? t("favoritos.abrirCon", { n: count }) : t("favoritos.abrir")}
+      aria-label={
+        count > 0 ? t("favoritos.abrirCon", { n: count }) : t("favoritos.abrir")
+      }
     >
       <Link href="/favoritos" data-testid={TESTIDS.headerWishlistLink}>
         <Heart className="size-4" />

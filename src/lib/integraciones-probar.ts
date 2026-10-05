@@ -1,8 +1,14 @@
+import { safeError } from "@/lib/safe-error";
 import { isPagoparMockMode } from "@/domain/pagopar/mode";
 import { WHATSAPP_API_VERSION_DEFAULT } from "@/domain/messaging/whatsapp-cloud";
 import { t } from "@/i18n";
 
-import { CAMPOS, integracion, type CampoDef, type Integracion } from "./integraciones";
+import {
+  CAMPOS,
+  integracion,
+  type CampoDef,
+  type Integracion,
+} from "./integraciones";
 
 /**
  * "Probar conexión" de `/admin/integraciones`: una llamada real, de sólo
@@ -32,12 +38,18 @@ const TIMEOUT_MS = 8_000;
 const DETALLE_MAX = 200;
 
 /** Borra los secretos de un texto que viene de afuera, y lo recorta. */
-export function sanearDetalle(texto: string, secretos: readonly (string | null)[]): string {
+export function sanearDetalle(
+  texto: string,
+  secretos: readonly (string | null)[]
+): string {
   let salida = texto.replace(/\s+/g, " ").trim();
   for (const secreto of secretos) {
-    if (secreto && secreto.length >= 4) salida = salida.split(secreto).join("••••");
+    if (secreto && secreto.length >= 4)
+      salida = salida.split(secreto).join("••••");
   }
-  return salida.length > DETALLE_MAX ? `${salida.slice(0, DETALLE_MAX)}…` : salida;
+  return salida.length > DETALLE_MAX
+    ? `${salida.slice(0, DETALLE_MAX)}…`
+    : salida;
 }
 
 function secretosDe(nombre: Integracion): (string | null)[] {
@@ -45,13 +57,15 @@ function secretosDe(nombre: Integracion): (string | null)[] {
   const defs: readonly CampoDef[] = CAMPOS[nombre];
   return defs
     .filter((def) => def.secreto)
-    .map((def) => (valores as Record<string, string | null>)[def.campo] ?? null);
+    .map(
+      (def) => (valores as Record<string, string | null>)[def.campo] ?? null
+    );
 }
 
 async function llamar(
   fetchImpl: Fetch,
   url: string,
-  init: RequestInit,
+  init: RequestInit
 ): Promise<{ status: number; cuerpo: string } | { error: string }> {
   try {
     const respuesta = await fetchImpl(url, {
@@ -60,18 +74,25 @@ async function llamar(
       cache: "no-store",
       redirect: "manual",
     });
-    return { status: respuesta.status, cuerpo: await respuesta.text().catch(() => "") };
+    return {
+      status: respuesta.status,
+      cuerpo: await respuesta.text().catch(() => ""),
+    };
   } catch (error) {
-    return { error: error instanceof Error ? error.name || error.message : String(error) };
+    return { error: safeError(error).message };
   }
 }
 
 /** El mensaje de error de un JSON de Cloudinary o de Meta, si lo hay. */
 function mensajeDelCuerpo(cuerpo: string, status: number): string {
   try {
-    const json = JSON.parse(cuerpo) as { error?: { message?: unknown } | string };
-    const mensaje = typeof json.error === "string" ? json.error : json.error?.message;
-    if (typeof mensaje === "string" && mensaje.trim() !== "") return `${mensaje} (HTTP ${status})`;
+    const json = JSON.parse(cuerpo) as {
+      error?: { message?: unknown } | string;
+    };
+    const mensaje =
+      typeof json.error === "string" ? json.error : json.error?.message;
+    if (typeof mensaje === "string" && mensaje.trim() !== "")
+      return `${mensaje} (HTTP ${status})`;
   } catch {
     // No era JSON: queda el status.
   }
@@ -80,16 +101,22 @@ function mensajeDelCuerpo(cuerpo: string, status: number): string {
 
 export async function probarIntegracion(
   nombre: Integracion,
-  fetchImpl: Fetch = fetch,
+  fetchImpl: Fetch = fetch
 ): Promise<ResultadoPrueba> {
   const secretos = secretosDe(nombre);
   const resultado = await probar(nombre, fetchImpl);
   // Cinturón y tirantes: aunque cada rama ya sanea, el mensaje final tampoco
   // puede llevar un secreto.
-  return { ok: resultado.ok, mensaje: sanearDetalle(resultado.mensaje, secretos) };
+  return {
+    ok: resultado.ok,
+    mensaje: sanearDetalle(resultado.mensaje, secretos),
+  };
 }
 
-async function probar(nombre: Integracion, fetchImpl: Fetch): Promise<ResultadoPrueba> {
+async function probar(
+  nombre: Integracion,
+  fetchImpl: Fetch
+): Promise<ResultadoPrueba> {
   if (nombre === "cloudinary") return probarCloudinary(fetchImpl);
   if (nombre === "whatsapp") return probarWhatsApp(fetchImpl);
   if (nombre === "pagopar") return probarPagopar(fetchImpl);
@@ -97,7 +124,12 @@ async function probar(nombre: Integracion, fetchImpl: Fetch): Promise<ResultadoP
 }
 
 function incompleta(faltan: string[]): ResultadoPrueba {
-  return { ok: false, mensaje: t("panel.integraciones.prueba.incompleta", { faltan: faltan.join(", ") }) };
+  return {
+    ok: false,
+    mensaje: t("panel.integraciones.prueba.incompleta", {
+      faltan: faltan.join(", "),
+    }),
+  };
 }
 
 async function probarCloudinary(fetchImpl: Fetch): Promise<ResultadoPrueba> {
@@ -107,15 +139,22 @@ async function probarCloudinary(fetchImpl: Fetch): Promise<ResultadoPrueba> {
     ...(valores.apiKey ? [] : ["API key"]),
     ...(valores.apiSecret ? [] : ["API secret"]),
   ];
-  if (faltan.length > 0 || !valores.cloudName || !valores.apiKey || !valores.apiSecret) {
+  if (
+    faltan.length > 0 ||
+    !valores.cloudName ||
+    !valores.apiKey ||
+    !valores.apiSecret
+  ) {
     return incompleta(faltan);
   }
 
-  const auth = Buffer.from(`${valores.apiKey}:${valores.apiSecret}`).toString("base64");
+  const auth = Buffer.from(`${valores.apiKey}:${valores.apiSecret}`).toString(
+    "base64"
+  );
   const respuesta = await llamar(
     fetchImpl,
     `https://api.cloudinary.com/v1_1/${encodeURIComponent(valores.cloudName)}/ping`,
-    { method: "GET", headers: { authorization: `Basic ${auth}` } },
+    { method: "GET", headers: { authorization: `Basic ${auth}` } }
   );
   const secretos = [valores.apiSecret];
 
@@ -123,15 +162,21 @@ async function probarCloudinary(fetchImpl: Fetch): Promise<ResultadoPrueba> {
     return {
       ok: false,
       mensaje: t("panel.integraciones.prueba.cloudinaryError", {
-        detalle: t("panel.integraciones.prueba.red", { detalle: sanearDetalle(respuesta.error, secretos) }),
+        detalle: t("panel.integraciones.prueba.red", {
+          detalle: sanearDetalle(respuesta.error, secretos),
+        }),
       }),
     };
   }
-  if (respuesta.status === 200) return { ok: true, mensaje: t("panel.integraciones.prueba.cloudinaryOk") };
+  if (respuesta.status === 200)
+    return { ok: true, mensaje: t("panel.integraciones.prueba.cloudinaryOk") };
   return {
     ok: false,
     mensaje: t("panel.integraciones.prueba.cloudinaryError", {
-      detalle: sanearDetalle(mensajeDelCuerpo(respuesta.cuerpo, respuesta.status), secretos),
+      detalle: sanearDetalle(
+        mensajeDelCuerpo(respuesta.cuerpo, respuesta.status),
+        secretos
+      ),
     }),
   };
 }
@@ -142,14 +187,18 @@ async function probarWhatsApp(fetchImpl: Fetch): Promise<ResultadoPrueba> {
     ...(valores.phoneNumberId ? [] : ["phone number ID"]),
     ...(valores.accessToken ? [] : ["token"]),
   ];
-  if (faltan.length > 0 || !valores.phoneNumberId || !valores.accessToken) return incompleta(faltan);
+  if (faltan.length > 0 || !valores.phoneNumberId || !valores.accessToken)
+    return incompleta(faltan);
 
   const version = valores.apiVersion || WHATSAPP_API_VERSION_DEFAULT;
   const respuesta = await llamar(
     fetchImpl,
     `https://graph.facebook.com/${encodeURIComponent(version)}/${encodeURIComponent(valores.phoneNumberId)}` +
       "?fields=display_phone_number,verified_name",
-    { method: "GET", headers: { authorization: `Bearer ${valores.accessToken}` } },
+    {
+      method: "GET",
+      headers: { authorization: `Bearer ${valores.accessToken}` },
+    }
   );
   const secretos = [valores.accessToken];
 
@@ -157,7 +206,9 @@ async function probarWhatsApp(fetchImpl: Fetch): Promise<ResultadoPrueba> {
     return {
       ok: false,
       mensaje: t("panel.integraciones.prueba.whatsappError", {
-        detalle: t("panel.integraciones.prueba.red", { detalle: sanearDetalle(respuesta.error, secretos) }),
+        detalle: t("panel.integraciones.prueba.red", {
+          detalle: sanearDetalle(respuesta.error, secretos),
+        }),
       }),
     };
   }
@@ -165,8 +216,12 @@ async function probarWhatsApp(fetchImpl: Fetch): Promise<ResultadoPrueba> {
     let numero = "?";
     let nombre = "?";
     try {
-      const json = JSON.parse(respuesta.cuerpo) as { display_phone_number?: unknown; verified_name?: unknown };
-      if (typeof json.display_phone_number === "string") numero = json.display_phone_number;
+      const json = JSON.parse(respuesta.cuerpo) as {
+        display_phone_number?: unknown;
+        verified_name?: unknown;
+      };
+      if (typeof json.display_phone_number === "string")
+        numero = json.display_phone_number;
       if (typeof json.verified_name === "string") nombre = json.verified_name;
     } catch {
       // Un 200 que no es JSON igual prueba que el token abre.
@@ -182,13 +237,17 @@ async function probarWhatsApp(fetchImpl: Fetch): Promise<ResultadoPrueba> {
   return {
     ok: false,
     mensaje: t("panel.integraciones.prueba.whatsappError", {
-      detalle: sanearDetalle(mensajeDelCuerpo(respuesta.cuerpo, respuesta.status), secretos),
+      detalle: sanearDetalle(
+        mensajeDelCuerpo(respuesta.cuerpo, respuesta.status),
+        secretos
+      ),
     }),
   };
 }
 
 async function probarPagopar(fetchImpl: Fetch): Promise<ResultadoPrueba> {
-  if (isPagoparMockMode()) return { ok: true, mensaje: t("panel.integraciones.prueba.pagoparMock") };
+  if (isPagoparMockMode())
+    return { ok: true, mensaje: t("panel.integraciones.prueba.pagoparMock") };
 
   const { valores } = integracion("pagopar");
   const faltan = [
@@ -206,7 +265,10 @@ async function probarPagopar(fetchImpl: Fetch): Promise<ResultadoPrueba> {
   } catch {
     return {
       ok: false,
-      mensaje: t("panel.integraciones.prueba.pagoparError", { host: valores.baseUrl, detalle: "no es https://" }),
+      mensaje: t("panel.integraciones.prueba.pagoparError", {
+        host: valores.baseUrl,
+        detalle: "no es https://",
+      }),
     };
   }
 
@@ -217,7 +279,9 @@ async function probarPagopar(fetchImpl: Fetch): Promise<ResultadoPrueba> {
       ok: false,
       mensaje: t("panel.integraciones.prueba.pagoparError", {
         host,
-        detalle: t("panel.integraciones.prueba.red", { detalle: respuesta.error }),
+        detalle: t("panel.integraciones.prueba.red", {
+          detalle: respuesta.error,
+        }),
       }),
     };
   }
@@ -226,8 +290,14 @@ async function probarPagopar(fetchImpl: Fetch): Promise<ResultadoPrueba> {
   if (respuesta.status >= 500) {
     return {
       ok: false,
-      mensaje: t("panel.integraciones.prueba.pagoparError", { host, detalle: `HTTP ${respuesta.status}` }),
+      mensaje: t("panel.integraciones.prueba.pagoparError", {
+        host,
+        detalle: `HTTP ${respuesta.status}`,
+      }),
     };
   }
-  return { ok: true, mensaje: t("panel.integraciones.prueba.pagoparOk", { host }) };
+  return {
+    ok: true,
+    mensaje: t("panel.integraciones.prueba.pagoparOk", { host }),
+  };
 }

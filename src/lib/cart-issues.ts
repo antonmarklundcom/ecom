@@ -6,16 +6,31 @@
  * esta separación, `mysql2` termina en el bundle del navegador (el build lo
  * corta, pero recién al final).
  */
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 export type CartIssue =
   | { type: "no_disponible"; variantId: number; name: string }
-  | { type: "stock_parcial"; variantId: number; name: string; requested: number; available: number }
-  | { type: "precio_cambio"; variantId: number; name: string; before: number; after: number };
+  | { type: "solo_consulta"; variantId: number; name: string }
+  | {
+      type: "stock_parcial";
+      variantId: number;
+      name: string;
+      requested: number;
+      available: number;
+    }
+  | {
+      type: "precio_cambio";
+      variantId: number;
+      name: string;
+      before: number;
+      after: number;
+    };
 
 /** El problema, contado en el idioma de la tienda. */
 export function describeIssue(issue: CartIssue): string {
   switch (issue.type) {
+    case "solo_consulta":
+      return t("carrito.problema.soloConsulta", { nombre: issue.name });
     case "no_disponible":
       return t("carrito.problema.noDisponible", { nombre: issue.name });
     case "stock_parcial":

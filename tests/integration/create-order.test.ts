@@ -1,15 +1,28 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { orderEvents, orderItems, orders, shippingZones, stockReservations } from "@/db/schema";
-import { CheckoutError, createOrder, type CreateOrderInput } from "@/domain/create-order";
+import {
+  orderEvents,
+  orderItems,
+  orders,
+  shippingZones,
+  stockReservations,
+} from "@/db/schema";
+import {
+  CheckoutError,
+  createOrder,
+  type CreateOrderInput,
+} from "@/domain/create-order";
 import { getAvailability } from "@/domain/stock";
 import { ivaIncluded } from "@/lib/money";
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from "../helpers/db";
 import { createVariant, getOnHand, getStatus } from "../helpers/factories";
 
-async function seedZone(overrides: Partial<typeof shippingZones.$inferInsert> = {}) {
+async function seedZone(
+  overrides: Partial<typeof shippingZones.$inferInsert> = {}
+) {
   await getTestDb()
     .insert(shippingZones)
     .values({
@@ -39,6 +52,7 @@ function input(overrides: Partial<CreateOrderInput> = {}): CreateOrderInput {
 describe.skipIf(!hasTestDb)("createOrder", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
     await seedZone();
   });
   afterAll(closeTestDb);
@@ -55,9 +69,16 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
     expect(order.shippingPyg).toBe(25000);
     expect(order.totalPyg).toBe(245000);
 
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.orderId));
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.orderId));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ unitPricePyg: 110000, qty: 2, lineTotalPyg: 220000 });
+    expect(items[0]).toMatchObject({
+      unitPricePyg: 110000,
+      qty: 2,
+      lineTotalPyg: 220000,
+    });
 
     const holds = await db
       .select()
@@ -95,16 +116,26 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
   });
 
   it("cobra la zona más cara si la ciudad no está en ninguna", async () => {
-    await seedZone({ slug: "interior", name: "Interior", cities: ["Encarnación"], pricePyg: 90000, position: 2 });
+    await seedZone({
+      slug: "interior",
+      name: "Interior",
+      cities: ["Encarnación"],
+      pricePyg: 90000,
+      position: 2,
+    });
     const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
 
-    const order = await createOrder(input({ items: [{ variantId, qty: 1 }], shipCity: "Pueblo Nuevo" }));
+    const order = await createOrder(
+      input({ items: [{ variantId, qty: 1 }], shipCity: "Pueblo Nuevo" })
+    );
     expect(order.shippingPyg).toBe(90000);
   });
 
   it("ignora acentos y mayúsculas al buscar la ciudad", async () => {
     const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
-    const order = await createOrder(input({ items: [{ variantId, qty: 1 }], shipCity: "asuncion" }));
+    const order = await createOrder(
+      input({ items: [{ variantId, qty: 1 }], shipCity: "asuncion" })
+    );
     expect(order.shippingPyg).toBe(25000);
   });
 
@@ -113,18 +144,33 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
     const variantId = await createVariant({ onHand: 5 });
     const order = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
 
-    const row = (await db.select().from(orders).where(eq(orders.id, order.orderId)))[0];
+    const row = (
+      await db.select().from(orders).where(eq(orders.id, order.orderId))
+    )[0];
     expect(row?.customerPhone).toBe("+595981123456");
 
-    const events = await db.select().from(orderEvents).where(eq(orderEvents.orderId, order.orderId));
+    const events = await db
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, order.orderId));
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ fromStatus: null, toStatus: "pendiente_pago", actor: "buyer" });
+    expect(events[0]).toMatchObject({
+      fromStatus: null,
+      toStatus: "pendiente_pago",
+      actor: "buyer",
+    });
   });
 
   it("valida el RUC antes de tocar la base", async () => {
     const variantId = await createVariant({ onHand: 5 });
     await expect(
-      createOrder(input({ items: [{ variantId, qty: 1 }], docType: "RUC", docNumber: "80012345-6" }))
+      createOrder(
+        input({
+          items: [{ variantId, qty: 1 }],
+          docType: "RUC",
+          docNumber: "80012345-6",
+        })
+      )
     ).rejects.toThrow(CheckoutError);
 
     expect(await getTestDb().select().from(orders)).toHaveLength(0);
@@ -133,7 +179,12 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
   it("rechaza teléfonos que no son paraguayos", async () => {
     const variantId = await createVariant({ onHand: 5 });
     await expect(
-      createOrder(input({ items: [{ variantId, qty: 1 }], customerPhone: "+5491112345678" }))
+      createOrder(
+        input({
+          items: [{ variantId, qty: 1 }],
+          customerPhone: "+5491112345678",
+        })
+      )
     ).rejects.toThrow(/paraguayo/);
   });
 
@@ -160,7 +211,9 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
 
   it("el vencimiento de la reserva depende del método de pago", async () => {
     const variantId = await createVariant({ onHand: 10 });
-    const transferencia = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
+    const transferencia = await createOrder(
+      input({ items: [{ variantId, qty: 1 }] })
+    );
     const tarjeta = await createOrder(
       input({ items: [{ variantId, qty: 1 }], paymentMethod: "tarjeta" })
     );
@@ -187,7 +240,9 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
     const variantId = await createVariant({ onHand: 3, pricePyg: 100000 });
 
     const results = await Promise.allSettled(
-      Array.from({ length: 6 }, () => createOrder(input({ items: [{ variantId, qty: 1 }] })))
+      Array.from({ length: 6 }, () =>
+        createOrder(input({ items: [{ variantId, qty: 1 }] }))
+      )
     );
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
@@ -201,7 +256,10 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
     const first = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
     const second = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
 
-    expect([first.orderNumber, second.orderNumber]).toEqual(["PY-000001", "PY-000002"]);
+    expect([first.orderNumber, second.orderNumber]).toEqual([
+      "PY-000001",
+      "PY-000002",
+    ]);
     expect(first.accessToken).not.toBe(second.accessToken);
   });
 
@@ -219,6 +277,7 @@ describe.skipIf(!hasTestDb)("createOrder", () => {
 describe.skipIf(!hasTestDb)("createOrder · email del comprador", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
     await seedZone();
   });
   afterAll(closeTestDb);
@@ -227,7 +286,10 @@ describe.skipIf(!hasTestDb)("createOrder · email del comprador", () => {
     const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
 
     const order = await createOrder(
-      input({ items: [{ variantId, qty: 1 }], customerEmail: "rosa@ejemplo.com.py" }),
+      input({
+        items: [{ variantId, qty: 1 }],
+        customerEmail: "rosa@ejemplo.com.py",
+      })
     );
 
     const [row] = await getTestDb()
@@ -241,7 +303,9 @@ describe.skipIf(!hasTestDb)("createOrder · email del comprador", () => {
   it("guarda NULL —no cadena vacía— cuando lo deja en blanco", async () => {
     const variantId = await createVariant({ onHand: 5, pricePyg: 100000 });
 
-    const order = await createOrder(input({ items: [{ variantId, qty: 1 }], customerEmail: "" }));
+    const order = await createOrder(
+      input({ items: [{ variantId, qty: 1 }], customerEmail: "" })
+    );
 
     const [row] = await getTestDb()
       .select({ email: orders.customerEmail })

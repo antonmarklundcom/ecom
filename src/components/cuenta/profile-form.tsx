@@ -8,7 +8,7 @@ import { guardarPerfil } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 export function CustomerProfileForm({
   defaults,
@@ -68,7 +68,9 @@ export function CustomerProfileForm({
       <div className="grid gap-1.5">
         <Label htmlFor="perfil-email">
           {t("checkout.email")}{" "}
-          <span className="text-muted-foreground font-normal">{t("checkout.opcional")}</span>
+          <span className="text-muted-foreground font-normal">
+            {t("checkout.opcional")}
+          </span>
         </Label>
         <Input
           id="perfil-email"

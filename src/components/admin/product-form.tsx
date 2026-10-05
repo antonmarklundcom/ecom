@@ -14,6 +14,8 @@ import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 export type ProductFormValues = {
+  saleMode?: "stock" | "enquiry" | "showcase";
+  showPrice?: boolean;
   productId?: number;
   slug: string;
   name: string;
@@ -40,7 +42,9 @@ export function ProductForm({
   const [slug, setSlug] = useState(defaults.slug);
   // Sólo se autocompleta el slug de un producto nuevo: cambiarlo en uno ya
   // publicado le rompe la URL y el SEO.
-  const [slugTouched, setSlugTouched] = useState(defaults.productId !== undefined);
+  const [slugTouched, setSlugTouched] = useState(
+    defaults.productId !== undefined
+  );
 
   return (
     <form
@@ -53,6 +57,8 @@ export function ProductForm({
         startTransition(async () => {
           const result = await saveProduct({
             productId: defaults.productId,
+            saleMode: String(data.get("saleMode") ?? "stock"),
+            showPrice: data.get("showPrice") === "on",
             slug: String(data.get("slug") ?? ""),
             name: String(data.get("name") ?? ""),
             description: String(data.get("description") ?? ""),
@@ -120,6 +126,27 @@ export function ProductForm({
           de este PR, así que el submit no cambió — sólo se le sumó la
           pestaña de vista previa, renderizada en el cliente con la misma
           función que va a usar la ficha pública del producto. */}
+      <div className="grid gap-2">
+        <Label htmlFor="saleMode">{t("panel.producto.modo")}</Label>
+        <select
+          id="saleMode"
+          name="saleMode"
+          defaultValue={defaults.saleMode ?? "stock"}
+          className="rounded border p-2"
+        >
+          <option value="stock">{t("panel.producto.modo.stock")}</option>
+          <option value="enquiry">{t("panel.producto.modo.enquiry")}</option>
+          <option value="showcase">{t("panel.producto.modo.showcase")}</option>
+        </select>
+        <label className="flex gap-2">
+          <input
+            type="checkbox"
+            name="showPrice"
+            defaultChecked={defaults.showPrice !== false}
+          />
+          {t("panel.producto.mostrarPrecio")}
+        </label>
+      </div>
       <MarkdownEditor
         name="description"
         label={t("panel.producto.descripcion")}
@@ -170,14 +197,24 @@ export function ProductForm({
 
       <div className="grid gap-2">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="isActive" defaultChecked={defaults.isActive} />
+          <input
+            type="checkbox"
+            name="isActive"
+            defaultChecked={defaults.isActive}
+          />
           {t("panel.producto.activo")}
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="published" defaultChecked={defaults.published} />
+          <input
+            type="checkbox"
+            name="published"
+            defaultChecked={defaults.published}
+          />
           {t("panel.producto.publicado")}
         </label>
-        <p className="text-muted-foreground text-xs">{t("panel.producto.publicadoAyuda")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.producto.publicadoAyuda")}
+        </p>
 
         {/* == S17 == `isFeatured` ya lo acepta `saveProduct` (O14); esto es
             sólo el checkbox que faltaba para prenderlo desde el panel. */}
@@ -190,11 +227,19 @@ export function ProductForm({
           />
           {t("panel.producto.destacado")}
         </label>
-        <p className="text-muted-foreground text-xs">{t("panel.producto.destacadoAyuda")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.producto.destacadoAyuda")}
+        </p>
       </div>
 
-      <Button type="submit" data-testid={TESTIDS.adminProductSaveSubmit} disabled={isPending}>
-        {isPending ? t("panel.acciones.guardando") : t("panel.producto.guardar")}
+      <Button
+        type="submit"
+        data-testid={TESTIDS.adminProductSaveSubmit}
+        disabled={isPending}
+      >
+        {isPending
+          ? t("panel.acciones.guardando")
+          : t("panel.producto.guardar")}
       </Button>
     </form>
   );

@@ -96,6 +96,11 @@ CUSTOMER_SESSION_SECRET=""
 WHATSAPP_CLOUD_PHONE_NUMBER_ID=""
 WHATSAPP_CLOUD_ACCESS_TOKEN=""
 WHATSAPP_CLOUD_TEMPLATE_NAME=""
+
+# Recuperación del enlace privado: plantilla aprobada distinta a la del login.
+# Un parámetro de cuerpo: URL completa del pedido. Vacía = sólo se recupera
+# desde una cuenta con teléfono verificado, o mediante contacto con la tienda.
+WHATSAPP_CLOUD_TEMPLATE_RECUPERAR_PEDIDO=""
 # Opcional: por defecto v21.0
 WHATSAPP_CLOUD_API_VERSION=""
 
@@ -180,6 +185,14 @@ WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO=""
 # prometer algo que la tienda no puede cumplir. Es opcional de verdad —
 # `pnpm preflight` no la pide.
 WHATSAPP_CLOUD_TEMPLATE_STOCK_DISPONIBLE=""
+```
+
+### Puerto del navegador de pruebas
+
+```dotenv
+# Vacío = 3000. Para una validación local aislada, elegí otro puerto libre.
+# `test:full` usa el mismo puerto para el servidor, los enlaces y las mediciones.
+E2E_PORT=""
 ```
 
 ## Cuenta del dueño (pnpm create-owner)
@@ -372,3 +385,27 @@ NEXT_PUBLIC_META_PIXEL_ID=""
 # de entorno.
 ERROR_REPORT_URL=""
 ```
+
+# Proxy y sesiones
+
+```dotenv
+TRUSTED_PROXY_HOPS=""
+```
+
+`TRUSTED_PROXY_HOPS` (por defecto `1`) elige la IP desde la derecha de
+`X-Forwarded-For`. Antes de abrir la tienda, comprobar que el proxy sobrescribe
+o agrega la IP observada y confirmar la cantidad de saltos (por ejemplo, `2`
+con un proxy adicional). Una cabecera reenviada sin validar no prueba identidad.
+Los límites por IP viven en cada proceso; los intentos de OTP se guardan en DB.
+
+La migración de seguridad cierra las cookies existentes: cada login incorpora
+`session_version`, y cada guard consulta el estado actual de la cuenta. Un
+cambio de rol, desactivación o contraseña revoca las sesiones previas.
+
+### Required database validation
+
+```dotenv
+REQUIRE_DATABASE_TESTS=""
+```
+
+Set `REQUIRE_DATABASE_TESTS=1` to refuse integration skips. `pnpm test:full` requires a disposable TEST_DATABASE_URL, then runs typecheck, lint, all tests, build and browser tests. CI also refuses missing test database configuration.

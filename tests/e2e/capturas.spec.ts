@@ -21,6 +21,12 @@ async function screenshot(
   width: number
 ): Promise<void> {
   await page.setViewportSize({ width, height: 900 });
+  // The URL changes before streamed content and the cart exit animation finish.
+  await expect(page.locator('main h1').first()).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  if (name === 'checkout-con-carrito') {
+    await expect(page.getByTestId(TESTIDS.checkoutName)).toBeVisible();
+  }
   await page.screenshot({
     path: `playwright-report/capturas/${name}-${width}.png`,
     fullPage: true,

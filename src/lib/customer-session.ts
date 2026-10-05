@@ -1,7 +1,15 @@
-import { hkdfSync } from 'node:crypto';
+import { hkdfSync } from "node:crypto";
 
-import { getIronSession, type IronSession, type SessionOptions } from 'iron-session';
-import { cookies } from 'next/headers';
+import {
+  getIronSession,
+  type IronSession,
+  type SessionOptions,
+} from "iron-session";
+import { cookies } from "next/headers";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/db";
+import { customers } from "@/db/schema";
+import { validSessionSecret } from "./session-secret";
 
 /**
  * Sesión de **cliente** — separada de la del panel, a propósito y en todo.
@@ -36,9 +44,10 @@ export type CustomerSession = {
   /** `+595XXXXXXXXX`. Sólo para mostrar; la autorización es por `customerId`. */
   phone?: string;
   name?: string;
+  sessionVersion?: number;
 };
 
-export const CUSTOMER_SESSION_COOKIE = 'ecom_cliente';
+export const CUSTOMER_SESSION_COOKIE = "ecom_cliente";
 
 /**
  * El secreto de la sesión de cliente: `CUSTOMER_SESSION_SECRET` si está, o
@@ -46,24 +55,35 @@ export const CUSTOMER_SESSION_COOKIE = 'ecom_cliente';
  * variable propia de menos de 32, o `SESSION_SECRET` ausente, corto o el
  * placeholder de `.env.example`.
  */
-export function secretoSesionCliente(env: Record<string, string | undefined> = process.env): string | null {
-  const propio = (env.CUSTOMER_SESSION_SECRET ?? '').trim();
-  if (propio !== '') return propio.length >= 32 ? propio : null;
+export function secretoSesionCliente(
+  env: Record<string, string | undefined> = process.env
+): string | null {
+  const propio = (env.CUSTOMER_SESSION_SECRET ?? "").trim();
+  if (propio !== "")
+    return validSessionSecret(propio) && propio !== env.SESSION_SECRET
+      ? propio
+      : null;
 
-  const base = (env.SESSION_SECRET ?? '').trim();
-  if (base.length < 32 || /changeme|generate/i.test(base)) return null;
+  const base = (env.SESSION_SECRET ?? "").trim();
+  if (!validSessionSecret(base)) return null;
   // 32 bytes → 43 caracteres base64url: más que el mínimo de iron-session.
   return Buffer.from(
-    hkdfSync('sha256', base, 'ecom/customer-session/v1', 'iron-session:ecom_cliente', 32),
-  ).toString('base64url');
+    hkdfSync(
+      "sha256",
+      base,
+      "ecom/customer-session/v1",
+      "iron-session:ecom_cliente",
+      32
+    )
+  ).toString("base64url");
 }
 
 export function customerSessionOptions(): SessionOptions {
   const password = secretoSesionCliente();
   if (!password) {
     throw new Error(
-      'No hay secreto para la sesión de cliente: SESSION_SECRET falta o es inválido (de ahí ' +
-        'se deriva), o CUSTOMER_SESSION_SECRET está cargado con menos de 32 caracteres.',
+      "No hay secreto para la sesión de cliente: SESSION_SECRET falta o es inválido (de ahí " +
+        "se deriva), o CUSTOMER_SESSION_SECRET está cargado con menos de 32 caracteres."
     );
   }
   return {
@@ -71,9 +91,9 @@ export function customerSessionOptions(): SessionOptions {
     cookieName: CUSTOMER_SESSION_COOKIE,
     cookieOptions: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
       // 30 días: del otro lado no hay plata del comercio ni datos de terceros,
       // sólo los pedidos de quien entra. La del panel dura 8 horas porque abre
       // la caja; ésta se comporta como lo que es, la comodidad de no volver a
@@ -88,16 +108,18 @@ export function customerSessionConfigured(): boolean {
   return secretoSesionCliente() !== null;
 }
 
-export async function getCustomerSession(): Promise<IronSession<CustomerSession>> {
+export async function getCustomerSession(): Promise<
+  IronSession<CustomerSession>
+> {
   const cookieStore = await cookies();
   return getIronSession<CustomerSession>(cookieStore, customerSessionOptions());
 }
 
 export class CustomerUnauthorizedError extends Error {
   readonly status = 401;
-  constructor(message = 'Entrá a tu cuenta para ver esto') {
+  constructor(message = "Entrá a tu cuenta para ver esto") {
     super(message);
-    this.name = 'CustomerUnauthorizedError';
+    this.name = "CustomerUnauthorizedError";
   }
 }
 
@@ -112,10 +134,30 @@ export type CustomerActor = { customerId: number; phone: string; name: string };
  */
 export async function requireCustomerSession(): Promise<CustomerActor> {
   const session = await getCustomerSession();
+  return validateCustomerSession(session);
+}
+export async function validateCustomerSession(
+  session: Partial<CustomerSession>
+): Promise<CustomerActor> {
   if (!session.customerId || !session.phone || !session.name) {
     throw new CustomerUnauthorizedError();
   }
-  return { customerId: session.customerId, phone: session.phone, name: session.name };
+  const [customer] = await getDb()
+    .select()
+    .from(customers)
+    .where(eq(customers.id, session.customerId))
+    .limit(1);
+  if (
+    !customer?.isActive ||
+    session.sessionVersion !== customer.sessionVersion
+  ) {
+    throw new CustomerUnauthorizedError();
+  }
+  return {
+    customerId: customer.id,
+    phone: customer.phone,
+    name: customer.name,
+  };
 }
 
 /** La sesión si la hay, sin tirar. Para prefills y para el header. */

@@ -1,7 +1,16 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { randomBytes } from "node:crypto";
 
 import { eq } from "drizzle-orm";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import {
   orderEvents,
@@ -44,6 +53,7 @@ const HOUR = 3_600_000;
 describe.skipIf(!hasTestDb)("concurrencia", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
     vi.spyOn(console, "info").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -100,7 +110,10 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     });
 
     const orderId = (
-      await db.select({ id: orders.id }).from(orders).where(eq(orders.orderNumber, orderNumber))
+      await db
+        .select({ id: orders.id })
+        .from(orders)
+        .where(eq(orders.orderNumber, orderNumber))
     )[0]?.id;
     if (!orderId) throw new Error("no pude crear el pedido");
 
@@ -175,7 +188,9 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     // comprador.
     const motivo = (perdedores[0] as PromiseRejectedResult).reason;
     expect(motivo).toBeInstanceOf(Error);
-    expect(["InsufficientStockError", "CheckoutError"]).toContain((motivo as Error).name);
+    expect(["InsufficientStockError", "CheckoutError"]).toContain(
+      (motivo as Error).name
+    );
 
     // Y una sola reserva viva sobre la variante.
     const held = await getTestDb()
@@ -190,7 +205,9 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     const variantId = await createVariant({ onHand: 3, pricePyg: 100_000 });
 
     const results = await Promise.allSettled(
-      Array.from({ length: 10 }, (_, i) => checkout(variantId, 1, `Comprador ${i}`)),
+      Array.from({ length: 10 }, (_, i) =>
+        checkout(variantId, 1, `Comprador ${i}`)
+      )
     );
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
@@ -214,7 +231,10 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     const primera = await createVariant({ onHand: 5, pricePyg: 50_000 });
     const segunda = await createVariant({ onHand: 5, pricePyg: 50_000 });
 
-    const carrito = (items: Array<{ variantId: number; qty: number }>, nombre: string) =>
+    const carrito = (
+      items: Array<{ variantId: number; qty: number }>,
+      nombre: string
+    ) =>
       placeOrder({
         items,
         customerName: nombre,
@@ -232,14 +252,14 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
           { variantId: primera, qty: 1 },
           { variantId: segunda, qty: 1 },
         ],
-        "Ana",
+        "Ana"
       ),
       carrito(
         [
           { variantId: segunda, qty: 1 },
           { variantId: primera, qty: 1 },
         ],
-        "Beto",
+        "Beto"
       ),
     ]);
 
@@ -348,13 +368,18 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
       // Venció primero y el pago no pudo recuperarse en esa pasada: el stock
       // sigue entero y la plata aparece en la lista del dueño.
       expect(onHand).toBe(5);
-      expect((await findUnmatchedPayments()).map((row) => row.orderId)).toContain(orderId);
+      expect(
+        (await findUnmatchedPayments()).map((row) => row.orderId)
+      ).toContain(orderId);
     }
 
     // Pase lo que pase: el pago quedó registrado. Es la única regla que no
     // admite "depende de quién ganó".
     const pago = (
-      await getTestDb().select().from(payments).where(eq(payments.orderId, orderId))
+      await getTestDb()
+        .select()
+        .from(payments)
+        .where(eq(payments.orderId, orderId))
     )[0];
     expect(pago?.status).toBe("paid");
   });
@@ -392,7 +417,10 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
 
     // Y una sola transición registrada, no dos.
     const transiciones = (
-      await getTestDb().select().from(orderEvents).where(eq(orderEvents.orderId, orderId))
+      await getTestDb()
+        .select()
+        .from(orderEvents)
+        .where(eq(orderEvents.orderId, orderId))
     ).filter((row) => row.toStatus === "pagado");
     expect(transiciones).toHaveLength(1);
   });
@@ -409,11 +437,17 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     expect(await getStatus(orderId)).toBe("pendiente_pago");
 
     const outcomes = await Promise.all(
-      Array.from({ length: 5 }, () => processPagoparWebhook(aviso(hashPedido, 150_000))),
+      Array.from({ length: 5 }, () =>
+        processPagoparWebhook(aviso(hashPedido, 150_000))
+      )
     );
 
-    expect(outcomes.filter((outcome) => outcome.kind === "aplicado")).toHaveLength(1);
-    expect(outcomes.filter((outcome) => outcome.kind === "repetido")).toHaveLength(4);
+    expect(
+      outcomes.filter((outcome) => outcome.kind === "aplicado")
+    ).toHaveLength(1);
+    expect(
+      outcomes.filter((outcome) => outcome.kind === "repetido")
+    ).toHaveLength(4);
     expect(await getOnHand(variantId)).toBe(3);
     expect(await getTestDb().select().from(paymentEvents)).toHaveLength(1);
   });
@@ -444,7 +478,9 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     // Las 2 unidades ya estaban reservadas por el pedido que cobró: el rival no
     // puede llevarse nada, ni antes ni después del cobro.
     expect(reserva.status).toBe("rejected");
-    expect((reserva as PromiseRejectedResult).reason).toBeInstanceOf(InsufficientStockError);
+    expect((reserva as PromiseRejectedResult).reason).toBeInstanceOf(
+      InsufficientStockError
+    );
     expect(await getOnHand(variantId)).toBe(0);
   });
 
@@ -476,17 +512,22 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     const real = db.transaction.bind(db);
     let intentos = 0;
 
-    vi.spyOn(db, "transaction").mockImplementation(((...args: Parameters<typeof real>) => {
+    vi.spyOn(db, "transaction").mockImplementation(((
+      ...args: Parameters<typeof real>
+    ) => {
       intentos += 1;
       if (intentos === 1) {
         // Tal cual llega: mysql2 adentro del envoltorio de drizzle.
         return Promise.reject(
           new Error("Failed query: select `qty` from `stock_reservations`", {
-            cause: Object.assign(new Error("Deadlock found when trying to get lock"), {
-              code: "ER_LOCK_DEADLOCK",
-              errno: 1213,
-            }),
-          }),
+            cause: Object.assign(
+              new Error("Deadlock found when trying to get lock"),
+              {
+                code: "ER_LOCK_DEADLOCK",
+                errno: 1213,
+              }
+            ),
+          })
         );
       }
       return real(...args);
@@ -518,13 +559,17 @@ describe.skipIf(!hasTestDb)("concurrencia", () => {
     const db = getTestDb();
     const real = db.transaction.bind(db);
     let intentos = 0;
-    vi.spyOn(db, "transaction").mockImplementation(((...args: Parameters<typeof real>) => {
+    vi.spyOn(db, "transaction").mockImplementation(((
+      ...args: Parameters<typeof real>
+    ) => {
       intentos += 1;
       return real(...args);
     }) as typeof real);
 
     await expect(
-      reserveStock(orderId, [{ variantId, qty: 1 }], { expiresAt: new Date(Date.now() + HOUR) }),
+      reserveStock(orderId, [{ variantId, qty: 1 }], {
+        expiresAt: new Date(Date.now() + HOUR),
+      })
     ).rejects.toBeInstanceOf(InsufficientStockError);
 
     expect(intentos).toBe(1);

@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { formatGs } from "@/lib/money";
 
 /**
@@ -18,13 +18,19 @@ export const PRICE_RANGES = [
   },
   {
     id: "100000-300000",
-    label: t("precio.rango.entre", { desde: formatGs(100000), hasta: formatGs(300000) }),
+    label: t("precio.rango.entre", {
+      desde: formatGs(100000),
+      hasta: formatGs(300000),
+    }),
     min: 100000,
     max: 300000,
   },
   {
     id: "300000-1000000",
-    label: t("precio.rango.entre", { desde: formatGs(300000), hasta: formatGs(1000000) }),
+    label: t("precio.rango.entre", {
+      desde: formatGs(300000),
+      hasta: formatGs(1000000),
+    }),
     min: 300000,
     max: 1000000,
   },
@@ -37,7 +43,10 @@ export const PRICE_RANGES = [
 ] as const;
 
 /** `"100000-300000"` → `{ min, max }`. Devuelve `{}` si no matchea. */
-export function parsePriceRange(value: string | undefined): { min?: number; max?: number } {
+export function parsePriceRange(value: string | undefined): {
+  min?: number;
+  max?: number;
+} {
   const range = PRICE_RANGES.find((item) => item.id === value);
   if (!range) return {};
   return { min: range.min, max: range.max };

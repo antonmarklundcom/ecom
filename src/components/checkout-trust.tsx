@@ -1,7 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 
 import type { PaymentMethod } from "@/db/schema";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * "Comprá tranquilo": el recuadro de confianza del checkout
@@ -43,7 +43,9 @@ export function CheckoutTrust({
 
       {mediosDePago.length > 0 ? (
         <div className="mt-3">
-          <p className="text-muted-foreground text-xs">{t("checkout.confianza.medios")}</p>
+          <p className="text-muted-foreground text-xs">
+            {t("checkout.confianza.medios")}
+          </p>
           <ul className="mt-1 flex flex-wrap gap-2">
             {mediosDePago.map((medio) => (
               <li

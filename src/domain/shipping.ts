@@ -86,11 +86,18 @@ export async function quoteShipping(
   }
 
   const target = normalizeCity(city);
-  const found = zones.find((zone) => zone.cities.some((name) => normalizeCity(name) === target));
+  const found = zones.find((zone) =>
+    zone.cities.some((name) => normalizeCity(name) === target)
+  );
   const zone =
-    found ?? zones.reduce((worst, item) => (item.pricePyg > worst.pricePyg ? item : worst), zones[0]!);
+    found ??
+    zones.reduce(
+      (worst, item) => (item.pricePyg > worst.pricePyg ? item : worst),
+      zones[0]!
+    );
 
-  const isFree = zone.freeThresholdPyg !== null && subtotalPyg >= zone.freeThresholdPyg;
+  const isFree =
+    zone.freeThresholdPyg !== null && subtotalPyg >= zone.freeThresholdPyg;
 
   return {
     zoneId: zone.id,
@@ -231,7 +238,9 @@ export function resolveShippingMethods(
   const options: ShippingMethodOption[] = [];
 
   for (const row of activas) {
-    const allowedPaymentMethods = sanitizePaymentMethods(row.allowedPaymentMethods);
+    const allowedPaymentMethods = sanitizePaymentMethods(
+      row.allowedPaymentMethods
+    );
     if (allowedPaymentMethods.length === 0) continue;
 
     if (row.kind === "retiro") {
@@ -251,11 +260,15 @@ export function resolveShippingMethods(
     const zoneIds = Array.isArray(row.zoneIds) ? row.zoneIds : [];
     const aplica =
       zoneIds.length === 0 ||
-      (zone.match === "exacta" && zone.zoneId !== null && zoneIds.includes(zone.zoneId));
+      (zone.match === "exacta" &&
+        zone.zoneId !== null &&
+        zoneIds.includes(zone.zoneId));
     if (!aplica) continue;
 
     const shippingPyg =
-      row.pricing === "fijo" ? Math.max(0, row.fixedPricePyg ?? 0) : zone.shippingPyg;
+      row.pricing === "fijo"
+        ? Math.max(0, row.fixedPricePyg ?? 0)
+        : zone.shippingPyg;
 
     options.push({
       id: row.id,
@@ -306,7 +319,9 @@ export async function quoteShippingMethods(
 }
 
 /** Una fila de la tabla, con las columnas JSON a prueba de datos viejos. */
-export function toMethodRow(row: typeof shippingMethods.$inferSelect): ShippingMethodRow {
+export function toMethodRow(
+  row: typeof shippingMethods.$inferSelect
+): ShippingMethodRow {
   return {
     id: row.id,
     slug: row.slug,
@@ -314,7 +329,9 @@ export function toMethodRow(row: typeof shippingMethods.$inferSelect): ShippingM
     kind: row.kind,
     pricing: row.pricing,
     fixedPricePyg: row.fixedPricePyg,
-    zoneIds: Array.isArray(row.zoneIds) ? row.zoneIds.map(Number).filter(Number.isInteger) : [],
+    zoneIds: Array.isArray(row.zoneIds)
+      ? row.zoneIds.map(Number).filter(Number.isInteger)
+      : [],
     allowedPaymentMethods: sanitizePaymentMethods(row.allowedPaymentMethods),
     description: row.description,
     isActive: row.isActive,
@@ -357,7 +374,9 @@ export function selectShippingMethod(
   }
 
   const found = methods.find((method) => method.id === requestedId);
-  return found ? { ok: true, method: found } : { ok: false, reason: "no_disponible" };
+  return found
+    ? { ok: true, method: found }
+    : { ok: false, reason: "no_disponible" };
 }
 
 /**
@@ -388,10 +407,17 @@ export async function offeredPaymentMethods(
   if (rows.length === 0) {
     for (const method of PAYMENT_METHODS) vistos.add(method);
   } else {
-    for (const row of rows) for (const method of sanitizePaymentMethods(row.allowed)) vistos.add(method);
+    for (const row of rows)
+      for (const method of sanitizePaymentMethods(row.allowed))
+        vistos.add(method);
   }
 
+  const ready = await readyPaymentMethods(tx);
   return PAYMENT_METHODS.filter(
-    (method) => vistos.has(method) && (method !== "tarjeta" || options.cardEnabled)
+    (method) =>
+      vistos.has(method) &&
+      ready.includes(method) &&
+      (method !== "tarjeta" || options.cardEnabled)
   );
 }
+import { readyPaymentMethods } from "./payment-readiness";

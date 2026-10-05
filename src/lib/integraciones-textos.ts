@@ -35,14 +35,19 @@ export const ETIQUETA_CAMPO: Record<string, MessageKey> = {
   accessToken: "panel.integraciones.campo.accessToken",
   apiVersion: "panel.integraciones.campo.apiVersion",
   plantillaLogin: "panel.integraciones.campo.plantillaLogin",
+  plantillaRecuperarPedido:
+    "panel.integraciones.campo.plantillaRecuperarPedido",
   plantillaPedidoNuevo: "panel.integraciones.campo.plantillaPedidoNuevo",
-  plantillaClienteConfirmado: "panel.integraciones.campo.plantillaClienteConfirmado",
+  plantillaClienteConfirmado:
+    "panel.integraciones.campo.plantillaClienteConfirmado",
   plantillaClientePagado: "panel.integraciones.campo.plantillaClientePagado",
   plantillaClienteEnviado: "panel.integraciones.campo.plantillaClienteEnviado",
-  plantillaClienteRecordatorio: "panel.integraciones.campo.plantillaClienteRecordatorio",
+  plantillaClienteRecordatorio:
+    "panel.integraciones.campo.plantillaClienteRecordatorio",
   plantillaClienteResena: "panel.integraciones.campo.plantillaClienteResena",
   plantillaResumenDiario: "panel.integraciones.campo.plantillaResumenDiario",
-  plantillaStockDisponible: "panel.integraciones.campo.plantillaStockDisponible",
+  plantillaStockDisponible:
+    "panel.integraciones.campo.plantillaStockDisponible",
   publicKey: "panel.integraciones.campo.publicKey",
   privateKey: "panel.integraciones.campo.privateKey",
   baseUrl: "panel.integraciones.campo.baseUrl",
@@ -52,4 +57,8 @@ export const ETIQUETA_CAMPO: Record<string, MessageKey> = {
 };
 
 /** Las integraciones que tienen "Probar conexión". */
-export const CON_PRUEBA: readonly Integracion[] = ["cloudinary", "whatsapp", "pagopar"];
+export const CON_PRUEBA: readonly Integracion[] = [
+  "cloudinary",
+  "whatsapp",
+  "pagopar",
+];

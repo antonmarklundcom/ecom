@@ -6,7 +6,7 @@ import { enviarResena } from "@/app/actions/reviews";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { t, tPlural } from "@/i18n";
+import { t, tPlural } from "@/i18n/client";
 import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,11 @@ import { cn } from "@/lib/utils";
 const BODY_MAX = 2000;
 const TITLE_MAX = 120;
 
-export type ReviewFormItem = { productId: number; productName: string; reviewed: boolean };
+export type ReviewFormItem = {
+  productId: number;
+  productName: string;
+  reviewed: boolean;
+};
 
 /**
  * "Calificá tu compra" (página del pedido, sólo con el pedido entregado).
@@ -40,8 +44,13 @@ export function ReviewForms({
             {t("pedido.resenas.yaCalificado", { producto: item.productName })}
           </p>
         ) : (
-          <SingleReviewForm key={item.productId} orderNumber={orderNumber} token={token} item={item} />
-        ),
+          <SingleReviewForm
+            key={item.productId}
+            orderNumber={orderNumber}
+            token={token}
+            item={item}
+          />
+        )
       )}
     </div>
   );
@@ -122,7 +131,9 @@ function SingleReviewForm({
                 onChange={() => setRating(value)}
                 className="peer sr-only"
               />
-              <span className="sr-only">{tPlural("pedido.resenas.estrella", value)}</span>
+              <span className="sr-only">
+                {tPlural("pedido.resenas.estrella", value)}
+              </span>
               <svg
                 aria-hidden
                 viewBox="0 0 24 24"
@@ -130,7 +141,9 @@ function SingleReviewForm({
                 height={28}
                 className={cn(
                   "peer-focus-visible:ring-ring rounded peer-focus-visible:ring-2",
-                  value <= rating ? "text-amber-500" : "text-muted-foreground/40",
+                  value <= rating
+                    ? "text-amber-500"
+                    : "text-muted-foreground/40"
                 )}
               >
                 <path
@@ -178,8 +191,14 @@ function SingleReviewForm({
       ) : null}
 
       <div>
-        <Button type="submit" data-testid={TESTIDS.reviewSubmit} disabled={status === "loading"}>
-          {status === "loading" ? t("pedido.resenas.enviando") : t("pedido.resenas.enviar")}
+        <Button
+          type="submit"
+          data-testid={TESTIDS.reviewSubmit}
+          disabled={status === "loading"}
+        >
+          {status === "loading"
+            ? t("pedido.resenas.enviando")
+            : t("pedido.resenas.enviar")}
         </Button>
       </div>
     </form>

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from "node:child_process";
 
 /**
  * Lo que comparten `template-diff.ts` (¿qué falta?) y `template-sync.ts`
@@ -9,10 +9,10 @@ import { execFileSync } from 'node:child_process';
 
 /** Lo que no se bifurca por tienda (NEW-STORE.md §5). Si esto difiere, importa. */
 export const MAQUINARIA = [
-  'src/domain',
-  'src/lib',
-  'src/db',
-  'src/app/api',
+  "src/domain",
+  "src/lib",
+  "src/db",
+  "src/app/api",
   // Las server actions son el camino de la plata: checkout.ts crea el pedido y
   // cobra, shipping-quote.ts cotiza el envío, admin-payments.ts confirma pagos.
   // NEW-STORE.md §5 pone "checkout y sus rutas API" del lado de la maquinaria y
@@ -20,14 +20,14 @@ export const MAQUINARIA = [
   // documento que dice implementar: en una tienda real listó 29 archivos con
   // diferencias y ninguno era una action, mientras checkout.ts difería del
   // template y shipping-quote.ts no existía.
-  'src/app/actions',
-  'scripts',
-  'drizzle',
-  '.github/workflows',
+  "src/app/actions",
+  "scripts",
+  "drizzle",
+  ".github/workflows",
   // Los tests de la maquinaria viajan con ella: un arreglo que sólo tocó un
   // test (T2, 554083c) nunca llegaba a las tiendas, que quedaban en rojo.
-  'tests',
-  '.husky',
+  "tests",
+  ".husky",
 ] as const;
 
 /**
@@ -44,30 +44,36 @@ export const MAQUINARIA = [
  * suma las claves nuevas.
  */
 export const ARCHIVOS_MAQUINARIA = [
-  'package.json',
-  'pnpm-workspace.yaml',
-  'tsconfig.json',
-  'next.config.ts',
-  'eslint.config.mjs',
-  'drizzle.config.ts',
-  'playwright.config.ts',
-  'vitest.config.mts',
-  'vitest.setup.ts',
-  'src/proxy.ts',
-  'src/instrumentation.ts',
-  'src/i18n/es-PY.ts',
+  "package.json",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
+  "next.config.ts",
+  "eslint.config.mjs",
+  "drizzle.config.ts",
+  "playwright.config.ts",
+  "vitest.config.mts",
+  "vitest.setup.ts",
+  "src/proxy.ts",
+  "src/instrumentation.ts",
+  "src/i18n/es-PY.ts",
+  "src/i18n/index.ts",
+  "src/i18n/client.ts",
+  "src/i18n/public-catalogs.ts",
 ] as const;
 
 /** ¿`ruta` es maquinaria (carpeta de `MAQUINARIA` o archivo de `ARCHIVOS_MAQUINARIA`)? */
 export function esMaquinaria(ruta: string): boolean {
   return (
-    MAQUINARIA.some((carpeta) => ruta === carpeta || ruta.startsWith(`${carpeta}/`)) ||
-    (ARCHIVOS_MAQUINARIA as readonly string[]).includes(ruta)
+    MAQUINARIA.some(
+      (carpeta) => ruta === carpeta || ruta.startsWith(`${carpeta}/`)
+    ) || (ARCHIVOS_MAQUINARIA as readonly string[]).includes(ruta)
   );
 }
 
 export function esMixto(ruta: string): boolean {
-  return MIXTOS.some((entrada) => ruta === entrada || ruta.startsWith(`${entrada}/`));
+  return MIXTOS.some(
+    (entrada) => ruta === entrada || ruta.startsWith(`${entrada}/`)
+  );
 }
 
 /**
@@ -88,7 +94,18 @@ export function esMixto(ruta: string): boolean {
  * rediseñó, pero callarlos del todo deja sin aviso el día que su lógica cambia.
  * O sea: se avisan aparte, con "miralo a mano", no con "cherry-pickealo".
  */
-export const MIXTOS = ['src/components/checkout-form.tsx', 'src/app/admin'] as const;
+export const MIXTOS = [
+  "src/components",
+  "src/app/admin",
+  "src/app/checkout",
+  "src/app/cuenta",
+  "src/app/carrito",
+  "src/app/pedido",
+  "src/app/producto",
+  "src/app/categoria",
+  "src/app/page.tsx",
+  "src/app/layout.tsx",
+] as const;
 
 /**
  * Lo que sólo tiene sentido en el repo del template y una tienda no debe
@@ -102,11 +119,15 @@ export const MIXTOS = ['src/components/checkout-form.tsx', 'src/app/admin'] as c
  *
  * Una entrada que termina en `/` es una carpeta entera.
  */
-export const SOLO_TEMPLATE = ['fable/', '.github/dependabot.yml', 'tiendas.json'] as const;
+export const SOLO_TEMPLATE = [
+  "fable/",
+  ".github/dependabot.yml",
+  "tiendas.json",
+] as const;
 
 export function esSoloTemplate(ruta: string): boolean {
   return SOLO_TEMPLATE.some((entrada) =>
-    entrada.endsWith('/') ? ruta.startsWith(entrada) : ruta === entrada,
+    entrada.endsWith("/") ? ruta.startsWith(entrada) : ruta === entrada
   );
 }
 
@@ -117,16 +138,16 @@ export function esSoloTemplate(ruta: string): boolean {
  * (así chocó `KNOWN-ISSUES.md` en #109). Gana la versión del template.
  */
 export const DOCS_DEL_TEMPLATE = [
-  'KNOWN-ISSUES.md',
-  'ARCH.md',
-  'NEW-STORE.md',
-  'CHANGELOG.md',
+  "KNOWN-ISSUES.md",
+  "ARCH.md",
+  "NEW-STORE.md",
+  "CHANGELOG.md",
   // La referencia de las variables opcionales (lo que salió de `.env.example`).
   // Describe la maquinaria, no la tienda: una tienda no tiene nada suyo ahí.
-  'docs/ENV-OPCIONAL.md',
+  "docs/ENV-OPCIONAL.md",
 ] as const;
 
-export const BASELINE_FILE = '.template-baseline';
+export const BASELINE_FILE = ".template-baseline";
 
 /**
  * Maquinaria del template que la tienda no tiene, sin importar cuándo cambió.
@@ -144,28 +165,36 @@ export const BASELINE_FILE = '.template-baseline';
  */
 export function maquinariaFaltante(
   rutasTemplate: Iterable<string>,
-  laTiendaTiene: (ruta: string) => boolean,
+  laTiendaTiene: (ruta: string) => boolean
 ): string[] {
   const faltan: string[] = [];
   for (const ruta of rutasTemplate) {
-    if (ruta === BASELINE_FILE || esSoloTemplate(ruta) || !esMaquinaria(ruta)) continue;
+    if (ruta === BASELINE_FILE || esSoloTemplate(ruta) || !esMaquinaria(ruta))
+      continue;
     if (!laTiendaTiene(ruta)) faltan.push(ruta);
   }
   return faltan.sort();
 }
 
-export type Commit = { sha: string; asunto: string; maquinaria: boolean; mixto: boolean };
+export type Commit = {
+  sha: string;
+  asunto: string;
+  maquinaria: boolean;
+  mixto: boolean;
+};
 
 /** `git log --format=%h %s` (o `%H %s`) → filas. Ignora líneas vacías del final. */
-export function parseCommits(salida: string): Array<{ sha: string; asunto: string }> {
+export function parseCommits(
+  salida: string
+): Array<{ sha: string; asunto: string }> {
   return salida
-    .split('\n')
+    .split("\n")
     .map((linea) => linea.trim())
-    .filter((linea) => linea !== '')
+    .filter((linea) => linea !== "")
     .map((linea) => {
-      const espacio = linea.indexOf(' ');
+      const espacio = linea.indexOf(" ");
       return espacio === -1
-        ? { sha: linea, asunto: '' }
+        ? { sha: linea, asunto: "" }
         : { sha: linea.slice(0, espacio), asunto: linea.slice(espacio + 1) };
     });
 }
@@ -180,7 +209,7 @@ export function parseCommits(salida: string): Array<{ sha: string; asunto: strin
 export function clasificar(
   commits: Array<{ sha: string; asunto: string }>,
   shasDeMaquinaria: readonly string[],
-  shasDeMixtos: readonly string[] = [],
+  shasDeMixtos: readonly string[] = []
 ): Commit[] {
   const importantes = new Set(shasDeMaquinaria);
   const aMano = new Set(shasDeMixtos);
@@ -195,9 +224,9 @@ export function clasificar(
 
 /** El SHA guardado, o `null` si el archivo no está o quedó ilegible. */
 export function parseBaseline(contenido: string): string | null {
-  for (const linea of contenido.split('\n')) {
+  for (const linea of contenido.split("\n")) {
     const limpia = linea.trim();
-    if (limpia === '' || limpia.startsWith('#')) continue;
+    if (limpia === "" || limpia.startsWith("#")) continue;
     return /^[0-9a-f]{7,40}$/i.test(limpia) ? limpia : null;
   }
   return null;
@@ -205,9 +234,9 @@ export function parseBaseline(contenido: string): string | null {
 
 export function contenidoBaseline(sha: string): string {
   return (
-    '# Hasta acá está al día esta tienda respecto del template (pnpm template:diff).\n' +
-    '# Lo escribe `pnpm template:diff --marcar` (o `pnpm template:sync`) después de\n' +
-    '# ponerse al día.\n' +
+    "# Hasta acá está al día esta tienda respecto del template (pnpm template:diff).\n" +
+    "# Lo escribe `pnpm template:diff --marcar` (o `pnpm template:sync`) después de\n" +
+    "# ponerse al día.\n" +
     `${sha}\n`
   );
 }
@@ -225,10 +254,10 @@ export function contenidoBaseline(sha: string): string {
  * arriba del mensaje que sí explica qué hacer.
  */
 export function gitEn(cwd: string, args: string[]): string {
-  return execFileSync('git', ['-C', cwd, ...args], {
-    encoding: 'utf8',
+  return execFileSync("git", ["-C", cwd, ...args], {
+    encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
@@ -245,14 +274,16 @@ export function gitEn(cwd: string, args: string[]): string {
  * `null` si no hay coincidencia (una tienda que ya existía, `bootstrap:repo`).
  */
 export function commitDeOrigen(cwd: string, ref: string): string | null {
-  const raices = gitEn(cwd, ['rev-list', '--max-parents=0', 'HEAD'])
-    .split('\n')
+  const raices = gitEn(cwd, ["rev-list", "--max-parents=0", "HEAD"])
+    .split("\n")
     .map((linea) => linea.trim())
-    .filter((linea) => linea !== '');
-  const arboles = new Set(raices.map((raiz) => gitEn(cwd, ['rev-parse', `${raiz}^{tree}`]).trim()));
+    .filter((linea) => linea !== "");
+  const arboles = new Set(
+    raices.map((raiz) => gitEn(cwd, ["rev-parse", `${raiz}^{tree}`]).trim())
+  );
 
-  for (const linea of gitEn(cwd, ['log', '--format=%H %T', ref]).split('\n')) {
-    const [sha, arbol] = linea.trim().split(' ');
+  for (const linea of gitEn(cwd, ["log", "--format=%H %T", ref]).split("\n")) {
+    const [sha, arbol] = linea.trim().split(" ");
     if (sha && arbol && arboles.has(arbol)) return sha;
   }
   return null;
@@ -260,7 +291,7 @@ export function commitDeOrigen(cwd: string, ref: string): string | null {
 
 export function remotoExiste(cwd: string, remoto: string): boolean {
   try {
-    gitEn(cwd, ['remote', 'get-url', remoto]);
+    gitEn(cwd, ["remote", "get-url", remoto]);
     return true;
   } catch {
     return false;
@@ -271,24 +302,42 @@ export function remotoExiste(cwd: string, remoto: string): boolean {
  * Los commits en `baseline..ref`, clasificados por si tocan maquinaria o
  * mixtos, más nuevo primero (el orden que da `git log`).
  */
-export function commitsClasificados(cwd: string, baseline: string, ref: string): Commit[] {
+export function commitsClasificados(
+  cwd: string,
+  baseline: string,
+  ref: string
+): Commit[] {
   // Los merges de PR no se cherry-pickean: requieren -m y sus commits ya viajan
   // por su propio SHA; se excluyen tanto de la lista como de la clasificación.
   const shasQueTocan = (rutas: readonly string[]): string[] =>
-    parseCommits(gitEn(cwd, ['log', '--no-merges', '--format=%H %s', `${baseline}..${ref}`, '--', ...rutas])).map(
-      (commit) => commit.sha,
-    );
+    parseCommits(
+      gitEn(cwd, [
+        "log",
+        "--no-merges",
+        "--format=%H %s",
+        `${baseline}..${ref}`,
+        "--",
+        ...rutas,
+      ])
+    ).map((commit) => commit.sha);
 
   return clasificar(
-    parseCommits(gitEn(cwd, ['log', '--no-merges', '--format=%H %s', `${baseline}..${ref}`])),
+    parseCommits(
+      gitEn(cwd, [
+        "log",
+        "--no-merges",
+        "--format=%H %s",
+        `${baseline}..${ref}`,
+      ])
+    ),
     shasQueTocan(MAQUINARIA),
-    shasQueTocan(MIXTOS),
+    shasQueTocan(MIXTOS)
   );
 }
 
 /** Las rutas versionadas en `ref` (un commit, rama o `HEAD`). */
 export function rutasEn(cwd: string, ref: string): string[] {
-  return gitEn(cwd, ['ls-tree', '-r', '-z', '--name-only', '--full-tree', ref])
-    .split('\0')
-    .filter((ruta) => ruta !== '');
+  return gitEn(cwd, ["ls-tree", "-r", "-z", "--name-only", "--full-tree", ref])
+    .split("\0")
+    .filter((ruta) => ruta !== "");
 }

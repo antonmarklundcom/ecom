@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BrandFacet } from "@/db/queries";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { PRICE_RANGES } from "@/lib/price-ranges";
 
 const SORT_LABELS: Record<string, () => string> = {
@@ -68,7 +68,10 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
             value={marca ?? ALL}
             onValueChange={(value) => update("marca", value)}
           >
-            <SelectTrigger className="w-[200px]" aria-label={t("filtros.marca.label")}>
+            <SelectTrigger
+              className="w-[200px]"
+              aria-label={t("filtros.marca.label")}
+            >
               <SelectValue placeholder="Marca" />
             </SelectTrigger>
             <SelectContent>
@@ -79,19 +82,30 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
                     El conteo va acá y no sólo en el chip: es antes de elegir
                     cuando sirve saber que esa marca tiene un solo producto.
                   */}
-                  {t("filtros.marca.conCuenta", { marca: facet.brand, n: facet.total })}
+                  {t("filtros.marca.conCuenta", {
+                    marca: facet.brand,
+                    n: facet.total,
+                  })}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         ) : null}
 
-        <Select value={precio ?? ALL} onValueChange={(value) => update("precio", value)}>
-          <SelectTrigger className="w-[200px]" aria-label={t("filtros.precio.label")}>
+        <Select
+          value={precio ?? ALL}
+          onValueChange={(value) => update("precio", value)}
+        >
+          <SelectTrigger
+            className="w-[200px]"
+            aria-label={t("filtros.precio.label")}
+          >
             <SelectValue placeholder="Precio" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>{t("filtros.precio.cualquiera")}</SelectItem>
+            <SelectItem value={ALL}>
+              {t("filtros.precio.cualquiera")}
+            </SelectItem>
             {PRICE_RANGES.map((range) => (
               <SelectItem key={range.id} value={range.id}>
                 {range.label}
@@ -102,9 +116,14 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
 
         <Select
           value={params.get("orden") ?? "relevancia"}
-          onValueChange={(value) => update("orden", value === "relevancia" ? null : value)}
+          onValueChange={(value) =>
+            update("orden", value === "relevancia" ? null : value)
+          }
         >
-          <SelectTrigger className="w-[200px]" aria-label={t("filtros.orden.label")}>
+          <SelectTrigger
+            className="w-[200px]"
+            aria-label={t("filtros.orden.label")}
+          >
             <SelectValue placeholder="Ordenar" />
           </SelectTrigger>
           <SelectContent>
@@ -128,13 +147,19 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
               >
                 {filtro.label}
                 <X className="size-3.5" aria-hidden />
-                <span className="sr-only">{t("filtros.quitar", { filtro: filtro.label })}</span>
+                <span className="sr-only">
+                  {t("filtros.quitar", { filtro: filtro.label })}
+                </span>
               </button>
             </li>
           ))}
           {activos.length > 1 ? (
             <li>
-              <Button variant="ghost" size="sm" onClick={() => router.push("?", { scroll: false })}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("?", { scroll: false })}
+              >
                 {t("filtros.limpiarTodo")}
               </Button>
             </li>

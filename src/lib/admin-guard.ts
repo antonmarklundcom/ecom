@@ -1,14 +1,15 @@
+import { safeError } from "@/lib/safe-error";
 import { redirect } from "next/navigation";
 
 import { t } from "@/i18n";
 import { can, type Capability } from "@/lib/permissions";
+import { validateAdminSession } from "./session-validation";
 import {
   ForbiddenError,
   UnauthorizedError,
   actorLabel,
   assertCanTransitionTo,
   getSession,
-  requireAdmin,
   requireOwner,
   requireStaff,
   type AdminActor,
@@ -28,7 +29,7 @@ import {
  * resultado para el formulario (ver `adminActionError`).
  */
 export async function requireAdminSession(): Promise<AdminActor> {
-  return requireAdmin(await getSession());
+  return validateAdminSession(await getSession());
 }
 
 /**
@@ -36,12 +37,14 @@ export async function requireAdminSession(): Promise<AdminActor> {
  * Pasan `owner` y `staff`; el `vendedor` no (ver la matriz de ARCH.md §1).
  */
 export async function requireStaffSession(): Promise<AdminActor> {
-  return requireStaff(await getSession());
+  const actor = await requireAdminSession();
+  return requireStaff(actor);
 }
 
 /** Igual, para lo que sólo puede hacer el dueño (altas de usuario, borrados). */
 export async function requireOwnerSession(): Promise<AdminActor> {
-  return requireOwner(await getSession());
+  const actor = await requireAdminSession();
+  return requireOwner(actor);
 }
 
 /** `admin:due@tienda.py` — lo que queda escrito en `order_events.actor`. */
@@ -62,7 +65,7 @@ export { assertCanTransitionTo };
  * action **no** usa esto — usa su guard, que además tira.
  */
 export async function adminActor(): Promise<AdminActor> {
-  return requireAdmin(await getSession());
+  return requireAdminSession();
 }
 
 /**
@@ -78,7 +81,9 @@ export async function adminActor(): Promise<AdminActor> {
  * 403 acá sería correcto y también inútil — quien llegó por el link de otro
  * no hizo nada malo.
  */
-export async function requireCapabilityPage(capability: Capability): Promise<AdminActor> {
+export async function requireCapabilityPage(
+  capability: Capability
+): Promise<AdminActor> {
   const actor = await adminActor();
   if (!can(actor.role, capability)) redirect("/admin/pedidos");
   return actor;
@@ -88,7 +93,8 @@ export async function requireCapabilityPage(capability: Capability): Promise<Adm
  * Lo que devuelve una acción de admin al formulario. `T` son los datos extra
  * del caso exitoso (`unknown` por defecto: intersectarlo no agrega nada).
  */
-export type AdminActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
+export type AdminActionResult<T = unknown> =
+  ({ ok: true } & T) | { ok: false; error: string };
 
 /**
  * Traduce el error de una acción de admin a algo que el formulario pueda
@@ -100,7 +106,10 @@ export type AdminActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; e
  * y el detalle queda en el log del servidor: un stack trace en pantalla es una
  * filtración de la estructura interna, y al dueño no le sirve de nada.
  */
-export function adminActionError(context: string, error: unknown): { ok: false; error: string } {
+export function adminActionError(
+  context: string,
+  error: unknown
+): { ok: false; error: string } {
   if (error instanceof UnauthorizedError) {
     return { ok: false, error: t("adminError.sesionCerrada") };
   }
@@ -110,11 +119,12 @@ export function adminActionError(context: string, error: unknown): { ok: false; 
   if (error instanceof Error && KNOWN_DOMAIN_ERRORS.includes(error.name)) {
     return { ok: false, error: error.message };
   }
-  console.error(`${context} falló`, error);
+  console.error(`${context} falló`, safeError(error).message);
   return { ok: false, error: t("adminError.generico") };
 }
 
 const KNOWN_DOMAIN_ERRORS = [
+  "OperationKeyReusedError",
   "InvalidTransitionError",
   "OrderNotFoundError",
   "ReceiptError",
