@@ -1,5 +1,7 @@
 "use server";
 
+import { safeError } from "@/lib/safe-error";
+
 import { headers } from "next/headers";
 
 import { suggestProducts, type SearchSuggestion } from "@/db/queries";
@@ -19,7 +21,9 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
  * una lista vacía. Un typeahead que muestra un error es peor que uno que no
  * muestra nada — la persona sigue pudiendo apretar Enter y buscar de verdad.
  */
-export async function sugerirProductos(term: unknown): Promise<SearchSuggestion[]> {
+export async function sugerirProductos(
+  term: unknown
+): Promise<SearchSuggestion[]> {
   if (typeof term !== "string") return [];
 
   const cleaned = term.trim();
@@ -28,13 +32,16 @@ export async function sugerirProductos(term: unknown): Promise<SearchSuggestion[
   const ip = clientIp(await headers());
   // 30 por minuto: con el debounce de 250 ms, escribir sin parar durante un
   // minuto entero da bastante menos que eso.
-  if (!rateLimit(`buscar:sugerencias:${ip}`, { limit: 30, windowMs: 60_000 }).ok) return [];
+  if (
+    !rateLimit(`buscar:sugerencias:${ip}`, { limit: 30, windowMs: 60_000 }).ok
+  )
+    return [];
 
   try {
     return await suggestProducts(cleaned);
   } catch (error) {
     // La base caída no puede romper el header de toda la tienda.
-    console.error("sugerirProductos falló", error);
+    console.error("sugerirProductos falló", safeError(error).message);
     return [];
   }
 }

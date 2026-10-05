@@ -36,7 +36,7 @@ function revalidatePayment(orderId: number): void {
 }
 
 export async function retryPaymentRevival(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ orderNumber: string; changed: boolean }>> {
   try {
     const actor = await requireStaffSession();
@@ -53,13 +53,18 @@ export async function retryPaymentRevival(
     });
 
     revalidatePayment(result.orderId);
-    return { ok: true, orderNumber: result.orderNumber, changed: result.changed };
+    return {
+      ok: true,
+      orderNumber: result.orderNumber,
+      changed: result.changed,
+    };
   } catch (error) {
     return adminActionError("retryPaymentRevival", error);
   }
 }
 
 const RefundSchema = PaymentSchema.extend({
+  operationKey: z.uuid(),
   reason: z.string().trim().max(500),
   /**
    * Cuánto devolver, en guaraníes enteros (O7). **Ausente = todo lo que
@@ -85,9 +90,7 @@ const RefundSchema = PaymentSchema.extend({
  * deja su fila en `refunds`, suma en `payments.refunded_pyg` y **no mueve el
  * estado del pedido**. `pnpm reconcile` verifica que las tres cosas cuadren.
  */
-export async function markPaymentRefunded(
-  input: unknown,
-): Promise<
+export async function markPaymentRefunded(input: unknown): Promise<
   AdminActionResult<{
     orderNumber: string;
     changed: boolean;
@@ -104,6 +107,7 @@ export async function markPaymentRefunded(
     }
 
     const result = await refundPayment({
+      operationKey: parsed.data.operationKey,
       paymentId: parsed.data.paymentId,
       reason: parsed.data.reason,
       amountPyg: parsed.data.amountPyg,

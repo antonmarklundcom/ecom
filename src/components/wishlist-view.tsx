@@ -9,7 +9,7 @@ import { getWishlistProducts } from "@/app/actions/wishlist";
 import { ProductCard, ProductCardSkeleton } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
 import type { CatalogProduct } from "@/db/queries";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { waShareLink } from "@/lib/py";
 import { siteOrigin } from "@/lib/site-url";
 import { TESTIDS } from "@/lib/testids";
@@ -41,7 +41,10 @@ function parseSharedSlugs(raw: string | null): string[] {
  */
 export function WishlistView() {
   const searchParams = useSearchParams();
-  const sharedSlugs = useMemo(() => parseSharedSlugs(searchParams.get("p")), [searchParams]);
+  const sharedSlugs = useMemo(
+    () => parseSharedSlugs(searchParams.get("p")),
+    [searchParams]
+  );
   const isShared = sharedSlugs.length > 0;
 
   const mySlugs = useWishlist((state) => state.slugs);
@@ -81,7 +84,9 @@ export function WishlistView() {
   }, [slugsKey]);
 
   const origin = siteOrigin();
-  const shareUrl = origin ? new URL(`/favoritos?p=${slugsKey}`, origin).toString() : null;
+  const shareUrl = origin
+    ? new URL(`/favoritos?p=${slugsKey}`, origin).toString()
+    : null;
   const waShareHref = shareUrl
     ? waShareLink(`${t("favoritos.compartirWhatsApp.texto")} ${shareUrl}`)
     : null;
@@ -114,7 +119,12 @@ export function WishlistView() {
           ) : null}
 
           {!isShared && waShareHref && products && products.length > 0 ? (
-            <Button asChild variant="outline" size="sm" data-testid={TESTIDS.wishlistShareWhatsapp}>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              data-testid={TESTIDS.wishlistShareWhatsapp}
+            >
               <a href={waShareHref} target="_blank" rel="noopener noreferrer">
                 {t("favoritos.compartirWhatsApp")}
               </a>
@@ -132,13 +142,18 @@ export function WishlistView() {
       ) : products.length === 0 ? (
         <div className="border-border mt-8 rounded-xl border border-dashed p-10 text-center">
           <p className="font-medium">{t("favoritos.vacio")}</p>
-          <p className="text-muted-foreground mt-1 text-sm">{t("favoritos.vacio.ayuda")}</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {t("favoritos.vacio.ayuda")}
+          </p>
           <Button asChild variant="outline" className="mt-4">
             <Link href="/">{t("favoritos.vacio.irAlInicio")}</Link>
           </Button>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid={TESTIDS.wishlistGrid}>
+        <div
+          className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4"
+          data-testid={TESTIDS.wishlistGrid}
+        >
           {products.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}

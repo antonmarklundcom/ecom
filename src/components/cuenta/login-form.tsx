@@ -7,7 +7,7 @@ import { entrarCliente } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * Login de cliente. Un solo campo para el identificador: en Paraguay se

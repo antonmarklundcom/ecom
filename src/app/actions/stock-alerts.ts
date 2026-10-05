@@ -1,5 +1,7 @@
 "use server";
 
+import { safeError } from "@/lib/safe-error";
+
 import { headers } from "next/headers";
 import { z } from "zod";
 
@@ -43,7 +45,9 @@ const SubscribeSchema = z.object({
 
 export type StockAlertResult = { ok: true } | { ok: false; error: string };
 
-export async function subscribeToStockAlert(input: unknown): Promise<StockAlertResult> {
+export async function subscribeToStockAlert(
+  input: unknown
+): Promise<StockAlertResult> {
   try {
     const parsed = SubscribeSchema.safeParse(input);
     if (!parsed.success) {
@@ -84,7 +88,7 @@ export async function subscribeToStockAlert(input: unknown): Promise<StockAlertR
     if (error instanceof StockAlertError) {
       return { ok: false, error: error.message };
     }
-    console.error("subscribeToStockAlert falló", error);
+    console.error("subscribeToStockAlert falló", safeError(error).message);
     return { ok: false, error: t("error.avisoStock.apagado") };
   }
 }

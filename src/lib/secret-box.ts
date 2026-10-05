@@ -1,4 +1,10 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  hkdfSync,
+  randomBytes,
+} from "node:crypto";
+import { validSessionSecret } from "./session-secret";
 
 /**
  * Cifrado de los secretos que el dueño carga desde `/admin/integraciones`
@@ -42,7 +48,7 @@ export class SecretBoxUnavailableError extends Error {
   constructor() {
     super(
       "SESSION_SECRET no está configurado (o es el placeholder, o mide menos de 32): " +
-        "no se pueden leer ni guardar secretos de integraciones",
+        "no se pueden leer ni guardar secretos de integraciones"
     );
     this.name = "SecretBoxUnavailableError";
   }
@@ -61,29 +67,38 @@ export class SecretBoxDecryptError extends Error {
  * `pnpm preflight` e iron-session: 32 o más, y no el placeholder de
  * `.env.example`.
  */
-export function secretBoxDisponible(env: Record<string, string | undefined> = process.env): boolean {
+export function secretBoxDisponible(
+  env: Record<string, string | undefined> = process.env
+): boolean {
   return materialDeClave(env) !== null;
 }
 
-function materialDeClave(env: Record<string, string | undefined>): string | null {
+function materialDeClave(
+  env: Record<string, string | undefined>
+): string | null {
   const secreto = (env.SESSION_SECRET ?? "").trim();
-  if (secreto.length < 32) return null;
-  if (/changeme|generate/i.test(secreto)) return null;
+  if (!validSessionSecret(secreto)) return null;
   return secreto;
 }
 
-function derivarClave(contexto: string, env: Record<string, string | undefined>): Buffer {
+function derivarClave(
+  contexto: string,
+  env: Record<string, string | undefined>
+): Buffer {
   const material = materialDeClave(env);
   if (material === null) throw new SecretBoxUnavailableError();
-  if (contexto.trim() === "") throw new Error("secret-box: el contexto no puede estar vacío");
-  return Buffer.from(hkdfSync("sha256", material, HKDF_SALT, `ecom/${contexto}`, KEY_BYTES));
+  if (contexto.trim() === "")
+    throw new Error("secret-box: el contexto no puede estar vacío");
+  return Buffer.from(
+    hkdfSync("sha256", material, HKDF_SALT, `ecom/${contexto}`, KEY_BYTES)
+  );
 }
 
 /** Cifra `texto` para `contexto`. Tira `SecretBoxUnavailableError` sin clave. */
 export function cifrarSecreto(
   texto: string,
   contexto: string,
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = process.env
 ): string {
   const clave = derivarClave(contexto, env);
   const iv = randomBytes(IV_BYTES);
@@ -92,7 +107,9 @@ export function cifrarSecreto(
   const cifrado = Buffer.concat([cipher.update(texto, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return [VERSION, iv, tag, cifrado]
-    .map((parte) => (typeof parte === "string" ? parte : parte.toString("base64url")))
+    .map((parte) =>
+      typeof parte === "string" ? parte : parte.toString("base64url")
+    )
     .join(".");
 }
 
@@ -104,19 +121,25 @@ export function cifrarSecreto(
 export function descifrarSecreto(
   blob: string,
   contexto: string,
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = process.env
 ): string {
   const clave = derivarClave(contexto, env);
   const partes = blob.split(".");
-  if (partes.length !== 4 || partes[0] !== VERSION) throw new SecretBoxDecryptError();
+  if (partes.length !== 4 || partes[0] !== VERSION)
+    throw new SecretBoxDecryptError();
 
   try {
-    const [, iv, tag, cifrado] = partes.map((parte) => Buffer.from(parte, "base64url"));
-    if (!iv || !tag || !cifrado || iv.length !== IV_BYTES) throw new SecretBoxDecryptError();
+    const [, iv, tag, cifrado] = partes.map((parte) =>
+      Buffer.from(parte, "base64url")
+    );
+    if (!iv || !tag || !cifrado || iv.length !== IV_BYTES)
+      throw new SecretBoxDecryptError();
     const decipher = createDecipheriv("aes-256-gcm", clave, iv);
     decipher.setAAD(Buffer.from(contexto, "utf8"));
     decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(cifrado), decipher.final()]).toString("utf8");
+    return Buffer.concat([decipher.update(cifrado), decipher.final()]).toString(
+      "utf8"
+    );
   } catch {
     throw new SecretBoxDecryptError();
   }

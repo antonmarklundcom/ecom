@@ -5,7 +5,7 @@ import { useTransition } from "react";
 
 import { salirCliente } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 export function CustomerLogoutButton() {
   const router = useRouter();

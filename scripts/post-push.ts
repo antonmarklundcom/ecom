@@ -1,7 +1,9 @@
-import '@/lib/load-env';
+import "@/lib/load-env";
 
-import { closePool, getPool } from '@/db';
-import { applySchemaExtras } from '@/db/extras';
+import { safeError } from "../src/lib/safe-error";
+
+import { closePool, getPool } from "@/db";
+import { applySchemaExtras } from "@/db/extras";
 
 /** Corre después de `drizzle-kit push`. Idempotente. */
 async function main(): Promise<void> {
@@ -13,7 +15,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-  console.error(error);
+  console.error(safeError(error).message);
   await closePool();
   process.exit(1);
 });

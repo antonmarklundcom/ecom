@@ -18,7 +18,7 @@ import { DomainError } from "./errors";
 import type { Executor } from "./executor";
 import { getAvailability, heldQtyMap } from "./stock";
 import { notifyBackInStock } from "./stock-alerts";
-import { log, mensajeDe } from '@/lib/log';
+import { log, mensajeDe } from "@/lib/log";
 
 /**
  * Catálogo desde el panel (PLAN.md 4.6).
@@ -68,15 +68,26 @@ export type AdminProductFilters = {
 
 export async function listAdminProducts(
   options: AdminProductFilters = {},
-  executor?: Executor,
-): Promise<{ rows: AdminProductRow[]; total: number; page: number; totalPages: number }> {
+  executor?: Executor
+): Promise<{
+  rows: AdminProductRow[];
+  total: number;
+  page: number;
+  totalPages: number;
+}> {
   const tx = executor ?? getDb();
-  const perPage = Math.min(100, Math.max(1, options.perPage ?? PRODUCTS_PER_PAGE));
+  const perPage = Math.min(
+    100,
+    Math.max(1, options.perPage ?? PRODUCTS_PER_PAGE)
+  );
   const page = Math.max(1, options.page ?? 1);
 
   const where = productWhere(options);
 
-  const [{ total = 0 } = {}] = await tx.select({ total: count() }).from(products).where(where);
+  const [{ total = 0 } = {}] = await tx
+    .select({ total: count() })
+    .from(products)
+    .where(where);
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const safePage = Math.min(page, totalPages);
 
@@ -158,14 +169,20 @@ function productWhere(options: AdminProductFilters) {
     term
       ? sql`(${products.name} LIKE ${`%${escapeLike(term)}%`} OR ${products.slug} LIKE ${`%${escapeLike(term)}%`})`
       : undefined,
-    options.categoryId ? eq(products.categoryId, options.categoryId) : undefined,
+    options.categoryId
+      ? eq(products.categoryId, options.categoryId)
+      : undefined,
     // `undefined` no filtra nada: el listado sin el filtro puesto sigue
     // trayendo destacados y no destacados por igual.
-    options.featured === undefined ? undefined : eq(products.isFeatured, options.featured),
+    options.featured === undefined
+      ? undefined
+      : eq(products.isFeatured, options.featured)
   );
 }
 
 export type ExportVariantRow = {
+  saleMode: "stock" | "enquiry" | "showcase";
+  showPrice: boolean;
   sku: string;
   productName: string;
   categoryName: string;
@@ -185,13 +202,15 @@ export type ExportVariantRow = {
 export async function listVariantsForExport(
   options: AdminProductFilters = {},
   limit = EXPORT_MAX_ROWS,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<ExportVariantRow[]> {
   const tx = executor ?? getDb();
 
   return tx
     .select({
       sku: variants.sku,
+      saleMode: products.saleMode,
+      showPrice: products.showPrice,
       productName: products.name,
       categoryName: categories.name,
       label: variants.label,
@@ -208,7 +227,11 @@ export async function listVariantsForExport(
 
 export async function getAdminProduct(productId: number, executor?: Executor) {
   const tx = executor ?? getDb();
-  const rows = await tx.select().from(products).where(eq(products.id, productId)).limit(1);
+  const rows = await tx
+    .select()
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
   const product = rows[0];
   if (!product) return null;
 
@@ -228,7 +251,7 @@ export async function getAdminProduct(productId: number, executor?: Executor) {
   // ver las dos cifras, porque "hay 3" y "puedo vender 1" son distintas.
   const held = await heldQtyMap(
     productVariants.map((variant) => variant.id),
-    tx,
+    tx
   );
 
   return {
@@ -244,7 +267,10 @@ export async function getAdminProduct(productId: number, executor?: Executor) {
 
 export async function listCategories(executor?: Executor) {
   const tx = executor ?? getDb();
-  return tx.select().from(categories).orderBy(asc(categories.position), asc(categories.name));
+  return tx
+    .select()
+    .from(categories)
+    .orderBy(asc(categories.position), asc(categories.name));
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +278,8 @@ export async function listCategories(executor?: Executor) {
 // ---------------------------------------------------------------------------
 
 export type ProductWrite = {
+  saleMode?: "stock" | "enquiry" | "showcase";
+  showPrice?: boolean;
   slug: string;
   name: string;
   description: string | null;
@@ -268,11 +296,16 @@ export type ProductWrite = {
   isFeatured?: boolean;
 };
 
-export async function createProduct(input: ProductWrite, executor?: Executor): Promise<number> {
+export async function createProduct(
+  input: ProductWrite,
+  executor?: Executor
+): Promise<number> {
   const tx = executor ?? getDb();
   await assertSlugFree(tx, input.slug, null);
 
   await tx.insert(products).values({
+    saleMode: input.saleMode,
+    showPrice: (input.saleMode ?? "stock") === "stock" ? true : input.showPrice,
     slug: input.slug,
     name: input.name,
     description: input.description,
@@ -297,13 +330,13 @@ export async function createProduct(input: ProductWrite, executor?: Executor): P
 export async function updateProduct(
   productId: number,
   input: ProductWrite,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
   await assertSlugFree(tx, input.slug, productId);
 
   const existing = await tx
-    .select({ publishedAt: products.publishedAt })
+    .select({ publishedAt: products.publishedAt, saleMode: products.saleMode })
     .from(products)
     .where(eq(products.id, productId))
     .limit(1);
@@ -313,6 +346,11 @@ export async function updateProduct(
   await tx
     .update(products)
     .set({
+      saleMode: input.saleMode,
+      showPrice:
+        (input.saleMode ?? current.saleMode) === "stock"
+          ? true
+          : input.showPrice,
       slug: input.slug,
       name: input.name,
       description: input.description,
@@ -323,7 +361,9 @@ export async function updateProduct(
       // `undefined` = no se toca. Es la diferencia importante con `false`: un
       // formulario que no dibuja la casilla de destacado (el de hoy, hasta
       // S10) no puede des-destacar un producto de paso al guardar el precio.
-      ...(input.isFeatured === undefined ? {} : { isFeatured: input.isFeatured }),
+      ...(input.isFeatured === undefined
+        ? {}
+        : { isFeatured: input.isFeatured }),
       // Se conserva la fecha original de publicación: republicar no debería
       // mandar el producto al tope de "nuevos" otra vez.
       publishedAt: input.published ? (current.publishedAt ?? new Date()) : null,
@@ -334,7 +374,7 @@ export async function updateProduct(
 async function assertSlugFree(
   tx: Executor,
   slug: string,
-  exceptProductId: number | null,
+  exceptProductId: number | null
 ): Promise<void> {
   const rows = await tx
     .select({ id: products.id })
@@ -371,7 +411,7 @@ export type VariantWrite = {
 export async function saveVariant(
   productId: number,
   input: VariantWrite,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
 
@@ -382,7 +422,9 @@ export async function saveVariant(
     .limit(1);
   const existing = clash[0];
   if (existing && existing.id !== input.id) {
-    throw new AdminInputError("adminError.producto.skuRepetido", { sku: input.sku });
+    throw new AdminInputError("adminError.producto.skuRepetido", {
+      sku: input.sku,
+    });
   }
 
   if (input.id === undefined) {
@@ -453,7 +495,7 @@ export async function adjustStock(input: StockAdjustment): Promise<{
   // dueño que acaba de contar cajas.
   if (resultado.newOnHand > resultado.previousOnHand && disponibleAntes <= 0) {
     void notifyBackInStock(input.variantId).catch((error) => {
-      log.error('notifyBackInStock rechazó', { error: mensajeDe(error) });
+      log.error("notifyBackInStock rechazó", { error: mensajeDe(error) });
     });
   }
 
@@ -478,7 +520,7 @@ async function adjustStockInner(input: StockAdjustment): Promise<{
  */
 export async function applyStockAdjustment(
   tx: Executor,
-  input: StockAdjustment,
+  input: StockAdjustment
 ): Promise<{ previousOnHand: number; newOnHand: number }> {
   const reason = input.reason.trim();
   if (reason.length < ADJUSTMENT_MIN_REASON) {
@@ -495,7 +537,8 @@ export async function applyStockAdjustment(
     .for("update");
 
   const variant = locked[0];
-  if (!variant) throw new AdminInputError("adminError.producto.varianteNoExiste");
+  if (!variant)
+    throw new AdminInputError("adminError.producto.varianteNoExiste");
 
   // `on_hand` es UNSIGNED: restar de más haría wrap-around a un número
   // gigante en vez de fallar. Se corta acá.
@@ -507,7 +550,10 @@ export async function applyStockAdjustment(
     });
   }
 
-  await tx.update(variants).set({ onHand: newOnHand }).where(eq(variants.id, variant.id));
+  await tx
+    .update(variants)
+    .set({ onHand: newOnHand })
+    .where(eq(variants.id, variant.id));
 
   await tx.insert(stockAdjustments).values({
     variantId: variant.id,
@@ -526,7 +572,7 @@ export async function applyStockAdjustment(
 export async function listStockAdjustments(
   variantId: number,
   limit = 20,
-  executor?: Executor,
+  executor?: Executor
 ) {
   const tx = executor ?? getDb();
   return tx
@@ -539,7 +585,7 @@ export async function listStockAdjustments(
 
 export async function addProductImage(
   input: { productId: number; cloudinaryId: string; alt: string | null },
-  executor?: Executor,
+  executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
   const [row] = await tx
@@ -555,7 +601,10 @@ export async function addProductImage(
   });
 }
 
-export async function deleteProductImage(imageId: number, executor?: Executor): Promise<void> {
+export async function deleteProductImage(
+  imageId: number,
+  executor?: Executor
+): Promise<void> {
   const tx = executor ?? getDb();
   await tx.delete(productImages).where(eq(productImages.id, imageId));
 }
@@ -594,7 +643,7 @@ export type LowStockVariant = {
 export async function lowStockVariants(
   threshold = DEFAULT_REORDER_POINT,
   limit = 20,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<LowStockVariant[]> {
   const tx = executor ?? getDb();
   const rows = await tx
@@ -608,7 +657,13 @@ export async function lowStockVariants(
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
-    .where(and(eq(variants.isActive, true), eq(products.isActive, true)))
+    .where(
+      and(
+        eq(variants.isActive, true),
+        eq(products.isActive, true),
+        eq(products.saleMode, "stock")
+      )
+    )
     // Por "cuánto le falta para su propio umbral", no por stock crudo: con
     // umbrales distintos, la variante con menos unidades no es la más urgente.
     //
@@ -620,8 +675,8 @@ export async function lowStockVariants(
     // motivo del `GREATEST(..., 0)` de `consumeReservations`.
     .orderBy(
       asc(
-        sql`CAST(${variants.onHand} AS SIGNED) - CAST(COALESCE(${variants.reorderPoint}, ${threshold}) AS SIGNED)`,
-      ),
+        sql`CAST(${variants.onHand} AS SIGNED) - CAST(COALESCE(${variants.reorderPoint}, ${threshold}) AS SIGNED)`
+      )
     )
     // Se traen de más porque el filtro real es sobre la disponibilidad, que se
     // calcula recién después de restar las reservas.
@@ -629,7 +684,7 @@ export async function lowStockVariants(
 
   const held = await heldQtyMap(
     rows.map((row) => row.variantId),
-    tx,
+    tx
   );
 
   return rows
@@ -642,6 +697,8 @@ export async function lowStockVariants(
       reorderPoint: Number(row.reorderPoint),
     }))
     .filter((row) => row.available <= row.reorderPoint)
-    .sort((a, b) => a.available - a.reorderPoint - (b.available - b.reorderPoint))
+    .sort(
+      (a, b) => a.available - a.reorderPoint - (b.available - b.reorderPoint)
+    )
     .slice(0, limit);
 }

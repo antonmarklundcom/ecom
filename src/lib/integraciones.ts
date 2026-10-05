@@ -43,7 +43,13 @@
  * navegador no hay foto ni entorno, y todo da `null`, como antes.
  */
 
-export const INTEGRACIONES = ["cloudinary", "whatsapp", "pagopar", "analitica", "errores"] as const;
+export const INTEGRACIONES = [
+  "cloudinary",
+  "whatsapp",
+  "pagopar",
+  "analitica",
+  "errores",
+] as const;
 export type Integracion = (typeof INTEGRACIONES)[number];
 
 export function esIntegracion(valor: string): valor is Integracion {
@@ -64,27 +70,74 @@ export const CAMPOS = {
   cloudinary: [
     { campo: "cloudName", env: "CLOUDINARY_CLOUD_NAME", grupo: true },
     { campo: "apiKey", env: "CLOUDINARY_API_KEY", grupo: true },
-    { campo: "apiSecret", env: "CLOUDINARY_API_SECRET", grupo: true, secreto: true },
+    {
+      campo: "apiSecret",
+      env: "CLOUDINARY_API_SECRET",
+      grupo: true,
+      secreto: true,
+    },
     { campo: "folderPrefix", env: "CLOUDINARY_FOLDER_PREFIX" },
   ],
   whatsapp: [
     { campo: "numeroComercio", env: "WHATSAPP_NUMBER" },
-    { campo: "phoneNumberId", env: "WHATSAPP_CLOUD_PHONE_NUMBER_ID", grupo: true },
-    { campo: "accessToken", env: "WHATSAPP_CLOUD_ACCESS_TOKEN", grupo: true, secreto: true },
+    {
+      campo: "phoneNumberId",
+      env: "WHATSAPP_CLOUD_PHONE_NUMBER_ID",
+      grupo: true,
+    },
+    {
+      campo: "accessToken",
+      env: "WHATSAPP_CLOUD_ACCESS_TOKEN",
+      grupo: true,
+      secreto: true,
+    },
     { campo: "apiVersion", env: "WHATSAPP_CLOUD_API_VERSION" },
     { campo: "plantillaLogin", env: "WHATSAPP_CLOUD_TEMPLATE_NAME" },
-    { campo: "plantillaPedidoNuevo", env: "WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO" },
-    { campo: "plantillaClienteConfirmado", env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO" },
-    { campo: "plantillaClientePagado", env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO" },
-    { campo: "plantillaClienteEnviado", env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO" },
-    { campo: "plantillaClienteRecordatorio", env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO" },
-    { campo: "plantillaClienteResena", env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA" },
-    { campo: "plantillaResumenDiario", env: "WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO" },
-    { campo: "plantillaStockDisponible", env: "WHATSAPP_CLOUD_TEMPLATE_STOCK_DISPONIBLE" },
+    {
+      campo: "plantillaRecuperarPedido",
+      env: "WHATSAPP_CLOUD_TEMPLATE_RECUPERAR_PEDIDO",
+    },
+    {
+      campo: "plantillaPedidoNuevo",
+      env: "WHATSAPP_CLOUD_TEMPLATE_PEDIDO_NUEVO",
+    },
+    {
+      campo: "plantillaClienteConfirmado",
+      env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_CONFIRMADO",
+    },
+    {
+      campo: "plantillaClientePagado",
+      env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_PAGADO",
+    },
+    {
+      campo: "plantillaClienteEnviado",
+      env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_ENVIADO",
+    },
+    {
+      campo: "plantillaClienteRecordatorio",
+      env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RECORDATORIO",
+    },
+    {
+      campo: "plantillaClienteResena",
+      env: "WHATSAPP_CLOUD_TEMPLATE_CLIENTE_RESENA",
+    },
+    {
+      campo: "plantillaResumenDiario",
+      env: "WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO",
+    },
+    {
+      campo: "plantillaStockDisponible",
+      env: "WHATSAPP_CLOUD_TEMPLATE_STOCK_DISPONIBLE",
+    },
   ],
   pagopar: [
     { campo: "publicKey", env: "PAGOPAR_PUBLIC_KEY", grupo: true },
-    { campo: "privateKey", env: "PAGOPAR_PRIVATE_KEY", grupo: true, secreto: true },
+    {
+      campo: "privateKey",
+      env: "PAGOPAR_PRIVATE_KEY",
+      grupo: true,
+      secreto: true,
+    },
     { campo: "baseUrl", env: "PAGOPAR_BASE_URL", grupo: true },
   ],
   analitica: [
@@ -94,7 +147,8 @@ export const CAMPOS = {
   errores: [{ campo: "reportUrl", env: "ERROR_REPORT_URL" }],
 } as const satisfies Record<Integracion, readonly CampoDef[]>;
 
-export type CampoDe<N extends Integracion> = (typeof CAMPOS)[N][number]["campo"];
+export type CampoDe<N extends Integracion> =
+  (typeof CAMPOS)[N][number]["campo"];
 
 export type Fuente = "panel" | "entorno";
 
@@ -134,14 +188,17 @@ function limpio(valor: string | undefined | null): string | null {
 export function resolverIntegracion<N extends Integracion>(
   nombre: N,
   fila: FilaIntegracion | undefined,
-  env: Entorno,
+  env: Entorno
 ): ConfigEfectiva<N> {
   const defs: readonly CampoDef[] = CAMPOS[nombre];
-  const enPanel = (campo: string): string | null => limpio(fila?.valores[campo]);
-  const ilegible = (campo: string): boolean => fila?.ilegibles.includes(campo) ?? false;
+  const enPanel = (campo: string): string | null =>
+    limpio(fila?.valores[campo]);
+  const ilegible = (campo: string): boolean =>
+    fila?.ilegibles.includes(campo) ?? false;
 
   const grupoEnPanel = defs.some(
-    (def) => def.grupo === true && (enPanel(def.campo) !== null || ilegible(def.campo)),
+    (def) =>
+      def.grupo === true && (enPanel(def.campo) !== null || ilegible(def.campo))
   );
 
   const valores: Record<string, string | null> = {};
@@ -190,7 +247,12 @@ const CLAVE = Symbol.for("ecom.integraciones.foto");
 
 function foto(): Foto {
   const global = globalThis as typeof globalThis & { [CLAVE]?: Foto };
-  global[CLAVE] ??= { filas: {}, cargadaEn: 0, cargador: null, recargando: null };
+  global[CLAVE] ??= {
+    filas: {},
+    cargadaEn: 0,
+    cargador: null,
+    recargando: null,
+  };
   return global[CLAVE];
 }
 
@@ -199,7 +261,10 @@ function entornoDelProceso(): Entorno {
 }
 
 /** Sólo `integraciones-store.ts`: publica lo que leyó de la base. */
-export function publicarFoto(filas: Partial<Record<Integracion, FilaIntegracion>>, ahora = Date.now()): void {
+export function publicarFoto(
+  filas: Partial<Record<Integracion, FilaIntegracion>>,
+  ahora = Date.now()
+): void {
   const actual = foto();
   actual.filas = filas;
   actual.cargadaEn = ahora;
@@ -257,7 +322,7 @@ export function resetIntegracionesForTests(): void {
  */
 export function integracion<N extends Integracion>(
   nombre: N,
-  env: Entorno = entornoDelProceso(),
+  env: Entorno = entornoDelProceso()
 ): ConfigEfectiva<N> {
   const actual = foto();
   if (actual.cargador && actual.recargando === null && fotoVencida()) {
@@ -269,7 +334,10 @@ export function integracion<N extends Integracion>(
 }
 
 /** Atajo: el valor efectivo de un campo, o `null`. */
-export function valorIntegracion<N extends Integracion>(nombre: N, campo: CampoDe<N>): string | null {
+export function valorIntegracion<N extends Integracion>(
+  nombre: N,
+  campo: CampoDe<N>
+): string | null {
   return integracion(nombre).valores[campo];
 }
 
@@ -281,7 +349,12 @@ export function valorIntegracion<N extends Integracion>(nombre: N, campo: CampoD
  * Qué hace falta para que cada integración funcione. `todos`: sin cualquiera
  * no anda (credenciales). `alguno`: con uno alcanza (GA4 **o** Pixel).
  */
-export const REQUERIDOS: { [N in Integracion]: { modo: "todos" | "alguno"; campos: readonly CampoDe<N>[] } } = {
+export const REQUERIDOS: {
+  [N in Integracion]: {
+    modo: "todos" | "alguno";
+    campos: readonly CampoDe<N>[];
+  };
+} = {
   cloudinary: { modo: "todos", campos: ["cloudName", "apiKey", "apiSecret"] },
   whatsapp: { modo: "todos", campos: ["phoneNumberId", "accessToken"] },
   pagopar: { modo: "todos", campos: ["publicKey", "privateKey", "baseUrl"] },
@@ -302,19 +375,27 @@ export type EstadoResumen =
  */
 export function resumirIntegracion<N extends Integracion>(
   nombre: N,
-  config: ConfigEfectiva<N>,
+  config: ConfigEfectiva<N>
 ): EstadoResumen {
-  const { modo, campos } = REQUERIDOS[nombre] as { modo: "todos" | "alguno"; campos: readonly string[] };
+  const { modo, campos } = REQUERIDOS[nombre] as {
+    modo: "todos" | "alguno";
+    campos: readonly string[];
+  };
   const valores = config.valores as Record<string, string | null>;
   const fuentes = config.fuentes as Record<string, Fuente | null>;
   const cargados = campos.filter((campo) => valores[campo] !== null);
-  const fuente: Fuente = cargados.some((campo) => fuentes[campo] === "panel") ? "panel" : "entorno";
+  const fuente: Fuente = cargados.some((campo) => fuentes[campo] === "panel")
+    ? "panel"
+    : "entorno";
 
   if (modo === "alguno") {
-    return cargados.length > 0 ? { estado: "activa", fuente } : { estado: "apagada" };
+    return cargados.length > 0
+      ? { estado: "activa", fuente }
+      : { estado: "apagada" };
   }
   if (cargados.length === campos.length) return { estado: "activa", fuente };
-  if (cargados.length === 0 && config.ilegibles.length === 0) return { estado: "apagada" };
+  if (cargados.length === 0 && config.ilegibles.length === 0)
+    return { estado: "apagada" };
 
   const defs: readonly CampoDef[] = CAMPOS[nombre];
   const faltan = campos
@@ -328,5 +409,6 @@ export function resumirIntegracion<N extends Integracion>(
  * módulo (se usa en componentes cliente y el presupuesto de JS de la home no
  * da para la tabla de campos). Se registra al cargar este archivo.
  */
-(globalThis as { [K: symbol]: unknown })[Symbol.for("ecom.integraciones.cloudName")] = (): string | null =>
-  integracion("cloudinary").valores.cloudName;
+(globalThis as { [K: symbol]: unknown })[
+  Symbol.for("ecom.integraciones.cloudName")
+] = (): string | null => integracion("cloudinary").valores.cloudName;

@@ -1,3 +1,4 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { randomBytes } from "node:crypto";
 
 import { eq } from "drizzle-orm";
@@ -41,6 +42,7 @@ const TOTAL_PYG = 150_000;
 describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
   });
 
   afterAll(async () => {
@@ -74,7 +76,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
     });
 
     const id = (
-      await db.select({ id: orders.id }).from(orders).where(eq(orders.orderNumber, orderNumber))
+      await db
+        .select({ id: orders.id })
+        .from(orders)
+        .where(eq(orders.orderNumber, orderNumber))
     )[0]?.id;
     if (!id) throw new Error("no pude crear el pedido");
     return { id, orderNumber };
@@ -82,7 +87,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
 
   async function insertPayment(
     orderId: number,
-    options: { amountPyg?: number; status?: "pending" | "paid" | "failed" | "refunded" } = {},
+    options: {
+      amountPyg?: number;
+      status?: "pending" | "paid" | "failed" | "refunded";
+    } = {}
   ): Promise<void> {
     await getTestDb()
       .insert(payments)
@@ -98,21 +106,32 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   async function insertEvent(
     orderId: number,
     from: OrderStatus | null,
-    to: OrderStatus,
+    to: OrderStatus
   ): Promise<void> {
     await getTestDb()
       .insert(orderEvents)
-      .values({ orderId, fromStatus: from, toStatus: to, actor: "test", reason: null });
+      .values({
+        orderId,
+        fromStatus: from,
+        toStatus: to,
+        actor: "test",
+        reason: null,
+      });
   }
 
-  async function insertReceipt(orderId: number, review: "pending" | "approved"): Promise<void> {
-    await getTestDb().insert(receipts).values({
-      orderId,
-      cloudinaryId: `comprobantes/${randomBytes(6).toString("hex")}`,
-      mime: "image/jpeg",
-      bytes: 12_345,
-      review,
-    });
+  async function insertReceipt(
+    orderId: number,
+    review: "pending" | "approved"
+  ): Promise<void> {
+    await getTestDb()
+      .insert(receipts)
+      .values({
+        orderId,
+        cloudinaryId: `comprobantes/${randomBytes(6).toString("hex")}`,
+        mime: "image/jpeg",
+        bytes: 12_345,
+        review,
+      });
   }
 
   /** Un pedido de tarjeta cobrado por el camino real, de punta a punta. */
@@ -130,7 +149,12 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
     });
 
     await insertPayment(order.orderId, { amountPyg: order.totalPyg });
-    await transitionOrder(order.orderId, "pagado", "pagopar", "pago confirmado");
+    await transitionOrder(
+      order.orderId,
+      "pagado",
+      "pagopar",
+      "pago confirmado"
+    );
     return order.orderId;
   }
 
@@ -148,9 +172,19 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
       paymentMethod: "transferencia",
     });
 
-    await transitionOrder(order.orderId, "esperando_verificacion", "buyer", "comprobante subido");
+    await transitionOrder(
+      order.orderId,
+      "esperando_verificacion",
+      "buyer",
+      "comprobante subido"
+    );
     await insertReceipt(order.orderId, "approved");
-    await transitionOrder(order.orderId, "pagado", "admin:test", "comprobante aprobado");
+    await transitionOrder(
+      order.orderId,
+      "pagado",
+      "admin:test",
+      "comprobante aprobado"
+    );
     return order.orderId;
   }
 
@@ -187,12 +221,38 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
 
   it("los avisos actuales e históricos no son aristas imposibles", async () => {
     const orderId = await pedidoSanoConTarjeta();
-    await getTestDb().insert(orderEvents).values([
-      { orderId, fromStatus: null, toStatus: "pagado", actor: "sistema", reason: "aviso_cliente_pagado" },
-      { orderId, fromStatus: "pagado", toStatus: "pagado", actor: "sistema", reason: "aviso_cliente_pagado" },
-      { orderId, fromStatus: null, toStatus: "enviado", actor: "sistema", reason: "aviso_cliente_enviado" },
-      { orderId, fromStatus: "enviado", toStatus: "enviado", actor: "sistema", reason: "aviso_cliente_enviado" },
-    ]);
+    await getTestDb()
+      .insert(orderEvents)
+      .values([
+        {
+          orderId,
+          fromStatus: null,
+          toStatus: "pagado",
+          actor: "sistema",
+          reason: "aviso_cliente_pagado",
+        },
+        {
+          orderId,
+          fromStatus: "pagado",
+          toStatus: "pagado",
+          actor: "sistema",
+          reason: "aviso_cliente_pagado",
+        },
+        {
+          orderId,
+          fromStatus: null,
+          toStatus: "enviado",
+          actor: "sistema",
+          reason: "aviso_cliente_enviado",
+        },
+        {
+          orderId,
+          fromStatus: "enviado",
+          toStatus: "enviado",
+          actor: "sistema",
+          reason: "aviso_cliente_enviado",
+        },
+      ]);
 
     expect(await findImpossibleEdges()).toEqual([]);
   });
@@ -217,7 +277,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   // ---------------------------------------------------------------------------
 
   it("detecta un pedido de tarjeta cobrado sin fila de pago acreditada", async () => {
-    const order = await insertOrder({ status: "pagado", paymentMethod: "tarjeta" });
+    const order = await insertOrder({
+      status: "pagado",
+      paymentMethod: "tarjeta",
+    });
     await insertEvent(order.id, "pendiente_pago", "pagado");
 
     const found = await findOrdersPaidWithoutPayment();
@@ -229,7 +292,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   });
 
   it("un pago todavía `pending` no cuenta como pago acreditado", async () => {
-    const order = await insertOrder({ status: "pagado", paymentMethod: "tarjeta" });
+    const order = await insertOrder({
+      status: "pagado",
+      paymentMethod: "tarjeta",
+    });
     await insertEvent(order.id, "pendiente_pago", "pagado");
     await insertPayment(order.id, { status: "pending" });
 
@@ -238,7 +304,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   });
 
   it("detecta un pago acreditado cuyo pedido nunca pasó por pagado", async () => {
-    const order = await insertOrder({ status: "vencido", paymentMethod: "tarjeta" });
+    const order = await insertOrder({
+      status: "vencido",
+      paymentMethod: "tarjeta",
+    });
     await insertPayment(order.id);
 
     const found = await findPaymentsWithoutTransition();
@@ -251,7 +320,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   it("un pedido que ya avanzó más allá de pagado no se reporta", async () => {
     // Lo que se mira es el log de auditoría, no el estado actual: un pedido
     // `entregado` pasó por `pagado` en su momento y está perfecto.
-    const order = await insertOrder({ status: "entregado", paymentMethod: "tarjeta" });
+    const order = await insertOrder({
+      status: "entregado",
+      paymentMethod: "tarjeta",
+    });
     await insertPayment(order.id);
     await insertEvent(order.id, "pendiente_pago", "pagado");
     await insertEvent(order.id, "pagado", "preparando");
@@ -260,7 +332,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   });
 
   it("detecta un pago cuyo monto no es el total del pedido", async () => {
-    const order = await insertOrder({ status: "pagado", paymentMethod: "tarjeta" });
+    const order = await insertOrder({
+      status: "pagado",
+      paymentMethod: "tarjeta",
+    });
     await insertEvent(order.id, "pendiente_pago", "pagado");
     await insertPayment(order.id, { amountPyg: TOTAL_PYG - 1 });
 
@@ -302,7 +377,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   });
 
   it("detecta un pedido que nació ya cobrado (from_status NULL hacia pagado)", async () => {
-    const order = await insertOrder({ status: "pagado", paymentMethod: "tarjeta" });
+    const order = await insertOrder({
+      status: "pagado",
+      paymentMethod: "tarjeta",
+    });
     await insertPayment(order.id);
     await insertEvent(order.id, null, "pagado");
 
@@ -313,7 +391,10 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   });
 
   it("detecta un evento que no se mueve a ningún lado", async () => {
-    const order = await insertOrder({ status: "pagado", paymentMethod: "tarjeta" });
+    const order = await insertOrder({
+      status: "pagado",
+      paymentMethod: "tarjeta",
+    });
     await insertPayment(order.id);
     await insertEvent(order.id, "pagado", "pagado");
 
@@ -323,17 +404,25 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
   });
 
   it("reporta varias inconsistencias distintas a la vez", async () => {
-    const sinPago = await insertOrder({ status: "pagado", paymentMethod: "tarjeta" });
+    const sinPago = await insertOrder({
+      status: "pagado",
+      paymentMethod: "tarjeta",
+    });
     await insertEvent(sinPago.id, "pendiente_pago", "pagado");
 
-    const conComprobante = await insertOrder({ status: "esperando_verificacion" });
+    const conComprobante = await insertOrder({
+      status: "esperando_verificacion",
+    });
     await insertReceipt(conComprobante.id, "approved");
 
     const report = await reconcile();
 
     expect(report.ok).toBe(false);
     expect(new Set(report.crossChecks.map((finding) => finding.kind))).toEqual(
-      new Set(["pedido_cobrado_sin_pago", "comprobante_aprobado_sin_movimiento"]),
+      new Set([
+        "pedido_cobrado_sin_pago",
+        "comprobante_aprobado_sin_movimiento",
+      ])
     );
   });
 });

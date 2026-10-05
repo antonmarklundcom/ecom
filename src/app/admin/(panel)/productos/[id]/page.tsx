@@ -6,7 +6,11 @@ import { DuplicateProductButton } from "@/components/admin/bulk-actions";
 import { ProductForm } from "@/components/admin/product-form";
 import { ProductImages } from "@/components/admin/product-images";
 import { VariantEditor } from "@/components/admin/variant-editor";
-import { getAdminProduct, listCategories, listStockAdjustments } from "@/domain/admin-products";
+import {
+  getAdminProduct,
+  listCategories,
+  listStockAdjustments,
+} from "@/domain/admin-products";
 import { formatDateTimePY } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { t } from "@/i18n";
@@ -35,8 +39,12 @@ export default async function AdminProductPage({ params }: { params: Params }) {
     await Promise.all(
       variants.map(async (variant) => {
         const rows = await listStockAdjustments(variant.id, 5);
-        return rows.map((row) => ({ ...row, variantLabel: variant.label, sku: variant.sku }));
-      }),
+        return rows.map((row) => ({
+          ...row,
+          variantLabel: variant.label,
+          sku: variant.sku,
+        }));
+      })
     )
   )
     .flat()
@@ -64,9 +72,14 @@ export default async function AdminProductPage({ params }: { params: Params }) {
         <h2 className="font-medium">{t("panel.producto.datos")}</h2>
         <div className="mt-2">
           <ProductForm
-            categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+            categories={categories.map((category) => ({
+              id: category.id,
+              name: category.name,
+            }))}
             defaults={{
               productId: product.id,
+              saleMode: product.saleMode,
+              showPrice: product.showPrice,
               slug: product.slug,
               name: product.name,
               description: product.description ?? "",
@@ -111,7 +124,10 @@ export default async function AdminProductPage({ params }: { params: Params }) {
                 <div className="flex justify-between gap-3">
                   <span>
                     {adjustment.variantLabel}
-                    <span className="text-muted-foreground"> · {adjustment.sku}</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {adjustment.sku}
+                    </span>
                   </span>
                   <span className="shrink-0 font-medium tabular-nums">
                     {adjustment.delta > 0 ? "+" : ""}

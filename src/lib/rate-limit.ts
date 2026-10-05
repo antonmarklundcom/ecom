@@ -44,13 +44,20 @@ export function rateLimit(
     return {
       ok: false,
       remaining: 0,
-      retryAfterSeconds: Math.max(1, Math.ceil((oldest + options.windowMs - now) / 1000)),
+      retryAfterSeconds: Math.max(
+        1,
+        Math.ceil((oldest + options.windowMs - now) / 1000)
+      ),
     };
   }
 
   hits.push(now);
   buckets.set(key, { hits, windowMs: options.windowMs });
-  return { ok: true, remaining: options.limit - hits.length, retryAfterSeconds: 0 };
+  return {
+    ok: true,
+    remaining: options.limit - hits.length,
+    retryAfterSeconds: 0,
+  };
 }
 
 function sweep(now: number): void {
@@ -81,15 +88,23 @@ export function resetRateLimitKey(key: string): void {
 /**
  * IP del cliente detrás del proxy de Hostinger.
  *
- * `x-forwarded-for` lo pone el proxy y puede venir con varias IPs: la del
- * cliente es la primera. Es un header, o sea que es falsificable — para un
- * límite anti-fuerza-bruta alcanza, pero no sirve como identidad.
+ * Seleccionar desde el proxy más cercano. El despliegue debe comprobar que
+ * éste sobrescribe o agrega XFF; nunca usar esta señal como prueba de identidad.
  */
 export function clientIp(headers: Headers): string {
   const forwarded = headers.get("x-forwarded-for");
   if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
+    const chain = forwarded
+      .split(",")
+      .map((ip) => ip.trim())
+      .filter(Boolean);
+    const configured = Number(process.env.TRUSTED_PROXY_HOPS ?? 1);
+    const hops =
+      Number.isInteger(configured) && configured >= 1 && configured <= 10
+        ? configured
+        : 1;
+    const client = chain[chain.length - hops];
+    if (client) return client;
   }
   return headers.get("x-real-ip")?.trim() || "desconocida";
 }

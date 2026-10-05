@@ -1,7 +1,8 @@
+import { dispatchOrderNotices } from "@/domain/notification-outbox";
 import { recordJobRun } from "@/domain/job-runs";
 import { runMaintenance } from "@/domain/maintenance";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
-import { log, mensajeDe } from '@/lib/log';
+import { log, mensajeDe } from "@/lib/log";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
@@ -44,6 +45,7 @@ async function handle(request: Request): Promise<Response> {
 
   try {
     const report = await runMaintenance();
+    await dispatchOrderNotices();
     // Sólo cantidades. Los ids de pedido son datos del negocio y los logs de
     // Hostinger los ve cualquiera con acceso al hPanel.
     log.info("cron: vencimiento de pedidos", {
@@ -59,7 +61,10 @@ async function handle(request: Request): Promise<Response> {
     // no está configurado (o dejó de andar) y nadie más se entera.
     await recordJobRun("vencer_pedidos", {
       ok: true,
-      payload: { vencidos: report.expired.length, recordatorios: report.paymentReminders.enviados },
+      payload: {
+        vencidos: report.expired.length,
+        recordatorios: report.paymentReminders.enviados,
+      },
     });
 
     return cronJson({
@@ -70,10 +75,13 @@ async function handle(request: Request): Promise<Response> {
       paymentReminders: report.paymentReminders,
     });
   } catch (error) {
-    log.error('cron: falló la corrida', { error: mensajeDe(error) });
+    log.error("cron: falló la corrida", { error: mensajeDe(error) });
     // Si la base está caída esto también falla: el aviso del panel igual
     // salta, porque mira el último éxito.
-    await recordJobRun("vencer_pedidos", { ok: false, error: mensajeDe(error) }).catch(() => {});
+    await recordJobRun("vencer_pedidos", {
+      ok: false,
+      error: mensajeDe(error),
+    }).catch(() => {});
     return cronJson({ error: "internal_error" }, 500);
   }
 }

@@ -62,7 +62,7 @@ export type ReturnFees = (typeof RETURN_FEES)[number];
 export type ReturnMethod = (typeof RETURN_METHODS)[number];
 
 const PaginaSchema = seccion({
-  activo: interruptor(true),
+  activo: interruptor(false),
   titulo: texto,
   /** `null` = el texto por defecto de `src/config/paginas-default.ts`. */
   cuerpo: texto,
@@ -151,10 +151,12 @@ export const StoreSettingsSchema = z.object({
 export type StoreSettings = z.infer<typeof StoreSettingsSchema>;
 export type StoreSettingsSection = keyof StoreSettings;
 export const STORE_SETTINGS_SECTIONS = Object.keys(
-  StoreSettingsSchema.shape,
+  StoreSettingsSchema.shape
 ) as StoreSettingsSection[];
 
-export function isStoreSettingsSection(value: string): value is StoreSettingsSection {
+export function isStoreSettingsSection(
+  value: string
+): value is StoreSettingsSection {
   return (STORE_SETTINGS_SECTIONS as string[]).includes(value);
 }
 
@@ -172,7 +174,8 @@ export function parseStoreSettings(raw: unknown): StoreSettings {
       valor = {};
     }
   }
-  if (valor === null || typeof valor !== "object" || Array.isArray(valor)) valor = {};
+  if (valor === null || typeof valor !== "object" || Array.isArray(valor))
+    valor = {};
   return StoreSettingsSchema.parse(valor);
 }
 
@@ -196,7 +199,7 @@ function textoHasta(maximo: number, campo: string) {
       .string()
       .max(maximo, t("adminError.ajustes.largo", { campo, maximo }))
       .nullable()
-      .default(null),
+      .default(null)
   );
 }
 
@@ -208,11 +211,12 @@ function linkHasta(maximo: number, campo: string) {
       .string()
       .max(maximo, t("adminError.ajustes.largo", { campo, maximo }))
       .refine(
-        (valor) => (valor.startsWith("/") && !valor.startsWith("//")) || esHttps(valor),
-        t("adminError.ajustes.link", { campo }),
+        (valor) =>
+          (valor.startsWith("/") && !valor.startsWith("//")) || esHttps(valor),
+        t("adminError.ajustes.link", { campo })
       )
       .nullable()
-      .default(null),
+      .default(null)
   );
 }
 
@@ -224,7 +228,7 @@ function httpsHasta(maximo: number, campo: string) {
       .max(maximo, t("adminError.ajustes.largo", { campo, maximo }))
       .refine(esHttps, t("adminError.ajustes.https", { campo }))
       .nullable()
-      .default(null),
+      .default(null)
   );
 }
 
@@ -254,7 +258,7 @@ function enteroEntre(minimo: number, maximo: number, campo: string) {
       .min(minimo, t("adminError.ajustes.rango", { campo, minimo, maximo }))
       .max(maximo, t("adminError.ajustes.rango", { campo, minimo, maximo }))
       .nullable()
-      .default(null),
+      .default(null)
   );
 }
 
@@ -262,15 +266,21 @@ const booleano = (porDefecto: boolean) => z.boolean().default(porDefecto);
 
 const PaginaInput = z
   .object({
-    activo: booleano(true),
+    activo: booleano(false),
     titulo: textoHasta(80, t("panel.ajustes.paginas.titulo")),
     cuerpo: z.preprocess(
       limpio,
       z
         .string()
-        .max(20_000, t("adminError.ajustes.largo", { campo: t("panel.ajustes.paginas.cuerpo"), maximo: 20_000 }))
+        .max(
+          20_000,
+          t("adminError.ajustes.largo", {
+            campo: t("panel.ajustes.paginas.cuerpo"),
+            maximo: 20_000,
+          })
+        )
         .nullable()
-        .default(null),
+        .default(null)
     ),
   })
   .strict();
@@ -289,13 +299,15 @@ export const SECTION_INPUT = {
       colorPrimario: z.preprocess(
         (valor) => {
           const valorLimpio = limpio(valor);
-          return typeof valorLimpio === "string" ? valorLimpio.toLowerCase() : valorLimpio;
+          return typeof valorLimpio === "string"
+            ? valorLimpio.toLowerCase()
+            : valorLimpio;
         },
         z
           .string()
           .regex(COLOR_HEX, t("adminError.ajustes.color"))
           .nullable()
-          .default(null),
+          .default(null)
       ),
     })
     .strict(),
@@ -337,17 +349,20 @@ export const SECTION_INPUT = {
           .transform((valor, ctx) => {
             const normalizado = normalizePhonePY(valor);
             if (!normalizado) {
-              ctx.addIssue({ code: "custom", message: t("adminError.ajustes.whatsapp") });
+              ctx.addIssue({
+                code: "custom",
+                message: t("adminError.ajustes.whatsapp"),
+              });
               return z.NEVER;
             }
             return normalizado;
           })
           .nullable()
-          .default(null),
+          .default(null)
       ),
       email: z.preprocess(
         limpio,
-        z.email(t("adminError.ajustes.email")).max(120).nullable().default(null),
+        z.email(t("adminError.ajustes.email")).max(120).nullable().default(null)
       ),
       direccion: textoHasta(200, t("panel.ajustes.contacto.direccion")),
       horario: textoHasta(200, t("panel.ajustes.contacto.horario")),
@@ -358,22 +373,52 @@ export const SECTION_INPUT = {
     .strict(),
   envioDevolucion: z
     .object({
-      handlingDaysMin: enteroEntre(0, DIAS, t("panel.ajustes.envio.preparacionMin")),
-      handlingDaysMax: enteroEntre(0, DIAS, t("panel.ajustes.envio.preparacionMax")),
-      transitDaysMin: enteroEntre(0, DIAS, t("panel.ajustes.envio.transitoMin")),
-      transitDaysMax: enteroEntre(0, DIAS, t("panel.ajustes.envio.transitoMax")),
-      shippingFromPyg: enteroEntre(0, 100_000_000, t("panel.ajustes.envio.desde")),
+      handlingDaysMin: enteroEntre(
+        0,
+        DIAS,
+        t("panel.ajustes.envio.preparacionMin")
+      ),
+      handlingDaysMax: enteroEntre(
+        0,
+        DIAS,
+        t("panel.ajustes.envio.preparacionMax")
+      ),
+      transitDaysMin: enteroEntre(
+        0,
+        DIAS,
+        t("panel.ajustes.envio.transitoMin")
+      ),
+      transitDaysMax: enteroEntre(
+        0,
+        DIAS,
+        t("panel.ajustes.envio.transitoMax")
+      ),
+      shippingFromPyg: enteroEntre(
+        0,
+        100_000_000,
+        t("panel.ajustes.envio.desde")
+      ),
       acceptsReturns: z.boolean().nullable().default(null),
       returnDays: enteroEntre(1, 365, t("panel.ajustes.envio.diasDevolucion")),
-      returnFees: z.preprocess(limpio, z.enum(RETURN_FEES).nullable().default(null)),
-      returnMethod: z.preprocess(limpio, z.enum(RETURN_METHODS).nullable().default(null)),
+      returnFees: z.preprocess(
+        limpio,
+        z.enum(RETURN_FEES).nullable().default(null)
+      ),
+      returnMethod: z.preprocess(
+        limpio,
+        z.enum(RETURN_METHODS).nullable().default(null)
+      ),
     })
     .strict()
     .refine((v) => rangoValido(v.handlingDaysMin, v.handlingDaysMax), {
-      message: t("adminError.ajustes.rangoDias", { campo: t("panel.ajustes.envio.preparacion") }),
+      message: t("adminError.ajustes.rangoDias", {
+        campo: t("panel.ajustes.envio.preparacion"),
+      }),
     })
     .refine((v) => rangoValido(v.transitDaysMin, v.transitDaysMax), {
-      message: t("adminError.ajustes.rangoDias", { campo: t("panel.ajustes.envio.transito") }),
+      message: t("adminError.ajustes.rangoDias", {
+        campo: t("panel.ajustes.envio.transito"),
+      }),
     })
     .refine((v) => v.acceptsReturns !== true || v.returnDays !== null, {
       message: t("adminError.ajustes.diasDevolucion"),
@@ -403,7 +448,9 @@ export const SECTION_INPUT = {
         .default([])
         // Las líneas vacías se van; sin ninguna, vuelven las de siempre.
         .transform((lineas) => {
-          const llenas = lineas.filter((linea): linea is string => linea !== null);
+          const llenas = lineas.filter(
+            (linea): linea is string => linea !== null
+          );
           return llenas.length > 0 ? llenas : null;
         }),
     })
@@ -416,10 +463,13 @@ export const SECTION_INPUT = {
 } as const satisfies Record<StoreSettingsSection, z.ZodType>;
 
 /** Lo que el formulario de cada sección puede mandar (antes de validar). */
-export type SectionInput<S extends StoreSettingsSection> = z.input<(typeof SECTION_INPUT)[S]>;
+export type SectionInput<S extends StoreSettingsSection> = z.input<
+  (typeof SECTION_INPUT)[S]
+>;
 
 function rangoValido(minimo: number | null, maximo: number | null): boolean {
-  if (minimo === null || maximo === null) return minimo === null && maximo === null;
+  if (minimo === null || maximo === null)
+    return minimo === null && maximo === null;
   return minimo <= maximo;
 }
 
@@ -434,7 +484,10 @@ function rangoValido(minimo: number | null, maximo: number | null): boolean {
  * template): cada campo cargado en el panel pisa **ese** campo y nada más, así
  * que cambiar sólo el título conserva la foto y el botón de `tienda.ts`.
  */
-export function heroEfectivo(marca: StoreSettings["marca"], base: Hero): Hero | null {
+export function heroEfectivo(
+  marca: StoreSettings["marca"],
+  base: Hero
+): Hero | null {
   if (!marca.heroActivo) return null;
 
   const titulo = marca.heroTitulo ?? base.titulo;
@@ -458,7 +511,9 @@ export function heroEfectivo(marca: StoreSettings["marca"], base: Hero): Hero | 
  */
 export function linkSeguro(valor: string | null): string | null {
   if (!valor) return null;
-  return (valor.startsWith("/") && !valor.startsWith("//")) || esHttps(valor) ? valor : null;
+  return (valor.startsWith("/") && !valor.startsWith("//")) || esHttps(valor)
+    ? valor
+    : null;
 }
 
 export type ContactoEfectivo = {
@@ -476,17 +531,22 @@ export type ContactoEfectivo = {
  */
 export function contactoEfectivo(
   contacto: StoreSettings["contacto"],
-  whatsappDeEntorno: string | null,
+  whatsappDeEntorno: string | null
 ): ContactoEfectivo {
   const redes: ContactoEfectivo["redes"] = [];
   // `esHttps` otra vez al leer: una fila editada a mano no puede meter un
   // `javascript:` en un `href` del pie.
-  if (contacto.instagram && esHttps(contacto.instagram)) redes.push({ red: "instagram", url: contacto.instagram });
-  if (contacto.facebook && esHttps(contacto.facebook)) redes.push({ red: "facebook", url: contacto.facebook });
-  if (contacto.tiktok && esHttps(contacto.tiktok)) redes.push({ red: "tiktok", url: contacto.tiktok });
+  if (contacto.instagram && esHttps(contacto.instagram))
+    redes.push({ red: "instagram", url: contacto.instagram });
+  if (contacto.facebook && esHttps(contacto.facebook))
+    redes.push({ red: "facebook", url: contacto.facebook });
+  if (contacto.tiktok && esHttps(contacto.tiktok))
+    redes.push({ red: "tiktok", url: contacto.tiktok });
 
   return {
-    whatsapp: (contacto.whatsapp && normalizePhonePY(contacto.whatsapp)) || whatsappDeEntorno,
+    whatsapp:
+      (contacto.whatsapp && normalizePhonePY(contacto.whatsapp)) ||
+      whatsappDeEntorno,
     email: contacto.email,
     direccion: contacto.direccion,
     horario: contacto.horario,
@@ -495,13 +555,20 @@ export function contactoEfectivo(
 }
 
 /** El umbral global de stock bajo: el del panel o el de siempre. */
-export function umbralStockBajo(stock: StoreSettings["stock"], porDefecto: number): number {
+export function umbralStockBajo(
+  stock: StoreSettings["stock"],
+  porDefecto: number
+): number {
   const valor = stock.umbralStockBajo;
-  return valor !== null && Number.isInteger(valor) && valor >= 0 ? valor : porDefecto;
+  return valor !== null && Number.isInteger(valor) && valor >= 0
+    ? valor
+    : porDefecto;
 }
 
 /** Las líneas de confianza del checkout: las del panel o las de siempre. */
-export function lineasDeConfianza(checkout: StoreSettings["checkout"]): string[] {
+export function lineasDeConfianza(
+  checkout: StoreSettings["checkout"]
+): string[] {
   const propias = (checkout.confianzaLineas ?? [])
     .map((linea) => linea.trim())
     .filter((linea) => linea !== "")
@@ -515,12 +582,18 @@ export function lineasDeConfianza(checkout: StoreSettings["checkout"]): string[]
 }
 
 /** El nombre que se ve: el del panel o, si no hay, el de `tienda.ts`. */
-export function nombreEfectivo(identidad: StoreSettings["identidad"], porDefecto: string): string {
+export function nombreEfectivo(
+  identidad: StoreSettings["identidad"],
+  porDefecto: string
+): string {
   return identidad.nombre?.trim() || porDefecto;
 }
 
 /** ¿Hay cuentas de cliente? El panel decide; sin decisión, `tienda.ts`. */
-export function cuentasEfectivas(cuentas: StoreSettings["cuentas"], porDefecto: boolean): boolean {
+export function cuentasEfectivas(
+  cuentas: StoreSettings["cuentas"],
+  porDefecto: boolean
+): boolean {
   return cuentas.activas ?? porDefecto;
 }
 
@@ -532,7 +605,7 @@ export function cuentasEfectivas(cuentas: StoreSettings["cuentas"], porDefecto: 
  * sobre claros — el dueño elige un color, no un par.
  */
 export function variablesDeColor(
-  identidad: StoreSettings["identidad"],
+  identidad: StoreSettings["identidad"]
 ): Record<"--primary" | "--primary-foreground" | "--ring", string> | null {
   const color = identidad.colorPrimario?.toLowerCase() ?? "";
   if (!COLOR_HEX.test(color)) return null;
@@ -551,6 +624,6 @@ function textoSobre(hex: string): string {
   const luminancia = 0.2126 * canal(1) + 0.7152 * canal(3) + 0.0722 * canal(5);
   // Contraste contra blanco vs. contra casi negro (#171717): gana el mayor.
   const contraBlanco = 1.05 / (luminancia + 0.05);
-  const contraNegro = (luminancia + 0.05) / (0.0080 + 0.05);
+  const contraNegro = (luminancia + 0.05) / (0.008 + 0.05);
   return contraBlanco >= contraNegro ? "#ffffff" : "#171717";
 }

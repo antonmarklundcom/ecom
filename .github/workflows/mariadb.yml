@@ -10,6 +10,12 @@ name: Tests en MariaDB
 # push a main, gratis. En un repo **privado** (una tienda) sólo corre a mano
 # desde la pestaña Actions, así no gasta minutos sin que nadie lo pida.
 on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "fable/**"
+      - "docs/**"
+      - "LICENSE"
   push:
     branches: [main]
     paths-ignore:

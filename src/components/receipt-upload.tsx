@@ -8,7 +8,7 @@ import { uploadReceipt } from "@/app/actions/receipt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { RECEIPT_MAX_BYTES } from "@/lib/upload-limits";
 
 export function ReceiptUpload({
@@ -26,7 +26,9 @@ export function ReceiptUpload({
 
   if (remaining <= 0) {
     return (
-      <p className="text-muted-foreground text-sm">{t("pedido.subirComprobante.maximo")}</p>
+      <p className="text-muted-foreground text-sm">
+        {t("pedido.subirComprobante.maximo")}
+      </p>
     );
   }
 
@@ -77,11 +79,19 @@ export function ReceiptUpload({
 
       <div className="grid gap-1.5">
         <Label htmlFor="file">{t("pedido.subirComprobante.campo")}</Label>
-        <Input id="file" name="file" type="file" accept="image/jpeg,image/png,application/pdf" required />
+        <Input
+          id="file"
+          name="file"
+          type="file"
+          accept="image/jpeg,image/png,application/pdf"
+          required
+        />
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? t("pedido.subirComprobante.enviando") : t("pedido.subirComprobante.enviar")}
+        {isPending
+          ? t("pedido.subirComprobante.enviando")
+          : t("pedido.subirComprobante.enviar")}
       </Button>
     </form>
   );

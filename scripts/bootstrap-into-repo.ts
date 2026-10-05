@@ -1,16 +1,22 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
+  realpathSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   statSync,
   writeFileSync,
-} from 'node:fs';
-import { basename, dirname, join, resolve, sep } from 'node:path';
+} from "node:fs";
+import { basename, dirname, join, resolve, sep } from "node:path";
 
-import { BASELINE_FILE, contenidoBaseline, esSoloTemplate } from './template-shared';
+import {
+  BASELINE_FILE,
+  contenidoBaseline,
+  esSoloTemplate,
+} from "./template-shared";
 
 /**
  * `pnpm bootstrap:repo --destino ../lenceria` — meter el template dentro de un
@@ -49,19 +55,19 @@ import { BASELINE_FILE, contenidoBaseline, esSoloTemplate } from './template-sha
 export const EXCLUIR_NOMBRE = [
   // El de siempre y el que motiva el script: pisar el .git del destino le
   // cambia la historia y el remoto al repo que estás bootstrapeando.
-  '.git',
-  'node_modules',
-  '.next',
-  'out',
-  'coverage',
-  '.turbo',
-  '.vercel',
-  '.pnpm-store',
+  ".git",
+  "node_modules",
+  ".next",
+  "out",
+  "coverage",
+  ".turbo",
+  ".vercel",
+  ".pnpm-store",
   // Copias de la base: datos reales de clientes y de plata (ver .gitignore).
-  'backups',
-  '.claude',
-  '.DS_Store',
-  'Thumbs.db',
+  "backups",
+  ".claude",
+  ".DS_Store",
+  "Thumbs.db",
 ] as const;
 
 /**
@@ -73,13 +79,13 @@ export const EXCLUIR_NOMBRE = [
  * segunda corrida le pisaría el que ya se ganó. Lo escribe `pnpm nueva-tienda`
  * en el destino, y ahí tiene sentido.
  */
-export const EXCLUIR_RUTA = ['.template-baseline'] as const;
+export const EXCLUIR_RUTA = [".template-baseline"] as const;
 
 /** Todo lo que huele a secreto o a build local se queda en la máquina. */
 export function esArchivoDeEntorno(nombre: string): boolean {
   // `.env.example` sí viaja: es la documentación de qué variables existen.
-  if (nombre === '.env.example') return false;
-  return nombre === '.env' || nombre.startsWith('.env.');
+  if (nombre === ".env.example") return false;
+  return nombre === ".env" || nombre.startsWith(".env.");
 }
 
 /**
@@ -89,17 +95,23 @@ export function esArchivoDeEntorno(nombre: string): boolean {
  * llama, así los tests no dependen del separador del sistema.
  */
 export function debeExcluir(rutaRelativa: string): boolean {
-  if (rutaRelativa === '' || rutaRelativa === '.') return false;
+  if (rutaRelativa === "" || rutaRelativa === ".") return false;
 
-  const partes = rutaRelativa.split('/');
-  if (partes.some((parte) => (EXCLUIR_NOMBRE as readonly string[]).includes(parte))) return true;
+  const partes = rutaRelativa.split("/");
+  if (
+    partes.some((parte) =>
+      (EXCLUIR_NOMBRE as readonly string[]).includes(parte)
+    )
+  )
+    return true;
   if ((EXCLUIR_RUTA as readonly string[]).includes(rutaRelativa)) return true;
   // `fable/`, Dependabot: del template, no de la tienda (SOLO_TEMPLATE).
-  if (esSoloTemplate(rutaRelativa) || esSoloTemplate(`${rutaRelativa}/`)) return true;
+  if (esSoloTemplate(rutaRelativa) || esSoloTemplate(`${rutaRelativa}/`))
+    return true;
 
-  const nombre = partes[partes.length - 1] ?? '';
+  const nombre = partes[partes.length - 1] ?? "";
   if (esArchivoDeEntorno(nombre)) return true;
-  if (nombre.endsWith('.log') || nombre.endsWith('.tsbuildinfo')) return true;
+  if (nombre.endsWith(".log") || nombre.endsWith(".tsbuildinfo")) return true;
 
   return false;
 }
@@ -107,28 +119,29 @@ export function debeExcluir(rutaRelativa: string): boolean {
 export type Opciones = { destino: string; dryRun: boolean; forzar: boolean };
 
 export function parseArgs(argv: string[]): Opciones {
-  const opciones: Opciones = { destino: '', dryRun: false, forzar: false };
+  const opciones: Opciones = { destino: "", dryRun: false, forzar: false };
 
   for (let i = 0; i < argv.length; i += 1) {
-    const flag = argv[i] ?? '';
+    const flag = argv[i] ?? "";
 
-    if (flag === '--dry-run') {
+    if (flag === "--dry-run") {
       opciones.dryRun = true;
       continue;
     }
-    if (flag === '--forzar') {
+    if (flag === "--forzar") {
       opciones.forzar = true;
       continue;
     }
-    if (flag === '--destino') {
+    if (flag === "--destino") {
       const valor = argv[i + 1];
-      if (!valor || valor.startsWith('--')) throw new Error(`${flag} espera un valor`);
+      if (!valor || valor.startsWith("--"))
+        throw new Error(`${flag} espera un valor`);
       opciones.destino = valor;
       i += 1;
       continue;
     }
     // Un path suelto también vale: `pnpm bootstrap:repo ../lenceria`.
-    if (!flag.startsWith('--') && opciones.destino === '') {
+    if (!flag.startsWith("--") && opciones.destino === "") {
       opciones.destino = flag;
       continue;
     }
@@ -136,7 +149,8 @@ export function parseArgs(argv: string[]): Opciones {
     throw new Error(`no conozco la opción "${flag}"`);
   }
 
-  if (opciones.destino === '') throw new Error('falta --destino <carpeta del repo destino>');
+  if (opciones.destino === "")
+    throw new Error("falta --destino <carpeta del repo destino>");
   return opciones;
 }
 
@@ -149,7 +163,8 @@ export function validarRutas(origen: string, destino: string): string | null {
   const a = resolve(origen);
   const b = resolve(destino);
 
-  if (a === b) return 'el destino es el propio template: no hay nada que copiar.';
+  if (a === b)
+    return "el destino es el propio template: no hay nada que copiar.";
   if ((b + sep).startsWith(a + sep)) {
     return `el destino (${b}) está adentro del template (${a}): copiar ahí se muerde la cola.`;
   }
@@ -159,17 +174,25 @@ export function validarRutas(origen: string, destino: string): string | null {
   return null;
 }
 
-export type Accion = { ruta: string; tipo: 'nuevo' | 'actualiza' | 'igual' };
+export type Accion = { ruta: string; tipo: "nuevo" | "actualiza" | "igual" };
 
 /** Recorre el template y decide, archivo por archivo, qué le falta al destino. */
 export function planificar(origen: string, destino: string): Accion[] {
+  const sourcePhysical = realpathSync(origen);
+  const targetPhysical = physicalPath(destino);
+  const overlap = validarRutas(sourcePhysical, targetPhysical);
+  if (overlap) throw new Error(overlap);
   const acciones: Accion[] = [];
 
   const recorrer = (subruta: string): void => {
-    const entradas = readdirSync(join(origen, subruta || '.'), { withFileTypes: true });
+    const entradas = readdirSync(join(origen, subruta || "."), {
+      withFileTypes: true,
+    });
 
-    for (const entrada of entradas.sort((x, y) => x.name.localeCompare(y.name))) {
-      const rel = subruta === '' ? entrada.name : `${subruta}/${entrada.name}`;
+    for (const entrada of entradas.sort((x, y) =>
+      x.name.localeCompare(y.name)
+    )) {
+      const rel = subruta === "" ? entrada.name : `${subruta}/${entrada.name}`;
       if (debeExcluir(rel)) continue;
       // Un symlink copiado con copyFileSync se convierte en su destino, que casi
       // nunca es lo que alguien quiso. El template no tiene ninguno; si algún
@@ -184,18 +207,58 @@ export function planificar(origen: string, destino: string): Accion[] {
       }
       if (!entrada.isFile()) continue;
 
-      const destinoRuta = join(destino, ...rel.split('/'));
+      const destinoRuta = join(destino, ...rel.split("/"));
+      assertSafeDestination(destino, destinoRuta);
       if (!existsSync(destinoRuta)) {
-        acciones.push({ ruta: rel, tipo: 'nuevo' });
+        acciones.push({ ruta: rel, tipo: "nuevo" });
         continue;
       }
-      const igual = readFileSync(join(origen, ...rel.split('/'))).equals(readFileSync(destinoRuta));
-      acciones.push({ ruta: rel, tipo: igual ? 'igual' : 'actualiza' });
+      const igual = readFileSync(join(origen, ...rel.split("/"))).equals(
+        readFileSync(destinoRuta)
+      );
+      acciones.push({ ruta: rel, tipo: igual ? "igual" : "actualiza" });
     }
   };
 
-  recorrer('');
+  recorrer("");
   return acciones;
+}
+
+function physicalPath(file: string): string {
+  if (existsSync(file)) return realpathSync(file);
+  return join(physicalPath(dirname(file)), basename(file));
+}
+
+export function assertSafeDestination(root: string, file: string): void {
+  const expectedRoot = resolve(root);
+  const expectedFile = resolve(file);
+  if (
+    expectedFile !== expectedRoot &&
+    !(expectedFile + sep).startsWith(expectedRoot + sep)
+  )
+    throw new Error("Destination escapes the target repository");
+  // Reject junctions/symlinks on the target and on every existing ancestor.
+  let cursor = expectedFile;
+  for (;;) {
+    try {
+      if (lstatSync(cursor).isSymbolicLink())
+        throw new Error(
+          `Destination contains a symlink or junction: ${cursor}`
+        );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  const physicalRoot = physicalPath(expectedRoot);
+  const physicalFile = physicalPath(expectedFile);
+  if (
+    physicalFile !== physicalRoot &&
+    !(physicalFile + sep).startsWith(physicalRoot + sep)
+  )
+    throw new Error("Physical destination escapes the target repository");
 }
 
 /**
@@ -209,23 +272,30 @@ export function sobrasDelDestino(origen: string, destino: string): string[] {
   const delTemplate = new Set(
     readdirSync(origen, { withFileTypes: true })
       .map((e) => e.name)
-      .filter((nombre) => !debeExcluir(nombre)),
+      .filter((nombre) => !debeExcluir(nombre))
   );
 
   return readdirSync(destino, { withFileTypes: true })
     .map((e) => e.name)
-    .filter((nombre) => !delTemplate.has(nombre) && !debeExcluir(nombre) && nombre !== '.git')
+    .filter(
+      (nombre) =>
+        !delTemplate.has(nombre) && !debeExcluir(nombre) && nombre !== ".git"
+    )
     .sort();
 }
 
 function gitSucio(destino: string): boolean | null {
   try {
-    const salida = execFileSync('git', ['-C', destino, 'status', '--porcelain'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 15_000,
-    });
-    return salida.trim() !== '';
+    const salida = execFileSync(
+      "git",
+      ["-C", destino, "status", "--porcelain"],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 15_000,
+      }
+    );
+    return salida.trim() !== "";
   } catch {
     // No es un repo git, o no hay git. Quien llama decide qué hacer con el null.
     return null;
@@ -241,6 +311,7 @@ function gitSucio(destino: string): boolean | null {
  */
 function marcarBaselineDelOrigen(origen: string, destino: string): void {
   const ruta = join(destino, BASELINE_FILE);
+  assertSafeDestination(destino, ruta);
   if (existsSync(ruta)) {
     console.log(`\n  ${BASELINE_FILE} ya existía en el destino — no se toca.`);
     return;
@@ -248,14 +319,18 @@ function marcarBaselineDelOrigen(origen: string, destino: string): void {
   if (gitSucio(origen) !== false) {
     console.log(
       `\n  ! No escribí ${BASELINE_FILE}: el template tiene cambios sin commitear (o no es un\n` +
-        '    repo git), así que lo copiado no es ningún commit. Escribí a mano el SHA del\n' +
-        '    template del que copiaste, o volvé a correr esto con el template limpio.',
+        "    repo git), así que lo copiado no es ningún commit. Escribí a mano el SHA del\n" +
+        "    template del que copiaste, o volvé a correr esto con el template limpio."
     );
     return;
   }
-  const sha = execFileSync('git', ['-C', origen, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const sha = execFileSync("git", ["-C", origen, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
   writeFileSync(ruta, contenidoBaseline(sha));
-  console.log(`\n  ${BASELINE_FILE} → ${sha.slice(0, 12)} (el commit del template que se copió).`);
+  console.log(
+    `\n  ${BASELINE_FILE} → ${sha.slice(0, 12)} (el commit del template que se copió).`
+  );
 }
 
 function main(): void {
@@ -264,13 +339,16 @@ function main(): void {
     opciones = parseArgs(process.argv.slice(2));
   } catch (error) {
     console.error(`✗ ${(error as Error).message}`);
-    console.error('\n  pnpm bootstrap:repo --destino ../mi-tienda [--dry-run] [--forzar]\n');
+    console.error(
+      "\n  pnpm bootstrap:repo --destino ../mi-tienda [--dry-run] [--forzar]\n"
+    );
     process.exitCode = 1;
     return;
   }
 
   const origen = process.cwd();
   const destino = resolve(opciones.destino);
+  assertSafeDestination(destino, destino);
 
   const problema = validarRutas(origen, destino);
   if (problema) {
@@ -295,9 +373,9 @@ function main(): void {
   if (sucio === true && !opciones.forzar && !opciones.dryRun) {
     console.error(`✗ ${destino} tiene cambios sin commitear.`);
     console.error(
-      '      Commiteá o guardá eso primero: con el working tree limpio, todo lo que\n' +
-        '      escriba este script se deshace con un `git checkout .`. Si igual querés\n' +
-        '      seguir, agregá --forzar.',
+      "      Commiteá o guardá eso primero: con el working tree limpio, todo lo que\n" +
+        "      escriba este script se deshace con un `git checkout .`. Si igual querés\n" +
+        "      seguir, agregá --forzar."
     );
     process.exitCode = 1;
     return;
@@ -305,57 +383,63 @@ function main(): void {
   if (sucio === null) {
     console.warn(
       `! ${destino} no parece un repo git.\n` +
-        '      Se puede copiar igual, pero no vas a tener con qué deshacerlo.\n',
+        "      Se puede copiar igual, pero no vas a tener con qué deshacerlo.\n"
     );
   }
 
-  console.log(`\nTemplate → repo existente\n  de:  ${origen}\n  a:   ${destino}\n`);
+  console.log(
+    `\nTemplate → repo existente\n  de:  ${origen}\n  a:   ${destino}\n`
+  );
 
   const acciones = planificar(origen, destino);
-  const nuevos = acciones.filter((a) => a.tipo === 'nuevo');
-  const actualizados = acciones.filter((a) => a.tipo === 'actualiza');
-  const iguales = acciones.filter((a) => a.tipo === 'igual');
+  const nuevos = acciones.filter((a) => a.tipo === "nuevo");
+  const actualizados = acciones.filter((a) => a.tipo === "actualiza");
+  const iguales = acciones.filter((a) => a.tipo === "igual");
 
+  for (const accion of [...nuevos, ...actualizados])
+    console.log(`  ${accion.tipo === "nuevo" ? "+" : "~"} ${accion.ruta}`);
   for (const accion of [...nuevos, ...actualizados]) {
-    console.log(`  ${accion.tipo === 'nuevo' ? '+' : '~'} ${accion.ruta}`);
     if (opciones.dryRun) continue;
 
-    const rutaDestino = join(destino, ...accion.ruta.split('/'));
+    const rutaDestino = join(destino, ...accion.ruta.split("/"));
+    assertSafeDestination(destino, rutaDestino);
     mkdirSync(dirname(rutaDestino), { recursive: true });
-    copyFileSync(join(origen, ...accion.ruta.split('/')), rutaDestino);
+    copyFileSync(join(origen, ...accion.ruta.split("/")), rutaDestino);
   }
 
   console.log(
-    `\n  ${nuevos.length} nuevo(s), ${actualizados.length} actualizado(s), ${iguales.length} ya idéntico(s).`,
+    `\n  ${nuevos.length} nuevo(s), ${actualizados.length} actualizado(s), ${iguales.length} ya idéntico(s).`
   );
 
   if (existsSync(destino)) {
     const sobras = sobrasDelDestino(origen, destino);
     if (sobras.length > 0) {
       console.log(
-        '\n  Esto ya estaba en el destino y el template no lo conoce. No se tocó nada:\n' +
-          '  revisalo y borrá a mano lo que sea del proyecto viejo.\n',
+        "\n  Esto ya estaba en el destino y el template no lo conoce. No se tocó nada:\n" +
+          "  revisalo y borrá a mano lo que sea del proyecto viejo.\n"
       );
       for (const sobra of sobras) console.log(`      · ${sobra}`);
     }
   }
 
   if (opciones.dryRun) {
-    console.log('\n(dry-run) No se escribió nada. Sacá --dry-run para copiar de verdad.');
+    console.log(
+      "\n(dry-run) No se escribió nada. Sacá --dry-run para copiar de verdad."
+    );
     return;
   }
 
   marcarBaselineDelOrigen(origen, destino);
 
   console.log(
-    '\nSeguí desde NEW-STORE.md §1:\n' +
+    "\nSeguí desde NEW-STORE.md §1:\n" +
       `  cd ${opciones.destino}\n` +
-      '  git status                 # mirá qué entró antes de commitear\n' +
-      '  git remote add template https://github.com/antonmarklundcom/ecom.git\n' +
-      '  pnpm install && pnpm setup:doctor && pnpm nueva-tienda\n',
+      "  git status                 # mirá qué entró antes de commitear\n" +
+      "  git remote add template https://github.com/antonmarklundcom/ecom.git\n" +
+      "  pnpm install && pnpm setup:doctor && pnpm nueva-tienda\n"
   );
 }
 
-if (process.argv[1] && basename(process.argv[1]) === 'bootstrap-into-repo.ts') {
+if (process.argv[1] && basename(process.argv[1]) === "bootstrap-into-repo.ts") {
   main();
 }

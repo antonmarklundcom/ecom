@@ -14,7 +14,12 @@ import {
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { EXPORT_MAX_ROWS, csvFilename, toCsv } from "@/lib/csv";
-import { formatDatePY, formatDateTimePY, parsePyDateInput, parsePyDateInputEnd } from "@/lib/py";
+import {
+  formatDatePY,
+  formatDateTimePY,
+  parsePyDateInput,
+  parsePyDateInputEnd,
+} from "@/lib/py";
 import { t } from "@/i18n";
 
 /**
@@ -35,7 +40,12 @@ import { t } from "@/i18n";
  * quien renuncia. Que lo baje el dueño y nadie más (ARCH.md §1).
  */
 
-export type CsvExport = { csv: string; filename: string; rows: number; truncated: boolean };
+export type CsvExport = {
+  csv: string;
+  filename: string;
+  rows: number;
+  truncated: boolean;
+};
 
 const OrdersFiltersSchema = z.object({
   estado: z.enum(ORDER_STATUSES).optional(),
@@ -45,7 +55,9 @@ const OrdersFiltersSchema = z.object({
   q: z.string().optional(),
 });
 
-export async function exportOrdersCsv(input: unknown): Promise<AdminActionResult<CsvExport>> {
+export async function exportOrdersCsv(
+  input: unknown
+): Promise<AdminActionResult<CsvExport>> {
   try {
     await requireOwnerSession();
 
@@ -81,7 +93,7 @@ export async function exportOrdersCsv(input: unknown): Promise<AdminActionResult
         PAYMENT_METHOD_LABEL[row.paymentMethod],
         // Entero pelado: la planilla lo tiene que poder sumar.
         row.totalPyg,
-      ]),
+      ])
     );
 
     return {
@@ -101,7 +113,9 @@ const ProductsFiltersSchema = z.object({
   q: z.string().optional(),
 });
 
-export async function exportProductsCsv(input: unknown): Promise<AdminActionResult<CsvExport>> {
+export async function exportProductsCsv(
+  input: unknown
+): Promise<AdminActionResult<CsvExport>> {
   try {
     await requireOwnerSession();
 
@@ -123,6 +137,8 @@ export async function exportProductsCsv(input: unknown): Promise<AdminActionResu
         t("csv.producto.variante"),
         t("csv.producto.precio"),
         t("csv.producto.stock"),
+        t("csv.producto.modo"),
+        t("csv.producto.mostrarPrecio"),
       ],
       rows.map((row) => [
         row.sku,
@@ -131,7 +147,9 @@ export async function exportProductsCsv(input: unknown): Promise<AdminActionResu
         row.label,
         row.pricePyg,
         row.onHand,
-      ]),
+        row.saleMode,
+        row.showPrice ? "true" : "false",
+      ])
     );
 
     return {
@@ -164,7 +182,9 @@ function isoDayPY(): string {
  * razón: una lista de gente que consintió recibir mensajes es exactamente lo
  * que se lleva quien se va a trabajar a la competencia.
  */
-export async function exportMarketingOptInsCsv(): Promise<AdminActionResult<CsvExport>> {
+export async function exportMarketingOptInsCsv(): Promise<
+  AdminActionResult<CsvExport>
+> {
   try {
     await requireOwnerSession();
 
@@ -175,8 +195,18 @@ export async function exportMarketingOptInsCsv(): Promise<AdminActionResult<CsvE
     const rows = await listMarketingOptIns();
 
     const csv = toCsv(
-      [t("csv.cliente.nombre"), t("csv.whatsapp"), t("csv.cliente.email"), t("csv.cliente.acepto")],
-      rows.map((row) => [row.name, row.phone, row.email ?? "", formatDatePY(row.since)]),
+      [
+        t("csv.cliente.nombre"),
+        t("csv.whatsapp"),
+        t("csv.cliente.email"),
+        t("csv.cliente.acepto"),
+      ],
+      rows.map((row) => [
+        row.name,
+        row.phone,
+        row.email ?? "",
+        formatDatePY(row.since),
+      ])
     );
 
     return {

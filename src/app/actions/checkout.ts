@@ -1,12 +1,20 @@
 "use server";
 
+import { safeError } from "@/lib/safe-error";
+
 import { headers } from "next/headers";
 import { z } from "zod";
 
-import { CheckoutError, TotalChangedError, createOrder } from "@/domain/create-order";
-import { notifyOwnerNewOrder } from "@/domain/order-notifications";
+import {
+  CheckoutError,
+  TotalChangedError,
+  createOrder,
+} from "@/domain/create-order";
 import { orderUrl } from "@/domain/order-access";
-import { isPagoparConfigured, pagoparCheckoutUrl } from "@/domain/pagopar/config";
+import {
+  isPagoparConfigured,
+  pagoparCheckoutUrl,
+} from "@/domain/pagopar/config";
 import { startPagoparCheckout } from "@/domain/pagopar/checkout";
 import { DOC_TYPES, PAYMENT_METHODS } from "@/db/schema";
 import type { CartIssue } from "@/lib/cart-issues";
@@ -33,8 +41,14 @@ import { cargarIntegraciones } from "@/lib/integraciones-store";
  */
 
 const CheckoutActionSchema = z.object({
+  operationKey: z.uuid(),
   items: z
-    .array(z.object({ variantId: z.number().int().positive(), qty: z.number().int().min(1).max(99) }))
+    .array(
+      z.object({
+        variantId: z.number().int().positive(),
+        qty: z.number().int().min(1).max(99),
+      })
+    )
     .min(1, "El carrito está vacío"),
   customerName: z.string().trim().min(3, "Poné tu nombre completo").max(160),
   customerPhone: z.string().trim().min(6, "Falta tu WhatsApp").max(30),
@@ -43,7 +57,10 @@ const CheckoutActionSchema = z.object({
   // esta columna recibe lo que tipeó una persona, y un "juan@" guardado es un
   // dato que nadie va a poder usar el día que el WhatsApp falle.
   customerEmail: z
-    .union([z.literal(""), z.email("Revisá el email: parece incompleto").max(200)])
+    .union([
+      z.literal(""),
+      z.email("Revisá el email: parece incompleto").max(200),
+    ])
     .optional(),
   docType: z.enum(DOC_TYPES),
   docNumber: z.string().trim().max(32).optional().or(z.literal("")),
@@ -89,14 +106,22 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
   // Antes de mirar el cuerpo: lo caro de este endpoint no es validarlo sino la
   // transacción que reserva stock al final.
   const ip = clientIp(await headers());
-  if (!rateLimit(`checkout:${ip}`, { limit: CHECKOUT_LIMIT, windowMs: CHECKOUT_WINDOW_MS }).ok) {
+  if (
+    !rateLimit(`checkout:${ip}`, {
+      limit: CHECKOUT_LIMIT,
+      windowMs: CHECKOUT_WINDOW_MS,
+    }).ok
+  ) {
     return { ok: false, error: t("error.checkout.demasiadosIntentos") };
   }
 
   const parsed = CheckoutActionSchema.safeParse(input);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
-    return { ok: false, error: first?.message ?? t("error.checkout.revisaDatos") };
+    return {
+      ok: false,
+      error: first?.message ?? t("error.checkout.revisaDatos"),
+    };
   }
 
   // El form ya lo oculta si no está configurado; esto es el guard del lado
@@ -136,9 +161,7 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       También para tarjeta, y a propósito: al dueño le sirve saber que entró un
       pedido aunque todavía no esté pagado, y el método viaja en el texto.
     */
-    void notifyOwnerNewOrder(order.orderId).catch((error) => {
-      console.error("notifyOwnerNewOrder rechazó", error);
-    });
+    // Owner notices move to createOrder's committed outbox with customer notices.
 
     if (parsed.data.paymentMethod === "tarjeta") {
       // El pedido y la reserva de stock (45 min, RESERVATION_TTL_MINUTES.tarjeta)
@@ -152,7 +175,10 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
           redirectTo: pagoparCheckoutUrl(started.hashPedido),
         };
       } catch (pagoparError) {
-        console.error("startPagoparCheckout falló", pagoparError);
+        console.error(
+          "startPagoparCheckout falló",
+          safeError(pagoparError).message
+        );
         // El pedido y su reserva de 45 min ya quedaron escritos: no se pierden
         // por un error de red con Pagopar. Mandamos al comprador a la página
         // de su pedido en vez de a un checkout roto; desde ahí puede
@@ -183,7 +209,7 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       return { ok: false, error: error.message, issues: error.issues };
     }
     // El detalle queda en el log del servidor; al comprador no le sirve.
-    console.error("createOrder falló", error);
+    console.error("createOrder falló", safeError(error).message);
     return { ok: false, error: t("error.checkout.generico") };
   }
 }

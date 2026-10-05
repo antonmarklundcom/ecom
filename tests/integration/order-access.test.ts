@@ -1,3 +1,4 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -64,19 +65,25 @@ describe("orderUrl", () => {
 describe.skipIf(!hasTestDb)("requireOrderAccess", () => {
   beforeEach(async () => {
     await resetTables();
-    await getTestDb().insert(shippingZones).values({
-      slug: "asuncion",
-      name: "Asunción",
-      cities: ["Asunción"],
-      pricePyg: 25000,
-      position: 1,
-    });
+    await seedPaymentReadiness();
+    await getTestDb()
+      .insert(shippingZones)
+      .values({
+        slug: "asuncion",
+        name: "Asunción",
+        cities: ["Asunción"],
+        pricePyg: 25000,
+        position: 1,
+      });
   });
   afterAll(closeTestDb);
 
   it("deja pasar con el token correcto", async () => {
     const created = await makeOrder();
-    const order = await requireOrderAccess(created.orderNumber, created.accessToken);
+    const order = await requireOrderAccess(
+      created.orderNumber,
+      created.accessToken
+    );
     expect(order?.id).toBe(created.orderId);
   });
 
@@ -84,20 +91,30 @@ describe.skipIf(!hasTestDb)("requireOrderAccess", () => {
     const created = await makeOrder();
     expect(await requireOrderAccess(created.orderNumber, null)).toBeNull();
     expect(await requireOrderAccess(created.orderNumber, "")).toBeNull();
-    expect(await requireOrderAccess(created.orderNumber, "f".repeat(64))).toBeNull();
+    expect(
+      await requireOrderAccess(created.orderNumber, "f".repeat(64))
+    ).toBeNull();
   });
 
   it("un pedido inexistente y un token inválido son indistinguibles", async () => {
     const created = await makeOrder();
-    const wrongToken = await requireOrderAccess(created.orderNumber, "f".repeat(64));
-    const noSuchOrder = await requireOrderAccess("PY-999999", created.accessToken);
+    const wrongToken = await requireOrderAccess(
+      created.orderNumber,
+      "f".repeat(64)
+    );
+    const noSuchOrder = await requireOrderAccess(
+      "PY-999999",
+      created.accessToken
+    );
     expect(wrongToken).toBeNull();
     expect(noSuchOrder).toBeNull();
   });
 
   it("el número de pedido no distingue mayúsculas ni espacios", async () => {
     const created = await makeOrder();
-    const found = await getOrderByNumber(`  ${created.orderNumber.toLowerCase()}  `);
+    const found = await getOrderByNumber(
+      `  ${created.orderNumber.toLowerCase()}  `
+    );
     expect(found?.id).toBe(created.orderId);
   });
 });
@@ -105,19 +122,27 @@ describe.skipIf(!hasTestDb)("requireOrderAccess", () => {
 describe.skipIf(!hasTestDb)("findOrderByNumberAndPhone", () => {
   beforeEach(async () => {
     await resetTables();
-    await getTestDb().insert(shippingZones).values({
-      slug: "asuncion",
-      name: "Asunción",
-      cities: ["Asunción"],
-      pricePyg: 25000,
-      position: 1,
-    });
+    await seedPaymentReadiness();
+    await getTestDb()
+      .insert(shippingZones)
+      .values({
+        slug: "asuncion",
+        name: "Asunción",
+        cities: ["Asunción"],
+        pricePyg: 25000,
+        position: 1,
+      });
   });
   afterAll(closeTestDb);
 
   it("encuentra el pedido con el teléfono escrito de cualquier forma", async () => {
     const created = await makeOrder();
-    for (const phone of ["0981123456", "+595981123456", "981 123 456", "(0981) 123-456"]) {
+    for (const phone of [
+      "0981123456",
+      "+595981123456",
+      "981 123 456",
+      "(0981) 123-456",
+    ]) {
       const found = await findOrderByNumberAndPhone(created.orderNumber, phone);
       expect(found?.accessToken, phone).toBe(created.accessToken);
     }
@@ -125,17 +150,23 @@ describe.skipIf(!hasTestDb)("findOrderByNumberAndPhone", () => {
 
   it("no devuelve nada si el teléfono no coincide", async () => {
     const created = await makeOrder();
-    expect(await findOrderByNumberAndPhone(created.orderNumber, "0982 000 000")).toBeNull();
+    expect(
+      await findOrderByNumberAndPhone(created.orderNumber, "0982 000 000")
+    ).toBeNull();
   });
 
   it("no devuelve nada con un número de pedido ajeno", async () => {
     const created = await makeOrder();
-    expect(await findOrderByNumberAndPhone("PY-999999", "0981123456")).toBeNull();
+    expect(
+      await findOrderByNumberAndPhone("PY-999999", "0981123456")
+    ).toBeNull();
     expect(created.accessToken).toBeTruthy();
   });
 
   it("un teléfono con formato inválido no consulta la base", async () => {
     const created = await makeOrder();
-    expect(await findOrderByNumberAndPhone(created.orderNumber, "123")).toBeNull();
+    expect(
+      await findOrderByNumberAndPhone(created.orderNumber, "123")
+    ).toBeNull();
   });
 });

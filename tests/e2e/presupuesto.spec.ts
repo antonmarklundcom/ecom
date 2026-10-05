@@ -49,7 +49,7 @@ type ScriptSample = { url: string; sizeBytes: number };
 // porque comparar contra `page.url()` en el handler de `response` es
 // inestable: durante la navegación, `page.url()` todavía puede apuntar a la
 // página anterior cuando llega la primera respuesta de la nueva.
-const SAME_ORIGIN = "http://127.0.0.1:3000";
+const SAME_ORIGIN = `http://127.0.0.1:${process.env.E2E_PORT?.trim() || 3000}`;
 
 /**
  * Bytes realmente transferidos por cada `<script>` del mismo origen que la
@@ -63,7 +63,10 @@ const SAME_ORIGIN = "http://127.0.0.1:3000";
  * sea `sizes()` no devuelve nada útil, se cae al gzip manual del cuerpo
  * decodificado, tal como pide plan-operacion §6.4.
  */
-async function collectScriptResponses(page: Page, path: string): Promise<ScriptSample[]> {
+async function collectScriptResponses(
+  page: Page,
+  path: string
+): Promise<ScriptSample[]> {
   const samples: ScriptSample[] = [];
   const pending: Promise<void>[] = [];
 
@@ -86,7 +89,9 @@ async function collectScriptResponses(page: Page, path: string): Promise<ScriptS
           try {
             const body = await response.body();
             const contentEncoding = response.headers()["content-encoding"];
-            size = contentEncoding?.includes("gzip") ? body.length : gzipSync(body).length;
+            size = contentEncoding?.includes("gzip")
+              ? body.length
+              : gzipSync(body).length;
           } catch {
             // respuesta ya descartada por el navegador — no se puede medir,
             // no se cuenta (mejor subestimar que reventar el spec por un
@@ -106,7 +111,11 @@ async function collectScriptResponses(page: Page, path: string): Promise<ScriptS
   return samples;
 }
 
-function assertBudget(samples: ScriptSample[], label: string, limitKb: number): void {
+function assertBudget(
+  samples: ScriptSample[],
+  label: string,
+  limitKb: number
+): void {
   const totalBytes = samples.reduce((acc, s) => acc + s.sizeBytes, 0);
   const totalKb = totalBytes / 1024;
 
@@ -114,7 +123,10 @@ function assertBudget(samples: ScriptSample[], label: string, limitKb: number): 
     const top5 = [...samples]
       .sort((a, b) => b.sizeBytes - a.sizeBytes)
       .slice(0, 5)
-      .map((s) => `  ${(s.sizeBytes / 1024).toFixed(1)} KB  ${s.url.replace(SAME_ORIGIN, "")}`)
+      .map(
+        (s) =>
+          `  ${(s.sizeBytes / 1024).toFixed(1)} KB  ${s.url.replace(SAME_ORIGIN, "")}`
+      )
       .join("\n");
     throw new Error(
       `Presupuesto de JS excedido en "${label}": ${totalKb.toFixed(1)} KB > ${limitKb} KB.\n` +
@@ -123,6 +135,8 @@ function assertBudget(samples: ScriptSample[], label: string, limitKb: number): 
   }
 
   expect(totalKb).toBeLessThanOrEqual(limitKb);
+  expect(samples.length).toBeGreaterThan(0);
+  console.log(`${label}: ${totalKb.toFixed(1)} KB compressed scripts`);
 }
 
 test.describe("presupuesto de JS por página", () => {
@@ -136,8 +150,14 @@ test.describe("presupuesto de JS por página", () => {
     await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
     await expect(page).toHaveURL(/\/categoria\//);
 
-    const productHref = await page.getByTestId(TESTIDS.productCard).first().getAttribute("href");
-    if (!productHref) throw new Error("El seed no tiene ningún producto — corré `pnpm db:seed`.");
+    const productHref = await page
+      .getByTestId(TESTIDS.productCard)
+      .first()
+      .getAttribute("href");
+    if (!productHref)
+      throw new Error(
+        "El seed no tiene ningún producto — corré `pnpm db:seed`."
+      );
 
     // La medición va en una pestaña **nueva**: navegar hasta acá desde la home
     // deja los chunks compartidos en el caché del navegador, y entonces
@@ -147,7 +167,10 @@ test.describe("presupuesto de JS por página", () => {
     // nada cacheado, así que el contexto limpio es además el caso real.
     const context = await browser.newContext();
     try {
-      const samples = await collectScriptResponses(await context.newPage(), productHref);
+      const samples = await collectScriptResponses(
+        await context.newPage(),
+        productHref
+      );
       assertBudget(samples, "producto", BUDGET_KB.producto);
     } finally {
       await context.close();

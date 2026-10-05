@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * Los `{{…}}` de los textos de las páginas de políticas
@@ -26,7 +26,9 @@ export const PLACEHOLDERS = [
 ] as const;
 export type Placeholder = (typeof PLACEHOLDERS)[number];
 
-export type ValoresPlaceholder = Partial<Record<Placeholder, string | null | undefined>>;
+export type ValoresPlaceholder = Partial<
+  Record<Placeholder, string | null | undefined>
+>;
 
 /** La frase de cada uno cuando no hay dato. */
 function frasePorDefecto(nombre: Placeholder): string {
@@ -54,7 +56,10 @@ function esPlaceholder(nombre: string): nombre is Placeholder {
   return (PLACEHOLDERS as readonly string[]).includes(nombre);
 }
 
-export function reemplazarPlaceholders(texto: string, valores: ValoresPlaceholder): string {
+export function reemplazarPlaceholders(
+  texto: string,
+  valores: ValoresPlaceholder
+): string {
   return texto.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (_todo, nombre: string) => {
     if (!esPlaceholder(nombre)) return "";
     const valor = valores[nombre]?.trim();

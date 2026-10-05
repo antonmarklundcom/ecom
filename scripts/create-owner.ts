@@ -1,14 +1,16 @@
-import '@/lib/load-env';
+import "@/lib/load-env";
 
-import { createInterface } from 'node:readline/promises';
-import { stdin, stdout } from 'node:process';
+import { safeError } from "../src/lib/safe-error";
 
-import { eq } from 'drizzle-orm';
+import { createInterface } from "node:readline/promises";
+import { stdin, stdout } from "node:process";
 
-import { closePool, getDb } from '@/db';
-import { users } from '@/db/schema';
-import { createUser, normalizeEmail } from '@/lib/auth';
-import { hashPassword, validatePasswordStrength } from '@/lib/password';
+import { eq, sql } from "drizzle-orm";
+
+import { closePool, getDb } from "@/db";
+import { users } from "@/db/schema";
+import { createUser, normalizeEmail } from "@/lib/auth";
+import { hashPassword, validatePasswordStrength } from "@/lib/password";
 
 /**
  * Crea (o actualiza la contraseña de) la cuenta del dueño.
@@ -20,8 +22,11 @@ import { hashPassword, validatePasswordStrength } from '@/lib/password';
 async function main(): Promise<void> {
   const rl = createInterface({ input: stdin, output: stdout });
 
-  const email = normalizeEmail(process.env.OWNER_EMAIL ?? (await rl.question('Email del dueño: ')));
-  const password = process.env.OWNER_PASSWORD ?? (await rl.question('Contraseña: '));
+  const email = normalizeEmail(
+    process.env.OWNER_EMAIL ?? (await rl.question("Email del dueño: "))
+  );
+  const password =
+    process.env.OWNER_PASSWORD ?? (await rl.question("Contraseña: "));
   const name = process.env.OWNER_NAME ?? null;
   rl.close();
 
@@ -31,16 +36,28 @@ async function main(): Promise<void> {
   }
 
   const db = getDb();
-  const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const existing = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
 
   if (existing[0]) {
     await db
       .update(users)
-      .set({ passwordHash: await hashPassword(password), role: 'owner', isActive: true })
+      .set({
+        passwordHash: await hashPassword(password),
+        role: "owner",
+        isActive: true,
+        sessionVersion: sql`${users.sessionVersion} + 1`,
+      })
       .where(eq(users.id, existing[0].id));
     console.log(`✓ Contraseña actualizada para ${email} (role: owner)`);
   } else {
-    const created = await createUser({ email, password, name, role: 'owner' }, db);
+    const created = await createUser(
+      { email, password, name, role: "owner" },
+      db
+    );
     console.log(`✓ Dueño creado: ${created.email} (id ${created.id})`);
   }
 
@@ -48,7 +65,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-  console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`✗ ${safeError(error).message}`);
   await closePool();
   process.exit(1);
 });

@@ -1,5 +1,7 @@
 "use server";
 
+import { safeError } from "@/lib/safe-error";
+
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
@@ -12,7 +14,12 @@ import {
   submitReview,
 } from "@/domain/reviews";
 import { t } from "@/i18n";
-import { REVIEW_IP_LIMIT, REVIEW_IP_WINDOW_MS, clientIp, rateLimit } from "@/lib/rate-limit";
+import {
+  REVIEW_IP_LIMIT,
+  REVIEW_IP_WINDOW_MS,
+  clientIp,
+  rateLimit,
+} from "@/lib/rate-limit";
 
 /**
  * "Calificá tu compra", desde la página del pedido.
@@ -30,7 +37,10 @@ const ReviewSchema = z.object({
   token: z.string().trim().min(1).max(64),
   productId: z.number().int().positive(),
   rating: z.number().int().min(1).max(5),
-  title: z.string().max(REVIEW_TITLE_MAX * 2).optional(),
+  title: z
+    .string()
+    .max(REVIEW_TITLE_MAX * 2)
+    .optional(),
   // El largo real (10..2000, trimmed) lo valida el dominio con su mensaje;
   // esto sólo corta un cuerpo absurdo antes de tocar la base.
   body: z.string().max(REVIEW_BODY_MAX * 2),
@@ -38,19 +48,30 @@ const ReviewSchema = z.object({
 
 export type SubmitReviewResult = { ok: true } | { ok: false; error: string };
 
-export async function enviarResena(input: unknown): Promise<SubmitReviewResult> {
+export async function enviarResena(
+  input: unknown
+): Promise<SubmitReviewResult> {
   try {
     const parsed = ReviewSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: t("error.resena.generico") };
+    if (!parsed.success)
+      return { ok: false, error: t("error.resena.generico") };
 
     const ip = clientIp(await headers());
-    if (!rateLimit(`resena:ip:${ip}`, { limit: REVIEW_IP_LIMIT, windowMs: REVIEW_IP_WINDOW_MS }).ok) {
+    if (
+      !rateLimit(`resena:ip:${ip}`, {
+        limit: REVIEW_IP_LIMIT,
+        windowMs: REVIEW_IP_WINDOW_MS,
+      }).ok
+    ) {
       return { ok: false, error: t("error.resena.demasiados") };
     }
 
     // Guard: mismo 404 lógico que la página. Token inválido y pedido
     // inexistente dan la misma respuesta.
-    const order = await requireOrderAccess(parsed.data.orderNumber, parsed.data.token);
+    const order = await requireOrderAccess(
+      parsed.data.orderNumber,
+      parsed.data.token
+    );
     if (!order) return { ok: false, error: t("error.resena.pedidoNoExiste") };
 
     await submitReview({
@@ -64,8 +85,9 @@ export async function enviarResena(input: unknown): Promise<SubmitReviewResult> 
     revalidatePath("/admin/resenas");
     return { ok: true };
   } catch (error) {
-    if (error instanceof ReviewError) return { ok: false, error: error.message };
-    console.error("enviarResena falló", error);
+    if (error instanceof ReviewError)
+      return { ok: false, error: error.message };
+    console.error("enviarResena falló", safeError(error).message);
     return { ok: false, error: t("error.resena.generico") };
   }
 }

@@ -17,7 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { describeIssue } from "@/lib/cart-issues";
 import { cartSubtotal, useCart, type CartLine } from "@/lib/cart-store";
 import { formatGs } from "@/lib/money";
@@ -31,7 +31,16 @@ import { TESTIDS } from "@/lib/testids";
  * muestra al abrirlo tiene que ser lo que dice la DB.
  */
 export function CartSheet() {
-  const { lines, isOpen, issues, freeShipping, isSyncing, close, setQty, remove } = useCart();
+  const {
+    lines,
+    isOpen,
+    issues,
+    freeShipping,
+    isSyncing,
+    close,
+    setQty,
+    remove,
+  } = useCart();
   const subtotal = cartSubtotal(lines);
 
   return (
@@ -45,7 +54,9 @@ export function CartSheet() {
         {issues.length > 0 ? (
           <ul className="border-border bg-muted/40 mx-4 space-y-1 rounded-lg border p-3 text-sm">
             {issues.map((issue) => (
-              <li key={`${issue.type}-${issue.variantId}`}>{describeIssue(issue)}</li>
+              <li key={`${issue.type}-${issue.variantId}`}>
+                {describeIssue(issue)}
+              </li>
             ))}
           </ul>
         ) : null}
@@ -71,7 +82,9 @@ export function CartSheet() {
                     >
                       {line.name}
                     </Link>
-                    <p className="text-muted-foreground text-xs">{line.variantLabel}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {line.variantLabel}
+                    </p>
                     <p className="mt-1 text-sm font-medium tabular-nums">
                       {formatGs(line.unitPricePyg * line.qty)}
                     </p>
@@ -103,16 +116,24 @@ export function CartSheet() {
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
                 {t("carrito.subtotal")}
-                {isSyncing ? <Loader2 className="ml-1 inline size-3 animate-spin" /> : null}
+                {isSyncing ? (
+                  <Loader2 className="ml-1 inline size-3 animate-spin" />
+                ) : null}
               </span>
-              <span className="text-base font-semibold tabular-nums">{formatGs(subtotal)}</span>
+              <span className="text-base font-semibold tabular-nums">
+                {formatGs(subtotal)}
+              </span>
             </div>
             <FreeShippingBar progress={freeShipping} subtotalPyg={subtotal} />
             <p className="text-muted-foreground text-xs">
               {t("carrito.envioEnCheckout")}
             </p>
             <Button asChild size="lg">
-              <Link href="/checkout" onClick={close} data-testid={TESTIDS.cartCheckoutLink}>
+              <Link
+                href="/checkout"
+                onClick={close}
+                data-testid={TESTIDS.cartCheckoutLink}
+              >
                 {t("carrito.irAlCheckout")}
               </Link>
             </Button>
@@ -155,7 +176,9 @@ function ConsultarPorWhatsApp({ lines }: { lines: CartLine[] }) {
       }
       className="text-muted-foreground hover:text-foreground text-center text-sm underline disabled:opacity-60"
     >
-      {isPending ? t("carrito.abriendoWhatsApp") : t("carrito.consultarWhatsApp")}
+      {isPending
+        ? t("carrito.abriendoWhatsApp")
+        : t("carrito.consultarWhatsApp")}
     </button>
   );
 }

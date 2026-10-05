@@ -36,7 +36,8 @@ En el hPanel, dentro del sitio:
    por variable. Son **sólo las cinco imprescindibles** —`DATABASE_URL`,
    `SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET` y `SETUP_SECRET`—
    más `NODE_ENV=production`, que lo pone el hosting (si no, agregalo). Los
-   valores los imprime `pnpm nueva-tienda` listos para pegar; `DATABASE_URL`
+    `pnpm nueva-tienda` lista las claves y guarda los secretos en `.env.local`:
+    copiá sus valores desde ese archivo al panel, sin comillas. `DATABASE_URL`
    sale de la base del §2.
 
    Todo lo demás es **opcional** y está documentado, con sus trampas, en

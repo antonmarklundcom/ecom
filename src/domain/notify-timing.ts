@@ -6,17 +6,29 @@
  */
 
 /** Más que esto y no vale la pena seguir esperando: lo que dispara el aviso ya está guardado. */
-export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`el envío pasó de ${ms} ms`)), ms).unref?.(),
-    ),
-  ]);
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Message delivery timeout")),
+          ms
+        );
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Motivo corto para `order_events.reason`: sin stack, sin número de nadie. */
 export function motivoDeAviso(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  return raw.replace(/\s+/g, " ").trim().slice(0, 120);
+  return safeError(error).message;
 }
+import { safeError } from "@/lib/safe-error";

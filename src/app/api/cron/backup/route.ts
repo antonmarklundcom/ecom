@@ -1,3 +1,4 @@
+import { safeError } from "@/lib/safe-error";
 import { runBackup, backupsEnabled } from "@/domain/backup";
 import { resolveDigestNotifier } from "@/domain/daily-digest";
 import { claimJob, finishJob } from "@/domain/job-runs";
@@ -86,7 +87,7 @@ async function handle(request: Request): Promise<Response> {
       pruned: resultado.pruned,
     });
   } catch (error) {
-    const motivo = error instanceof Error ? error.message : String(error);
+    const motivo = safeError(error).message;
     log.error("backup falló", { error: motivo });
 
     await finishJob("backup", { ok: false, error: motivo });
@@ -117,11 +118,11 @@ async function avisarDelFallo(motivo: string): Promise<void> {
         body: "No se pudo hacer la copia de seguridad de hoy. Avisale a quien te maneja el sitio.",
         templateName: notifier.templateName,
       }),
-      AVISO_TIMEOUT_MS,
+      AVISO_TIMEOUT_MS
     );
   } catch (error) {
     log.warn("no se pudo avisar del backup fallido", {
-      error: error instanceof Error ? error.message : String(error),
+      error: safeError(error).message,
       motivo,
     });
   }

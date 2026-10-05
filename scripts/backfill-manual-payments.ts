@@ -1,5 +1,7 @@
 import "../src/lib/load-env";
 
+import { safeError } from "../src/lib/safe-error";
+
 import { closePool } from "../src/db";
 import { backfillManualPayments } from "../src/domain/manual-payments";
 import { formatGs } from "../src/lib/money";
@@ -27,7 +29,9 @@ async function main(): Promise<void> {
   const { pending, inserted } = await backfillManualPayments({ apply });
 
   if (pending.length === 0) {
-    console.log("✓ No hay pedidos cobrados sin fila de pago: no hay nada que completar.");
+    console.log(
+      "✓ No hay pedidos cobrados sin fila de pago: no hay nada que completar."
+    );
     return;
   }
 
@@ -36,12 +40,14 @@ async function main(): Promise<void> {
     console.log(
       `  ${row.orderNumber} (${row.orderStatus}, ${row.paymentMethod}) → ` +
         `payments(provider=${row.provider}, provider_ref=${row.orderNumber}, ` +
-        `${formatGs(row.amountPyg)})`,
+        `${formatGs(row.amountPyg)})`
     );
   }
 
   if (!apply) {
-    console.log("\nEnsayo: no se escribió nada. Volvé a correrlo con --apply para aplicarlo.");
+    console.log(
+      "\nEnsayo: no se escribió nada. Volvé a correrlo con --apply para aplicarlo."
+    );
     return;
   }
 
@@ -51,14 +57,14 @@ async function main(): Promise<void> {
     // —el índice único hizo su trabajo— pero conviene que se vea.
     console.log(
       `  (${pending.length - inserted} ya tenían su fila cuando se escribió: ` +
-        `las escribió otro proceso en el medio.)`,
+        `las escribió otro proceso en el medio.)`
     );
   }
 }
 
 main()
   .catch((error) => {
-    console.error("El backfill falló:", error);
+    console.error("El backfill falló:", safeError(error).message);
     process.exitCode = 1;
   })
   .finally(() => closePool());

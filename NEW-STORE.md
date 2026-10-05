@@ -195,7 +195,8 @@ del pie, WhatsApp y dominio— y con eso:
 - genera `SESSION_SECRET`, `CRON_SECRET` y `SETUP_SECRET` con
   `crypto.randomBytes` (no con `openssl`, que en Windows no existe) y los
   escribe en `.env.local` junto con el WhatsApp y el dominio;
-- imprime el bloque exacto de variables para pegar en el hPanel;
+- lista las variables del hPanel; los secretos se copian desde `.env.local`,
+  para que no queden en logs de la consola;
 - corre `pnpm template:diff --marcar --origen` si todavía no hay
   `.template-baseline` (si ya hay, no lo mueve).
 

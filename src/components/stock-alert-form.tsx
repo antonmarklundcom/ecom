@@ -6,7 +6,7 @@ import { subscribeToStockAlert } from "@/app/actions/stock-alerts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { TESTIDS } from "@/lib/testids";
 
 /**
@@ -21,11 +21,17 @@ import { TESTIDS } from "@/lib/testids";
  */
 export function StockAlertForm({ variantId }: { variantId: number }) {
   const [phone, setPhone] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
+    "idle"
+  );
   const [error, setError] = useState("");
 
   if (status === "done") {
-    return <p className="text-muted-foreground mt-3 text-sm">{t("stock.avisame.listo")}</p>;
+    return (
+      <p className="text-muted-foreground mt-3 text-sm">
+        {t("stock.avisame.listo")}
+      </p>
+    );
   }
 
   return (
@@ -68,9 +74,13 @@ export function StockAlertForm({ variantId }: { variantId: number }) {
           disabled={status === "loading"}
           data-testid={TESTIDS.stockAlertSubmit}
         >
-          {status === "loading" ? t("stock.avisame.enviando") : t("stock.avisame.boton")}
+          {status === "loading"
+            ? t("stock.avisame.enviando")
+            : t("stock.avisame.boton")}
         </Button>
-        {error ? <p className="text-destructive basis-full text-sm">{error}</p> : null}
+        {error ? (
+          <p className="text-destructive basis-full text-sm">{error}</p>
+        ) : null}
       </div>
     </form>
   );

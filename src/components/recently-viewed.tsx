@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { categoryPlaceholderSrc, productImageUrl } from "@/lib/images";
 import { formatGs } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
@@ -47,7 +47,8 @@ function isItem(value: unknown): value is RecentlyViewedItem {
     item.slug !== "" &&
     typeof item.name === "string" &&
     Number.isInteger(item.pricePyg) &&
-    (item.imageCloudinaryId === null || typeof item.imageCloudinaryId === "string") &&
+    (item.imageCloudinaryId === null ||
+      typeof item.imageCloudinaryId === "string") &&
     (item.imageAlt === null || typeof item.imageAlt === "string")
   );
 }
@@ -84,10 +85,10 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
     // sólo que el `setState` quede en un callback en vez de en el cuerpo.
     const timer = setTimeout(() => {
       const existing = readList();
-      const next = [current, ...existing.filter((item) => item.slug !== current.slug)].slice(
-        0,
-        MAX_ITEMS
-      );
+      const next = [
+        current,
+        ...existing.filter((item) => item.slug !== current.slug),
+      ].slice(0, MAX_ITEMS);
       writeList(next);
       setItems(next.filter((item) => item.slug !== current.slug));
     }, 0);
@@ -103,7 +104,9 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
 
   return (
     <section className="border-border mt-12 border-t pt-8">
-      <h2 className="text-lg font-semibold tracking-tight">{t("producto.vistosRecientemente")}</h2>
+      <h2 className="text-lg font-semibold tracking-tight">
+        {t("producto.vistosRecientemente")}
+      </h2>
       <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {items.map((item) => {
           const url = productImageUrl(item.imageCloudinaryId, "card");

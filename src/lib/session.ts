@@ -1,8 +1,13 @@
-import { getIronSession, type IronSession, type SessionOptions } from "iron-session";
+import {
+  getIronSession,
+  type IronSession,
+  type SessionOptions,
+} from "iron-session";
 import { cookies } from "next/headers";
 
 import type { OrderStatus } from "@/db/schema";
 import { USER_ROLES, type UserRole } from "@/lib/roles";
+import { validSessionSecret } from "./session-secret";
 
 /**
  * Sesión de admin. No hay cuentas de comprador en v1: el comprador entra a su
@@ -12,13 +17,14 @@ export type AdminSession = {
   userId?: number;
   email?: string;
   role?: UserRole;
+  sessionVersion?: number;
 };
 
 export const SESSION_COOKIE = "ecom_admin";
 
 export function sessionOptions(): SessionOptions {
   const password = process.env.SESSION_SECRET;
-  if (!password || password.length < 32) {
+  if (!validSessionSecret(password)) {
     throw new Error(
       "SESSION_SECRET debe existir y tener al menos 32 caracteres. " +
         "Generala con: openssl rand -base64 32"
@@ -64,7 +70,9 @@ export type AdminActor = { userId: number; email: string; role: UserRole };
  * Guard de admin. Se llama al principio de CADA server action y route handler
  * de `/admin` — esconder un botón es UX, no seguridad (ARCH.md §1, regla 2).
  */
-export function requireAdmin(session: AdminSession | null | undefined): AdminActor {
+export function requireAdmin(
+  session: AdminSession | null | undefined
+): AdminActor {
   if (!session?.userId || !session.email || !session.role) {
     throw new UnauthorizedError();
   }
@@ -84,16 +92,22 @@ export function requireAdmin(session: AdminSession | null | undefined): AdminAct
  * Deja pasar a `owner` y `staff`, y **excluye a `vendedor`**: quien está en el
  * mostrador despacha pedidos, no cambia precios ni aprueba transferencias.
  */
-export function requireStaff(session: AdminSession | null | undefined): AdminActor {
+export function requireStaff(
+  session: AdminSession | null | undefined
+): AdminActor {
   const actor = requireAdmin(session);
   if (actor.role === "vendedor") {
-    throw new ForbiddenError("Tu usuario no puede hacer esto. Pedíselo al dueño o al encargado.");
+    throw new ForbiddenError(
+      "Tu usuario no puede hacer esto. Pedíselo al dueño o al encargado."
+    );
   }
   return actor;
 }
 
 /** Acciones reservadas al dueño (alta de usuarios, borrados, reembolsos). */
-export function requireOwner(session: AdminSession | null | undefined): AdminActor {
+export function requireOwner(
+  session: AdminSession | null | undefined
+): AdminActor {
   const actor = requireAdmin(session);
   if (actor.role !== "owner") {
     throw new ForbiddenError("Sólo el dueño puede hacer esto");
@@ -114,7 +128,11 @@ export function requireOwner(session: AdminSession | null | undefined): AdminAct
  * cobrada una transferencia), `reembolsado`, `cancelado`, `rechazado` y
  * `vencido` mueven plata o sueltan stock, y ninguno es trabajo de mostrador.
  */
-export const VENDEDOR_TRANSITIONS: readonly OrderStatus[] = ["preparando", "enviado", "entregado"];
+export const VENDEDOR_TRANSITIONS: readonly OrderStatus[] = [
+  "preparando",
+  "enviado",
+  "entregado",
+];
 
 /**
  * Guard de la transición, por rol.
@@ -127,7 +145,10 @@ export const VENDEDOR_TRANSITIONS: readonly OrderStatus[] = ["preparando", "envi
  * `transitionOrder()` sigue validando la arista después: esto decide quién
  * tiene permiso, no si la transición existe.
  */
-export function assertCanTransitionTo(actor: AdminActor, to: OrderStatus): void {
+export function assertCanTransitionTo(
+  actor: AdminActor,
+  to: OrderStatus
+): void {
   if (actor.role !== "vendedor") return;
   if (!VENDEDOR_TRANSITIONS.includes(to)) {
     throw new ForbiddenError(

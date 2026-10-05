@@ -7,7 +7,7 @@ import { entrarConCodigo, pedirCodigoAcceso } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * Entrar sin contraseña (PLAN.md FASE 2, PR F.3).
@@ -37,7 +37,7 @@ export function CodigoAccesoForm() {
           event.preventDefault();
           setError(null);
           startTransition(async () => {
-            const result = await entrarConCodigo({ code });
+            const result = await entrarConCodigo({ phone, code });
             if (!result.ok) {
               setError(result.error);
               return;
@@ -47,7 +47,9 @@ export function CodigoAccesoForm() {
           });
         }}
       >
-        <p className="text-muted-foreground text-sm">{t("cuenta.codigo.aviso")}</p>
+        <p className="text-muted-foreground text-sm">
+          {t("cuenta.codigo.aviso")}
+        </p>
 
         {error ? (
           <p
@@ -63,7 +65,9 @@ export function CodigoAccesoForm() {
           <Input
             id="codigo"
             value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(event) =>
+              setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder={t("cuenta.codigo.placeholder")}

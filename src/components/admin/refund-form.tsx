@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  browserOperation,
+  finishBrowserOperation,
+} from "@/lib/browser-operation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -56,24 +60,35 @@ export function RefundForm({
       <dl className="grid grid-cols-2 gap-1 text-xs">
         <dt className="text-muted-foreground">{t("panel.reembolso.pagado")}</dt>
         <dd className="text-right tabular-nums">{formatGs(amountPyg)}</dd>
-        <dt className="text-muted-foreground">{t("panel.reembolso.devuelto")}</dt>
+        <dt className="text-muted-foreground">
+          {t("panel.reembolso.devuelto")}
+        </dt>
         <dd className="text-right tabular-nums">{formatGs(refundedPyg)}</dd>
         <dt className="font-medium">{t("panel.reembolso.resta")}</dt>
-        <dd className="text-right font-semibold tabular-nums">{formatGs(resto)}</dd>
+        <dd className="text-right font-semibold tabular-nums">
+          {formatGs(resto)}
+        </dd>
       </dl>
 
       {disabled ? (
-        <p className="text-muted-foreground text-xs">{t("panel.reembolso.completo")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.reembolso.completo")}
+        </p>
       ) : (
         <>
           {error ? (
-            <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-2 text-xs">
+            <p
+              role="alert"
+              className="border-destructive/40 text-destructive rounded-lg border p-2 text-xs"
+            >
               {error}
             </p>
           ) : null}
 
           <div className="grid gap-1.5">
-            <Label htmlFor={`refund-amount-${paymentId}`}>{t("panel.reembolso.monto")}</Label>
+            <Label htmlFor={`refund-amount-${paymentId}`}>
+              {t("panel.reembolso.monto")}
+            </Label>
             <Input
               id={`refund-amount-${paymentId}`}
               type="number"
@@ -87,7 +102,9 @@ export function RefundForm({
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor={`refund-reason-${paymentId}`}>{t("panel.reembolso.motivo")}</Label>
+            <Label htmlFor={`refund-reason-${paymentId}`}>
+              {t("panel.reembolso.motivo")}
+            </Label>
             <Input
               id={`refund-reason-${paymentId}`}
               data-testid={TESTIDS.adminRefundReason}
@@ -117,26 +134,40 @@ export function RefundForm({
                   return;
                 }
                 startTransition(async () => {
-                  const result = await markPaymentRefunded({
+                  const payload = {
                     paymentId,
                     reason,
                     amountPyg: monto,
                     allowSettled,
+                  };
+                  const operationKey = await browserOperation(
+                    `refund:${paymentId}`,
+                    payload
+                  );
+                  const result = await markPaymentRefunded({
+                    ...payload,
+                    operationKey,
                   });
                   if (!result.ok) {
                     setError(result.error);
                     return;
                   }
-                  const nuevoDevuelto = refundedPyg + monto;
+                  finishBrowserOperation(`refund:${paymentId}`);
+                  const nuevoDevuelto =
+                    result.refundedPyg ?? refundedPyg + monto;
                   setRefundedPyg(nuevoDevuelto);
                   setAmount(String(Math.max(0, amountPyg - nuevoDevuelto)));
                   setReason("");
-                  toast.success(`${t("panel.reembolso.hecho")} · ${orderNumber}`);
+                  toast.success(
+                    `${t("panel.reembolso.hecho")} · ${orderNumber}`
+                  );
                   onDone?.();
                 });
               }}
             >
-              {isPending ? t("panel.acciones.guardando") : t("panel.reembolso.confirmar")}
+              {isPending
+                ? t("panel.acciones.guardando")
+                : t("panel.reembolso.confirmar")}
             </Button>
           </div>
         </>

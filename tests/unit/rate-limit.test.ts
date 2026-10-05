@@ -10,7 +10,10 @@ describe("rateLimit", () => {
   it("deja pasar hasta el límite y después corta", () => {
     const now = Date.now();
     for (let attempt = 1; attempt <= 5; attempt += 1) {
-      expect(rateLimit("ip:1.2.3.4", OPTIONS, now).ok, `intento ${attempt}`).toBe(true);
+      expect(
+        rateLimit("ip:1.2.3.4", OPTIONS, now).ok,
+        `intento ${attempt}`
+      ).toBe(true);
     }
     const blocked = rateLimit("ip:1.2.3.4", OPTIONS, now);
     expect(blocked.ok).toBe(false);
@@ -30,7 +33,9 @@ describe("rateLimit", () => {
     // limpieza. Los intentos de login siguen dentro de sus 15 minutos.
     rateLimit("busqueda:1.2.3.4", corto, start + 2 * 60 * 1000);
 
-    expect(rateLimit("login:email:x", largo, start + 2 * 60 * 1000 + 1).ok).toBe(false);
+    expect(
+      rateLimit("login:email:x", largo, start + 2 * 60 * 1000 + 1).ok
+    ).toBe(false);
   });
 
   it("cuenta por clave: una IP no bloquea a otra", () => {
@@ -43,13 +48,18 @@ describe("rateLimit", () => {
 
   it("la ventana es deslizante: se libera de a un intento", () => {
     const start = Date.now();
-    for (let i = 0; i < 5; i += 1) rateLimit("ip:9.9.9.9", OPTIONS, start + i * 1000);
+    for (let i = 0; i < 5; i += 1)
+      rateLimit("ip:9.9.9.9", OPTIONS, start + i * 1000);
 
     expect(rateLimit("ip:9.9.9.9", OPTIONS, start + 5000).ok).toBe(false);
     // Justo después de que vence el primer intento, entra uno más.
-    expect(rateLimit("ip:9.9.9.9", OPTIONS, start + OPTIONS.windowMs + 1).ok).toBe(true);
+    expect(
+      rateLimit("ip:9.9.9.9", OPTIONS, start + OPTIONS.windowMs + 1).ok
+    ).toBe(true);
     // Pero no dos.
-    expect(rateLimit("ip:9.9.9.9", OPTIONS, start + OPTIONS.windowMs + 2).ok).toBe(false);
+    expect(
+      rateLimit("ip:9.9.9.9", OPTIONS, start + OPTIONS.windowMs + 2).ok
+    ).toBe(false);
   });
 
   it("informa cuánto falta para reintentar", () => {
@@ -63,13 +73,17 @@ describe("rateLimit", () => {
 });
 
 describe("clientIp", () => {
-  it("toma la primera IP de x-forwarded-for", () => {
-    const headers = new Headers({ "x-forwarded-for": "200.1.2.3, 10.0.0.1, 10.0.0.2" });
-    expect(clientIp(headers)).toBe("200.1.2.3");
+  it("toma la última IP de x-forwarded-for", () => {
+    const headers = new Headers({
+      "x-forwarded-for": "200.1.2.3, 10.0.0.1, 10.0.0.2",
+    });
+    expect(clientIp(headers)).toBe("10.0.0.2");
   });
 
   it("cae a x-real-ip", () => {
-    expect(clientIp(new Headers({ "x-real-ip": "190.0.0.9" }))).toBe("190.0.0.9");
+    expect(clientIp(new Headers({ "x-real-ip": "190.0.0.9" }))).toBe(
+      "190.0.0.9"
+    );
   });
 
   it("sin headers devuelve un valor estable", () => {

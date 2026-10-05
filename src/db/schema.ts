@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -12,7 +13,7 @@ import {
   tinyint,
   unique,
   varchar,
-} from 'drizzle-orm/mysql-core';
+} from "drizzle-orm/mysql-core";
 
 /**
  * Data model (ARCH.md §2).
@@ -39,7 +40,7 @@ export {
   type DocType,
   type OrderStatus,
   type PaymentMethod,
-} from './enums';
+} from "./enums";
 // El `export ... from` re-exporta pero no trae los bindings a este módulo, y
 // las columnas `mysqlEnum(...)` de abajo los necesitan como valores.
 import {
@@ -48,7 +49,7 @@ import {
   ORDER_STATUSES,
   PAYMENT_METHODS,
   type PaymentMethod,
-} from './enums';
+} from "./enums";
 
 /**
  * Cómo llega el pedido a destino (PLAN.md FASE 3, métodos de envío).
@@ -60,7 +61,7 @@ import {
  * `retiro` no viaja a ningún lado, así que ignora las zonas y cuesta ₲0
  * siempre.
  */
-export const SHIPPING_METHOD_KINDS = ['courier', 'local', 'retiro'] as const;
+export const SHIPPING_METHOD_KINDS = ["courier", "local", "retiro"] as const;
 export type ShippingMethodKind = (typeof SHIPPING_METHOD_KINDS)[number];
 
 /**
@@ -71,16 +72,21 @@ export type ShippingMethodKind = (typeof SHIPPING_METHOD_KINDS)[number];
  * `fixed_price_pyg` cualquiera sea la ciudad: es la tarifa plana que cobra
  * una moto del barrio, y no tiene umbral porque no depende de la distancia.
  */
-export const SHIPPING_METHOD_PRICINGS = ['zona', 'fijo'] as const;
+export const SHIPPING_METHOD_PRICINGS = ["zona", "fijo"] as const;
 export type ShippingMethodPricing = (typeof SHIPPING_METHOD_PRICINGS)[number];
 
-export const PAYMENT_PROVIDERS = ['spi', 'cod', 'pagopar'] as const;
+export const PAYMENT_PROVIDERS = ["spi", "cod", "pagopar"] as const;
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number];
 
-export const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'refunded'] as const;
+export const PAYMENT_STATUSES = [
+  "pending",
+  "paid",
+  "failed",
+  "refunded",
+] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-export const RECEIPT_REVIEWS = ['pending', 'approved', 'rejected'] as const;
+export const RECEIPT_REVIEWS = ["pending", "approved", "rejected"] as const;
 export type ReceiptReview = (typeof RECEIPT_REVIEWS)[number];
 
 /**
@@ -88,7 +94,7 @@ export type ReceiptReview = (typeof RECEIPT_REVIEWS)[number];
  * comprobante y por lo mismo: entra `pending`, y sólo una persona del panel la
  * aprueba o la rechaza. Lo único que se publica es `approved`.
  */
-export const REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export const REVIEW_STATUSES = ["pending", "approved", "rejected"] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
 /**
@@ -97,37 +103,42 @@ export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
  * rodeo está escrito en ese archivo: `src/proxy.ts` corre en el edge y no
  * puede arrastrar `drizzle-orm` sólo para conocer tres strings.
  */
-export { USER_ROLES, type UserRole } from '../lib/roles';
+export { USER_ROLES, type UserRole } from "../lib/roles";
 // El `export ... from` de arriba re-exporta pero no trae el binding a este
 // módulo, y `users.role` lo necesita como valor.
-import { USER_ROLES } from '../lib/roles';
+import { USER_ROLES } from "../lib/roles";
 
-export const INVOICE_STATUSES = ['none', 'queued', 'approved', 'rejected'] as const;
+export const INVOICE_STATUSES = [
+  "none",
+  "queued",
+  "approved",
+  "rejected",
+] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
-export const RESERVATION_STATES = ['held', 'consumed', 'released'] as const;
+export const RESERVATION_STATES = ["held", "consumed", "released"] as const;
 export type ReservationState = (typeof RESERVATION_STATES)[number];
 
-export { IVA_RATES, type IvaRate } from './enums';
+export { IVA_RATES, type IvaRate } from "./enums";
 
 /** Whole guaraníes. Never a float, never a decimal. */
-const pyg = (name: string) => bigint(name, { mode: 'number', unsigned: true });
+const pyg = (name: string) => bigint(name, { mode: "number", unsigned: true });
 
 // ---------------------------------------------------------------------------
 // Catálogo
 // ---------------------------------------------------------------------------
 
 export const categories = mysqlTable(
-  'categories',
+  "categories",
   {
-    id: int('id').autoincrement().primaryKey(),
-    slug: varchar('slug', { length: 120 }).notNull(),
-    name: varchar('name', { length: 120 }).notNull(),
+    id: int("id").autoincrement().primaryKey(),
+    slug: varchar("slug", { length: 120 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
     // Self-reference: declared as a plain column + FK added in post-push SQL so
     // drizzle-kit does not need a forward reference to its own table.
-    parentId: int('parent_id'),
-    position: int('position').notNull().default(0),
-    isActive: boolean('is_active').notNull().default(true),
+    parentId: int("parent_id"),
+    position: int("position").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
     /**
      * El texto que explica la categoría arriba de su grilla (plan-operacion §2).
      *
@@ -136,37 +147,47 @@ export const categories = mysqlTable(
      * `varchar` porque es copy SEO —dos o tres párrafos— y recortarlo a 255
      * obligaría a reescribirlo cada vez que alguien lo mejora.
      */
-    description: text('description'),
+    description: text("description"),
     /**
      * `public_id` de la foto de portada en Cloudinary, carpeta `categorias/`.
      * NULL = sin foto, y la página cae al encabezado de texto de siempre.
      */
-    imageCloudinaryId: varchar('image_cloudinary_id', { length: 255 }),
+    imageCloudinaryId: varchar("image_cloudinary_id", { length: 255 }),
     /**
      * El alt de esa foto. Va aparte y no derivado del nombre: "Zapatillas" no
      * describe la imagen, y una portada sin alt es una página menos accesible
      * y peor indexada. NULL sólo mientras no haya foto.
      */
-    imageAlt: varchar('image_alt', { length: 200 }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    imageAlt: varchar("image_alt", { length: 200 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [unique('categories_slug_uq').on(t.slug), index('categories_parent_idx').on(t.parentId)],
+  (t) => [
+    unique("categories_slug_uq").on(t.slug),
+    index("categories_parent_idx").on(t.parentId),
+  ]
 );
 
 export const products = mysqlTable(
-  'products',
+  "products",
   {
-    id: int('id').autoincrement().primaryKey(),
-    slug: varchar('slug', { length: 160 }).notNull(),
-    name: varchar('name', { length: 200 }).notNull(),
-    description: text('description'),
-    categoryId: int('category_id')
+    id: int("id").autoincrement().primaryKey(),
+    slug: varchar("slug", { length: 160 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    saleMode: mysqlEnum("sale_mode", ["stock", "enquiry", "showcase"])
       .notNull()
-      .references(() => categories.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
-    brand: varchar('brand', { length: 120 }),
+      .default("stock"),
+    showPrice: boolean("show_price").notNull().default(true),
+    description: text("description"),
+    categoryId: int("category_id")
+      .notNull()
+      .references(() => categories.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    brand: varchar("brand", { length: 120 }),
     /** 10 | 5 | 0 — IVA incluido en el precio. */
-    ivaRate: tinyint('iva_rate').notNull().default(10),
-    isActive: boolean('is_active').notNull().default(true),
+    ivaRate: tinyint("iva_rate").notNull().default(10),
+    isActive: boolean("is_active").notNull().default(true),
     /**
      * Destacado de la home, elegido a mano por el comercio (plan-operacion §2).
      *
@@ -176,51 +197,57 @@ export const products = mysqlTable(
      * que una tienda que sincroniza esta migración no despliegue de golpe una
      * home llena de destacados que nadie eligió.
      */
-    isFeatured: boolean('is_featured').notNull().default(false),
-    publishedAt: datetime('published_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+    isFeatured: boolean("is_featured").notNull().default(false),
+    publishedAt: datetime("published_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
   (t) => [
-    unique('products_slug_uq').on(t.slug),
-    index('products_category_idx').on(t.categoryId),
-    index('products_active_published_idx').on(t.isActive, t.publishedAt),
+    unique("products_slug_uq").on(t.slug),
+    index("products_category_idx").on(t.categoryId),
+    index("products_active_published_idx").on(t.isActive, t.publishedAt),
     // La home pide "destacados publicados, los más nuevos primero" en cada
     // render: sin este índice es un full scan de `products` en la portada.
-    index('products_featured_idx').on(t.isFeatured, t.publishedAt),
+    index("products_featured_idx").on(t.isFeatured, t.publishedAt),
     // FULLTEXT(name, description) is created by scripts/post-push.ts — the
     // drizzle-kit MySQL dialect has no fulltext index builder.
-  ],
+  ]
 );
 
 export const productImages = mysqlTable(
-  'product_images',
+  "product_images",
   {
-    id: int('id').autoincrement().primaryKey(),
-    productId: int('product_id')
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("product_id")
       .notNull()
-      .references(() => products.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    cloudinaryId: varchar('cloudinary_id', { length: 255 }).notNull(),
-    blurDataUrl: text('blur_data_url'),
-    alt: varchar('alt', { length: 255 }),
-    position: int('position').notNull().default(0),
+      .references(() => products.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    cloudinaryId: varchar("cloudinary_id", { length: 255 }).notNull(),
+    blurDataUrl: text("blur_data_url"),
+    alt: varchar("alt", { length: 255 }),
+    position: int("position").notNull().default(0),
   },
-  (t) => [index('product_images_product_idx').on(t.productId, t.position)],
+  (t) => [index("product_images_product_idx").on(t.productId, t.position)]
 );
 
 export const variants = mysqlTable(
-  'variants',
+  "variants",
   {
-    id: int('id').autoincrement().primaryKey(),
-    productId: int('product_id')
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("product_id")
       .notNull()
-      .references(() => products.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    sku: varchar('sku', { length: 64 }).notNull(),
-    label: varchar('label', { length: 120 }).notNull(),
-    pricePyg: pyg('price_pyg').notNull(),
-    compareAtPyg: pyg('compare_at_pyg'),
+      .references(() => products.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    sku: varchar("sku", { length: 64 }).notNull(),
+    label: varchar("label", { length: 120 }).notNull(),
+    pricePyg: pyg("price_pyg").notNull(),
+    compareAtPyg: pyg("compare_at_pyg"),
     /** Physical count. Only changes when money confirms (see transitionOrder). */
-    onHand: int('on_hand', { unsigned: true }).notNull().default(0),
+    onHand: int("on_hand", { unsigned: true }).notNull().default(0),
     /**
      * A partir de cuántas unidades esta variante entra en "stock bajo"
      * (plan-operacion §2, lo usa el resumen diario de O6).
@@ -231,11 +258,14 @@ export const variants = mysqlTable(
      * congelaría el umbral de hoy en cada fila y haría imposible cambiarlo
      * después para todas juntas.
      */
-    reorderPoint: int('reorder_point', { unsigned: true }),
-    isActive: boolean('is_active').notNull().default(true),
-    position: int('position').notNull().default(0),
+    reorderPoint: int("reorder_point", { unsigned: true }),
+    isActive: boolean("is_active").notNull().default(true),
+    position: int("position").notNull().default(0),
   },
-  (t) => [unique('variants_sku_uq').on(t.sku), index('variants_product_idx').on(t.productId)],
+  (t) => [
+    unique("variants_sku_uq").on(t.sku),
+    index("variants_product_idx").on(t.productId),
+  ]
 );
 
 /**
@@ -257,22 +287,25 @@ export const variants = mysqlTable(
  * mandándole diez mensajes a la misma persona.
  */
 export const stockAlerts = mysqlTable(
-  'stock_alerts',
+  "stock_alerts",
   {
-    id: int('id').autoincrement().primaryKey(),
-    variantId: int('variant_id')
+    id: int("id").autoincrement().primaryKey(),
+    variantId: int("variant_id")
       .notNull()
-      .references(() => variants.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => variants.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     /** `+5959XXXXXXXX`, normalizado por el mismo validador del checkout. */
-    phone: varchar('phone', { length: 20 }).notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    phone: varchar("phone", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
     /** Cuándo se le avisó. NULL = sigue esperando. */
-    notifiedAt: datetime('notified_at'),
+    notifiedAt: datetime("notified_at"),
   },
   (t) => [
-    unique('stock_alerts_variant_phone_uq').on(t.variantId, t.phone),
-    index('stock_alerts_pending_idx').on(t.variantId, t.notifiedAt),
-  ],
+    unique("stock_alerts_variant_phone_uq").on(t.variantId, t.phone),
+    index("stock_alerts_pending_idx").on(t.variantId, t.notifiedAt),
+  ]
 );
 
 // ---------------------------------------------------------------------------
@@ -280,26 +313,28 @@ export const stockAlerts = mysqlTable(
 // ---------------------------------------------------------------------------
 
 export const orders = mysqlTable(
-  'orders',
+  "orders",
   {
-    id: int('id').autoincrement().primaryKey(),
-    orderNumber: varchar('order_number', { length: 16 }).notNull(),
-    accessToken: varchar('access_token', { length: 64 }).notNull(),
-    status: mysqlEnum('status', ORDER_STATUSES).notNull().default('pendiente_pago'),
+    id: int("id").autoincrement().primaryKey(),
+    orderNumber: varchar("order_number", { length: 16 }).notNull(),
+    accessToken: varchar("access_token", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ORDER_STATUSES)
+      .notNull()
+      .default("pendiente_pago"),
 
-    customerName: varchar('customer_name', { length: 160 }).notNull(),
-    customerPhone: varchar('customer_phone', { length: 20 }).notNull(),
-    customerEmail: varchar('customer_email', { length: 200 }),
-    docType: mysqlEnum('doc_type', DOC_TYPES).notNull().default('NINGUNO'),
-    docNumber: varchar('doc_number', { length: 32 }),
-    isConsumidorFinal: boolean('is_consumidor_final').notNull().default(true),
+    customerName: varchar("customer_name", { length: 160 }).notNull(),
+    customerPhone: varchar("customer_phone", { length: 20 }).notNull(),
+    customerEmail: varchar("customer_email", { length: 200 }),
+    docType: mysqlEnum("doc_type", DOC_TYPES).notNull().default("NINGUNO"),
+    docNumber: varchar("doc_number", { length: 32 }),
+    isConsumidorFinal: boolean("is_consumidor_final").notNull().default(true),
 
-    shipCity: varchar('ship_city', { length: 120 }).notNull(),
-    shipBarrio: varchar('ship_barrio', { length: 120 }),
-    shipAddress: varchar('ship_address', { length: 255 }).notNull(),
-    shipReference: varchar('ship_reference', { length: 255 }),
-    shipMapsUrl: varchar('ship_maps_url', { length: 500 }),
-    shippingZoneId: int('shipping_zone_id'),
+    shipCity: varchar("ship_city", { length: 120 }).notNull(),
+    shipBarrio: varchar("ship_barrio", { length: 120 }),
+    shipAddress: varchar("ship_address", { length: 255 }).notNull(),
+    shipReference: varchar("ship_reference", { length: 255 }),
+    shipMapsUrl: varchar("ship_maps_url", { length: 500 }),
+    shippingZoneId: int("shipping_zone_id"),
     /**
      * El método de envío elegido (FASE 3). **Nullable para siempre**, y por
      * dos motivos distintos: los pedidos anteriores a la tabla no tienen
@@ -309,22 +344,30 @@ export const orders = mysqlTable(
      * Columna suelta con la FK en los extras, igual que `coupon_id`:
      * `shipping_methods` se declara después en este archivo.
      */
-    shippingMethodId: int('shipping_method_id'),
+    shippingMethodId: int("shipping_method_id"),
     /**
      * El nombre del método tal como estaba al comprar. Snapshot, igual que
      * `coupon_code`: el dueño puede renombrar "Moto Asunción" o borrarlo, y
      * este pedido tiene que seguir diciendo cómo se entregó.
      */
-    shippingMethodName: varchar('shipping_method_name', { length: 160 }),
+    shippingMethodName: varchar("shipping_method_name", { length: 160 }),
 
-    subtotalPyg: pyg('subtotal_pyg').notNull().default(0),
-    shippingPyg: pyg('shipping_pyg').notNull().default(0),
-    totalPyg: pyg('total_pyg').notNull().default(0),
-    iva10Pyg: pyg('iva_10_pyg').notNull().default(0),
-    iva5Pyg: pyg('iva_5_pyg').notNull().default(0),
+    subtotalPyg: pyg("subtotal_pyg").notNull().default(0),
+    shippingPyg: pyg("shipping_pyg").notNull().default(0),
+    totalPyg: pyg("total_pyg").notNull().default(0),
+    iva10Pyg: pyg("iva_10_pyg").notNull().default(0),
+    iva5Pyg: pyg("iva_5_pyg").notNull().default(0),
 
-    paymentMethod: mysqlEnum('payment_method', PAYMENT_METHODS).notNull(),
-    reservedUntil: datetime('reserved_until'),
+    paymentMethod: mysqlEnum("payment_method", PAYMENT_METHODS).notNull(),
+    cardCheckoutState: mysqlEnum("card_checkout_state", [
+      "idle",
+      "starting",
+      "ready",
+      "unknown",
+    ])
+      .notNull()
+      .default("idle"),
+    reservedUntil: datetime("reserved_until"),
 
     /**
      * Cuándo se le mandó a la compradora el recordatorio de "te queda poco
@@ -342,7 +385,7 @@ export const orders = mysqlTable(
      * Nullable para siempre: todo pedido anterior a esta columna, y todo
      * pedido que se paga a tiempo, muere con NULL acá.
      */
-    paymentReminderSentAt: datetime('payment_reminder_sent_at'),
+    paymentReminderSentAt: datetime("payment_reminder_sent_at"),
 
     /**
      * Consentimiento para novedades y promociones.
@@ -356,36 +399,38 @@ export const orders = mysqlTable(
      * El MVP no manda nada —no hay proveedor de mensajería en el stack— pero
      * el permiso sólo se puede pedir en el momento de la compra.
      */
-    marketingOptIn: boolean('marketing_opt_in'),
+    marketingOptIn: boolean("marketing_opt_in"),
     /** Cuándo contestó. Sin fecha, un "sí" no prueba nada dentro de un año. */
-    marketingOptInAt: datetime('marketing_opt_in_at'),
+    marketingOptInAt: datetime("marketing_opt_in_at"),
 
     /**
      * Pedido para regalar. A diferencia del consentimiento, acá `false` y "no
      * contestó" son lo mismo —un pedido que nadie marcó como regalo no lo
      * es—, así que la columna es NOT NULL.
      */
-    isGift: boolean('is_gift').notNull().default(false),
+    isGift: boolean("is_gift").notNull().default(false),
     /** Mensajito para la tarjeta. Sólo se guarda si `is_gift` está en true. */
-    giftNote: varchar('gift_note', { length: 300 }),
+    giftNote: varchar("gift_note", { length: 300 }),
 
     // FASE 2 — FacturaPY. Nullable, unused in the MVP (ARCH.md §7).
-    invoiceStatus: mysqlEnum('invoice_status', INVOICE_STATUSES).notNull().default('none'),
-    invoiceCdc: varchar('invoice_cdc', { length: 64 }),
-    invoicePdfUrl: varchar('invoice_pdf_url', { length: 500 }),
+    invoiceStatus: mysqlEnum("invoice_status", INVOICE_STATUSES)
+      .notNull()
+      .default("none"),
+    invoiceCdc: varchar("invoice_cdc", { length: 64 }),
+    invoicePdfUrl: varchar("invoice_pdf_url", { length: 500 }),
 
     /**
      * El cupón aplicado, si hubo uno (PR G). Columna suelta con la FK en los
      * extras: `coupons` se declara después en este archivo.
      */
-    couponId: int('coupon_id'),
+    couponId: int("coupon_id"),
     /**
      * El código tal como estaba al comprar. Snapshot, igual que
      * `order_items.name_snapshot`: si mañana el dueño renombra o borra el
      * cupón, este pedido tiene que seguir explicando de dónde salió su
      * descuento.
      */
-    couponCode: varchar('coupon_code', { length: 40 }),
+    couponCode: varchar("coupon_code", { length: 40 }),
     /**
      * Lo que se descontó, en guaraníes enteros. **Siempre** se resta del
      * subtotal, nunca del envío:
@@ -394,7 +439,7 @@ export const orders = mysqlTable(
      *
      * `pnpm reconcile` verifica esa identidad en cada pedido.
      */
-    discountPyg: pyg('discount_pyg').notNull().default(0),
+    discountPyg: pyg("discount_pyg").notNull().default(0),
 
     /**
      * La cuenta que hizo el pedido, si había una (PR E). **Nullable para
@@ -405,7 +450,7 @@ export const orders = mysqlTable(
      * que `categories.parent_id`: la tabla `customers` se declara después en
      * este archivo y drizzle-kit no maneja la referencia hacia adelante.
      */
-    customerId: int('customer_id'),
+    customerId: int("customer_id"),
 
     /**
      * Seguimiento del envío (plan-operacion §2). Los tres se escriben
@@ -418,64 +463,73 @@ export const orders = mysqlTable(
      * Los tres nullable para siempre: el pedido de una tienda que reparte en
      * moto propia no tiene número de guía y no por eso está incompleto.
      */
-    trackingCarrier: varchar('tracking_carrier', { length: 80 }),
-    trackingCode: varchar('tracking_code', { length: 120 }),
+    trackingCarrier: varchar("tracking_carrier", { length: 80 }),
+    trackingCode: varchar("tracking_code", { length: 120 }),
     /** Sólo `https://`, validado en `src/lib/schemas.ts` antes de llegar acá. */
-    trackingUrl: varchar('tracking_url', { length: 500 }),
+    trackingUrl: varchar("tracking_url", { length: 500 }),
 
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
-    paidAt: datetime('paid_at'),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+    paidAt: datetime("paid_at"),
   },
   (t) => [
-    unique('orders_number_uq').on(t.orderNumber),
-    index('orders_customer_idx').on(t.customerId),
-    index('orders_coupon_idx').on(t.couponId),
-    index('orders_shipping_method_idx').on(t.shippingMethodId),
-    unique('orders_access_token_uq').on(t.accessToken),
-    index('orders_status_created_idx').on(t.status, t.createdAt),
-    index('orders_phone_idx').on(t.customerPhone),
-    index('orders_doc_number_idx').on(t.docNumber),
-    index('orders_reserved_until_idx').on(t.reservedUntil),
-  ],
+    unique("orders_number_uq").on(t.orderNumber),
+    index("orders_customer_idx").on(t.customerId),
+    index("orders_coupon_idx").on(t.couponId),
+    index("orders_shipping_method_idx").on(t.shippingMethodId),
+    unique("orders_access_token_uq").on(t.accessToken),
+    index("orders_status_created_idx").on(t.status, t.createdAt),
+    index("orders_phone_idx").on(t.customerPhone),
+    index("orders_doc_number_idx").on(t.docNumber),
+    index("orders_reserved_until_idx").on(t.reservedUntil),
+  ]
 );
 
 export const orderItems = mysqlTable(
-  'order_items',
+  "order_items",
   {
-    id: int('id').autoincrement().primaryKey(),
-    orderId: int('order_id')
+    id: int("id").autoincrement().primaryKey(),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     // RESTRICT: a variant that was ever sold cannot be deleted out from under
     // an order. The snapshots below are what the buyer actually agreed to.
-    variantId: int('variant_id')
+    variantId: int("variant_id")
       .notNull()
-      .references(() => variants.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
-    nameSnapshot: varchar('name_snapshot', { length: 255 }).notNull(),
-    skuSnapshot: varchar('sku_snapshot', { length: 64 }).notNull(),
-    unitPricePyg: pyg('unit_price_pyg').notNull(),
-    qty: int('qty', { unsigned: true }).notNull(),
-    ivaRate: tinyint('iva_rate').notNull(),
-    lineTotalPyg: pyg('line_total_pyg').notNull(),
+      .references(() => variants.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    nameSnapshot: varchar("name_snapshot", { length: 255 }).notNull(),
+    skuSnapshot: varchar("sku_snapshot", { length: 64 }).notNull(),
+    unitPricePyg: pyg("unit_price_pyg").notNull(),
+    qty: int("qty", { unsigned: true }).notNull(),
+    ivaRate: tinyint("iva_rate").notNull(),
+    lineTotalPyg: pyg("line_total_pyg").notNull(),
   },
   (t) => [
-    index('order_items_order_idx').on(t.orderId),
-    index('order_items_variant_idx').on(t.variantId),
-  ],
+    index("order_items_order_idx").on(t.orderId),
+    index("order_items_variant_idx").on(t.variantId),
+  ]
 );
 
 export const payments = mysqlTable(
-  'payments',
+  "payments",
   {
-    id: int('id').autoincrement().primaryKey(),
-    orderId: int('order_id')
+    id: int("id").autoincrement().primaryKey(),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    provider: mysqlEnum('provider', PAYMENT_PROVIDERS).notNull(),
-    providerRef: varchar('provider_ref', { length: 191 }).notNull(),
-    amountPyg: pyg('amount_pyg').notNull(),
-    status: mysqlEnum('status', PAYMENT_STATUSES).notNull().default('pending'),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    provider: mysqlEnum("provider", PAYMENT_PROVIDERS).notNull(),
+    providerRef: varchar("provider_ref", { length: 191 }).notNull(),
+    amountPyg: pyg("amount_pyg").notNull(),
+    status: mysqlEnum("status", PAYMENT_STATUSES).notNull().default("pending"),
     /**
      * Cuánto de este pago ya se devolvió, en guaraníes enteros
      * (plan-operacion §2, lo mueve O7).
@@ -492,15 +546,15 @@ export const payments = mysqlTable(
      * migración backfillea los `refunded` viejos (devolución total anterior
      * al ledger) para que esa invariante nazca verde.
      */
-    refundedPyg: pyg('refunded_pyg').notNull().default(0),
-    rawPayload: json('raw_payload'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+    refundedPyg: pyg("refunded_pyg").notNull().default(0),
+    rawPayload: json("raw_payload"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
   (t) => [
-    unique('payments_provider_ref_uq').on(t.provider, t.providerRef),
-    index('payments_order_idx').on(t.orderId),
-  ],
+    unique("payments_provider_ref_uq").on(t.provider, t.providerRef),
+    index("payments_order_idx").on(t.orderId),
+  ]
 );
 
 /**
@@ -517,76 +571,95 @@ export const payments = mysqlTable(
  * en ningún lado.
  */
 export const refunds = mysqlTable(
-  'refunds',
+  "refunds",
   {
-    id: int('id').autoincrement().primaryKey(),
-    paymentId: int('payment_id')
+    id: int("id").autoincrement().primaryKey(),
+    paymentId: int("payment_id")
       .notNull()
-      .references(() => payments.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => payments.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     /** Entero > 0. La suma de este pago nunca puede pasar `payments.amount_pyg`. */
-    amountPyg: pyg('amount_pyg').notNull(),
+    amountPyg: pyg("amount_pyg").notNull(),
     /** Obligatorio por diseño, igual que en `stock_adjustments`. */
-    reason: varchar('reason', { length: 500 }).notNull(),
-    actor: varchar('actor', { length: 120 }).notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    actor: varchar("actor", { length: 120 }).notNull(),
     /** La FK consultable; ver el comentario largo en `stock_adjustments`. */
-    actorUserId: int('actor_user_id'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    actorUserId: int("actor_user_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index('refunds_payment_idx').on(t.paymentId)],
+  (t) => [index("refunds_payment_idx").on(t.paymentId)]
 );
 
 /** Webhook idempotency ledger — UNIQUE(provider, event_key) is the whole point. */
 export const paymentEvents = mysqlTable(
-  'payment_events',
+  "payment_events",
   {
-    id: int('id').autoincrement().primaryKey(),
-    provider: mysqlEnum('provider', PAYMENT_PROVIDERS).notNull(),
-    eventKey: varchar('event_key', { length: 191 }).notNull(),
-    payload: json('payload'),
-    receivedAt: timestamp('received_at').notNull().defaultNow(),
+    id: int("id").autoincrement().primaryKey(),
+    provider: mysqlEnum("provider", PAYMENT_PROVIDERS).notNull(),
+    eventKey: varchar("event_key", { length: 191 }).notNull(),
+    payload: json("payload"),
+    receivedAt: timestamp("received_at").notNull().defaultNow(),
   },
-  (t) => [unique('payment_events_key_uq').on(t.provider, t.eventKey)],
+  (t) => [unique("payment_events_key_uq").on(t.provider, t.eventKey)]
 );
 
 export const receipts = mysqlTable(
-  'receipts',
+  "receipts",
   {
-    id: int('id').autoincrement().primaryKey(),
-    orderId: int('order_id')
+    id: int("id").autoincrement().primaryKey(),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     /** Private Cloudinary folder — served to the admin via signed URLs only. */
-    cloudinaryId: varchar('cloudinary_id', { length: 255 }).notNull(),
-    mime: varchar('mime', { length: 100 }).notNull(),
-    bytes: int('bytes', { unsigned: true }).notNull(),
-    uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
-    review: mysqlEnum('review', RECEIPT_REVIEWS).notNull().default('pending'),
-    reviewedBy: int('reviewed_by'),
-    reviewedAt: datetime('reviewed_at'),
-    note: varchar('note', { length: 500 }),
+    cloudinaryId: varchar("cloudinary_id", { length: 255 }).notNull(),
+    mime: varchar("mime", { length: 100 }).notNull(),
+    bytes: int("bytes", { unsigned: true }).notNull(),
+    uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+    review: mysqlEnum("review", RECEIPT_REVIEWS).notNull().default("pending"),
+    reviewedBy: int("reviewed_by"),
+    reviewedAt: datetime("reviewed_at"),
+    note: varchar("note", { length: 500 }),
   },
-  (t) => [index('receipts_order_idx').on(t.orderId), index('receipts_review_idx').on(t.review)],
+  (t) => [
+    index("receipts_order_idx").on(t.orderId),
+    index("receipts_review_idx").on(t.review),
+  ]
 );
 
 export const stockReservations = mysqlTable(
-  'stock_reservations',
+  "stock_reservations",
   {
-    id: int('id').autoincrement().primaryKey(),
-    variantId: int('variant_id')
+    id: int("id").autoincrement().primaryKey(),
+    variantId: int("variant_id")
       .notNull()
-      .references(() => variants.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
-    orderId: int('order_id')
+      .references(() => variants.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    qty: int('qty', { unsigned: true }).notNull(),
-    expiresAt: datetime('expires_at').notNull(),
-    state: mysqlEnum('state', RESERVATION_STATES).notNull().default('held'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    qty: int("qty", { unsigned: true }).notNull(),
+    expiresAt: datetime("expires_at").notNull(),
+    state: mysqlEnum("state", RESERVATION_STATES).notNull().default("held"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
-    index('stock_reservations_availability_idx').on(t.variantId, t.state, t.expiresAt),
-    index('stock_reservations_order_idx').on(t.orderId),
-  ],
+    index("stock_reservations_availability_idx").on(
+      t.variantId,
+      t.state,
+      t.expiresAt
+    ),
+    index("stock_reservations_order_idx").on(t.orderId),
+  ]
 );
 
 /**
@@ -598,19 +671,22 @@ export const stockReservations = mysqlTable(
  * discusión sin registro. Append-only, igual que `order_events`.
  */
 export const stockAdjustments = mysqlTable(
-  'stock_adjustments',
+  "stock_adjustments",
   {
-    id: int('id').autoincrement().primaryKey(),
-    variantId: int('variant_id')
+    id: int("id").autoincrement().primaryKey(),
+    variantId: int("variant_id")
       .notNull()
-      .references(() => variants.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+      .references(() => variants.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     /** Con signo: negativo es merma, positivo es reposición. */
-    delta: int('delta').notNull(),
-    previousOnHand: int('previous_on_hand', { unsigned: true }).notNull(),
-    newOnHand: int('new_on_hand', { unsigned: true }).notNull(),
+    delta: int("delta").notNull(),
+    previousOnHand: int("previous_on_hand", { unsigned: true }).notNull(),
+    newOnHand: int("new_on_hand", { unsigned: true }).notNull(),
     /** Obligatorio por diseño: un ajuste sin motivo no se puede auditar. */
-    reason: varchar('reason', { length: 300 }).notNull(),
-    actor: varchar('actor', { length: 120 }).notNull(),
+    reason: varchar("reason", { length: 300 }).notNull(),
+    actor: varchar("actor", { length: 120 }).notNull(),
     /**
      * Quién, como FK consultable (PR D).
      *
@@ -625,13 +701,13 @@ export const stockAdjustments = mysqlTable(
      * tenerla— y hay escrituras legítimas sin usuario detrás (el cron, un
      * webhook de Pagopar, la compradora subiendo su comprobante).
      */
-    actorUserId: int('actor_user_id'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    actorUserId: int("actor_user_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
-    index('stock_adjustments_variant_idx').on(t.variantId, t.createdAt),
-    index('stock_adjustments_actor_idx').on(t.actorUserId, t.createdAt),
-  ],
+    index("stock_adjustments_variant_idx").on(t.variantId, t.createdAt),
+    index("stock_adjustments_actor_idx").on(t.actorUserId, t.createdAt),
+  ]
 );
 
 /**
@@ -648,35 +724,41 @@ export const stockAdjustments = mysqlTable(
  * volverla atrás.
  */
 export const priceAdjustments = mysqlTable(
-  'price_adjustments',
+  "price_adjustments",
   {
-    id: int('id').autoincrement().primaryKey(),
-    variantId: int('variant_id')
+    id: int("id").autoincrement().primaryKey(),
+    variantId: int("variant_id")
       .notNull()
-      .references(() => variants.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => variants.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     /** El precio que había, en guaraníes enteros. */
-    fromPyg: pyg('from_pyg').notNull(),
+    fromPyg: pyg("from_pyg").notNull(),
     /** El precio que quedó. Nunca ₲0 por redondeo: lo garantiza el dominio. */
-    toPyg: pyg('to_pyg').notNull(),
-    reason: varchar('reason', { length: 500 }).notNull(),
-    actor: varchar('actor', { length: 120 }).notNull(),
-    actorUserId: int('actor_user_id'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    toPyg: pyg("to_pyg").notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    actor: varchar("actor", { length: 120 }).notNull(),
+    actorUserId: int("actor_user_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index('price_adjustments_variant_idx').on(t.variantId, t.createdAt)],
+  (t) => [index("price_adjustments_variant_idx").on(t.variantId, t.createdAt)]
 );
 
 /** Append-only audit log. Written by transitionOrder() and nothing else. */
 export const orderEvents = mysqlTable(
-  'order_events',
+  "order_events",
   {
-    id: int('id').autoincrement().primaryKey(),
-    orderId: int('order_id')
+    id: int("id").autoincrement().primaryKey(),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    fromStatus: mysqlEnum('from_status', ORDER_STATUSES),
-    toStatus: mysqlEnum('to_status', ORDER_STATUSES).notNull(),
-    actor: varchar('actor', { length: 120 }).notNull(),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    fromStatus: mysqlEnum("from_status", ORDER_STATUSES),
+    toStatus: mysqlEnum("to_status", ORDER_STATUSES).notNull(),
+    actor: varchar("actor", { length: 120 }).notNull(),
     /**
      * Quién, como FK consultable (PR D). Ver el comentario largo en
      * `stock_adjustments.actor_user_id`: `actor` es la verdad histórica, esto
@@ -686,14 +768,14 @@ export const orderEvents = mysqlTable(
      * vence pedidos, el webhook de Pagopar, la compradora que sube su
      * comprobante — y en todo lo anterior a esta columna.
      */
-    actorUserId: int('actor_user_id'),
-    reason: varchar('reason', { length: 500 }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    actorUserId: int("actor_user_id"),
+    reason: varchar("reason", { length: 500 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
-    index('order_events_order_idx').on(t.orderId, t.createdAt),
-    index('order_events_actor_idx').on(t.actorUserId, t.createdAt),
-  ],
+    index("order_events_order_idx").on(t.orderId, t.createdAt),
+    index("order_events_actor_idx").on(t.actorUserId, t.createdAt),
+  ]
 );
 
 /**
@@ -714,20 +796,23 @@ export const orderEvents = mysqlTable(
  * `ON DELETE CASCADE`: la nota no significa nada sin su pedido.
  */
 export const orderNotes = mysqlTable(
-  'order_notes',
+  "order_notes",
   {
-    id: int('id').autoincrement().primaryKey(),
-    orderId: int('order_id')
+    id: int("id").autoincrement().primaryKey(),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     /** 1..1000 caracteres, trimmed. Una nota vacía no se guarda. */
-    body: varchar('body', { length: 1000 }).notNull(),
-    actor: varchar('actor', { length: 120 }).notNull(),
+    body: varchar("body", { length: 1000 }).notNull(),
+    actor: varchar("actor", { length: 120 }).notNull(),
     /** La FK consultable; ver el comentario largo en `stock_adjustments`. */
-    actorUserId: int('actor_user_id'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    actorUserId: int("actor_user_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index('order_notes_order_idx').on(t.orderId, t.createdAt)],
+  (t) => [index("order_notes_order_idx").on(t.orderId, t.createdAt)]
 );
 
 /**
@@ -748,23 +833,26 @@ export const orderNotes = mysqlTable(
  * nada. El stock que se repuso ya quedó contado en `stock_adjustments`.
  */
 export const orderReturns = mysqlTable(
-  'order_returns',
+  "order_returns",
   {
-    id: int('id').autoincrement().primaryKey(),
-    orderId: int('order_id')
+    id: int("id").autoincrement().primaryKey(),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     /** Obligatorio por diseño, igual que en `stock_adjustments`. */
-    reason: varchar('reason', { length: 500 }).notNull(),
-    actor: varchar('actor', { length: 120 }).notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    actor: varchar("actor", { length: 120 }).notNull(),
     /** La FK consultable; ver el comentario largo en `stock_adjustments`. */
-    actorUserId: int('actor_user_id'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    actorUserId: int("actor_user_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
-    index('order_returns_order_idx').on(t.orderId),
-    index('order_returns_created_idx').on(t.createdAt),
-  ],
+    index("order_returns_order_idx").on(t.orderId),
+    index("order_returns_created_idx").on(t.createdAt),
+  ]
 );
 
 /**
@@ -776,30 +864,39 @@ export const orderReturns = mysqlTable(
  * debajo del registro.
  */
 export const orderReturnItems = mysqlTable(
-  'order_return_items',
+  "order_return_items",
   {
-    id: int('id').autoincrement().primaryKey(),
-    returnId: int('return_id')
+    id: int("id").autoincrement().primaryKey(),
+    returnId: int("return_id")
       .notNull()
-      .references(() => orderReturns.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    orderItemId: int('order_item_id')
+      .references(() => orderReturns.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    orderItemId: int("order_item_id")
       .notNull()
       // CASCADE y no RESTRICT: la fila ya cuelga del pedido por `return_id`, y
       // con dos caminos de borrado (pedido → devolución → ítem y pedido →
       // línea → ítem) un RESTRICT depende del orden en que InnoDB recorra las
       // cascadas para dejar borrar un pedido o no.
-      .references(() => orderItems.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    variantId: int('variant_id')
+      .references(() => orderItems.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    variantId: int("variant_id")
       .notNull()
-      .references(() => variants.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+      .references(() => variants.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     /** ≥ 1, y nunca más de lo pedido menos lo ya devuelto de esa línea. */
-    qty: int('qty', { unsigned: true }).notNull(),
-    restocked: boolean('restocked').notNull(),
+    qty: int("qty", { unsigned: true }).notNull(),
+    restocked: boolean("restocked").notNull(),
   },
   (t) => [
-    index('order_return_items_return_idx').on(t.returnId),
-    index('order_return_items_order_item_idx').on(t.orderItemId),
-  ],
+    index("order_return_items_return_idx").on(t.returnId),
+    index("order_return_items_order_item_idx").on(t.orderItemId),
+  ]
 );
 
 /**
@@ -820,35 +917,45 @@ export const orderReturnItems = mysqlTable(
  * tiene de qué hablar ni quién la respalde.
  */
 export const productReviews = mysqlTable(
-  'product_reviews',
+  "product_reviews",
   {
-    id: int('id').autoincrement().primaryKey(),
-    productId: int('product_id')
+    id: int("id").autoincrement().primaryKey(),
+    productId: int("product_id")
       .notNull()
-      .references(() => products.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    orderId: int('order_id')
+      .references(() => products.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    orderId: int("order_id")
       .notNull()
-      .references(() => orders.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+      .references(() => orders.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     /** 1..5. El rango lo valida el dominio. */
-    rating: tinyint('rating', { unsigned: true }).notNull(),
-    title: varchar('title', { length: 120 }),
+    rating: tinyint("rating", { unsigned: true }).notNull(),
+    title: varchar("title", { length: 120 }),
     /** 10..2000 caracteres, trimmed. */
-    body: text('body').notNull(),
+    body: text("body").notNull(),
     /** "Nombre I." — derivado del pedido al escribir, nunca el nombre completo. */
-    authorName: varchar('author_name', { length: 80 }).notNull(),
-    status: mysqlEnum('status', REVIEW_STATUSES).notNull().default('pending'),
+    authorName: varchar("author_name", { length: 80 }).notNull(),
+    status: mysqlEnum("status", REVIEW_STATUSES).notNull().default("pending"),
     /** La respuesta pública de la tienda. NULL = sin respuesta. */
-    ownerReply: text('owner_reply'),
-    ownerReplyAt: datetime('owner_reply_at'),
-    moderatedAt: datetime('moderated_at'),
+    ownerReply: text("owner_reply"),
+    ownerReplyAt: datetime("owner_reply_at"),
+    moderatedAt: datetime("moderated_at"),
     /** La FK consultable; ver el comentario largo en `stock_adjustments`. */
-    moderatedByUserId: int('moderated_by_user_id'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    moderatedByUserId: int("moderated_by_user_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
-    unique('product_reviews_order_product_uq').on(t.orderId, t.productId),
-    index('product_reviews_product_status_idx').on(t.productId, t.status, t.createdAt),
-  ],
+    unique("product_reviews_order_product_uq").on(t.orderId, t.productId),
+    index("product_reviews_product_status_idx").on(
+      t.productId,
+      t.status,
+      t.createdAt
+    ),
+  ]
 );
 
 // ---------------------------------------------------------------------------
@@ -870,14 +977,14 @@ export const productReviews = mysqlTable(
  * la tienda de siempre.
  */
 export const coupons = mysqlTable(
-  'coupons',
+  "coupons",
   {
-    id: int('id').autoincrement().primaryKey(),
+    id: int("id").autoincrement().primaryKey(),
 
     /** Siempre en mayúsculas y sin espacios: se normaliza antes de guardar. */
-    code: varchar('code', { length: 40 }).notNull(),
+    code: varchar("code", { length: 40 }).notNull(),
 
-    type: mysqlEnum('type', COUPON_TYPES).notNull(),
+    type: mysqlEnum("type", COUPON_TYPES).notNull(),
 
     /**
      * `porcentaje` → 1..100. `monto_fijo` → guaraníes enteros.
@@ -885,38 +992,41 @@ export const coupons = mysqlTable(
      * Una sola columna para los dos casos porque son excluyentes, y en los dos
      * es un entero. Qué significa lo dice `type`, y el dominio lo valida.
      */
-    value: bigint('value', { mode: 'number', unsigned: true }).notNull(),
+    value: bigint("value", { mode: "number", unsigned: true }).notNull(),
 
     /** Mínimo de compra (sobre el subtotal, sin envío). NULL = sin mínimo. */
-    minOrderPyg: pyg('min_order_pyg'),
+    minOrderPyg: pyg("min_order_pyg"),
 
     /** Vigencia. NULL de cada lado = sin límite por ese lado. */
-    startsAt: datetime('starts_at'),
-    endsAt: datetime('ends_at'),
+    startsAt: datetime("starts_at"),
+    endsAt: datetime("ends_at"),
 
     /** Tope global de usos. NULL = ilimitado. */
-    maxUses: int('max_uses', { unsigned: true }),
+    maxUses: int("max_uses", { unsigned: true }),
     /** Tope por comprador. NULL = ilimitado. */
-    maxUsesPerCustomer: int('max_uses_per_customer', { unsigned: true }),
+    maxUsesPerCustomer: int("max_uses_per_customer", { unsigned: true }),
 
     /**
      * Cuántas veces se usó. La incrementa `createOrder` **adentro de la
      * transacción y con la fila bloqueada** (`FOR UPDATE`), igual que el stock:
      * sin eso, dos checkouts simultáneos gastan dos veces un cupón de un uso.
      */
-    timesUsed: int('times_used', { unsigned: true }).notNull().default(0),
+    timesUsed: int("times_used", { unsigned: true }).notNull().default(0),
 
     /**
      * Sólo para quien tenga cuenta (PR E). Con `TIENDA.cuentasClientes`
      * apagado nadie tiene sesión de cliente, así que estos cupones
      * simplemente no validan — degradan solos, sin romper nada.
      */
-    soloClientes: boolean('solo_clientes').notNull().default(false),
+    soloClientes: boolean("solo_clientes").notNull().default(false),
 
-    isActive: boolean('is_active').notNull().default(true),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [unique('coupons_code_uq').on(t.code), index('coupons_active_idx').on(t.isActive)],
+  (t) => [
+    unique("coupons_code_uq").on(t.code),
+    index("coupons_active_idx").on(t.isActive),
+  ]
 );
 
 // ---------------------------------------------------------------------------
@@ -939,19 +1049,19 @@ export const coupons = mysqlTable(
  * para quien *quiere* que le guardemos los datos.
  */
 export const customers = mysqlTable(
-  'customers',
+  "customers",
   {
-    id: int('id').autoincrement().primaryKey(),
+    id: int("id").autoincrement().primaryKey(),
 
     /**
      * La llave real. Normalizado `+595XXXXXXXXX` por `normalizePhonePY` antes
      * de insertar — igual que `orders.customer_phone`, para que las dos
      * columnas se puedan comparar entre sí.
      */
-    phone: varchar('phone', { length: 20 }).notNull(),
+    phone: varchar("phone", { length: 20 }).notNull(),
 
     /** Opcional: en PY se compra con WhatsApp, no con email. */
-    email: varchar('email', { length: 200 }),
+    email: varchar("email", { length: 200 }),
 
     /**
      * bcrypt. **Nullable a propósito**: el PR F agrega login sin contraseña
@@ -959,16 +1069,16 @@ export const customers = mysqlTable(
      * NULL significa "esta cuenta no entra con contraseña", y `verifyPassword`
      * ya devuelve false contra un hash señuelo en ese caso.
      */
-    passwordHash: varchar('password_hash', { length: 255 }),
+    passwordHash: varchar("password_hash", { length: 255 }),
 
-    name: varchar('name', { length: 160 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
 
     /**
      * Consentimiento para novedades. Tres estados como en `orders`: NULL es
      * "no se le preguntó", y no se completa con `false`.
      */
-    marketingOptIn: boolean('marketing_opt_in'),
-    marketingOptInAt: datetime('marketing_opt_in_at'),
+    marketingOptIn: boolean("marketing_opt_in"),
+    marketingOptInAt: datetime("marketing_opt_in_at"),
 
     /**
      * Cuándo se probó que el teléfono es suyo. **Siempre NULL en este PR**: no
@@ -980,16 +1090,19 @@ export const customers = mysqlTable(
      * ve el historial de compras de esa persona — nombre, dirección y todo.
      * El PR F (OTP) es el único que la va a escribir.
      */
-    phoneVerifiedAt: datetime('phone_verified_at'),
+    phoneVerifiedAt: datetime("phone_verified_at"),
+    sessionVersion: int("session_version", { unsigned: true })
+      .notNull()
+      .default(1),
 
-    isActive: boolean('is_active').notNull().default(true),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    lastLoginAt: datetime('last_login_at'),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastLoginAt: datetime("last_login_at"),
   },
   (t) => [
-    unique('customers_phone_uq').on(t.phone),
-    unique('customers_email_uq').on(t.email),
-  ],
+    unique("customers_phone_uq").on(t.phone),
+    unique("customers_email_uq").on(t.email),
+  ]
 );
 
 /**
@@ -1007,29 +1120,27 @@ export const customers = mysqlTable(
  * códigos pidió esta cuenta anoche?" es la pregunta de un incidente.
  */
 export const loginTokens = mysqlTable(
-  'login_tokens',
+  "login_tokens",
   {
-    id: int('id').autoincrement().primaryKey(),
+    id: int("id").autoincrement().primaryKey(),
 
-    customerId: int('customer_id').notNull(),
+    customerId: int("customer_id").notNull(),
 
     /** SHA-256 hex del código. Nunca el código. */
-    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    attempts: tinyint("attempts", { unsigned: true }).notNull().default(0),
 
     /** Por dónde se mandó, para poder explicar un "no me llegó". */
-    channel: varchar('channel', { length: 20 }).notNull(),
+    channel: varchar("channel", { length: 20 }).notNull(),
 
-    expiresAt: datetime('expires_at').notNull(),
-    consumedAt: datetime('consumed_at'),
+    expiresAt: datetime("expires_at").notNull(),
+    consumedAt: datetime("consumed_at"),
     /** Lo invalidó un pedido posterior: sólo el último código vale. */
-    invalidatedAt: datetime('invalidated_at'),
+    invalidatedAt: datetime("invalidated_at"),
 
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [
-    unique('login_tokens_hash_uq').on(t.tokenHash),
-    index('login_tokens_customer_idx').on(t.customerId, t.createdAt),
-  ],
+  (t) => [index("login_tokens_customer_idx").on(t.customerId, t.createdAt)]
 );
 
 // ---------------------------------------------------------------------------
@@ -1037,16 +1148,19 @@ export const loginTokens = mysqlTable(
 // ---------------------------------------------------------------------------
 
 export const users = mysqlTable(
-  'users',
+  "users",
   {
-    id: int('id').autoincrement().primaryKey(),
-    email: varchar('email', { length: 200 }).notNull(),
+    id: int("id").autoincrement().primaryKey(),
+    email: varchar("email", { length: 200 }).notNull(),
     /** bcrypt. There is no public registration route — see scripts/create-owner.ts. */
-    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-    name: varchar('name', { length: 160 }),
-    role: mysqlEnum('role', USER_ROLES).notNull().default('staff'),
-    isActive: boolean('is_active').notNull().default(true),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+    name: varchar("name", { length: 160 }),
+    role: mysqlEnum("role", USER_ROLES).notNull().default("staff"),
+    sessionVersion: int("session_version", { unsigned: true })
+      .notNull()
+      .default(1),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
     /**
      * Última vez que entró al panel. La escribe `authenticate()` y nadie más.
      *
@@ -1054,26 +1168,26 @@ export const users = mysqlTable(
      * mucho": es lo que le dice al dueño que la cuenta que creó el martes
      * sigue sin usarse, o que la de alguien que ya no trabaja acá quedó viva.
      */
-    lastLoginAt: datetime('last_login_at'),
+    lastLoginAt: datetime("last_login_at"),
   },
-  (t) => [unique('users_email_uq').on(t.email)],
+  (t) => [unique("users_email_uq").on(t.email)]
 );
 
 export const shippingZones = mysqlTable(
-  'shipping_zones',
+  "shipping_zones",
   {
-    id: int('id').autoincrement().primaryKey(),
-    slug: varchar('slug', { length: 120 }).notNull(),
-    name: varchar('name', { length: 160 }).notNull(),
+    id: int("id").autoincrement().primaryKey(),
+    slug: varchar("slug", { length: 120 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
     /** Lista de ciudades PY que caen en esta zona. */
-    cities: json('cities').$type<string[]>().notNull(),
-    pricePyg: pyg('price_pyg').notNull(),
+    cities: json("cities").$type<string[]>().notNull(),
+    pricePyg: pyg("price_pyg").notNull(),
     /** Envío gratis a partir de este subtotal. NULL = sin umbral. */
-    freeThresholdPyg: pyg('free_threshold_pyg'),
-    isActive: boolean('is_active').notNull().default(true),
-    position: int('position').notNull().default(0),
+    freeThresholdPyg: pyg("free_threshold_pyg"),
+    isActive: boolean("is_active").notNull().default(true),
+    position: int("position").notNull().default(0),
   },
-  (t) => [unique('shipping_zones_slug_uq').on(t.slug)],
+  (t) => [unique("shipping_zones_slug_uq").on(t.slug)]
 );
 
 /**
@@ -1091,42 +1205,48 @@ export const shippingZones = mysqlTable(
  * Ninguna tienda ya clonada cambia de comportamiento por actualizar.
  */
 export const shippingMethods = mysqlTable(
-  'shipping_methods',
+  "shipping_methods",
   {
-    id: int('id').autoincrement().primaryKey(),
-    slug: varchar('slug', { length: 120 }).notNull(),
-    name: varchar('name', { length: 160 }).notNull(),
-    kind: mysqlEnum('kind', SHIPPING_METHOD_KINDS).notNull().default('courier'),
-    pricing: mysqlEnum('pricing', SHIPPING_METHOD_PRICINGS).notNull().default('zona'),
+    id: int("id").autoincrement().primaryKey(),
+    slug: varchar("slug", { length: 120 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    kind: mysqlEnum("kind", SHIPPING_METHOD_KINDS).notNull().default("courier"),
+    pricing: mysqlEnum("pricing", SHIPPING_METHOD_PRICINGS)
+      .notNull()
+      .default("zona"),
     /** Sólo se usa con `pricing = 'fijo'`. NULL con `zona`, que manda la zona. */
-    fixedPricePyg: pyg('fixed_price_pyg'),
+    fixedPricePyg: pyg("fixed_price_pyg"),
     /**
      * A qué zonas de `shipping_zones` aplica este método. **Lista vacía =
      * todas las zonas activas**, que es el default y el caso más común: el
      * courier nacional llega a todos lados. `retiro` la ignora entera.
      */
-    zoneIds: json('zone_ids').$type<number[]>().notNull(),
+    zoneIds: json("zone_ids").$type<number[]>().notNull(),
     /**
      * Qué medios de pago habilita, subconjunto de `PAYMENT_METHODS`. **Nunca
      * vacía**: un método que no acepta ninguna forma de pago no se puede
      * elegir, y una fila así apagaría el checkout sin decir por qué.
      */
-    allowedPaymentMethods: json('allowed_payment_methods').$type<PaymentMethod[]>().notNull(),
+    allowedPaymentMethods: json("allowed_payment_methods")
+      .$type<PaymentMethod[]>()
+      .notNull(),
     /** Una línea para el checkout: "Llega en 24-48 h a todo el país". */
-    description: varchar('description', { length: 200 }),
-    isActive: boolean('is_active').notNull().default(true),
-    position: int('position').notNull().default(0),
+    description: varchar("description", { length: 200 }),
+    isActive: boolean("is_active").notNull().default(true),
+    position: int("position").notNull().default(0),
   },
-  (t) => [unique('shipping_methods_slug_uq').on(t.slug)],
+  (t) => [unique("shipping_methods_slug_uq").on(t.slug)]
 );
 
 /**
  * Dedicated order-number counter. One row, bumped with an atomic UPDATE.
  * Never COUNT(*) — gaps are fine, collisions are not.
  */
-export const counters = mysqlTable('counters', {
-  name: varchar('name', { length: 64 }).primaryKey(),
-  value: bigint('value', { mode: 'number', unsigned: true }).notNull().default(0),
+export const counters = mysqlTable("counters", {
+  name: varchar("name", { length: 64 }).primaryKey(),
+  value: bigint("value", { mode: "number", unsigned: true })
+    .notNull()
+    .default(0),
 });
 
 /**
@@ -1141,13 +1261,13 @@ export const counters = mysqlTable('counters', {
  * Timestamps and nothing else — no ids, no emails. Whoever reads this table is
  * asking "did setup already run?", not "who ran it".
  */
-export const setupState = mysqlTable('setup_state', {
-  id: tinyint('id').primaryKey(),
-  migratedAt: timestamp('migrated_at').notNull().defaultNow(),
-  seededAt: timestamp('seeded_at'),
-  ownerAt: timestamp('owner_at'),
+export const setupState = mysqlTable("setup_state", {
+  id: tinyint("id").primaryKey(),
+  migratedAt: timestamp("migrated_at").notNull().defaultNow(),
+  seededAt: timestamp("seeded_at"),
+  ownerAt: timestamp("owner_at"),
   /** How many times the route ran. Only ever climbs; useful in a post-mortem. */
-  runs: int('runs').notNull().default(1),
+  runs: int("runs").notNull().default(1),
 });
 
 // ---------------------------------------------------------------------------
@@ -1177,24 +1297,26 @@ export const setupState = mysqlTable('setup_state', {
  * mostraría un banco sin número. Sin fila —o con la fila incompleta— la
  * página avisa en vez de inventar, igual que antes.
  */
-export const bankDetails = mysqlTable('bank_details', {
-  id: tinyint('id').primaryKey(),
-  banco: varchar('banco', { length: 120 }).notNull(),
-  titular: varchar('titular', { length: 160 }).notNull(),
-  ruc: varchar('ruc', { length: 20 }).notNull(),
-  cuenta: varchar('cuenta', { length: 60 }).notNull(),
-  tipoCuenta: varchar('tipo_cuenta', { length: 60 }).notNull(),
+export const bankDetails = mysqlTable("bank_details", {
+  id: tinyint("id").primaryKey(),
+  banco: varchar("banco", { length: 120 }).notNull(),
+  titular: varchar("titular", { length: 160 }).notNull(),
+  ruc: varchar("ruc", { length: 20 }).notNull(),
+  cuenta: varchar("cuenta", { length: 60 }).notNull(),
+  tipoCuenta: varchar("tipo_cuenta", { length: 60 }).notNull(),
   /**
    * `public_id` del QR SPI en Cloudinary, en una carpeta **pública**. NULL =
    * sin QR cargado, y ahí manda `BANCO_QR_URL` del entorno si está.
    */
-  qrCloudinaryId: varchar('qr_cloudinary_id', { length: 255 }),
-  updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+  qrCloudinaryId: varchar("qr_cloudinary_id", { length: 255 }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   /**
    * Quién lo tocó por última vez. `ON DELETE SET NULL`: el dato bancario de
    * la tienda no se puede ir con el usuario que lo cargó.
    */
-  updatedBy: int('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedBy: int("updated_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
 });
 
 // ---------------------------------------------------------------------------
@@ -1220,15 +1342,15 @@ export const bankDetails = mysqlTable('bank_details', {
  * entorno). Sin fila, la tienda se ve exactamente como antes de que esta
  * tabla existiera.
  */
-export const storeSettings = mysqlTable('store_settings', {
-  id: tinyint('id').primaryKey(),
-  data: json('data').notNull(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+export const storeSettings = mysqlTable("store_settings", {
+  id: tinyint("id").primaryKey(),
+  data: json("data").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   /**
    * Quién guardó por última vez. La FK (`ON DELETE SET NULL`) la pone
    * `applySchemaExtras`, igual que las de `*_user_id` de las auditorías.
    */
-  updatedByUserId: int('updated_by_user_id'),
+  updatedByUserId: int("updated_by_user_id"),
 });
 
 // ---------------------------------------------------------------------------
@@ -1255,17 +1377,17 @@ export const storeSettings = mysqlTable('store_settings', {
  *
  * Sin fila, la integración sale del entorno, como siempre.
  */
-export const integrationSettings = mysqlTable('integration_settings', {
+export const integrationSettings = mysqlTable("integration_settings", {
   /** `cloudinary` | `whatsapp` | `pagopar` | `analitica` | `errores`. */
-  integration: varchar('integration', { length: 32 }).primaryKey(),
-  data: json('data').notNull(),
-  secrets: json('secrets').notNull(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+  integration: varchar("integration", { length: 32 }).primaryKey(),
+  data: json("data").notNull(),
+  secrets: json("secrets").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   /**
    * Quién guardó por última vez. La FK (`ON DELETE SET NULL`) la pone
    * `applySchemaExtras`, igual que la de `store_settings`.
    */
-  updatedByUserId: int('updated_by_user_id'),
+  updatedByUserId: int("updated_by_user_id"),
 });
 
 /**
@@ -1290,18 +1412,18 @@ export const integrationSettings = mysqlTable('integration_settings', {
  *    viva". Con expiración por tiempo, porque un proceso que muere no libera
  *    nada y un lock eterno es peor que dos backups.
  */
-export const jobRuns = mysqlTable('job_runs', {
+export const jobRuns = mysqlTable("job_runs", {
   /** `resumen_diario` | `backup`. La PK: una fila por trabajo, se reescribe. */
-  job: varchar('job', { length: 60 }).primaryKey(),
-  startedAt: timestamp('started_at').notNull().defaultNow(),
+  job: varchar("job", { length: 60 }).primaryKey(),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
   /** NULL = corriendo (o muerta a mitad: por eso el lock expira). */
-  finishedAt: datetime('finished_at'),
+  finishedAt: datetime("finished_at"),
   /** El último éxito. Es lo que decide "ya corrió hoy". */
-  lastOkAt: datetime('last_ok_at'),
+  lastOkAt: datetime("last_ok_at"),
   /** El motivo del último fallo, recortado. Para el panel y para el log. */
-  lastError: varchar('last_error', { length: 500 }),
+  lastError: varchar("last_error", { length: 500 }),
   /** Lo que produjo la corrida (cantidades, no datos de nadie). */
-  payload: json('payload'),
+  payload: json("payload"),
 });
 
 /**
@@ -1319,45 +1441,106 @@ export const jobRuns = mysqlTable('job_runs', {
  * compara esto contra las tablas declaradas en el archivo y falla si alguien
  * agrega una y se olvida: la decisión se toma una vez, a mano, y queda escrita.
  */
+export const operationKeys = mysqlTable(
+  "operation_keys",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    scope: varchar("scope", { length: 16 }).notNull(),
+    opKey: varchar("op_key", { length: 64 }).notNull(),
+    fingerprint: varchar("fingerprint", { length: 64 }).notNull(),
+    result: json("result"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("operation_keys_scope_key_uq").on(t.scope, t.opKey),
+    index("operation_keys_created_idx").on(t.createdAt),
+  ]
+);
+
+export const notificationOutbox = mysqlTable(
+  "notification_outbox",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    eventKey: varchar("event_key", { length: 100 }).notNull(),
+    orderId: int("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    kind: mysqlEnum("kind", [
+      "confirmado",
+      "pagado",
+      "enviado",
+      "recordatorio",
+      "resena",
+      "dueno",
+    ]).notNull(),
+    status: mysqlEnum("status", ORDER_STATUSES).notNull(),
+    note: varchar("note", { length: 500 }),
+    state: mysqlEnum("state", [
+      "pending",
+      "sending",
+      "sent",
+      "failed",
+      "unknown",
+    ])
+      .notNull()
+      .default("pending"),
+    attempts: tinyint("attempts", { unsigned: true }).notNull().default(0),
+    nextAttemptAt: datetime("next_attempt_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    claimedAt: datetime("claimed_at"),
+    sentAt: datetime("sent_at"),
+    providerMessageId: varchar("provider_message_id", { length: 200 }),
+    lastError: varchar("last_error", { length: 200 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("notification_outbox_event_unique").on(table.eventKey),
+    index("notification_outbox_due_idx").on(table.state, table.nextAttemptAt),
+  ]
+);
+
 export const BACKUP_TABLES = [
+  "notification_outbox",
+  "operation_keys",
   // Sin dependencias.
-  'counters',
-  'setup_state',
-  'job_runs',
-  'users',
-  'customers',
-  'categories',
-  'coupons',
-  'shipping_zones',
-  'shipping_methods',
-  'payment_events',
+  "counters",
+  "setup_state",
+  "job_runs",
+  "users",
+  "customers",
+  "categories",
+  "coupons",
+  "shipping_zones",
+  "shipping_methods",
+  "payment_events",
   // Cuelgan de las de arriba.
-  'bank_details',
-  'store_settings',
+  "bank_details",
+  "store_settings",
   // Los secretos viajan cifrados: la clave sale de SESSION_SECRET, que no
   // está en la base ni en el backup.
-  'integration_settings',
-  'login_tokens',
-  'products',
-  'product_images',
-  'variants',
-  'stock_alerts',
-  'price_adjustments',
-  'stock_adjustments',
-  'orders',
-  'order_items',
-  'order_events',
-  'order_notes',
+  "integration_settings",
+  "login_tokens",
+  "products",
+  "product_images",
+  "variants",
+  "stock_alerts",
+  "price_adjustments",
+  "stock_adjustments",
+  "orders",
+  "order_items",
+  "order_events",
+  "order_notes",
   // Cuelga de `products` y de `orders`.
-  'product_reviews',
+  "product_reviews",
   // Devoluciones: la cabecera cuelga de `orders`, las líneas de ella, de
   // `order_items` y de `variants`.
-  'order_returns',
-  'order_return_items',
-  'payments',
-  'refunds',
-  'receipts',
-  'stock_reservations',
+  "order_returns",
+  "order_return_items",
+  "payments",
+  "refunds",
+  "receipts",
+  "stock_reservations",
 ] as const;
 
 export type BackupTable = (typeof BACKUP_TABLES)[number];

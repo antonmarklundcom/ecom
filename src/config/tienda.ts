@@ -98,8 +98,8 @@ export const TIENDA: Tienda = {
   nombre: MARCA_PLACEHOLDER,
   titulo: "TiendaPY — Comprá online en Paraguay",
   descripcion:
-    "Tienda online paraguaya. Precios en guaraníes, IVA incluido, envíos a todo el país y atención por WhatsApp.",
-  tagline: "Precios en guaraníes, IVA incluido. Enviamos a todo el país.",
+    "Catálogo online en Paraguay. Consultá los productos y las opciones disponibles del comercio.",
+  tagline: "Conocé nuestro catálogo y las opciones disponibles.",
   lang: "es-PY",
   ogLocale: "es_PY",
   cuentasClientes: false,

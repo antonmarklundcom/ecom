@@ -1,14 +1,19 @@
-import { and, asc, count, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, or, sql } from "drizzle-orm";
+import { withLockRetry } from "@/db/retry";
 
-import { getDb } from '@/db';
-import { users, type UserRole } from '@/db/schema';
-import { normalizeEmail } from '@/lib/auth';
-import { MIN_PASSWORD_LENGTH, hashPassword, validatePasswordStrength } from '@/lib/password';
+import { getDb } from "@/db";
+import { users, type UserRole } from "@/db/schema";
+import { normalizeEmail } from "@/lib/auth";
+import {
+  MIN_PASSWORD_LENGTH,
+  hashPassword,
+  validatePasswordStrength,
+} from "@/lib/password";
 
-import type { MessageKey, Params } from '@/i18n';
+import type { MessageKey, Params } from "@/i18n";
 
-import { DomainError } from './errors';
-import type { Executor } from './executor';
+import { DomainError } from "./errors";
+import type { Executor } from "./executor";
 
 /**
  * Gestión de los usuarios del panel (PLAN.md FASE 2, PR C).
@@ -28,7 +33,7 @@ import type { Executor } from './executor';
 export class AdminUserError extends DomainError {
   constructor(code: MessageKey, params?: Params) {
     super(code, params);
-    this.name = 'AdminUserError';
+    this.name = "AdminUserError";
   }
 }
 
@@ -42,7 +47,9 @@ export type AdminUserRow = {
   lastLoginAt: Date | null;
 };
 
-export async function listAdminUsers(executor?: Executor): Promise<AdminUserRow[]> {
+export async function listAdminUsers(
+  executor?: Executor
+): Promise<AdminUserRow[]> {
   const tx = executor ?? getDb();
   return tx
     .select({
@@ -66,12 +73,23 @@ export async function listAdminUsers(executor?: Executor): Promise<AdminUserRow[
  * pestañas degradando a los dos últimos owners al mismo tiempo pasan las dos
  * validaciones si cada una mira la foto vieja.
  */
-async function otrosOwnersActivos(tx: Executor, exceptUserId: number): Promise<number> {
+async function lockTargetAndOwners(tx: Executor, userId: number) {
   const rows = await tx
-    .select({ n: count() })
+    .select()
     .from(users)
-    .where(and(eq(users.role, 'owner'), eq(users.isActive, true), ne(users.id, exceptUserId)));
-  return Number(rows[0]?.n ?? 0);
+    .where(
+      or(
+        eq(users.id, userId),
+        and(eq(users.role, "owner"), eq(users.isActive, true))
+      )
+    )
+    .orderBy(asc(users.id))
+    .for("update");
+  const user = rows.find((r) => r.id === userId);
+  const otrosOwners = rows.filter(
+    (r) => r.id !== userId && r.role === "owner" && r.isActive
+  ).length;
+  return { user, otrosOwners };
 }
 
 export async function createAdminUser(input: {
@@ -81,17 +99,24 @@ export async function createAdminUser(input: {
   role: UserRole;
 }): Promise<AdminUserRow> {
   const email = normalizeEmail(input.email);
-  if (!email.includes('@')) throw new AdminUserError('adminError.usuario.email');
+  if (!email.includes("@"))
+    throw new AdminUserError("adminError.usuario.email");
 
   // `strength.reason` ya es una clave del catálogo, así que se relanza tal
   // cual: el motivo concreto ("al menos 10 caracteres") es lo que le sirve a
   // quien está eligiendo la contraseña.
   const strength = validatePasswordStrength(input.password);
-  if (!strength.ok) throw new AdminUserError(strength.reason, { minimo: MIN_PASSWORD_LENGTH });
+  if (!strength.ok)
+    throw new AdminUserError(strength.reason, { minimo: MIN_PASSWORD_LENGTH });
 
   return getDb().transaction(async (tx) => {
-    const existing = await tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-    if (existing[0]) throw new AdminUserError('adminError.usuario.emailRepetido');
+    const existing = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    if (existing[0])
+      throw new AdminUserError("adminError.usuario.emailRepetido");
 
     await tx.insert(users).values({
       email,
@@ -100,9 +125,13 @@ export async function createAdminUser(input: {
       role: input.role,
     });
 
-    const created = await tx.select().from(users).where(eq(users.email, email)).limit(1);
+    const created = await tx
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
     const row = created[0];
-    if (!row) throw new AdminUserError('adminError.usuario.noPude');
+    if (!row) throw new AdminUserError("adminError.usuario.noPude");
 
     return {
       id: row.id,
@@ -132,20 +161,27 @@ export async function setAdminUserActive(input: {
   actingUserId: number;
 }): Promise<void> {
   if (input.userId === input.actingUserId && !input.isActive) {
-    throw new AdminUserError('adminError.usuario.noTeDesactives');
+    throw new AdminUserError("adminError.usuario.noTeDesactives");
   }
 
-  return getDb().transaction(async (tx) => {
-    const rows = await tx.select().from(users).where(eq(users.id, input.userId)).limit(1).for('update');
-    const user = rows[0];
-    if (!user) throw new AdminUserError('adminError.usuario.noExiste');
+  return withLockRetry(() =>
+    getDb().transaction(async (tx) => {
+      const { user, otrosOwners } = await lockTargetAndOwners(tx, input.userId);
+      if (!user) throw new AdminUserError("adminError.usuario.noExiste");
 
-    if (!input.isActive && user.role === 'owner' && (await otrosOwnersActivos(tx, user.id)) === 0) {
-      throw new AdminUserError('adminError.usuario.ultimoDueno');
-    }
+      if (!input.isActive && user.role === "owner" && otrosOwners === 0) {
+        throw new AdminUserError("adminError.usuario.ultimoDueno");
+      }
 
-    await tx.update(users).set({ isActive: input.isActive }).where(eq(users.id, user.id));
-  });
+      await tx
+        .update(users)
+        .set({
+          isActive: input.isActive,
+          sessionVersion: sql`${users.sessionVersion} + 1`,
+        })
+        .where(eq(users.id, user.id));
+    })
+  );
 }
 
 /**
@@ -158,27 +194,34 @@ export async function setAdminUserRole(input: {
   role: UserRole;
   actingUserId: number;
 }): Promise<void> {
-  if (input.userId === input.actingUserId && input.role !== 'owner') {
-    throw new AdminUserError('adminError.usuario.noTeDegrades');
+  if (input.userId === input.actingUserId && input.role !== "owner") {
+    throw new AdminUserError("adminError.usuario.noTeDegrades");
   }
 
-  return getDb().transaction(async (tx) => {
-    const rows = await tx.select().from(users).where(eq(users.id, input.userId)).limit(1).for('update');
-    const user = rows[0];
-    if (!user) throw new AdminUserError('adminError.usuario.noExiste');
-    if (user.role === input.role) return;
+  return withLockRetry(() =>
+    getDb().transaction(async (tx) => {
+      const { user, otrosOwners } = await lockTargetAndOwners(tx, input.userId);
+      if (!user) throw new AdminUserError("adminError.usuario.noExiste");
+      if (user.role === input.role) return;
 
-    if (
-      user.role === 'owner' &&
-      input.role !== 'owner' &&
-      user.isActive &&
-      (await otrosOwnersActivos(tx, user.id)) === 0
-    ) {
-      throw new AdminUserError('adminError.usuario.ultimoDuenoDegradar');
-    }
+      if (
+        user.role === "owner" &&
+        input.role !== "owner" &&
+        user.isActive &&
+        otrosOwners === 0
+      ) {
+        throw new AdminUserError("adminError.usuario.ultimoDuenoDegradar");
+      }
 
-    await tx.update(users).set({ role: input.role }).where(eq(users.id, user.id));
-  });
+      await tx
+        .update(users)
+        .set({
+          role: input.role,
+          sessionVersion: sql`${users.sessionVersion} + 1`,
+        })
+        .where(eq(users.id, user.id));
+    })
+  );
 }
 
 /**
@@ -194,13 +237,21 @@ export async function resetAdminUserPassword(input: {
   password: string;
 }): Promise<void> {
   const strength = validatePasswordStrength(input.password);
-  if (!strength.ok) throw new AdminUserError(strength.reason, { minimo: MIN_PASSWORD_LENGTH });
+  if (!strength.ok)
+    throw new AdminUserError(strength.reason, { minimo: MIN_PASSWORD_LENGTH });
 
   const passwordHash = await hashPassword(input.password);
   const db = getDb();
 
-  const rows = await db.select({ id: users.id }).from(users).where(eq(users.id, input.userId)).limit(1);
-  if (!rows[0]) throw new AdminUserError('adminError.usuario.noExiste');
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+  if (!rows[0]) throw new AdminUserError("adminError.usuario.noExiste");
 
-  await db.update(users).set({ passwordHash }).where(eq(users.id, input.userId));
+  await db
+    .update(users)
+    .set({ passwordHash, sessionVersion: sql`${users.sessionVersion} + 1` })
+    .where(eq(users.id, input.userId));
 }

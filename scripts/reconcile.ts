@@ -1,5 +1,7 @@
 import "../src/lib/load-env";
 
+import { safeError } from "../src/lib/safe-error";
+
 import { closePool } from "../src/db";
 import { reconcile } from "../src/domain/reconciliation";
 import { formatGs } from "../src/lib/money";
@@ -18,37 +20,49 @@ async function main(): Promise<void> {
   const report = await reconcile();
 
   if (report.ok) {
-    console.log("✓ Todo cuadra: totales, líneas y las invariantes entre tablas.");
+    console.log(
+      "✓ Todo cuadra: totales, líneas y las invariantes entre tablas."
+    );
     return;
   }
 
   if (report.crossChecks.length > 0) {
-    console.error(`\n✗ ${report.crossChecks.length} inconsistencia(s) entre tablas:\n`);
+    console.error(
+      `\n✗ ${report.crossChecks.length} inconsistencia(s) entre tablas:\n`
+    );
     for (const finding of report.crossChecks) {
-      console.error(`  [${finding.kind}] ${finding.orderNumber} (${finding.orderStatus})`);
+      console.error(
+        `  [${finding.kind}] ${finding.orderNumber} (${finding.orderStatus})`
+      );
       console.error(`    ${finding.detail}`);
     }
   }
 
   if (report.totalMismatches.length > 0) {
-    console.error(`\n✗ ${report.totalMismatches.length} pedido(s) con totales descuadrados:\n`);
+    console.error(
+      `\n✗ ${report.totalMismatches.length} pedido(s) con totales descuadrados:\n`
+    );
     for (const row of report.totalMismatches) {
       console.error(
         `  ${row.orderNumber} (${row.status})\n` +
           `    subtotal guardado ${formatGs(row.storedSubtotalPyg)} vs ítems ${formatGs(row.itemsSubtotalPyg)} (dif ${row.subtotalDiffPyg})\n` +
-          (row.discountPyg > 0 ? `    descuento         ${formatGs(row.discountPyg)}\n` : "") +
-          `    total guardado    ${formatGs(row.storedTotalPyg)} vs esperado ${formatGs(row.expectedTotalPyg)} (dif ${row.totalDiffPyg})`,
+          (row.discountPyg > 0
+            ? `    descuento         ${formatGs(row.discountPyg)}\n`
+            : "") +
+          `    total guardado    ${formatGs(row.storedTotalPyg)} vs esperado ${formatGs(row.expectedTotalPyg)} (dif ${row.totalDiffPyg})`
       );
     }
   }
 
   if (report.lineMismatches.length > 0) {
-    console.error(`\n✗ ${report.lineMismatches.length} línea(s) con line_total ≠ precio × cantidad:\n`);
+    console.error(
+      `\n✗ ${report.lineMismatches.length} línea(s) con line_total ≠ precio × cantidad:\n`
+    );
     for (const line of report.lineMismatches) {
       console.error(
         `  ${line.orderNumber} · ${line.skuSnapshot}: ` +
           `${formatGs(line.unitPricePyg)} × ${line.qty} = ${formatGs(line.expectedLineTotalPyg)}, ` +
-          `guardado ${formatGs(line.storedLineTotalPyg)}`,
+          `guardado ${formatGs(line.storedLineTotalPyg)}`
       );
     }
   }
@@ -58,7 +72,7 @@ async function main(): Promise<void> {
 
 main()
   .catch((error) => {
-    console.error("La reconciliación falló:", error);
+    console.error("La reconciliación falló:", safeError(error).message);
     process.exitCode = 1;
   })
   .finally(() => closePool());

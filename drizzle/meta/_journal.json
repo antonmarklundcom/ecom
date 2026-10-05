@@ -127,6 +127,41 @@
       "when": 1790713785322,
       "tag": "0017_slim_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1791233858478,
+      "tag": "0018_worthless_rage",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1791234781842,
+      "tag": "0019_safe_lorna_dane",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1791235139198,
+      "tag": "0020_curious_johnny_blaze",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1791235217469,
+      "tag": "0021_aberrant_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1791235689193,
+      "tag": "0022_lame_triathlon",
+      "breakpoints": true
     }
   ]
 }

@@ -7,10 +7,12 @@ import { comercioWhatsApp } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
 import { siteOrigin } from "@/lib/site-url";
 
-import { resolveMessageSender, whatsappOwnerTemplate, type MessageSender } from "./messaging";
-import { motivoDeAviso, withTimeout } from "./notify-timing";
-import { NOTICE_REASON_PREFIX, recordOrderEvent } from "./order-events";
-import { log, mensajeDe } from '@/lib/log';
+import {
+  resolveMessageSender,
+  whatsappOwnerTemplate,
+  type MessageSender,
+} from "./messaging";
+import { log, mensajeDe } from "@/lib/log";
 
 /**
  * El aviso de pedido nuevo al comercio (fable/plan.md §5.2, F2 de la revisión).
@@ -34,7 +36,6 @@ import { log, mensajeDe } from '@/lib/log';
  */
 
 /** Más que esto y no vale la pena seguir esperando: el pedido ya está guardado. */
-const AVISO_TIMEOUT_MS = 10_000;
 
 export type OwnerNotifier = {
   sender: MessageSender;
@@ -129,64 +130,27 @@ export function newOrderNoticeBody(notice: NewOrderNotice): string {
  */
 export async function notifyOwnerNewOrder(
   orderId: number,
-  options: { notifier?: OwnerNotifier | null } = {},
+  options: { notifier?: OwnerNotifier | null } = {}
 ): Promise<void> {
   try {
-    const notifier = options.notifier === undefined ? resolveOwnerNotifier() : options.notifier;
+    const notifier =
+      options.notifier === undefined
+        ? resolveOwnerNotifier()
+        : options.notifier;
     if (!notifier) return;
-
+    const { enqueueOrderNotice, dispatchOrderNotices } =
+      await import("./notification-outbox");
     const [order] = await getDb()
-      .select({
-        id: orders.id,
-        orderNumber: orders.orderNumber,
-        customerName: orders.customerName,
-        totalPyg: orders.totalPyg,
-        paymentMethod: orders.paymentMethod,
-        shippingMethodName: orders.shippingMethodName,
-        status: orders.status,
-      })
+      .select({ status: orders.status })
       .from(orders)
       .where(eq(orders.id, orderId))
       .limit(1);
-
-    // El pedido puede no estar si alguien llamó a esto con un id inventado.
-    // No es un fallo del aviso: no hay a quién anotarle el evento.
     if (!order) return;
-
-    const body = newOrderNoticeBody({
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      customerName: order.customerName,
-      totalPyg: order.totalPyg,
-      paymentMethod: order.paymentMethod,
-      shippingMethodName: order.shippingMethodName,
-    });
-
-    try {
-      await withTimeout(
-        notifier.sender.send({ to: notifier.to, body, templateName: notifier.templateName }),
-        AVISO_TIMEOUT_MS,
-      );
-      await recordOrderEvent({
-        orderId,
-        status: order.status,
-        fromStatus: order.status,
-        actor: "sistema",
-        reason: `${NOTICE_REASON_PREFIX}dueno_enviado`,
-      });
-    } catch (error) {
-      log.error('notifyOwnerNewOrder: no se pudo avisar del pedido', { error: mensajeDe(error) });
-      await recordOrderEvent({
-        orderId,
-        status: order.status,
-        fromStatus: order.status,
-        actor: "sistema",
-        reason: `${NOTICE_REASON_PREFIX}dueno_fallido: ${motivoDeAviso(error)}`.slice(0, 500),
-      });
-    }
+    await getDb().transaction((tx) =>
+      enqueueOrderNotice(tx, orderId, "dueno", order.status, null, true)
+    );
+    await dispatchOrderNotices({ orderId, notifier });
   } catch (error) {
-    // Último cinturón: si hasta el registro del fallo falla (la base se cayó
-    // entre el commit y esto), el checkout **igual** no se entera.
-    log.error('notifyOwnerNewOrder falló entero', { error: mensajeDe(error) });
+    log.error("notifyOwnerNewOrder failed", { error: mensajeDe(error) });
   }
 }

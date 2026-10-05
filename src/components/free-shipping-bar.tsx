@@ -1,7 +1,7 @@
 "use client";
 
 import type { FreeShippingProgress } from "@/domain/free-shipping";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { formatGs } from "@/lib/money";
 
 /**
@@ -33,7 +33,10 @@ export function FreeShippingBar({
     );
   }
 
-  const percent = Math.min(100, Math.round((subtotalPyg / progress.thresholdPyg) * 100));
+  const percent = Math.min(
+    100,
+    Math.round((subtotalPyg / progress.thresholdPyg) * 100)
+  );
 
   if (progress.kind === "falta") {
     return (
@@ -49,7 +52,9 @@ export function FreeShippingBar({
   return (
     <Bar percent={percent} tone="tenue">
       {progress.missingPyg > 0
-        ? t("envioGratis.indefinidoConMonto", { monto: formatGs(progress.thresholdPyg) })
+        ? t("envioGratis.indefinidoConMonto", {
+            monto: formatGs(progress.thresholdPyg),
+          })
         : t("envioGratis.indefinido")}
     </Bar>
   );
@@ -66,7 +71,13 @@ function Bar({
 }) {
   return (
     <div className="grid gap-1.5">
-      <p className={tone === "tenue" ? "text-muted-foreground text-xs" : "text-xs"}>{children}</p>
+      <p
+        className={
+          tone === "tenue" ? "text-muted-foreground text-xs" : "text-xs"
+        }
+      >
+        {children}
+      </p>
       <div
         className="bg-muted h-1.5 w-full overflow-hidden rounded-full"
         role="progressbar"

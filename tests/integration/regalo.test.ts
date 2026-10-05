@@ -1,3 +1,4 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -30,7 +31,11 @@ function input(overrides: Partial<CreateOrderInput> = {}): CreateOrderInput {
 }
 
 async function readOrder(orderId: number) {
-  const rows = await getTestDb().select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  const rows = await getTestDb()
+    .select()
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
   const row = rows[0];
   if (!row) throw new Error("pedido inexistente");
   return row;
@@ -39,15 +44,23 @@ async function readOrder(orderId: number) {
 describe.skipIf(!hasTestDb)("pedido para regalar", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
     await getTestDb()
       .insert(shippingZones)
-      .values({ slug: "asuncion", name: "Asunción", cities: ["Asunción"], pricePyg: 25000 });
+      .values({
+        slug: "asuncion",
+        name: "Asunción",
+        cities: ["Asunción"],
+        pricePyg: 25000,
+      });
   });
   afterAll(closeTestDb);
 
   it("por defecto no es un regalo y no hay nota", async () => {
     const variantId = await createVariant({ onHand: 3 });
-    const created = await createOrder(input({ items: [{ variantId, qty: 1 }] }));
+    const created = await createOrder(
+      input({ items: [{ variantId, qty: 1 }] })
+    );
 
     const order = await readOrder(created.orderId);
     expect(order.isGift).toBe(false);
@@ -57,7 +70,11 @@ describe.skipIf(!hasTestDb)("pedido para regalar", () => {
   it("guarda la marca y el mensaje, sin espacios de más", async () => {
     const variantId = await createVariant({ onHand: 3 });
     const created = await createOrder(
-      input({ items: [{ variantId, qty: 1 }], isGift: true, giftNote: "  ¡Feliz cumple!  " })
+      input({
+        items: [{ variantId, qty: 1 }],
+        isGift: true,
+        giftNote: "  ¡Feliz cumple!  ",
+      })
     );
 
     const order = await readOrder(created.orderId);
@@ -68,7 +85,11 @@ describe.skipIf(!hasTestDb)("pedido para regalar", () => {
   it("sin marcar el regalo, la nota se descarta", async () => {
     const variantId = await createVariant({ onHand: 3 });
     const created = await createOrder(
-      input({ items: [{ variantId, qty: 1 }], isGift: false, giftNote: "texto viejo" })
+      input({
+        items: [{ variantId, qty: 1 }],
+        isGift: false,
+        giftNote: "texto viejo",
+      })
     );
 
     const order = await readOrder(created.orderId);

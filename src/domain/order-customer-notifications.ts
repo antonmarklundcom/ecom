@@ -1,19 +1,16 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderEvents, orders, type OrderStatus } from "@/db/schema";
+import { orders } from "@/db/schema";
 import { TIENDA } from "@/config/tienda";
 import { t } from "@/i18n";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
 
 import { resolveMessageSender, type MessageSender } from "./messaging";
-import { motivoDeAviso, withTimeout } from "./notify-timing";
 import { firstName, buyerOrderUrl } from "./order-messages";
-import { NOTICE_REASON_PREFIX, recordOrderEvent } from "./order-events";
-import { log, mensajeDe } from '@/lib/log';
+import { log, mensajeDe } from "@/lib/log";
 import { valorIntegracion, type CampoDe } from "@/lib/integraciones";
-import { nombreTienda } from "@/lib/marca";
 
 /**
  * Los avisos por WhatsApp que recibe la COMPRADORA (fase O3, sigue a O2 —
@@ -45,16 +42,14 @@ import { nombreTienda } from "@/lib/marca";
  *    aviso: son tres decisiones independientes del comercio ("¿le aviso
  *    cuando pago? ¿cuando confirmo?"), y una tienda que no cargó ninguna
  *    tiene que quedar exactamente como antes de este archivo, hasta en dev.
- * 3. **Deja rastro y es idempotente.** Sale o falla, queda una fila en
- *    `order_events` con `actor: "sistema"`; y antes de mandar nada se fija si
- *    ya existe la fila de éxito de este aviso para este pedido, para no
- *    mandarlo dos veces (p. ej. un pedido que revive de `vencido` a `pagado`
- *    dos veces en la recuperación de pago tardío, ARCH.md §4.1).
+ * 3. La transición guarda una fila única en `notification_outbox` en su
+ *    transacción. Un worker reclama esa fila después del commit y registra
+ *    el resultado en `order_events`. Sólo un rechazo definitivo se reintenta
+ *    automáticamente; entrega incierta exige revisión del dueño.
  */
 
-const AVISO_TIMEOUT_MS = 10_000;
-
-export type CustomerNoticeKind = "confirmado" | "pagado" | "enviado" | "recordatorio" | "resena";
+export type CustomerNoticeKind =
+  "confirmado" | "pagado" | "enviado" | "recordatorio" | "resena";
 
 /**
  * El campo de `/admin/integraciones` → WhatsApp de cada aviso. El fallback de
@@ -78,7 +73,9 @@ const TEMPLATE_CAMPO = {
 } as const satisfies Record<CustomerNoticeKind, CampoDe<"whatsapp">>;
 
 /** El nombre de la plantilla de Meta para este aviso, o `null` si no se cargó. */
-export function customerNoticeTemplate(kind: CustomerNoticeKind): string | null {
+export function customerNoticeTemplate(
+  kind: CustomerNoticeKind
+): string | null {
   return valorIntegracion("whatsapp", TEMPLATE_CAMPO[kind]);
 }
 
@@ -94,7 +91,9 @@ export type CustomerNotifier = {
  * La plantilla es obligatoria pase lo que pase con el canal (ver regla 2 de
  * arriba): sin ella, ni el sender de consola de dev manda nada.
  */
-export function resolveCustomerNotifier(kind: CustomerNoticeKind): CustomerNotifier | null {
+export function resolveCustomerNotifier(
+  kind: CustomerNoticeKind
+): CustomerNotifier | null {
   const templateName = customerNoticeTemplate(kind);
   if (!templateName) return null;
 
@@ -143,7 +142,7 @@ export type CustomerNoticeOrder = {
 export function customerNoticeBody(
   kind: CustomerNoticeKind,
   order: CustomerNoticeOrder,
-  options: { note?: string | null; tienda?: string } = {},
+  options: { note?: string | null; tienda?: string } = {}
 ): string {
   const nombre = firstName(order.customerName);
   const total = formatGs(order.totalPyg);
@@ -152,7 +151,12 @@ export function customerNoticeBody(
 
   if (kind === "confirmado") {
     return [
-      t("wa.cliente.confirmado", { nombre, numero: order.orderNumber, total, tienda: options.tienda ?? TIENDA.nombre }),
+      t("wa.cliente.confirmado", {
+        nombre,
+        numero: order.orderNumber,
+        total,
+        tienda: options.tienda ?? TIENDA.nombre,
+      }),
       ...(metodo ? [t("wa.cliente.confirmado.envio", { metodo })] : []),
       t("wa.cliente.verPedido", { url }),
     ].join("\n");
@@ -171,9 +175,15 @@ export function customerNoticeBody(
     // `reserved_until` —no debería: el recordatorio se elige justamente por
     // esa columna— sale el aviso sin la línea del plazo antes que con una
     // fecha inventada.
-    const limite = order.reservedUntil ? formatDateTimePY(order.reservedUntil) : null;
+    const limite = order.reservedUntil
+      ? formatDateTimePY(order.reservedUntil)
+      : null;
     return [
-      t("wa.cliente.recordatorio", { nombre, numero: order.orderNumber, total }),
+      t("wa.cliente.recordatorio", {
+        nombre,
+        numero: order.orderNumber,
+        total,
+      }),
       ...(limite ? [t("wa.cliente.recordatorio.limite", { limite })] : []),
       t("wa.cliente.recordatorio.pagar", { url }),
     ].join("\n");
@@ -205,98 +215,38 @@ export function customerNoticeBody(
     t("wa.cliente.enviado", { nombre, numero: order.orderNumber }),
     ...(metodo ? [t("wa.cliente.enviado.envio", { metodo })] : []),
     ...(seguimiento ? [seguimiento] : []),
-    ...(linkSeguimiento ? [t("wa.cliente.enviado.seguirEnvio", { url: linkSeguimiento })] : []),
+    ...(linkSeguimiento
+      ? [t("wa.cliente.enviado.seguirEnvio", { url: linkSeguimiento })]
+      : []),
     ...(nota ? [t("wa.cliente.enviado.nota", { nota })] : []),
     t("wa.cliente.verPedido", { url }),
   ].join("\n");
 }
 
-/** El motivo que queda en `order_events` cuando el aviso sale bien. */
-function reasonOk(kind: CustomerNoticeKind): string {
-  return `${NOTICE_REASON_PREFIX}cliente_${kind}`;
-}
-
-/**
- * Le avisa a la compradora del pedido `orderId`. **No tira nunca.**
- *
- * Se la llama sin `await` desde `createOrder()` (kind "confirmado") y desde
- * el hook post-transición de `transitionOrder()` (kind "pagado" / "enviado" /
- * "resena"),
- * Con una transacción externa, el hook pasa el estado destino porque el
- * SELECT puede leer el snapshot anterior al commit.
- */
 export async function notifyCustomerOrderEvent(
   orderId: number,
   kind: CustomerNoticeKind,
-  options: { notifier?: CustomerNotifier | null; note?: string | null; status?: OrderStatus } = {},
+  options: { notifier?: CustomerNotifier | null; note?: string | null } = {}
 ): Promise<void> {
   try {
-    const notifier = options.notifier === undefined ? resolveCustomerNotifier(kind) : options.notifier;
+    const notifier =
+      options.notifier === undefined
+        ? resolveCustomerNotifier(kind)
+        : options.notifier;
     if (!notifier) return;
-
+    const { enqueueOrderNotice, dispatchOrderNotices } =
+      await import("./notification-outbox");
     const [order] = await getDb()
-      .select({
-        orderId: orders.id,
-        orderNumber: orders.orderNumber,
-        customerName: orders.customerName,
-        customerPhone: orders.customerPhone,
-        accessToken: orders.accessToken,
-        totalPyg: orders.totalPyg,
-        shippingMethodName: orders.shippingMethodName,
-        // El seguimiento se lee de la fila y no se recibe por parámetro: para
-        // una transacción externa puede seguir sin commit y este SELECT
-        // común puede ver todavía el snapshot anterior.
-        trackingCarrier: orders.trackingCarrier,
-        trackingCode: orders.trackingCode,
-        trackingUrl: orders.trackingUrl,
-        reservedUntil: orders.reservedUntil,
-        status: orders.status,
-      })
+      .select({ status: orders.status })
       .from(orders)
       .where(eq(orders.id, orderId))
       .limit(1);
-
-    // El pedido puede no estar si alguien llamó a esto con un id inventado.
     if (!order) return;
-
-    const status = options.status ?? order.status;
-
-    // Idempotencia: si ya está la fila de éxito de este aviso para este
-    // pedido, no se manda de nuevo (p. ej. dos disparos del mismo hook).
-    const yaMandado = await getDb()
-      .select({ id: orderEvents.id })
-      .from(orderEvents)
-      .where(and(eq(orderEvents.orderId, orderId), eq(orderEvents.reason, reasonOk(kind))))
-      .limit(1);
-    if (yaMandado.length > 0) return;
-
-    const body = customerNoticeBody(kind, order, { note: options.note, tienda: await nombreTienda() });
-
-    try {
-      await withTimeout(
-        notifier.sender.send({ to: order.customerPhone, body, templateName: notifier.templateName }),
-        AVISO_TIMEOUT_MS,
-      );
-      await recordOrderEvent({
-        orderId,
-        status,
-        fromStatus: status,
-        actor: "sistema",
-        reason: reasonOk(kind),
-      });
-    } catch (error) {
-      log.error(`notifyCustomerOrderEvent(${kind}): no se pudo avisar del pedido`, { error: mensajeDe(error) });
-      await recordOrderEvent({
-        orderId,
-        status,
-        fromStatus: status,
-        actor: "sistema",
-        reason: `${reasonOk(kind)}_fallido: ${motivoDeAviso(error)}`.slice(0, 500),
-      });
-    }
+    await getDb().transaction((tx) =>
+      enqueueOrderNotice(tx, orderId, kind, order.status, options.note, true)
+    );
+    await dispatchOrderNotices({ orderId, notifier });
   } catch (error) {
-    // Último cinturón: si hasta el registro del fallo falla, quien disparó
-    // esto (createOrder, transitionOrder) igual no se entera.
-    log.error('notifyCustomerOrderEvent falló entero', { error: mensajeDe(error) });
+    log.error("notifyCustomerOrderEvent failed", { error: mensajeDe(error) });
   }
 }

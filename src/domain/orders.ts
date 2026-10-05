@@ -1,6 +1,6 @@
-import { and, eq, gt, lte, sql } from 'drizzle-orm';
+import { and, eq, gt, lte, sql } from "drizzle-orm";
 
-import { getDb } from '@/db';
+import { getDb } from "@/db";
 import {
   orderEvents,
   orderItems,
@@ -8,12 +8,12 @@ import {
   stockReservations,
   variants,
   type OrderStatus,
-} from '@/db/schema';
+} from "@/db/schema";
 
-import type { Executor, Tx } from './executor';
-import { recordManualPayment } from './manual-payments';
-import { notifyCustomerOrderEvent, type CustomerNoticeKind } from './order-customer-notifications';
-import { log, mensajeDe } from '@/lib/log';
+import type { Executor, Tx } from "./executor";
+import { recordManualPayment } from "./manual-payments";
+import { type CustomerNoticeKind } from "./order-customer-notifications";
+import { enqueueOrderNotice, kickOrderNotices } from "./notification-outbox";
 
 /**
  * Máquina de estados del pedido (ARCH.md §3).
@@ -23,22 +23,24 @@ import { log, mensajeDe } from '@/lib/log';
  * si lo hiciera, un webhook duplicado o tardío podría arrastrar un pedido
  * `enviado` de vuelta a `pagado` y el log de auditoría mentiría.
  */
-export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
-  pendiente_pago: ['esperando_verificacion', 'pagado', 'vencido', 'cancelado'],
-  esperando_verificacion: ['pagado', 'rechazado', 'cancelado'],
+export const ORDER_TRANSITIONS: Readonly<
+  Record<OrderStatus, readonly OrderStatus[]>
+> = {
+  pendiente_pago: ["esperando_verificacion", "pagado", "vencido", "cancelado"],
+  esperando_verificacion: ["pagado", "rechazado", "cancelado"],
   // Reintento de comprobante, dar por cobrado desde el panel, vencimiento por cron o cancelación.
-  rechazado: ['esperando_verificacion', 'pagado', 'vencido', 'cancelado'],
-  pagado: ['preparando', 'reembolsado'],
-  preparando: ['enviado', 'reembolsado'],
+  rechazado: ["esperando_verificacion", "pagado", "vencido", "cancelado"],
+  pagado: ["preparando", "reembolsado"],
+  preparando: ["enviado", "reembolsado"],
   // Devolución total de un pedido ya despachado; el stock no vuelve solo:
   // la mercadería devuelta se repone con un ajuste de stock manual, auditado.
-  enviado: ['entregado', 'reembolsado'],
-  entregado: ['reembolsado'],
+  enviado: ["entregado", "reembolsado"],
+  entregado: ["reembolsado"],
   // `vencido → pagado` es la recuperación del pago tardío (ARCH.md §4.1): el
   // cron venció el pedido y el aviso de Pagopar llegó un segundo después. La
   // arista existe, pero entrar a `pagado` re-asegura el stock primero, así que
   // sólo revive el pedido si la mercadería sigue estando.
-  vencido: ['pagado', 'cancelado'],
+  vencido: ["pagado", "cancelado"],
   // `cancelado` NO revive: lo canceló una persona a propósito. Si entra plata
   // para un pedido cancelado, el pago queda registrado y va a la lista de
   // "pagos sin pedido vivo" para que el dueño devuelva.
@@ -48,15 +50,15 @@ export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatu
 
 /** Estados en los que todavía no entró plata. */
 export const PRE_PAYMENT_STATUSES: readonly OrderStatus[] = [
-  'pendiente_pago',
-  'esperando_verificacion',
-  'rechazado',
+  "pendiente_pago",
+  "esperando_verificacion",
+  "rechazado",
 ];
 
 /** Al entrar acá el stock se consume de verdad. */
-const CONSUMES_STOCK: readonly OrderStatus[] = ['pagado'];
+const CONSUMES_STOCK: readonly OrderStatus[] = ["pagado"];
 /** Al entrar acá las reservas se sueltan. */
-const RELEASES_STOCK: readonly OrderStatus[] = ['vencido', 'cancelado'];
+const RELEASES_STOCK: readonly OrderStatus[] = ["vencido", "cancelado"];
 
 /**
  * A qué destino le corresponde avisarle a la compradora (fase O3).
@@ -66,18 +68,20 @@ const RELEASES_STOCK: readonly OrderStatus[] = ['vencido', 'cancelado'];
  * pasan por acá, así que un solo mapeo alcanza para los tres sin tocar cada
  * llamador. `enviado` sólo se entra desde el panel (`advanceOrder`).
  */
-const CUSTOMER_NOTICE_FOR_STATUS: Partial<Record<OrderStatus, CustomerNoticeKind>> = {
-  pagado: 'pagado',
-  enviado: 'enviado',
+const CUSTOMER_NOTICE_FOR_STATUS: Partial<
+  Record<OrderStatus, CustomerNoticeKind>
+> = {
+  pagado: "pagado",
+  enviado: "enviado",
   // El pedido de reseña: recién con el paquete en la mano tiene sentido
   // preguntar "¿qué te pareció?" (ver `src/domain/reviews.ts`).
-  entregado: 'resena',
+  entregado: "resena",
 };
 
 export class OrderNotFoundError extends Error {
   constructor(readonly orderId: number) {
     super(`No existe el pedido ${orderId}`);
-    this.name = 'OrderNotFoundError';
+    this.name = "OrderNotFoundError";
   }
 }
 
@@ -93,13 +97,13 @@ export class StockUnavailableError extends Error {
     readonly orderId: number,
     readonly variantId: number,
     readonly needed: number,
-    readonly available: number,
+    readonly available: number
   ) {
     super(
       `Ya no hay stock para completar este pedido: faltan ${needed - available} ` +
-        `unidad(es) de una de las variantes. Si el pago entró, hay que devolverlo.`,
+        `unidad(es) de una de las variantes. Si el pago entró, hay que devolverlo.`
     );
-    this.name = 'StockUnavailableError';
+    this.name = "StockUnavailableError";
   }
 }
 
@@ -114,10 +118,12 @@ export class StockUnavailableError extends Error {
 export class TrackingNotAllowedError extends Error {
   constructor(
     readonly orderId: number,
-    readonly to: OrderStatus,
+    readonly to: OrderStatus
   ) {
-    super(`El seguimiento del envío sólo se puede cargar al despachar, no al pasar a "${to}".`);
-    this.name = 'TrackingNotAllowedError';
+    super(
+      `El seguimiento del envío sólo se puede cargar al despachar, no al pasar a "${to}".`
+    );
+    this.name = "TrackingNotAllowedError";
   }
 }
 
@@ -125,10 +131,10 @@ export class InvalidTransitionError extends Error {
   constructor(
     readonly orderId: number,
     readonly from: OrderStatus,
-    readonly to: OrderStatus,
+    readonly to: OrderStatus
   ) {
     super(`Transición inválida para el pedido ${orderId}: ${from} → ${to}`);
-    this.name = 'InvalidTransitionError';
+    this.name = "InvalidTransitionError";
   }
 }
 
@@ -189,7 +195,8 @@ export type OrderTracking = {
  * cada lector tendría que acordarse de tratarla como ausente.
  */
 function trackingColumns(tracking: OrderTracking) {
-  const limpio = (valor: string | null | undefined): string | null => valor?.trim() || null;
+  const limpio = (valor: string | null | undefined): string | null =>
+    valor?.trim() || null;
   return {
     trackingCarrier: limpio(tracking.carrier),
     trackingCode: limpio(tracking.code),
@@ -213,12 +220,12 @@ export async function transitionOrder(
   to: OrderStatus,
   actor: string,
   reason?: string | null,
-  options: TransitionOptions = {},
+  options: TransitionOptions = {}
 ): Promise<TransitionResult> {
   // Antes de abrir nada: el seguimiento sólo tiene sentido al despachar. Se
   // chequea acá arriba y no adentro de la transacción porque no depende del
   // estado de la base — es la forma del llamado la que está mal.
-  if (options.tracking && to !== 'enviado') {
+  if (options.tracking && to !== "enviado") {
     throw new TrackingNotAllowedError(orderId, to);
   }
 
@@ -233,7 +240,7 @@ export async function transitionOrder(
       })
       .from(orders)
       .where(eq(orders.id, orderId))
-      .for('update');
+      .for("update");
 
     const order = locked[0];
     if (!order) throw new OrderNotFoundError(orderId);
@@ -276,7 +283,7 @@ export async function transitionOrder(
       .update(orders)
       .set({
         status: to,
-        ...(to === 'pagado' ? { paidAt: new Date() } : {}),
+        ...(to === "pagado" ? { paidAt: new Date() } : {}),
         // El seguimiento viaja en este mismo UPDATE, dentro de la misma
         // transacción: o el pedido queda despachado con su guía, o no queda
         // despachado. Ver `TransitionOptions.tracking`.
@@ -293,31 +300,25 @@ export async function transitionOrder(
       reason: reason ?? null,
     });
 
+    const noticeKind = CUSTOMER_NOTICE_FOR_STATUS[to];
+    if (noticeKind)
+      await enqueueOrderNotice(
+        tx,
+        orderId,
+        noticeKind,
+        to,
+        noticeKind === "enviado" ? reason : null
+      );
+
     return { orderId, from, to, changed: true };
   };
 
-  const result = await (options.executor ? run(options.executor) : getDb().transaction(run));
+  const result = await (options.executor
+    ? run(options.executor)
+    : getDb().transaction(run));
 
-  // Aviso a la compradora (fase O3), sin `await` y después de que la
-  // transición ya corrió: nunca puede demorar ni hacer fallar la transición
-  // que la dispara. `notifyCustomerOrderEvent` no tira nunca — atrapa todo
-  // adentro y lo anota en `order_events` (ver order-customer-notifications.ts).
-  //
-  // Con `options.executor` (llamado adentro de la transacción de quien
-  // llama, p. ej. `reviewReceipt`, `retryOrderRevival`, el webhook de
-  // Pagopar), esto puede correr una fracción de segundo antes de que esa
-  // transacción externa haga commit: `notifyCustomerOrderEvent` usa su propia
-  // conexión (nunca `tx`). Su SELECT común no espera el lock de fila y puede
-  // leer el snapshot anterior; pasamos el destino para el evento del aviso.
-  const kind = result.changed ? CUSTOMER_NOTICE_FOR_STATUS[to] : undefined;
-  if (kind) {
-    void notifyCustomerOrderEvent(orderId, kind, {
-      status: to,
-      note: kind === 'enviado' ? (reason ?? null) : null,
-    }).catch((error) => {
-      log.error('notifyCustomerOrderEvent rechazó', { error: mensajeDe(error) });
-    });
-  }
+  // Caller-owned transactions are drained by the cron after commit.
+  if (!options.executor && result.changed) kickOrderNotices(orderId);
 
   return result;
 }
@@ -345,18 +346,21 @@ export async function transitionOrder(
  * que asegurar y se deja pasar: frenar acá el cobro de un pedido que ya tiene
  * la plata adentro sería el peor de los dos males.
  */
-async function secureStockForPayment(tx: Executor, orderId: number): Promise<void> {
+async function secureStockForPayment(
+  tx: Executor,
+  orderId: number
+): Promise<void> {
   // Una reserva pasada de hora no reserva nada. Soltarla acá deja el conteo
   // de `held` vigentes igual a lo que ve la vidriera.
   await tx
     .update(stockReservations)
-    .set({ state: 'released' })
+    .set({ state: "released" })
     .where(
       and(
         eq(stockReservations.orderId, orderId),
-        eq(stockReservations.state, 'held'),
-        lte(stockReservations.expiresAt, sql`NOW()`),
-      ),
+        eq(stockReservations.state, "held"),
+        lte(stockReservations.expiresAt, sql`NOW()`)
+      )
     );
 
   const needs = await tx
@@ -382,7 +386,7 @@ async function secureStockForPayment(tx: Executor, orderId: number): Promise<voi
       .select({ onHand: variants.onHand })
       .from(variants)
       .where(eq(variants.id, need.variantId))
-      .for('update');
+      .for("update");
 
     const onHand = locked[0]?.onHand ?? 0;
 
@@ -390,16 +394,19 @@ async function secureStockForPayment(tx: Executor, orderId: number): Promise<voi
     // lee del snapshot y no vería la reserva que el comprador rival acaba de
     // commitear (misma razón que en `stock.ts`).
     const live = await tx
-      .select({ orderId: stockReservations.orderId, qty: stockReservations.qty })
+      .select({
+        orderId: stockReservations.orderId,
+        qty: stockReservations.qty,
+      })
       .from(stockReservations)
       .where(
         and(
           eq(stockReservations.variantId, need.variantId),
-          eq(stockReservations.state, 'held'),
-          gt(stockReservations.expiresAt, sql`NOW()`),
-        ),
+          eq(stockReservations.state, "held"),
+          gt(stockReservations.expiresAt, sql`NOW()`)
+        )
       )
-      .for('update');
+      .for("update");
 
     let own = 0;
     let others = 0;
@@ -413,7 +420,12 @@ async function secureStockForPayment(tx: Executor, orderId: number): Promise<voi
 
     const free = onHand - others - own;
     if (shortfall > free) {
-      throw new StockUnavailableError(orderId, need.variantId, wanted, own + Math.max(0, free));
+      throw new StockUnavailableError(
+        orderId,
+        need.variantId,
+        wanted,
+        own + Math.max(0, free)
+      );
     }
 
     missing.push({ variantId: need.variantId, qty: shortfall });
@@ -430,7 +442,7 @@ async function secureStockForPayment(tx: Executor, orderId: number): Promise<voi
       orderId,
       qty: item.qty,
       expiresAt,
-      state: 'held',
+      state: "held",
     });
   }
 }
@@ -443,12 +455,24 @@ const RECOVERY_HOLD_MINUTES = 15;
  * Sólo toca las que siguen en `held`, así que correr esto dos veces descuenta
  * una sola vez.
  */
-async function consumeReservations(tx: Executor, orderId: number): Promise<void> {
+async function consumeReservations(
+  tx: Executor,
+  orderId: number
+): Promise<void> {
   const held = await tx
-    .select({ id: stockReservations.id, variantId: stockReservations.variantId, qty: stockReservations.qty })
+    .select({
+      id: stockReservations.id,
+      variantId: stockReservations.variantId,
+      qty: stockReservations.qty,
+    })
     .from(stockReservations)
-    .where(and(eq(stockReservations.orderId, orderId), eq(stockReservations.state, 'held')))
-    .for('update');
+    .where(
+      and(
+        eq(stockReservations.orderId, orderId),
+        eq(stockReservations.state, "held")
+      )
+    )
+    .for("update");
 
   for (const reservation of held) {
     await tx
@@ -456,21 +480,36 @@ async function consumeReservations(tx: Executor, orderId: number): Promise<void>
       // on_hand es UNSIGNED: GREATEST solo no alcanza porque la resta se evalúa
       // antes y puede fallar. Casteamos a SIGNED para dejar 0 si un ajuste de
       // stock dejó menos de lo reservado, sin abortar el cobro.
-      .set({ onHand: sql`GREATEST(CAST(${variants.onHand} AS SIGNED) - ${reservation.qty}, 0)` })
+      .set({
+        onHand: sql`GREATEST(CAST(${variants.onHand} AS SIGNED) - ${reservation.qty}, 0)`,
+      })
       .where(eq(variants.id, reservation.variantId));
 
     await tx
       .update(stockReservations)
-      .set({ state: 'consumed' })
-      .where(and(eq(stockReservations.id, reservation.id), eq(stockReservations.state, 'held')));
+      .set({ state: "consumed" })
+      .where(
+        and(
+          eq(stockReservations.id, reservation.id),
+          eq(stockReservations.state, "held")
+        )
+      );
   }
 }
 
-async function releaseReservations(tx: Executor, orderId: number): Promise<void> {
+async function releaseReservations(
+  tx: Executor,
+  orderId: number
+): Promise<void> {
   await tx
     .update(stockReservations)
-    .set({ state: 'released' })
-    .where(and(eq(stockReservations.orderId, orderId), eq(stockReservations.state, 'held')));
+    .set({ state: "released" })
+    .where(
+      and(
+        eq(stockReservations.orderId, orderId),
+        eq(stockReservations.state, "held")
+      )
+    );
 }
 
 /** Timeline del pedido para `/pedido/[n]` y para el admin. */

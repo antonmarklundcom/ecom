@@ -1,3 +1,4 @@
+import { seedPaymentReadiness } from "../helpers/db";
 import { randomBytes } from "node:crypto";
 
 import { eq, sql } from "drizzle-orm";
@@ -16,7 +17,10 @@ import {
   manualPaymentRef,
   recordManualPayment,
 } from "../../src/domain/manual-payments";
-import { StockUnavailableError, transitionOrder } from "../../src/domain/orders";
+import {
+  StockUnavailableError,
+  transitionOrder,
+} from "../../src/domain/orders";
 import { reviewReceipt } from "../../src/domain/receipt-review";
 import { findOrdersPaidWithoutPayment } from "../../src/domain/reconciliation";
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from "../helpers/db";
@@ -34,6 +38,7 @@ import { createVariant } from "../helpers/factories";
 describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
   });
 
   afterAll(async () => {
@@ -46,7 +51,7 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
   async function placeManualOrder(
     paymentMethod: PaymentMethod,
-    options: { onHand?: number; pricePyg?: number; qty?: number } = {},
+    options: { onHand?: number; pricePyg?: number; qty?: number } = {}
   ) {
     const variantId = await createVariant({
       onHand: options.onHand ?? 10,
@@ -66,14 +71,21 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
   }
 
   async function paymentsOf(orderId: number) {
-    return getTestDb().select().from(payments).where(eq(payments.orderId, orderId));
+    return getTestDb()
+      .select()
+      .from(payments)
+      .where(eq(payments.orderId, orderId));
   }
 
   async function createReviewer(): Promise<number> {
     const db = getTestDb();
     const email = `duena-${randomBytes(4).toString("hex")}@tienda.py`;
-    await db.insert(users).values({ email, passwordHash: "x", name: "Dueña", role: "owner" });
-    const row = (await db.select().from(users).where(eq(users.email, email)))[0];
+    await db
+      .insert(users)
+      .values({ email, passwordHash: "x", name: "Dueña", role: "owner" });
+    const row = (
+      await db.select().from(users).where(eq(users.email, email))
+    )[0];
     if (!row) throw new Error("no pude crear el usuario");
     return row.id;
   }
@@ -83,9 +95,18 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
     const cloudinaryId = `comprobantes/${randomBytes(6).toString("hex")}`;
     await db
       .insert(receipts)
-      .values({ orderId, cloudinaryId, mime: "image/jpeg", bytes: 12_345, review: "pending" });
+      .values({
+        orderId,
+        cloudinaryId,
+        mime: "image/jpeg",
+        bytes: 12_345,
+        review: "pending",
+      });
     const row = (
-      await db.select().from(receipts).where(eq(receipts.cloudinaryId, cloudinaryId))
+      await db
+        .select()
+        .from(receipts)
+        .where(eq(receipts.cloudinaryId, cloudinaryId))
     )[0];
     if (!row) throw new Error("no pude crear el comprobante");
     return row.id;
@@ -96,8 +117,16 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
   // ---------------------------------------------------------------------------
 
   it("aprobar un comprobante deja el pago registrado como `spi`", async () => {
-    const order = await placeManualOrder("transferencia", { pricePyg: 47_500, qty: 3 });
-    await transitionOrder(order.orderId, "esperando_verificacion", "buyer", "comprobante subido");
+    const order = await placeManualOrder("transferencia", {
+      pricePyg: 47_500,
+      qty: 3,
+    });
+    await transitionOrder(
+      order.orderId,
+      "esperando_verificacion",
+      "buyer",
+      "comprobante subido"
+    );
     const receiptId = await uploadReceipt(order.orderId);
 
     await reviewReceipt({
@@ -119,7 +148,12 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
   it("confirmar un contra entrega deja el pago registrado como `cod`", async () => {
     const order = await placeManualOrder("contra_entrega");
 
-    await transitionOrder(order.orderId, "pagado", "admin:duena@tienda.py", "entregado y cobrado");
+    await transitionOrder(
+      order.orderId,
+      "pagado",
+      "admin:duena@tienda.py",
+      "entregado y cobrado"
+    );
 
     const rows = await paymentsOf(order.orderId);
     expect(rows).toHaveLength(1);
@@ -130,15 +164,22 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
   it("un pedido de tarjeta no genera una segunda fila: esa la escribe Pagopar", async () => {
     const order = await placeManualOrder("tarjeta");
-    await getTestDb().insert(payments).values({
-      orderId: order.orderId,
-      provider: "pagopar",
-      providerRef: randomBytes(16).toString("hex"),
-      amountPyg: order.totalPyg,
-      status: "paid",
-    });
+    await getTestDb()
+      .insert(payments)
+      .values({
+        orderId: order.orderId,
+        provider: "pagopar",
+        providerRef: randomBytes(16).toString("hex"),
+        amountPyg: order.totalPyg,
+        status: "paid",
+      });
 
-    await transitionOrder(order.orderId, "pagado", "pagopar", "pago confirmado");
+    await transitionOrder(
+      order.orderId,
+      "pagado",
+      "pagopar",
+      "pago confirmado"
+    );
 
     const rows = await paymentsOf(order.orderId);
     expect(rows).toHaveLength(1);
@@ -147,7 +188,12 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
   it("el rechazo del comprobante no registra ningún pago", async () => {
     const order = await placeManualOrder("transferencia");
-    await transitionOrder(order.orderId, "esperando_verificacion", "buyer", "comprobante subido");
+    await transitionOrder(
+      order.orderId,
+      "esperando_verificacion",
+      "buyer",
+      "comprobante subido"
+    );
     const receiptId = await uploadReceipt(order.orderId);
 
     await reviewReceipt({
@@ -167,7 +213,12 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
   it("dos aprobaciones simultáneas del mismo comprobante dejan un solo pago", async () => {
     const order = await placeManualOrder("transferencia");
-    await transitionOrder(order.orderId, "esperando_verificacion", "buyer", "comprobante subido");
+    await transitionOrder(
+      order.orderId,
+      "esperando_verificacion",
+      "buyer",
+      "comprobante subido"
+    );
     const receiptId = await uploadReceipt(order.orderId);
     const reviewerId = await createReviewer();
 
@@ -175,11 +226,23 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
     // misma fila. No se afirma cuál gana —eso lo decide el scheduler— sino que
     // el resultado agregado es un solo cobro.
     const results = await Promise.allSettled([
-      reviewReceipt({ receiptId, decision: "approved", reviewerId, actor: "admin:a@tienda.py" }),
-      reviewReceipt({ receiptId, decision: "approved", reviewerId, actor: "admin:b@tienda.py" }),
+      reviewReceipt({
+        receiptId,
+        decision: "approved",
+        reviewerId,
+        actor: "admin:a@tienda.py",
+      }),
+      reviewReceipt({
+        receiptId,
+        decision: "approved",
+        reviewerId,
+        actor: "admin:b@tienda.py",
+      }),
     ]);
 
-    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === "fulfilled")
+    ).toHaveLength(1);
     expect(await paymentsOf(order.orderId)).toHaveLength(1);
   });
 
@@ -214,7 +277,12 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
   it("si el cobro falla por falta de stock, no queda ni el pago ni el comprobante aprobado", async () => {
     // Única unidad, reservada por este pedido…
     const order = await placeManualOrder("transferencia", { onHand: 1 });
-    await transitionOrder(order.orderId, "esperando_verificacion", "buyer", "comprobante subido");
+    await transitionOrder(
+      order.orderId,
+      "esperando_verificacion",
+      "buyer",
+      "comprobante subido"
+    );
     const receiptId = await uploadReceipt(order.orderId);
 
     // …pero la reserva se pasó de hora y el cron todavía no vino, así que la
@@ -241,12 +309,15 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
         decision: "approved",
         reviewerId: await createReviewer(),
         actor: "admin:duena@tienda.py",
-      }),
+      })
     ).rejects.toBeInstanceOf(StockUnavailableError);
 
     expect(await paymentsOf(order.orderId)).toEqual([]);
     const receipt = (
-      await getTestDb().select().from(receipts).where(eq(receipts.id, receiptId))
+      await getTestDb()
+        .select()
+        .from(receipts)
+        .where(eq(receipts.id, receiptId))
     )[0];
     expect(receipt?.review).toBe("pending");
   });
@@ -257,18 +328,35 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
   it("un pedido por transferencia cobrado por el camino real no lo reporta la reconciliación", async () => {
     const order = await placeManualOrder("transferencia");
-    await transitionOrder(order.orderId, "esperando_verificacion", "buyer", "comprobante subido");
-    await transitionOrder(order.orderId, "pagado", "admin:test", "comprobante aprobado");
+    await transitionOrder(
+      order.orderId,
+      "esperando_verificacion",
+      "buyer",
+      "comprobante subido"
+    );
+    await transitionOrder(
+      order.orderId,
+      "pagado",
+      "admin:test",
+      "comprobante aprobado"
+    );
 
     expect(await findOrdersPaidWithoutPayment()).toEqual([]);
   });
 
   it("un contra entrega cobrado sin fila de pago sí lo reporta (ya no hay filtro por método)", async () => {
     const order = await placeManualOrder("contra_entrega");
-    await transitionOrder(order.orderId, "pagado", "admin:test", "entregado y cobrado");
+    await transitionOrder(
+      order.orderId,
+      "pagado",
+      "admin:test",
+      "entregado y cobrado"
+    );
     // Se borra la fila a mano: es el estado en el que quedaron los pedidos
     // cobrados antes de este PR.
-    await getTestDb().delete(payments).where(eq(payments.orderId, order.orderId));
+    await getTestDb()
+      .delete(payments)
+      .where(eq(payments.orderId, order.orderId));
 
     const found = await findOrdersPaidWithoutPayment();
 
@@ -283,13 +371,25 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
   describe("backfill de los pedidos ya cobrados", () => {
     /** Un pedido cobrado como quedaban antes del PR: sin fila de pago. */
-    async function pedidoCobradoSinPago(paymentMethod: PaymentMethod, totalPyg?: number) {
-      const order = await placeManualOrder(paymentMethod, { pricePyg: totalPyg });
+    async function pedidoCobradoSinPago(
+      paymentMethod: PaymentMethod,
+      totalPyg?: number
+    ) {
+      const order = await placeManualOrder(paymentMethod, {
+        pricePyg: totalPyg,
+      });
       if (paymentMethod === "transferencia") {
-        await transitionOrder(order.orderId, "esperando_verificacion", "buyer", null);
+        await transitionOrder(
+          order.orderId,
+          "esperando_verificacion",
+          "buyer",
+          null
+        );
       }
       await transitionOrder(order.orderId, "pagado", "admin:test", "cobrado");
-      await getTestDb().delete(payments).where(eq(payments.orderId, order.orderId));
+      await getTestDb()
+        .delete(payments)
+        .where(eq(payments.orderId, order.orderId));
       return order;
     }
 
@@ -312,8 +412,12 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
       const result = await backfillManualPayments({ apply: true });
 
       expect(result.inserted).toBe(2);
-      expect((await paymentsOf(transferencia.orderId))[0]?.provider).toBe("spi");
-      expect((await paymentsOf(contraEntrega.orderId))[0]?.provider).toBe("cod");
+      expect((await paymentsOf(transferencia.orderId))[0]?.provider).toBe(
+        "spi"
+      );
+      expect((await paymentsOf(contraEntrega.orderId))[0]?.provider).toBe(
+        "cod"
+      );
       expect(await findOrdersPaidWithoutPayment()).toEqual([]);
     });
 
@@ -325,19 +429,23 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
       expect(segunda.pending).toEqual([]);
       expect(segunda.inserted).toBe(0);
-      const total = await getTestDb().select({ n: sql<number>`COUNT(*)` }).from(payments);
+      const total = await getTestDb()
+        .select({ n: sql<number>`COUNT(*)` })
+        .from(payments);
       expect(Number(total[0]?.n)).toBe(1);
     });
 
     it("no toca los pedidos de tarjeta ni los que todavía no cobraron", async () => {
       const tarjeta = await placeManualOrder("tarjeta");
-      await getTestDb().insert(payments).values({
-        orderId: tarjeta.orderId,
-        provider: "pagopar",
-        providerRef: randomBytes(16).toString("hex"),
-        amountPyg: tarjeta.totalPyg,
-        status: "pending",
-      });
+      await getTestDb()
+        .insert(payments)
+        .values({
+          orderId: tarjeta.orderId,
+          provider: "pagopar",
+          providerRef: randomBytes(16).toString("hex"),
+          amountPyg: tarjeta.totalPyg,
+          status: "pending",
+        });
       const pendiente = await placeManualOrder("transferencia");
 
       const result = await backfillManualPayments({ apply: true });
@@ -360,7 +468,7 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
       const raw = await getTestDb().execute(
         sql`SELECT CAST(p.amount_pyg AS CHAR) AS amount, CAST(o.total_pyg AS CHAR) AS total
             FROM payments p JOIN orders o ON o.id = p.order_id
-            WHERE p.order_id = ${order.orderId}`,
+            WHERE p.order_id = ${order.orderId}`
       );
       const row = (Array.isArray(raw) ? raw[0] : raw) as unknown as Array<
         Record<string, unknown>

@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { ShoppingBag } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { cartCount, useCart } from "@/lib/cart-store";
 import { TESTIDS } from "@/lib/testids";
 
@@ -27,7 +27,9 @@ export function CartButton() {
       onClick={open}
       data-testid={TESTIDS.headerCartLink}
       className="relative"
-      aria-label={count > 0 ? t("carrito.abrirCon", { n: count }) : t("carrito.abrir")}
+      aria-label={
+        count > 0 ? t("carrito.abrirCon", { n: count }) : t("carrito.abrir")
+      }
     >
       <ShoppingBag className="size-4" />
       <span className="hidden sm:inline">{t("carrito.boton")}</span>

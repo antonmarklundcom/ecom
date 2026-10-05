@@ -1,11 +1,12 @@
-import bcrypt from 'bcryptjs';
+import bcrypt from "bcryptjs";
 
-import { t, type MessageKey } from '@/i18n';
+import { t, type MessageKey } from "@/i18n";
 
 /** Coste de bcrypt. 12 ≈ 250 ms en el slot Node de Hostinger — suficiente. */
 export const BCRYPT_ROUNDS = 12;
 
-export const MIN_PASSWORD_LENGTH = 10;
+import { MIN_PASSWORD_LENGTH } from "./password-policy";
+export { MIN_PASSWORD_LENGTH } from "./password-policy";
 
 /**
  * Devuelve una **clave del catálogo** y no la frase: el motivo se le muestra a
@@ -13,13 +14,13 @@ export const MIN_PASSWORD_LENGTH = 10;
  * resto (PR R). Quien llama decide si lo muestra tal cual o lo envuelve.
  */
 export function validatePasswordStrength(
-  password: string,
+  password: string
 ): { ok: true } | { ok: false; reason: MessageKey } {
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return { ok: false, reason: 'adminError.password.corta' };
+    return { ok: false, reason: "adminError.password.corta" };
   }
   if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-    return { ok: false, reason: 'adminError.password.simple' };
+    return { ok: false, reason: "adminError.password.simple" };
   }
   return { ok: true };
 }
@@ -41,13 +42,13 @@ export function hashPassword(password: string): Promise<string> {
 let dummyHash: string | undefined;
 
 function getDummyHash(): string {
-  dummyHash ??= bcrypt.hashSync('contraseña-inexistente', BCRYPT_ROUNDS);
+  dummyHash ??= bcrypt.hashSync("contraseña-inexistente", BCRYPT_ROUNDS);
   return dummyHash;
 }
 
 export async function verifyPassword(
   password: string,
-  hash: string | null | undefined,
+  hash: string | null | undefined
 ): Promise<boolean> {
   if (!hash) {
     await bcrypt.compare(password, getDummyHash());

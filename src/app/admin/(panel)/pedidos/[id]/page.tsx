@@ -15,9 +15,17 @@ import { getAdminOrder, isRecoverableStatus } from "@/domain/admin-orders";
 import { ORDER_TRANSITIONS, getOrderEvents } from "@/domain/orders";
 import { listOrderNotes } from "@/domain/order-notes";
 import { listReceipts } from "@/domain/receipts";
-import { canRegisterReturn, listReturnsForOrder, returnableQuantities } from "@/domain/returns";
+import {
+  canRegisterReturn,
+  listReturnsForOrder,
+  returnableQuantities,
+} from "@/domain/returns";
 import { getPaymentForOrder } from "@/domain/payment-recovery";
-import { buyerWaLink, followUpMessage, recoveryMessage } from "@/domain/order-messages";
+import {
+  buyerWaLink,
+  followUpMessage,
+  recoveryMessage,
+} from "@/domain/order-messages";
 import { adminActor } from "@/lib/admin-guard";
 import { getDatosBancarios } from "@/lib/comercio";
 import { formatGs, ivaIncluded } from "@/lib/money";
@@ -26,6 +34,10 @@ import { VENDEDOR_TRANSITIONS } from "@/lib/session";
 import { formatDateTimePY, formatPhonePY } from "@/lib/py";
 import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
+import { getDb } from "@/db";
+import { notificationOutbox } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { OrderNotices } from "@/components/admin/order-notices";
 
 export const metadata: Metadata = { title: t("panel.pedido.meta") };
 
@@ -33,7 +45,11 @@ export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
 
-export default async function AdminOrderDetailPage({ params }: { params: Params }) {
+export default async function AdminOrderDetailPage({
+  params,
+}: {
+  params: Params;
+}) {
   const actor = await adminActor();
   const { id } = await params;
   const orderId = Number(id);
@@ -43,27 +59,43 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   if (!found) notFound();
 
   const { order, items, editability } = found;
-  const [events, receipts, banco, notes, shippingMethods, payment] = await Promise.all([
-    getOrderEvents(order.id),
-    listReceipts(order.id),
-    // Una sola lectura por pantalla: `recoveryMessage` ya no los busca solo
-    // (ver `src/domain/order-messages.ts`).
-    getDatosBancarios(),
-    listOrderNotes(order.id),
-    // Sugerencias de courier en el paso de despacho — nombres nada más, no
-    // hace falta la ficha completa del método.
-    listAdminShippingMethods(),
-    // Reembolso total o parcial: el pago cobrado de este pedido, sin
-    // importar su estado — un pedido `enviado` con pago es justo el caso de
-    // uso (ver `getPaymentForOrder`).
-    getPaymentForOrder(order.id),
-  ]);
+  const notices =
+    actor.role === "owner"
+      ? await getDb()
+          .select({
+            id: notificationOutbox.id,
+            kind: notificationOutbox.kind,
+            state: notificationOutbox.state,
+            attempts: notificationOutbox.attempts,
+          })
+          .from(notificationOutbox)
+          .where(eq(notificationOutbox.orderId, order.id))
+      : [];
+  const [events, receipts, banco, notes, shippingMethods, payment] =
+    await Promise.all([
+      getOrderEvents(order.id),
+      listReceipts(order.id),
+      // Una sola lectura por pantalla: `recoveryMessage` ya no los busca solo
+      // (ver `src/domain/order-messages.ts`).
+      getDatosBancarios(),
+      listOrderNotes(order.id),
+      // Sugerencias de courier en el paso de despacho — nombres nada más, no
+      // hace falta la ficha completa del método.
+      listAdminShippingMethods(),
+      // Reembolso total o parcial: el pago cobrado de este pedido, sin
+      // importar su estado — un pedido `enviado` con pago es justo el caso de
+      // uso (ver `getPaymentForOrder`).
+      getPaymentForOrder(order.id),
+    ]);
 
   // Devoluciones de mercadería (capability `devoluciones`, los roles de
   // `stock`). Sin el permiso ni se consultan.
   const verDevoluciones = can(actor.role, "devoluciones");
   const [devoluciones, devolvibles] = verDevoluciones
-    ? await Promise.all([listReturnsForOrder(order.id), returnableQuantities(order.id)])
+    ? await Promise.all([
+        listReturnsForOrder(order.id),
+        returnableQuantities(order.id),
+      ])
     : [[], []];
 
   const noteViews: OrderNoteView[] = notes.map((note) => ({
@@ -75,9 +107,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
 
   // Sólo las activas: una desactivada no es algo que el mostrador debería
   // volver a tipear como courier.
-  const courierSuggestions = shippingMethods.filter((method) => method.isActive).map((method) => method.name);
+  const courierSuggestions = shippingMethods
+    .filter((method) => method.isActive)
+    .map((method) => method.name);
 
-  const hasTracking = Boolean(order.trackingCarrier || order.trackingCode || order.trackingUrl);
+  const hasTracking = Boolean(
+    order.trackingCarrier || order.trackingCode || order.trackingUrl
+  );
 
   // Los dos mensajes salen del mismo armador que usa "Por cobrar": el link
   // tokenizado y la regla de no listar lo comprado se escriben una sola vez
@@ -101,7 +137,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   // rechazar (ARCH.md "cómo se entrega decide con qué se paga") — la
   // decisión de verdad la vuelve a tomar `editPendingOrder`.
   const editShippingMethods = shippingMethods.filter(
-    (method) => method.isActive && method.allowedPaymentMethods.includes(order.paymentMethod),
+    (method) =>
+      method.isActive &&
+      method.allowedPaymentMethods.includes(order.paymentMethod)
   );
 
   // La máquina de estados dice qué transiciones existen desde acá; el rol dice
@@ -109,7 +147,8 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   // chequear las dos cosas del lado del servidor (`assertCanTransitionTo` +
   // `transitionOrder`), así que un botón fabricado a mano no mueve nada.
   const nextStatuses = ORDER_TRANSITIONS[order.status].filter(
-    (status) => status !== "reembolsado" &&
+    (status) =>
+      status !== "reembolsado" &&
       (actor.role !== "vendedor" || VENDEDOR_TRANSITIONS.includes(status))
   );
 
@@ -120,12 +159,22 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight tabular-nums">{order.orderNumber}</h1>
+        <h1 className="text-xl font-semibold tracking-tight tabular-nums">
+          {order.orderNumber}
+        </h1>
         <OrderStatusBadge status={order.status} />
       </div>
       <p className="text-muted-foreground mt-1 text-sm">
-        {formatDateTimePY(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
+        {formatDateTimePY(order.createdAt)} ·{" "}
+        {PAYMENT_METHOD_LABEL[order.paymentMethod]}
       </p>
+      <OrderNotices orderId={order.id} notices={notices} />
+      {order.paymentMethod === "tarjeta" &&
+      ["starting", "unknown"].includes(order.cardCheckoutState) ? (
+        <p role="alert" className="mt-4 rounded-lg border p-3 text-sm">
+          {t("panel.pedido.tarjetaIncierta")}
+        </p>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Link
@@ -164,9 +213,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         <section className="border-border bg-muted/40 mt-4 rounded-lg border p-3">
           <h2 className="text-sm font-medium">{t("panel.pedido.esRegalo")}</h2>
           {order.giftNote ? (
-            <p className="mt-1 text-sm whitespace-pre-line">“{order.giftNote}”</p>
+            <p className="mt-1 text-sm whitespace-pre-line">
+              “{order.giftNote}”
+            </p>
           ) : (
-            <p className="text-muted-foreground mt-1 text-sm">{t("panel.pedido.sinMensaje")}</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {t("panel.pedido.sinMensaje")}
+            </p>
           )}
         </section>
       ) : null}
@@ -214,7 +267,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
                 </span>
               </span>
               {verPrecios ? (
-                <span className="shrink-0 tabular-nums">{formatGs(item.lineTotalPyg)}</span>
+                <span className="shrink-0 tabular-nums">
+                  {formatGs(item.lineTotalPyg)}
+                </span>
               ) : null}
             </li>
           ))}
@@ -223,20 +278,32 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         {verPrecios ? (
           <>
             <dl className="border-border mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-sm">
-              <dt className="text-muted-foreground">{t("panel.pedido.subtotal")}</dt>
-              <dd className="text-right tabular-nums">{formatGs(order.subtotalPyg)}</dd>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.subtotal")}
+              </dt>
+              <dd className="text-right tabular-nums">
+                {formatGs(order.subtotalPyg)}
+              </dd>
               {order.discountPyg > 0 ? (
                 <>
                   <dt className="text-muted-foreground">
                     {order.couponCode
-                      ? t("panel.pedido.descuentoCon", { codigo: order.couponCode })
+                      ? t("panel.pedido.descuentoCon", {
+                          codigo: order.couponCode,
+                        })
                       : t("panel.pedido.descuento")}
                   </dt>
-                  <dd className="text-right tabular-nums">−{formatGs(order.discountPyg)}</dd>
+                  <dd className="text-right tabular-nums">
+                    −{formatGs(order.discountPyg)}
+                  </dd>
                 </>
               ) : null}
-              <dt className="text-muted-foreground">{t("panel.pedido.envio")}</dt>
-              <dd className="text-right tabular-nums">{formatGs(order.shippingPyg)}</dd>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.envio")}
+              </dt>
+              <dd className="text-right tabular-nums">
+                {formatGs(order.shippingPyg)}
+              </dd>
               <dt className="font-medium">{t("panel.pedido.total")}</dt>
               {/* == S17 == data-testid: el e2e de edición de pedido lee este
                   total antes y después, y nunca lo calcula del lado del
@@ -256,11 +323,21 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               <dt className="text-muted-foreground col-span-2 font-medium">
                 {t("panel.pedido.ivaIncluido")}
               </dt>
-              <dt className="text-muted-foreground">{t("panel.pedido.iva10")}</dt>
-              <dd className="text-right tabular-nums">{formatGs(order.iva10Pyg)}</dd>
-              <dt className="text-muted-foreground">{t("panel.pedido.iva5")}</dt>
-              <dd className="text-right tabular-nums">{formatGs(order.iva5Pyg)}</dd>
-              <dt className="text-muted-foreground">{t("panel.pedido.gravado")}</dt>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.iva10")}
+              </dt>
+              <dd className="text-right tabular-nums">
+                {formatGs(order.iva10Pyg)}
+              </dd>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.iva5")}
+              </dt>
+              <dd className="text-right tabular-nums">
+                {formatGs(order.iva5Pyg)}
+              </dd>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.gravado")}
+              </dt>
               <dd className="text-right tabular-nums">
                 {formatGs(order.totalPyg - order.iva10Pyg - order.iva5Pyg)}
               </dd>
@@ -322,11 +399,17 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
           ) : (
             <ul className="mt-2 grid gap-2">
               {devoluciones.map((devolucion) => (
-                <li key={devolucion.id} className="border-border rounded-lg border p-3 text-sm">
+                <li
+                  key={devolucion.id}
+                  className="border-border rounded-lg border p-3 text-sm"
+                >
                   <ul>
                     {devolucion.items.map((item, index) => (
                       <li key={index}>
-                        {t("panel.devoluciones.item", { n: item.qty, producto: item.name })}{" "}
+                        {t("panel.devoluciones.item", {
+                          n: item.qty,
+                          producto: item.name,
+                        })}{" "}
                         <span className="text-muted-foreground text-xs">
                           ·{" "}
                           {item.restocked
@@ -337,10 +420,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
                     ))}
                   </ul>
                   <p className="mt-1 whitespace-pre-line">
-                    {t("panel.devoluciones.motivo", { motivo: devolucion.reason })}
+                    {t("panel.devoluciones.motivo", {
+                      motivo: devolucion.reason,
+                    })}
                   </p>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    {devolucion.actorName ?? devolucion.actor} · {formatDateTimePY(devolucion.createdAt)}
+                    {devolucion.actorName ?? devolucion.actor} ·{" "}
+                    {formatDateTimePY(devolucion.createdAt)}
                   </p>
                 </li>
               ))}
@@ -364,7 +450,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               </p>
             )}
           </div>
-          <p className="text-muted-foreground mt-2 text-xs">{t("panel.pedido.devoluciones.reembolso")}</p>
+          <p className="text-muted-foreground mt-2 text-xs">
+            {t("panel.pedido.devoluciones.reembolso")}
+          </p>
         </section>
       ) : null}
 
@@ -372,21 +460,31 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         <h2 className="font-medium">{t("panel.pedido.cliente")}</h2>
         <dl className="mt-2 grid gap-1 text-sm">
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">{t("panel.pedido.nombre")}</dt>
+            <dt className="text-muted-foreground">
+              {t("panel.pedido.nombre")}
+            </dt>
             <dd className="text-right">{order.customerName}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">{t("panel.pedido.whatsapp")}</dt>
-            <dd className="text-right tabular-nums">{formatPhonePY(order.customerPhone)}</dd>
+            <dt className="text-muted-foreground">
+              {t("panel.pedido.whatsapp")}
+            </dt>
+            <dd className="text-right tabular-nums">
+              {formatPhonePY(order.customerPhone)}
+            </dd>
           </div>
           {order.customerEmail ? (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">{t("panel.pedido.email")}</dt>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.email")}
+              </dt>
               <dd className="text-right break-all">{order.customerEmail}</dd>
             </div>
           ) : null}
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">{t("panel.pedido.documento")}</dt>
+            <dt className="text-muted-foreground">
+              {t("panel.pedido.documento")}
+            </dt>
             <dd className="text-right tabular-nums">
               {order.docType === "NINGUNO"
                 ? t("panel.pedido.consumidorFinal")
@@ -400,9 +498,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               casilla la columna es NULL, y "no se preguntó" no es un "no". */}
           {order.marketingOptIn !== null ? (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">{t("panel.pedido.novedades")}</dt>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.novedades")}
+              </dt>
               <dd className="text-right">
-                {order.marketingOptIn ? t("panel.pedido.acepta") : t("panel.pedido.noAcepta")}
+                {order.marketingOptIn
+                  ? t("panel.pedido.acepta")
+                  : t("panel.pedido.noAcepta")}
                 {order.marketingOptInAt ? (
                   <span className="text-muted-foreground block text-xs tabular-nums">
                     {formatDateTimePY(order.marketingOptInAt)}
@@ -418,7 +520,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               `shipping_methods` no tienen ninguno y no muestran la fila. */}
           {order.shippingMethodName ? (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">{t("panel.pedido.metodoEnvio")}</dt>
+              <dt className="text-muted-foreground">
+                {t("panel.pedido.metodoEnvio")}
+              </dt>
               <dd className="text-right">{order.shippingMethodName}</dd>
             </div>
           ) : null}
@@ -426,10 +530,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
             <dt className="text-muted-foreground">{t("panel.pedido.envio")}</dt>
             <dd className="max-w-[60%] text-right">
               {order.shipAddress}
-              {order.shipBarrio ? `, ${order.shipBarrio}` : ""}, {order.shipCity}
+              {order.shipBarrio ? `, ${order.shipBarrio}` : ""},{" "}
+              {order.shipCity}
               {order.shipReference ? (
                 <span className="text-muted-foreground block text-xs">
-                  {t("panel.pedido.referencia", { referencia: order.shipReference })}
+                  {t("panel.pedido.referencia", {
+                    referencia: order.shipReference,
+                  })}
                 </span>
               ) : null}
             </dd>
@@ -445,19 +552,27 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
           <dl className="mt-2 grid gap-1 text-sm">
             {order.trackingCarrier ? (
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">{t("panel.pedido.tracking.courier")}</dt>
+                <dt className="text-muted-foreground">
+                  {t("panel.pedido.tracking.courier")}
+                </dt>
                 <dd className="text-right">{order.trackingCarrier}</dd>
               </div>
             ) : null}
             {order.trackingCode ? (
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">{t("panel.pedido.tracking.guia")}</dt>
-                <dd className="text-right tabular-nums">{order.trackingCode}</dd>
+                <dt className="text-muted-foreground">
+                  {t("panel.pedido.tracking.guia")}
+                </dt>
+                <dd className="text-right tabular-nums">
+                  {order.trackingCode}
+                </dd>
               </div>
             ) : null}
             {order.trackingUrl ? (
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">{t("panel.pedido.tracking.link")}</dt>
+                <dt className="text-muted-foreground">
+                  {t("panel.pedido.tracking.link")}
+                </dt>
                 <dd className="max-w-[60%] text-right break-all">
                   <a
                     href={order.trackingUrl}
@@ -481,7 +596,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
           // manda a alguien a buscar un problema que no existe: el pedido
           // terminó, o este rol no despacha desde acá.
           <p className="text-muted-foreground mt-2 text-sm">
-            {ORDER_TRANSITIONS[order.status].filter((status) => status !== "reembolsado").length === 0
+            {ORDER_TRANSITIONS[order.status].filter(
+              (status) => status !== "reembolsado"
+            ).length === 0
               ? t("panel.pedido.estadoFinal")
               : t("panel.pedido.sinPermiso")}
           </p>
@@ -558,7 +675,10 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
         ) : null}
         <ol className="mt-2 space-y-2 text-sm">
           {events.map((event) => (
-            <li key={event.id} className="border-border flex flex-wrap gap-x-3 border-b pb-2">
+            <li
+              key={event.id}
+              className="border-border flex flex-wrap gap-x-3 border-b pb-2"
+            >
               <span className="text-muted-foreground w-36 shrink-0 tabular-nums">
                 {formatDateTimePY(event.createdAt)}
               </span>
@@ -572,7 +692,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               </span>
               <span className="text-muted-foreground w-full text-xs">
                 {event.actor}
-                {event.reason ? t("panel.pedido.motivoEvento", { motivo: event.reason }) : ""}
+                {event.reason
+                  ? t("panel.pedido.motivoEvento", { motivo: event.reason })
+                  : ""}
               </span>
             </li>
           ))}

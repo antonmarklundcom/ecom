@@ -1,14 +1,25 @@
-import { randomBytes } from "node:crypto";
+import { seedPaymentReadiness } from "../helpers/db";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { orderEvents, orders, payments, refunds, variants } from "../../src/db/schema";
+import {
+  orderEvents,
+  orders,
+  payments,
+  refunds,
+  users,
+  variants,
+} from "../../src/db/schema";
 import { advanceOrder } from "@/app/actions/admin-orders";
 import { markPaymentRefunded } from "@/app/actions/admin-payments";
 import { t } from "@/i18n";
 import { createOrder as placeOrder } from "../../src/domain/create-order";
-import { StockUnavailableError, transitionOrder } from "../../src/domain/orders";
+import {
+  StockUnavailableError,
+  transitionOrder,
+} from "../../src/domain/orders";
 import {
   PaymentRecoveryError,
   findUnmatchedPayments,
@@ -16,15 +27,25 @@ import {
   retryOrderRevival,
 } from "../../src/domain/payment-recovery";
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from "../helpers/db";
-import { createAdminUser, createVariant, getOnHand, getStatus } from "../helpers/factories";
+import {
+  createAdminUser,
+  createVariant,
+  getOnHand,
+  getStatus,
+} from "../helpers/factories";
 
 // Sólo sustituimos la cookie y la caché de Next; permisos, dominio y DB reales.
-const session = vi.hoisted(() => ({ userId: 0, email: 'due@tienda.py', role: 'owner' }));
-vi.mock('@/lib/session', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/session')>()),
+const session = vi.hoisted(() => ({
+  userId: 0,
+  email: "due@tienda.py",
+  role: "owner",
+  sessionVersion: 1,
+}));
+vi.mock("@/lib/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/session")>()),
   getSession: vi.fn(async () => session),
 }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 /**
  * Las dos acciones sobre "Pagos sin pedido vivo" (ARCH.md §4.1).
@@ -37,6 +58,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
   beforeEach(async () => {
     await resetTables();
+    await seedPaymentReadiness();
   });
 
   afterAll(async () => {
@@ -53,7 +75,10 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
    * pedido `vencido`.
    */
   async function pagoColgado(options: { onHand?: number } = {}) {
-    const variantId = await createVariant({ onHand: options.onHand ?? 1, pricePyg: 90_000 });
+    const variantId = await createVariant({
+      onHand: options.onHand ?? 1,
+      pricePyg: 90_000,
+    });
     const order = await placeOrder({
       items: [{ variantId, qty: 1 }],
       customerName: "Ana López",
@@ -76,10 +101,18 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
     });
 
     // El cron lo venció y soltó la reserva.
-    await transitionOrder(order.orderId, "vencido", "cron", "sin pago a tiempo");
+    await transitionOrder(
+      order.orderId,
+      "vencido",
+      "cron",
+      "sin pago a tiempo"
+    );
 
     const paymentId = (
-      await db.select({ id: payments.id }).from(payments).where(eq(payments.orderId, order.orderId))
+      await db
+        .select({ id: payments.id })
+        .from(payments)
+        .where(eq(payments.orderId, order.orderId))
     )[0]?.id;
     if (!paymentId) throw new Error("no pude crear el pago");
 
@@ -87,56 +120,120 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
   }
 
   /** Se lleva `qty` unidades de la variante, como haría otro comprador. */
-  async function otroCompradorSeLleva(variantId: number, qty: number): Promise<void> {
-    await getTestDb().update(variants).set({ onHand: qty }).where(eq(variants.id, variantId));
+  async function otroCompradorSeLleva(
+    variantId: number,
+    qty: number
+  ): Promise<void> {
+    await getTestDb()
+      .update(variants)
+      .set({ onHand: qty })
+      .where(eq(variants.id, variantId));
   }
 
   async function eventsOf(orderId: number) {
-    return getTestDb().select().from(orderEvents).where(eq(orderEvents.orderId, orderId));
+    return getTestDb()
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, orderId));
   }
 
-  it.each(['pagado', 'preparando', 'enviado', 'entregado'] as const)(
-    'advanceOrder rechaza reembolsado desde %s sin tocar pedido, pago, ledger ni eventos',
+  it.each(["pagado", "preparando", "enviado", "entregado"] as const)(
+    "advanceOrder rechaza reembolsado desde %s sin tocar pedido, pago, ledger ni eventos",
     async (status) => {
       const { orderId, paymentId } = await pagoColgado({ onHand: 2 });
-      await retryOrderRevival({ paymentId, actor: 'admin:test' });
-      if (status !== 'pagado') {
-        for (const to of ['preparando', 'enviado', 'entregado'] as const) {
-          await transitionOrder(orderId, to, 'admin:test');
+      await retryOrderRevival({ paymentId, actor: "admin:test" });
+      if (status !== "pagado") {
+        for (const to of ["preparando", "enviado", "entregado"] as const) {
+          await transitionOrder(orderId, to, "admin:test");
           if (to === status) break;
         }
       }
       session.userId = await createAdminUser();
-      session.role = 'owner';
-      const orderBefore = await getTestDb().select().from(orders).where(eq(orders.id, orderId));
-      const paymentBefore = await getTestDb().select().from(payments).where(eq(payments.id, paymentId));
+      session.role = "owner";
+      const orderBefore = await getTestDb()
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId));
+      const paymentBefore = await getTestDb()
+        .select()
+        .from(payments)
+        .where(eq(payments.id, paymentId));
       const eventsBefore = await eventsOf(orderId);
 
-      expect(await advanceOrder({ orderId, to: 'reembolsado', reason: 'devolución total' }))
-        .toEqual({ ok: false, error: t('adminError.pedido.reembolsoPorFormulario') });
-      expect(await getTestDb().select().from(orders).where(eq(orders.id, orderId))).toEqual(orderBefore);
-      expect(await getTestDb().select().from(payments).where(eq(payments.id, paymentId))).toEqual(paymentBefore);
+      expect(
+        await advanceOrder({
+          orderId,
+          to: "reembolsado",
+          reason: "devolución total",
+        })
+      ).toEqual({
+        ok: false,
+        error: t("adminError.pedido.reembolsoPorFormulario"),
+      });
+      expect(
+        await getTestDb().select().from(orders).where(eq(orders.id, orderId))
+      ).toEqual(orderBefore);
+      expect(
+        await getTestDb()
+          .select()
+          .from(payments)
+          .where(eq(payments.id, paymentId))
+      ).toEqual(paymentBefore);
       expect(await eventsOf(orderId)).toEqual(eventsBefore);
       expect(await getTestDb().select().from(refunds)).toEqual([]);
-    },
+    }
   );
 
-  it('markPaymentRefunded valida allowSettled, conserva owner-only y pasa la opción al dominio', async () => {
+  it("markPaymentRefunded valida allowSettled, conserva owner-only y pasa la opción al dominio", async () => {
     const { orderId, paymentId } = await pagoColgado({ onHand: 2 });
-    await retryOrderRevival({ paymentId, actor: 'admin:test' });
+    await retryOrderRevival({ paymentId, actor: "admin:test" });
     session.userId = await createAdminUser();
-    session.role = 'staff';
-    const input = { paymentId, reason: 'devolución total', allowSettled: true };
-    expect(await markPaymentRefunded(input)).toMatchObject({ ok: false, error: 'Sólo el dueño puede hacer esto' });
+    await getTestDb()
+      .update(users)
+      .set({ role: "staff" })
+      .where(eq(users.id, session.userId));
+    session.role = "staff";
+    const input = {
+      paymentId,
+      reason: "devolución total",
+      allowSettled: true,
+      operationKey: randomUUID(),
+    };
+    expect(await markPaymentRefunded(input)).toMatchObject({
+      ok: false,
+      error: "Sólo el dueño puede hacer esto",
+    });
     expect(await getTestDb().select().from(refunds)).toEqual([]);
-    session.role = 'owner';
-    expect(await markPaymentRefunded({ ...input, allowSettled: 'true' }))
-      .toEqual({ ok: false, error: t('adminError.noEntendi.devolucion') });
-    expect(await markPaymentRefunded({ paymentId, reason: input.reason }))
-      .toEqual({ ok: false, error: t('adminError.pago.pedidoRevivio', { estado: 'pagado' }) });
-    expect(await markPaymentRefunded(input)).toMatchObject({ ok: true, changed: true, fullyRefunded: true });
-    expect(await getStatus(orderId)).toBe('reembolsado');
-    expect(await getTestDb().select().from(refunds).where(eq(refunds.paymentId, paymentId))).toHaveLength(1);
+    await getTestDb()
+      .update(users)
+      .set({ role: "owner" })
+      .where(eq(users.id, session.userId));
+    session.role = "owner";
+    expect(
+      await markPaymentRefunded({ ...input, allowSettled: "true" })
+    ).toEqual({ ok: false, error: t("adminError.noEntendi.devolucion") });
+    expect(
+      await markPaymentRefunded({
+        paymentId,
+        reason: input.reason,
+        operationKey: randomUUID(),
+      })
+    ).toEqual({
+      ok: false,
+      error: t("adminError.pago.pedidoRevivio", { estado: "pagado" }),
+    });
+    expect(await markPaymentRefunded(input)).toMatchObject({
+      ok: true,
+      changed: true,
+      fullyRefunded: true,
+    });
+    expect(await getStatus(orderId)).toBe("reembolsado");
+    expect(
+      await getTestDb()
+        .select()
+        .from(refunds)
+        .where(eq(refunds.paymentId, paymentId))
+    ).toHaveLength(1);
   });
 
   // ---------------------------------------------------------------------------
@@ -164,7 +261,10 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
     await otroCompradorSeLleva(colgado.variantId, 0);
 
     await expect(
-      retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:duena@tienda.py" }),
+      retryOrderRevival({
+        paymentId: colgado.paymentId,
+        actor: "admin:duena@tienda.py",
+      })
     ).rejects.toBeInstanceOf(StockUnavailableError);
 
     expect(await getStatus(colgado.orderId)).toBe("vencido");
@@ -185,7 +285,10 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
 
   it("un pedido ya revivido no se vuelve a mover: el segundo click no es un error", async () => {
     const colgado = await pagoColgado({ onHand: 5 });
-    await retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:a@tienda.py" });
+    await retryOrderRevival({
+      paymentId: colgado.paymentId,
+      actor: "admin:a@tienda.py",
+    });
 
     const segunda = await retryOrderRevival({
       paymentId: colgado.paymentId,
@@ -194,17 +297,25 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
 
     expect(segunda.changed).toBe(false);
     expect(await getOnHand(colgado.variantId)).toBe(4);
-    expect((await eventsOf(colgado.orderId)).filter((e) => e.toStatus === "pagado")).toHaveLength(
-      1,
-    );
+    expect(
+      (await eventsOf(colgado.orderId)).filter((e) => e.toStatus === "pagado")
+    ).toHaveLength(1);
   });
 
   it("un pedido cancelado no revive, con un mensaje escrito para el dueño", async () => {
     const colgado = await pagoColgado({ onHand: 5 });
-    await transitionOrder(colgado.orderId, "cancelado", "admin:test", "el cliente se arrepintió");
+    await transitionOrder(
+      colgado.orderId,
+      "cancelado",
+      "admin:test",
+      "el cliente se arrepintió"
+    );
 
     await expect(
-      retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:duena@tienda.py" }),
+      retryOrderRevival({
+        paymentId: colgado.paymentId,
+        actor: "admin:duena@tienda.py",
+      })
     ).rejects.toBeInstanceOf(PaymentRecoveryError);
 
     expect(await getStatus(colgado.orderId)).toBe("cancelado");
@@ -219,7 +330,10 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
     });
 
     await expect(
-      retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:duena@tienda.py" }),
+      retryOrderRevival({
+        paymentId: colgado.paymentId,
+        actor: "admin:duena@tienda.py",
+      })
     ).rejects.toBeInstanceOf(PaymentRecoveryError);
   });
 
@@ -241,11 +355,16 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
     expect(await getStatus(colgado.orderId)).toBe("cancelado");
 
     const payment = (
-      await getTestDb().select().from(payments).where(eq(payments.id, colgado.paymentId))
+      await getTestDb()
+        .select()
+        .from(payments)
+        .where(eq(payments.id, colgado.paymentId))
     )[0];
     expect(payment?.status).toBe("refunded");
 
-    const cancelacion = (await eventsOf(colgado.orderId)).find((e) => e.toStatus === "cancelado");
+    const cancelacion = (await eventsOf(colgado.orderId)).find(
+      (e) => e.toStatus === "cancelado"
+    );
     expect(cancelacion?.reason).toContain("transferí de vuelta por SPI");
     expect(cancelacion?.actor).toBe("admin:duena@tienda.py");
 
@@ -257,7 +376,11 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
     const colgado = await pagoColgado();
 
     await expect(
-      refundPayment({ paymentId: colgado.paymentId, reason: "  ", actor: "admin:duena@tienda.py" }),
+      refundPayment({
+        paymentId: colgado.paymentId,
+        reason: "  ",
+        actor: "admin:duena@tienda.py",
+      })
     ).rejects.toBeInstanceOf(PaymentRecoveryError);
 
     expect(await getStatus(colgado.orderId)).toBe("vencido");
@@ -280,38 +403,50 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
 
     expect(segunda.changed).toBe(false);
     expect(
-      (await eventsOf(colgado.orderId)).filter((e) => e.toStatus === "cancelado"),
+      (await eventsOf(colgado.orderId)).filter(
+        (e) => e.toStatus === "cancelado"
+      )
     ).toHaveLength(1);
   });
 
   it("no se marca devuelto un pedido que revivió desde que se abrió la pantalla", async () => {
     const colgado = await pagoColgado({ onHand: 5 });
     // Otro dueño lo revivió mientras esta pestaña mostraba la lista vieja.
-    await retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:a@tienda.py" });
+    await retryOrderRevival({
+      paymentId: colgado.paymentId,
+      actor: "admin:a@tienda.py",
+    });
 
     await expect(
       refundPayment({
         paymentId: colgado.paymentId,
         reason: "devuelto por SPI",
         actor: "admin:b@tienda.py",
-      }),
+      })
     ).rejects.toBeInstanceOf(PaymentRecoveryError);
 
     // El pedido cobrado queda intacto: no se cancela un pedido que alguien
     // está por preparar.
     expect(await getStatus(colgado.orderId)).toBe("pagado");
     const payment = (
-      await getTestDb().select().from(payments).where(eq(payments.id, colgado.paymentId))
+      await getTestDb()
+        .select()
+        .from(payments)
+        .where(eq(payments.id, colgado.paymentId))
     )[0];
     expect(payment?.status).toBe("paid");
   });
 
   it("el id del formulario no alcanza: un pago inexistente no rompe nada", async () => {
     await expect(
-      retryOrderRevival({ paymentId: 999_999, actor: "admin:duena@tienda.py" }),
+      retryOrderRevival({ paymentId: 999_999, actor: "admin:duena@tienda.py" })
     ).rejects.toBeInstanceOf(PaymentRecoveryError);
     await expect(
-      refundPayment({ paymentId: 999_999, reason: "devuelto", actor: "admin:duena@tienda.py" }),
+      refundPayment({
+        paymentId: 999_999,
+        reason: "devuelto",
+        actor: "admin:duena@tienda.py",
+      })
     ).rejects.toBeInstanceOf(PaymentRecoveryError);
   });
 
@@ -325,8 +460,14 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
     // Cada una en su propia conexión del pool, lanzadas juntas. En secuencia
     // este bug no aparece: hacen falta las dos transacciones abiertas a la vez.
     const results = await Promise.allSettled([
-      retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:a@tienda.py" }),
-      retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:b@tienda.py" }),
+      retryOrderRevival({
+        paymentId: colgado.paymentId,
+        actor: "admin:a@tienda.py",
+      }),
+      retryOrderRevival({
+        paymentId: colgado.paymentId,
+        actor: "admin:b@tienda.py",
+      }),
     ]);
 
     // No se afirma quién ganó —eso lo decide el scheduler— sino la forma del
@@ -335,15 +476,15 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
       expect(result.status).toBe("fulfilled");
     }
     const changed = results.filter(
-      (result) => result.status === "fulfilled" && result.value.changed,
+      (result) => result.status === "fulfilled" && result.value.changed
     );
     expect(changed).toHaveLength(1);
 
     expect(await getStatus(colgado.orderId)).toBe("pagado");
     expect(await getOnHand(colgado.variantId)).toBe(0);
-    expect((await eventsOf(colgado.orderId)).filter((e) => e.toStatus === "pagado")).toHaveLength(
-      1,
-    );
+    expect(
+      (await eventsOf(colgado.orderId)).filter((e) => e.toStatus === "pagado")
+    ).toHaveLength(1);
     expect(await findUnmatchedPayments()).toEqual([]);
   });
 
@@ -351,7 +492,10 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
     const colgado = await pagoColgado({ onHand: 1 });
 
     const [revival, refund] = await Promise.allSettled([
-      retryOrderRevival({ paymentId: colgado.paymentId, actor: "admin:a@tienda.py" }),
+      retryOrderRevival({
+        paymentId: colgado.paymentId,
+        actor: "admin:a@tienda.py",
+      }),
       refundPayment({
         paymentId: colgado.paymentId,
         reason: "devuelto por SPI",
@@ -361,7 +505,10 @@ describe.skipIf(!hasTestDb)("recuperación de pagos colgados", () => {
 
     const status = await getStatus(colgado.orderId);
     const payment = (
-      await getTestDb().select().from(payments).where(eq(payments.id, colgado.paymentId))
+      await getTestDb()
+        .select()
+        .from(payments)
+        .where(eq(payments.id, colgado.paymentId))
     )[0];
 
     // Las dos combinaciones legítimas, según quién tomó el candado primero.

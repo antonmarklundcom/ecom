@@ -1,5 +1,7 @@
 "use server";
 
+import { safeError } from "@/lib/safe-error";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -34,7 +36,10 @@ import { sweepBackInStock } from "@/domain/stock-alerts";
 import { validateProductImage } from "@/domain/product-images";
 import { carpetaProductos, cloudinary } from "@/lib/cloudinary";
 import { slugify } from "@/lib/slug";
-import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from "@/lib/spreadsheet";
+import {
+  spreadsheetToCsvText,
+  UnsupportedSpreadsheetError,
+} from "@/lib/spreadsheet";
 import {
   actorLabel,
   adminActionError,
@@ -50,7 +55,10 @@ function revalidarVidriera() {
 
 // Import directo del script de seed: mismo `upsertCatalogProducts` que usa
 // `pnpm importar:productos`, no una reimplementación para el panel.
-import { upsertCatalogProducts, type CatalogProductUpsert } from "../../../scripts/seed";
+import {
+  upsertCatalogProducts,
+  type CatalogProductUpsert,
+} from "../../../scripts/seed";
 
 /**
  * Alta y edición del catálogo (PLAN.md 4.6).
@@ -60,6 +68,8 @@ import { upsertCatalogProducts, type CatalogProductUpsert } from "../../../scrip
  */
 
 const ProductSchema = z.object({
+  saleMode: z.enum(["stock", "enquiry", "showcase"]).optional(),
+  showPrice: z.boolean().optional(),
   productId: z.number().int().positive().optional(),
   slug: z
     .string()
@@ -69,7 +79,10 @@ const ProductSchema = z.object({
     // a la misma URL (y el segundo guardado fallando por el índice único con
     // un error que no explica nada).
     .max(160, t("adminForm.slugLargo"))
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El slug va en minúsculas y con guiones: remera-azul"),
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "El slug va en minúsculas y con guiones: remera-azul"
+    ),
   name: z.string().trim().min(2, t("adminForm.nombreProducto")).max(200),
   description: z.string().trim().max(5000).optional(),
   categoryId: z.number().int().positive(),
@@ -88,17 +101,22 @@ const ProductSchema = z.object({
 });
 
 export async function saveProduct(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ productId: number }>> {
   try {
     await requireStaffSession();
 
     const parsed = ProductSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Revisá los datos.",
+      };
     }
 
     const write = {
+      saleMode: parsed.data.saleMode,
+      showPrice: parsed.data.showPrice,
       slug: parsed.data.slug,
       name: parsed.data.name,
       description: parsed.data.description || null,
@@ -144,16 +162,27 @@ const VariantSchema = z.object({
    * pesado sobre el teclado no deje una variante marcada como "stock bajo"
    * para siempre — el campo lo dibuja S10.
    */
-  reorderPoint: z.number().int().nonnegative().max(100_000).nullable().optional(),
+  reorderPoint: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(100_000)
+    .nullable()
+    .optional(),
 });
 
-export async function saveProductVariant(input: unknown): Promise<AdminActionResult> {
+export async function saveProductVariant(
+  input: unknown
+): Promise<AdminActionResult> {
   try {
     await requireStaffSession();
 
     const parsed = VariantSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Revisá los datos.",
+      };
     }
 
     await saveVariant(parsed.data.productId, {
@@ -167,6 +196,7 @@ export async function saveProductVariant(input: unknown): Promise<AdminActionRes
     });
 
     revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("saveProductVariant", error);
@@ -175,7 +205,10 @@ export async function saveProductVariant(input: unknown): Promise<AdminActionRes
 
 const AdjustSchema = z.object({
   variantId: z.number().int().positive(),
-  delta: z.number().int().refine((value) => value !== 0, t("adminForm.ajusteCero")),
+  delta: z
+    .number()
+    .int()
+    .refine((value) => value !== 0, t("adminForm.ajusteCero")),
   // El motivo es obligatorio acá y otra vez en el dominio: este mensaje es
   // para el formulario, el del dominio es la regla real.
   reason: z.string().trim().min(4, t("adminForm.motivoAjuste")).max(300),
@@ -184,14 +217,17 @@ const AdjustSchema = z.object({
 
 /** Ajuste de stock con motivo. Queda auditado en `stock_adjustments`. */
 export async function adjustVariantStock(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ newOnHand: number }>> {
   try {
     const actor = await requireStaffSession();
 
     const parsed = AdjustSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Revisá los datos.",
+      };
     }
 
     const result = await adjustStock({
@@ -202,7 +238,8 @@ export async function adjustVariantStock(
       actorUserId: actor.userId,
     });
 
-    if (parsed.data.productId) revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    if (parsed.data.productId)
+      revalidatePath(`/admin/productos/${parsed.data.productId}`);
     revalidatePath("/admin/productos");
     revalidatePath("/admin");
     revalidarVidriera();
@@ -219,7 +256,9 @@ export async function adjustVariantStock(
  * tiene que servirse por CDN sin firmar. El tipo se valida por los bytes
  * antes de subir.
  */
-export async function uploadProductImage(formData: FormData): Promise<AdminActionResult> {
+export async function uploadProductImage(
+  formData: FormData
+): Promise<AdminActionResult> {
   try {
     await requireStaffSession();
 
@@ -234,11 +273,14 @@ export async function uploadProductImage(formData: FormData): Promise<AdminActio
     }
 
     const content = Buffer.from(await file.arrayBuffer());
-    const { mime } = validateProductImage({ bytes: content.byteLength, content });
+    const { mime } = validateProductImage({
+      bytes: content.byteLength,
+      content,
+    });
 
     const uploaded = await cloudinary.uploader.upload(
       `data:${mime};base64,${content.toString("base64")}`,
-      { folder: carpetaProductos(), resource_type: "image", overwrite: false },
+      { folder: carpetaProductos(), resource_type: "image", overwrite: false }
     );
 
     const alt = String(formData.get("alt") ?? "").trim();
@@ -261,7 +303,9 @@ const RemoveImageSchema = z.object({
   productId: z.number().int().positive(),
 });
 
-export async function removeProductImage(input: unknown): Promise<AdminActionResult> {
+export async function removeProductImage(
+  input: unknown
+): Promise<AdminActionResult> {
   try {
     await requireStaffSession();
 
@@ -308,11 +352,10 @@ export type CatalogImportSummary = {
 };
 
 export type CatalogImportPreviewResult =
-  | ({ ok: true } & CatalogImportSummary)
-  | { ok: false; errores: string[] };
+  ({ ok: true } & CatalogImportSummary) | { ok: false; errores: string[] };
 
 async function readCatalogFile(
-  formData: FormData,
+  formData: FormData
 ): Promise<{ ok: true; csvText: string } | { ok: false; errores: string[] }> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -333,7 +376,10 @@ async function readCatalogFile(
   }
 }
 
-function planSummary(plan: CatalogImportPlan, pisaStock: boolean): CatalogImportSummary {
+function planSummary(
+  plan: CatalogImportPlan,
+  pisaStock: boolean
+): CatalogImportSummary {
   return {
     productosNuevos: plan.productosNuevos,
     productosActualizar: plan.productosActualizar,
@@ -349,7 +395,9 @@ function planSummary(plan: CatalogImportPlan, pisaStock: boolean): CatalogImport
  * Ensayo: cuenta y muestra, no escribe nada. Es lo que se ve antes de
  * habilitar el botón de confirmar.
  */
-export async function previewCatalogImport(formData: FormData): Promise<CatalogImportPreviewResult> {
+export async function previewCatalogImport(
+  formData: FormData
+): Promise<CatalogImportPreviewResult> {
   try {
     await requireStaffSession();
 
@@ -383,7 +431,9 @@ export type CatalogImportApplyResult =
  * persona cargando productos, por ejemplo) y aplicar un plan viejo sería
  * escribir sobre un estado que ya no es el real.
  */
-export async function applyCatalogImport(formData: FormData): Promise<CatalogImportApplyResult> {
+export async function applyCatalogImport(
+  formData: FormData
+): Promise<CatalogImportApplyResult> {
   try {
     await requireStaffSession();
 
@@ -396,21 +446,28 @@ export async function applyCatalogImport(formData: FormData): Promise<CatalogImp
 
     const categoriaPorSlug = await ensureCatalogCategories(plan);
 
-    const items: CatalogProductUpsert[] = plan.productos.map((producto: CatalogoProducto) => {
-      const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
-      if (!categoryId) throw new Error(`Categoría sin id: ${producto.categoryName}`);
-      return {
-        slug: producto.slug,
-        name: producto.name,
-        description: producto.description,
-        categoryId,
-        brand: producto.brand,
-        ivaRate: producto.ivaRate,
-        variants: producto.variants,
-      };
-    });
+    const items: CatalogProductUpsert[] = plan.productos.map(
+      (producto: CatalogoProducto) => {
+        const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
+        if (!categoryId)
+          throw new Error(`Categoría sin id: ${producto.categoryName}`);
+        return {
+          saleMode: producto.saleMode,
+          showPrice: producto.showPrice,
+          slug: producto.slug,
+          name: producto.name,
+          description: producto.description,
+          categoryId,
+          brand: producto.brand,
+          ivaRate: producto.ivaRate,
+          variants: producto.variants,
+        };
+      }
+    );
 
-    const variantesEscritas = await upsertCatalogProducts(items, { resetStock: pisaStock });
+    const variantesEscritas = await upsertCatalogProducts(items, {
+      resetStock: pisaStock,
+    });
 
     // "Avisame cuando haya stock" (O6): una importación con `pisarStock` es la
     // otra forma en que `on_hand` sube sin pasar por `adjustStock`. Se dispara
@@ -422,7 +479,7 @@ export async function applyCatalogImport(formData: FormData): Promise<CatalogImp
     // acaba de importar el catálogo no espera por Meta.
     if (pisaStock) {
       void sweepBackInStock().catch((error) => {
-        console.error("sweepBackInStock rechazó", error);
+        console.error("sweepBackInStock rechazó", safeError(error).message);
       });
     }
 
@@ -432,7 +489,7 @@ export async function applyCatalogImport(formData: FormData): Promise<CatalogImp
     const fotos = await applyCatalogFotos(plan.productos);
 
     revalidatePath("/admin/productos");
-    if (fotos.fotosSubidas > 0) revalidarVidriera();
+    revalidarVidriera();
     return {
       ok: true,
       ...planSummary(plan, pisaStock),
@@ -461,15 +518,21 @@ const BulkIdsSchema = z.object({
 });
 
 export async function bulkSetProductsActive(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ afectados: number }>> {
   try {
     await requireStaffSession();
 
-    const parsed = BulkIdsSchema.extend({ isActive: z.boolean() }).safeParse(input);
-    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.masivo") };
+    const parsed = BulkIdsSchema.extend({ isActive: z.boolean() }).safeParse(
+      input
+    );
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.noEntendi.masivo") };
 
-    const afectados = await bulkSetActive(parsed.data.productIds, parsed.data.isActive);
+    const afectados = await bulkSetActive(
+      parsed.data.productIds,
+      parsed.data.isActive
+    );
 
     revalidatePath("/admin/productos");
     revalidarVidriera();
@@ -480,7 +543,7 @@ export async function bulkSetProductsActive(
 }
 
 export async function bulkMoveProductsCategory(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ afectados: number }>> {
   try {
     await requireStaffSession();
@@ -488,9 +551,13 @@ export async function bulkMoveProductsCategory(
     const parsed = BulkIdsSchema.extend({
       categoryId: z.number().int().positive(),
     }).safeParse(input);
-    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.masivo") };
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.noEntendi.masivo") };
 
-    const afectados = await bulkMoveCategory(parsed.data.productIds, parsed.data.categoryId);
+    const afectados = await bulkMoveCategory(
+      parsed.data.productIds,
+      parsed.data.categoryId
+    );
 
     revalidatePath("/admin/productos");
     revalidarVidriera();
@@ -506,28 +573,45 @@ export async function bulkMoveProductsCategory(
  */
 const BulkPriceSchema = z
   .object({
-    variantIds: z.array(z.number().int().positive()).max(BULK_MAX_IDS).optional(),
-    productIds: z.array(z.number().int().positive()).max(BULK_MAX_IDS).optional(),
+    variantIds: z
+      .array(z.number().int().positive())
+      .max(BULK_MAX_IDS)
+      .optional(),
+    productIds: z
+      .array(z.number().int().positive())
+      .max(BULK_MAX_IDS)
+      .optional(),
     percent: z.number().int().min(PERCENT_MIN).max(PERCENT_MAX),
     roundTo: z.union([z.literal(100), z.literal(1000)]),
     reason: z.string().trim().min(BULK_MIN_REASON).max(500),
   })
   .refine(
-    (data) => Boolean(data.variantIds?.length) !== Boolean(data.productIds?.length),
+    (data) =>
+      Boolean(data.variantIds?.length) !== Boolean(data.productIds?.length),
     // Una de las dos, no las dos ni ninguna: con las dos, no está claro cuál
     // gana, y "las dos" es siempre un error de quien llama.
-    { message: "Elegí variantes o productos, no las dos cosas." },
+    { message: "Elegí variantes o productos, no las dos cosas." }
   );
 
 export async function bulkAdjustProductPrices(
-  input: unknown,
-): Promise<AdminActionResult<{ cambiadas: number; miradas: number; diferenciaPyg: number }>> {
+  input: unknown
+): Promise<
+  AdminActionResult<{
+    cambiadas: number;
+    miradas: number;
+    diferenciaPyg: number;
+  }>
+> {
   try {
     const actor = await requireOwnerSession();
 
     const parsed = BulkPriceSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.noEntendi.masivo") };
+      return {
+        ok: false,
+        error:
+          parsed.error.issues[0]?.message ?? t("adminError.noEntendi.masivo"),
+      };
     }
 
     const result = await bulkAdjustPrices({
@@ -549,9 +633,7 @@ export async function bulkAdjustProductPrices(
 }
 
 /** La vista previa del ajuste. Owner también: muestra precios y no escribe. */
-export async function previewBulkPriceAdjustment(
-  input: unknown,
-): Promise<
+export async function previewBulkPriceAdjustment(input: unknown): Promise<
   AdminActionResult<{
     cambiadas: number;
     miradas: number;
@@ -564,7 +646,11 @@ export async function previewBulkPriceAdjustment(
 
     const parsed = BulkPriceSchema.omit({ reason: true }).safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.noEntendi.masivo") };
+      return {
+        ok: false,
+        error:
+          parsed.error.issues[0]?.message ?? t("adminError.noEntendi.masivo"),
+      };
     }
 
     const result = await previewPriceAdjustment({
@@ -585,13 +671,16 @@ export async function previewBulkPriceAdjustment(
  * las fotos** (ver el comentario de `duplicateProduct`).
  */
 export async function duplicateProductAction(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ productId: number }>> {
   try {
     await requireStaffSession();
 
-    const parsed = z.object({ productId: z.number().int().positive() }).safeParse(input);
-    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.masivo") };
+    const parsed = z
+      .object({ productId: z.number().int().positive() })
+      .safeParse(input);
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.noEntendi.masivo") };
 
     const productId = await duplicateProduct(parsed.data.productId);
 

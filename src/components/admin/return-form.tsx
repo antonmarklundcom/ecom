@@ -1,6 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import {
+  browserOperation,
+  finishBrowserOperation,
+} from "@/lib/browser-operation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -29,7 +33,13 @@ export type ReturnFormLine = {
  * servidor recalcula lo que queda con el pedido bloqueado, así que dos
  * pestañas abiertas no devuelven la misma remera dos veces.
  */
-export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnFormLine[] }) {
+export function ReturnForm({
+  orderId,
+  lines,
+}: {
+  orderId: number;
+  lines: ReturnFormLine[];
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [qty, setQty] = useState<Record<number, number>>({});
@@ -39,15 +49,22 @@ export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnF
 
   const devolvibles = lines.filter((line) => line.remaining > 0);
   if (devolvibles.length === 0) {
-    return <p className="text-muted-foreground text-sm">{t("panel.pedido.devoluciones.nadaQueDevolver")}</p>;
+    return (
+      <p className="text-muted-foreground text-sm">
+        {t("panel.pedido.devoluciones.nadaQueDevolver")}
+      </p>
+    );
   }
 
-  const total = devolvibles.reduce((sum, line) => sum + (qty[line.orderItemId] ?? 0), 0);
+  const total = devolvibles.reduce(
+    (sum, line) => sum + (qty[line.orderItemId] ?? 0),
+    0
+  );
 
   const submit = (): void => {
     setError(null);
     startTransition(async () => {
-      const result = await registrarDevolucion({
+      const payload = {
         orderId,
         reason,
         items: devolvibles.map((line) => ({
@@ -55,11 +72,14 @@ export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnF
           qty: qty[line.orderItemId] ?? 0,
           restock: restock[line.orderItemId] ?? true,
         })),
-      });
+      };
+      const operationKey = await browserOperation(`return:${orderId}`, payload);
+      const result = await registrarDevolucion({ ...payload, operationKey });
       if (!result.ok) {
         setError(result.error);
         return;
       }
+      finishBrowserOperation(`return:${orderId}`);
       setQty({});
       setRestock({});
       setReason("");
@@ -77,14 +97,19 @@ export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnF
         submit();
       }}
     >
-      <h3 className="text-sm font-medium">{t("panel.pedido.devoluciones.nueva")}</h3>
+      <h3 className="text-sm font-medium">
+        {t("panel.pedido.devoluciones.nueva")}
+      </h3>
 
       <ul className="grid gap-2">
         {devolvibles.map((line) => {
           const inputId = `return-qty-${line.orderItemId}`;
           const checkId = `return-restock-${line.orderItemId}`;
           return (
-            <li key={line.orderItemId} className="flex flex-wrap items-center gap-3 text-sm">
+            <li
+              key={line.orderItemId}
+              className="flex flex-wrap items-center gap-3 text-sm"
+            >
               <span className="min-w-0 flex-1">{line.name}</span>
               <span className="flex items-center gap-1.5">
                 <Label htmlFor={inputId} className="text-xs">
@@ -105,21 +130,32 @@ export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnF
                     const acotado = Number.isFinite(valor)
                       ? Math.max(0, Math.min(line.remaining, valor))
                       : 0;
-                    setQty((prev) => ({ ...prev, [line.orderItemId]: acotado }));
+                    setQty((prev) => ({
+                      ...prev,
+                      [line.orderItemId]: acotado,
+                    }));
                   }}
                   className="w-20"
                 />
                 <span className="text-muted-foreground text-xs">
-                  {t("panel.pedido.devoluciones.deTotal", { n: line.remaining })}
+                  {t("panel.pedido.devoluciones.deTotal", {
+                    n: line.remaining,
+                  })}
                 </span>
               </span>
-              <label htmlFor={checkId} className="flex items-center gap-1.5 text-xs">
+              <label
+                htmlFor={checkId}
+                className="flex items-center gap-1.5 text-xs"
+              >
                 <input
                   id={checkId}
                   type="checkbox"
                   checked={restock[line.orderItemId] ?? true}
                   onChange={(event) =>
-                    setRestock((prev) => ({ ...prev, [line.orderItemId]: event.target.checked }))
+                    setRestock((prev) => ({
+                      ...prev,
+                      [line.orderItemId]: event.target.checked,
+                    }))
                   }
                 />
                 {t("panel.pedido.devoluciones.alStock")}
@@ -130,7 +166,9 @@ export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnF
       </ul>
 
       <div className="grid gap-1.5">
-        <Label htmlFor={`return-reason-${orderId}`}>{t("panel.pedido.devoluciones.motivo")}</Label>
+        <Label htmlFor={`return-reason-${orderId}`}>
+          {t("panel.pedido.devoluciones.motivo")}
+        </Label>
         <textarea
           id={`return-reason-${orderId}`}
           data-testid={TESTIDS.adminReturnReason}
@@ -145,7 +183,10 @@ export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnF
       </div>
 
       {error ? (
-        <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-2 text-xs">
+        <p
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-lg border p-2 text-xs"
+        >
           {error}
         </p>
       ) : null}
@@ -157,7 +198,9 @@ export function ReturnForm({ orderId, lines }: { orderId: number; lines: ReturnF
           data-testid={TESTIDS.adminReturnSubmit}
           disabled={isPending || total === 0 || reason.trim().length === 0}
         >
-          {isPending ? t("panel.pedido.devoluciones.registrando") : t("panel.pedido.devoluciones.registrar")}
+          {isPending
+            ? t("panel.pedido.devoluciones.registrando")
+            : t("panel.pedido.devoluciones.registrar")}
         </Button>
       </div>
     </form>

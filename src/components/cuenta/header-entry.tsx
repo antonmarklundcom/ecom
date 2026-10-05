@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import { currentCustomer } from "@/lib/customer-session";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * La entrada a la cuenta en el header (PLAN.md FASE 2, PR E.4).

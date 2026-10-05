@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 import { formatGs } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,9 @@ export function PriceTag({
   className?: string;
 }) {
   const hasDiscount = compareAtPyg != null && compareAtPyg > pricePyg;
-  const discount = hasDiscount ? Math.round(((compareAtPyg - pricePyg) / compareAtPyg) * 100) : 0;
+  const discount = hasDiscount
+    ? Math.round(((compareAtPyg - pricePyg) / compareAtPyg) * 100)
+    : 0;
 
   return (
     <div className={cn("flex flex-col gap-0.5", className)}>
@@ -38,7 +40,7 @@ export function PriceTag({
         </span>
         {hasDiscount ? (
           <>
-            <span className="text-muted-foreground text-sm line-through tabular-nums">
+            <span className="text-muted-foreground text-sm tabular-nums line-through">
               {formatGs(compareAtPyg)}
             </span>
             <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
@@ -48,7 +50,9 @@ export function PriceTag({
         ) : null}
       </div>
       {showIvaNote ? (
-        <span className="text-muted-foreground text-xs">{t("precio.ivaIncluido")}</span>
+        <span className="text-muted-foreground text-xs">
+          {t("precio.ivaIncluido")}
+        </span>
       ) : null}
     </div>
   );

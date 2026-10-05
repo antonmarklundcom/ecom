@@ -1,19 +1,24 @@
-import { and, count, gte, inArray, lt, sql } from 'drizzle-orm';
+import { safeError } from "@/lib/safe-error";
+import { and, count, gte, inArray, lt, sql } from "drizzle-orm";
 
-import { getDb } from '@/db';
-import { orders } from '@/db/schema';
-import { t } from '@/i18n';
-import { comercioWhatsApp } from '@/lib/comercio';
-import { formatGs } from '@/lib/money';
-import { startOfDayPY } from '@/lib/py';
+import { getDb } from "@/db";
+import { orders } from "@/db/schema";
+import { t } from "@/i18n";
+import { comercioWhatsApp } from "@/lib/comercio";
+import { formatGs } from "@/lib/money";
+import { startOfDayPY } from "@/lib/py";
 
-import { DEFAULT_REORDER_POINT, lowStockVariants, type LowStockVariant } from './admin-products';
-import { getStoreSettings } from './store-settings';
-import { umbralStockBajo } from './store-settings-schema';
-import type { Executor } from './executor';
-import { resolveMessageSender, type MessageSender } from './messaging';
-import { withTimeout } from './notify-timing';
-import { log, mensajeDe } from '@/lib/log';
+import {
+  DEFAULT_REORDER_POINT,
+  lowStockVariants,
+  type LowStockVariant,
+} from "./admin-products";
+import { getStoreSettings } from "./store-settings";
+import { umbralStockBajo } from "./store-settings-schema";
+import type { Executor } from "./executor";
+import { resolveMessageSender, type MessageSender } from "./messaging";
+import { withTimeout } from "./notify-timing";
+import { log, mensajeDe } from "@/lib/log";
 import { valorIntegracion } from "@/lib/integraciones";
 
 /**
@@ -74,7 +79,9 @@ export function resolveDigestNotifier(): DigestNotifier | null {
   const sender = resolveMessageSender();
   if (!sender) return null;
 
-  return sender.channel === 'whatsapp' ? { sender, templateName, to } : { sender, to };
+  return sender.channel === "whatsapp"
+    ? { sender, templateName, to }
+    : { sender, to };
 }
 
 /** ¿Esta tienda recibe el resumen diario? */
@@ -99,11 +106,9 @@ export type DailyDigest = {
 };
 
 /** Estados que cuentan como "todavía no entró la plata" para el resumen. */
-const SIN_PAGAR: readonly ('pendiente_pago' | 'esperando_verificacion' | 'rechazado')[] = [
-  'pendiente_pago',
-  'esperando_verificacion',
-  'rechazado',
-];
+const SIN_PAGAR: readonly (
+  "pendiente_pago" | "esperando_verificacion" | "rechazado"
+)[] = ["pendiente_pago", "esperando_verificacion", "rechazado"];
 
 /** A partir de cuántas horas un pedido sin pagar entra al resumen. */
 export const SIN_PAGAR_HORAS = 24;
@@ -113,28 +118,35 @@ const MAX_POR_SECCION = 10;
 
 export async function buildDailyDigest(
   now: Date = new Date(),
-  executor?: Executor,
+  executor?: Executor
 ): Promise<DailyDigest> {
   const tx = executor ?? getDb();
 
   const inicioDeHoy = startOfDayPY(now);
   // "Ayer" es el día calendario de Asunción anterior al de `now`, no
   // "las últimas 24 horas": el dueño compara contra su día de trabajo.
-  const inicioDeAyer = startOfDayPY(new Date(inicioDeHoy.getTime() - 12 * 3600_000));
+  const inicioDeAyer = startOfDayPY(
+    new Date(inicioDeHoy.getTime() - 12 * 3600_000)
+  );
   const limiteSinPagar = new Date(now.getTime() - SIN_PAGAR_HORAS * 3600_000);
 
   const [comprobantes, viejos, ventasAyer, stockBajo] = await Promise.all([
     tx
       .select({ n: count() })
       .from(orders)
-      .where(inArray(orders.status, ['esperando_verificacion'])),
+      .where(inArray(orders.status, ["esperando_verificacion"])),
     tx
       .select({
         orderNumber: orders.orderNumber,
         createdAt: orders.createdAt,
       })
       .from(orders)
-      .where(and(inArray(orders.status, [...SIN_PAGAR]), lt(orders.createdAt, limiteSinPagar)))
+      .where(
+        and(
+          inArray(orders.status, [...SIN_PAGAR]),
+          lt(orders.createdAt, limiteSinPagar)
+        )
+      )
       .orderBy(orders.createdAt)
       .limit(MAX_POR_SECCION),
     tx
@@ -146,15 +158,24 @@ export async function buildDailyDigest(
       .from(orders)
       .where(
         and(
-          inArray(orders.status, ['pagado', 'preparando', 'enviado', 'entregado']),
+          inArray(orders.status, [
+            "pagado",
+            "preparando",
+            "enviado",
+            "entregado",
+          ]),
           gte(orders.createdAt, inicioDeAyer),
-          lt(orders.createdAt, inicioDeHoy),
-        ),
+          lt(orders.createdAt, inicioDeHoy)
+        )
       ),
     // El umbral global es el de `/admin/ajustes` (sección stock) o el de
     // siempre; el de cada variante (`reorder_point`) igual le gana.
     getStoreSettings().then(({ stock }) =>
-      lowStockVariants(umbralStockBajo(stock, DEFAULT_REORDER_POINT), MAX_POR_SECCION, tx),
+      lowStockVariants(
+        umbralStockBajo(stock, DEFAULT_REORDER_POINT),
+        MAX_POR_SECCION,
+        tx
+      )
     ),
   ]);
 
@@ -193,46 +214,56 @@ export async function buildDailyDigest(
  * semana.
  */
 export function digestBody(digest: DailyDigest): string {
-  const lineas: string[] = [t('wa.resumen.titulo')];
+  const lineas: string[] = [t("wa.resumen.titulo")];
 
   if (digest.sinNovedades) {
-    lineas.push(t('wa.resumen.sinNovedades'));
-    return lineas.join('\n');
+    lineas.push(t("wa.resumen.sinNovedades"));
+    return lineas.join("\n");
   }
 
   if (digest.comprobantesPendientes > 0) {
-    lineas.push(t('wa.resumen.comprobantes', { n: digest.comprobantesPendientes }));
+    lineas.push(
+      t("wa.resumen.comprobantes", { n: digest.comprobantesPendientes })
+    );
   }
 
   if (digest.sinPagar.length > 0) {
-    lineas.push(t('wa.resumen.sinPagar', { n: digest.sinPagar.length }));
+    lineas.push(t("wa.resumen.sinPagar", { n: digest.sinPagar.length }));
     for (const pedido of digest.sinPagar) {
-      lineas.push(t('wa.resumen.sinPagarLinea', { numero: pedido.orderNumber, horas: pedido.horas }));
+      lineas.push(
+        t("wa.resumen.sinPagarLinea", {
+          numero: pedido.orderNumber,
+          horas: pedido.horas,
+        })
+      );
     }
   }
 
   if (digest.stockBajo.length > 0) {
-    lineas.push(t('wa.resumen.stockBajo', { n: digest.stockBajo.length }));
+    lineas.push(t("wa.resumen.stockBajo", { n: digest.stockBajo.length }));
     for (const variante of digest.stockBajo) {
       lineas.push(
-        t('wa.resumen.stockBajoLinea', {
+        t("wa.resumen.stockBajoLinea", {
           producto: variante.productName,
           etiqueta: variante.label,
           quedan: variante.available,
-        }),
+        })
       );
     }
   }
 
   if (digest.ayer.orders > 0) {
     lineas.push(
-      t('wa.resumen.ayer', { n: digest.ayer.orders, total: formatGs(digest.ayer.totalPyg) }),
+      t("wa.resumen.ayer", {
+        n: digest.ayer.orders,
+        total: formatGs(digest.ayer.totalPyg),
+      })
     );
   } else {
-    lineas.push(t('wa.resumen.ayerSinVentas'));
+    lineas.push(t("wa.resumen.ayerSinVentas"));
   }
 
-  return lineas.join('\n');
+  return lineas.join("\n");
 }
 
 export type DigestSendResult = {
@@ -249,12 +280,20 @@ export type DigestSendResult = {
  * mandaría nada igual.
  */
 export async function sendDailyDigest(
-  options: { now?: Date; notifier?: DigestNotifier | null; executor?: Executor } = {},
+  options: {
+    now?: Date;
+    notifier?: DigestNotifier | null;
+    executor?: Executor;
+  } = {}
 ): Promise<DigestSendResult> {
-  const digest = await buildDailyDigest(options.now ?? new Date(), options.executor);
+  const digest = await buildDailyDigest(
+    options.now ?? new Date(),
+    options.executor
+  );
 
-  const notifier = options.notifier === undefined ? resolveDigestNotifier() : options.notifier;
-  if (!notifier) return { sent: false, error: 'apagado', digest };
+  const notifier =
+    options.notifier === undefined ? resolveDigestNotifier() : options.notifier;
+  if (!notifier) return { sent: false, error: "apagado", digest };
 
   try {
     await withTimeout(
@@ -263,12 +302,16 @@ export async function sendDailyDigest(
         body: digestBody(digest),
         templateName: notifier.templateName,
       }),
-      AVISO_TIMEOUT_MS,
+      AVISO_TIMEOUT_MS
     );
     return { sent: true, error: null, digest };
   } catch (error) {
-    log.error('resumen diario: no se pudo mandar', { error: mensajeDe(error) });
-    const motivo = error instanceof Error ? error.message : String(error);
-    return { sent: false, error: motivo.replace(/\s+/g, ' ').trim().slice(0, 500), digest };
+    log.error("resumen diario: no se pudo mandar", { error: mensajeDe(error) });
+    const motivo = safeError(error).message;
+    return {
+      sent: false,
+      error: motivo.replace(/\s+/g, " ").trim().slice(0, 500),
+      digest,
+    };
   }
 }

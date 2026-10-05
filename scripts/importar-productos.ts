@@ -1,17 +1,22 @@
-import '@/lib/load-env';
+import "@/lib/load-env";
 
-import { readFileSync } from 'node:fs';
+import { safeError } from "../src/lib/safe-error";
 
-import { eq, inArray, sql } from 'drizzle-orm';
+import { readFileSync } from "node:fs";
 
-import { closePool, getDb } from '@/db';
-import { categories, products, variants } from '@/db/schema';
-import { parseCatalogo, type CatalogoProducto } from '@/domain/catalog-import';
-import { slugify } from '@/lib/slug';
+import { eq, inArray, sql } from "drizzle-orm";
 
-import { applyCatalogFotos, contarFotosNuevas } from '@/domain/catalog-import-plan';
+import { closePool, getDb } from "@/db";
+import { categories, products, variants } from "@/db/schema";
+import { parseCatalogo, type CatalogoProducto } from "@/domain/catalog-import";
+import { slugify } from "@/lib/slug";
 
-import { upsertCatalogProducts, type CatalogProductUpsert } from './seed';
+import {
+  applyCatalogFotos,
+  contarFotosNuevas,
+} from "@/domain/catalog-import-plan";
+
+import { upsertCatalogProducts, type CatalogProductUpsert } from "./seed";
 
 /**
  * `pnpm importar:productos <planilla.csv>` — el catálogo entero de una vez.
@@ -48,20 +53,22 @@ import { upsertCatalogProducts, type CatalogProductUpsert } from './seed';
  * crean al final del menú.
  */
 
-const APLICAR = process.argv.includes('--aplicar');
-const PISAR_STOCK = process.argv.includes('--pisar-stock');
+const APLICAR = process.argv.includes("--aplicar");
+const PISAR_STOCK = process.argv.includes("--pisar-stock");
 
 async function main(): Promise<void> {
-  const archivo = process.argv.slice(2).find((arg) => !arg.startsWith('-'));
+  const archivo = process.argv.slice(2).find((arg) => !arg.startsWith("-"));
   if (!archivo) {
-    console.error('Uso: pnpm importar:productos <planilla.csv> [--aplicar] [--pisar-stock]');
+    console.error(
+      "Uso: pnpm importar:productos <planilla.csv> [--aplicar] [--pisar-stock]"
+    );
     process.exitCode = 1;
     return;
   }
 
   let texto: string;
   try {
-    texto = readFileSync(archivo, 'utf8');
+    texto = readFileSync(archivo, "utf8");
   } catch {
     console.error(`No pude leer "${archivo}". ¿La ruta está bien?`);
     process.exitCode = 1;
@@ -116,14 +123,16 @@ async function main(): Promise<void> {
       const dueno = duenoDeSku.get(variante.sku);
       if (dueno !== undefined && dueno !== producto.slug) {
         conflictos.push(
-          `✗ El SKU "${variante.sku}" ya existe en la base y es del producto "${dueno}", no de "${producto.slug}". Cambiá el SKU o el slug en la planilla.`,
+          `✗ El SKU "${variante.sku}" ya existe en la base y es del producto "${dueno}", no de "${producto.slug}". Cambiá el SKU o el slug en la planilla.`
         );
       }
     }
   }
   if (conflictos.length > 0) {
     for (const conflicto of conflictos) console.error(conflicto);
-    console.error(`\n${conflictos.length} conflicto(s) de SKU. No se escribió nada.`);
+    console.error(
+      `\n${conflictos.length} conflicto(s) de SKU. No se escribió nada.`
+    );
     process.exitCode = 1;
     await closePool();
     return;
@@ -135,32 +144,48 @@ async function main(): Promise<void> {
     .select({ id: products.id, slug: products.slug })
     .from(products)
     .where(inArray(products.slug, slugsProductos));
-  const idPorSlugExistente = new Map(productRows.map((row) => [row.slug, row.id]));
+  const idPorSlugExistente = new Map(
+    productRows.map((row) => [row.slug, row.id])
+  );
   const productosExistentes = new Set(productRows.map((row) => row.slug));
   const nuevos = productos.filter((p) => !productosExistentes.has(p.slug));
   const variantesTotal = skus.length;
   const variantesExistentes = duenoDeSku.size;
-  const fotosNuevas = await contarFotosNuevas(productos, idPorSlugExistente, db);
+  const fotosNuevas = await contarFotosNuevas(
+    productos,
+    idPorSlugExistente,
+    db
+  );
 
-  console.log(`Planilla: ${productos.length} productos · ${variantesTotal} variantes`);
-  console.log(`  · ${nuevos.length} productos nuevos, ${productos.length - nuevos.length} a actualizar`);
+  console.log(
+    `Planilla: ${productos.length} productos · ${variantesTotal} variantes`
+  );
+  console.log(
+    `  · ${nuevos.length} productos nuevos, ${productos.length - nuevos.length} a actualizar`
+  );
   console.log(
     `  · ${variantesTotal - variantesExistentes} variantes nuevas, ${variantesExistentes} a actualizar` +
       (variantesExistentes > 0
         ? PISAR_STOCK
-          ? ' (¡pisando su stock!)'
-          : ' (su stock no se toca; --pisar-stock para pisarlo)'
-        : ''),
+          ? " (¡pisando su stock!)"
+          : " (su stock no se toca; --pisar-stock para pisarlo)"
+        : "")
   );
   if (categoriasNuevas.size > 0) {
-    console.log(`  · categorías a crear: ${[...categoriasNuevas.values()].join(', ')}`);
+    console.log(
+      `  · categorías a crear: ${[...categoriasNuevas.values()].join(", ")}`
+    );
   }
   if (fotosNuevas > 0) {
-    console.log(`  · ${fotosNuevas} fotos a subir (sólo a productos que hoy no tienen ninguna)`);
+    console.log(
+      `  · ${fotosNuevas} fotos a subir (sólo a productos que hoy no tienen ninguna)`
+    );
   }
 
   if (!APLICAR) {
-    console.log('\nEnsayo: no se escribió nada. Agregá --aplicar para escribir.');
+    console.log(
+      "\nEnsayo: no se escribió nada. Agregá --aplicar para escribir."
+    );
     await closePool();
     return;
   }
@@ -170,7 +195,9 @@ async function main(): Promise<void> {
     const maxPosition =
       (
         await db
-          .select({ max: sql<number>`COALESCE(MAX(${categories.position}), 0)` })
+          .select({
+            max: sql<number>`COALESCE(MAX(${categories.position}), 0)`,
+          })
           .from(categories)
       )[0]?.max ?? 0;
     let position = maxPosition;
@@ -193,42 +220,53 @@ async function main(): Promise<void> {
     console.log(`✓ ${categoriasNuevas.size} categorías creadas`);
   }
 
-  const items: CatalogProductUpsert[] = productos.map((producto: CatalogoProducto) => {
-    const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
-    if (!categoryId) throw new Error(`Categoría sin id: ${producto.categoryName}`);
-    return {
-      slug: producto.slug,
-      name: producto.name,
-      description: producto.description,
-      categoryId,
-      brand: producto.brand,
-      ivaRate: producto.ivaRate,
-      variants: producto.variants,
-    };
-  });
+  const items: CatalogProductUpsert[] = productos.map(
+    (producto: CatalogoProducto) => {
+      const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
+      if (!categoryId)
+        throw new Error(`Categoría sin id: ${producto.categoryName}`);
+      return {
+        saleMode: producto.saleMode,
+        showPrice: producto.showPrice,
+        slug: producto.slug,
+        name: producto.name,
+        description: producto.description,
+        categoryId,
+        brand: producto.brand,
+        ivaRate: producto.ivaRate,
+        variants: producto.variants,
+      };
+    }
+  );
 
-  const escritas = await upsertCatalogProducts(items, { resetStock: PISAR_STOCK });
-  console.log(`✓ ${productos.length} productos · ${escritas} variantes escritas`);
+  const escritas = await upsertCatalogProducts(items, {
+    resetStock: PISAR_STOCK,
+  });
+  console.log(
+    `✓ ${productos.length} productos · ${escritas} variantes escritas`
+  );
 
   // Las fotos van después del commit del catálogo: una URL caída no puede
   // tumbar productos y precios que ya se guardaron.
   const fotos = await applyCatalogFotos(productos);
   if (fotos.fotosOmitidas > 0) {
     console.log(
-      `⚠ ${fotos.fotosOmitidas} fotos NO se subieron: Cloudinary no está configurado (ver docs/ENV-OPCIONAL.md).`,
+      `⚠ ${fotos.fotosOmitidas} fotos NO se subieron: Cloudinary no está configurado (ver docs/ENV-OPCIONAL.md).`
     );
   } else if (fotos.fotosSubidas > 0 || fotos.fotosFallidas.length > 0) {
     console.log(`✓ ${fotos.fotosSubidas} fotos subidas`);
   }
   for (const fallo of fotos.fotosFallidas) {
-    console.error(`✗ Foto de "${fallo.producto}" (${fallo.url}) no se pudo subir: ${fallo.motivo}`);
+    console.error(
+      `✗ Foto de "${fallo.producto}" (${fallo.url}) no se pudo subir: ${fallo.motivo}`
+    );
   }
 }
 
 main()
   .then(() => closePool())
   .catch(async (error) => {
-    console.error(error);
+    console.error(safeError(error).message);
     process.exitCode = 1;
     await closePool();
   });

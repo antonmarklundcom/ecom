@@ -1,5 +1,6 @@
-import { valorIntegracion } from '@/lib/integraciones';
-import { log, withRequestContext } from '@/lib/log';
+import { valorIntegracion } from "@/lib/integraciones";
+import { safeError } from "@/lib/safe-error";
+import { log, withRequestContext } from "@/lib/log";
 
 /**
  * `onRequestError` — el único reporte de errores del template
@@ -69,22 +70,26 @@ function hayCupo(ahora = Date.now()): boolean {
  */
 export function errorReportUrl(): string | null {
   // Panel (`/admin/integraciones` → Errores) > `ERROR_REPORT_URL` > nada.
-  const raw = valorIntegracion('errores', 'reportUrl');
+  const raw = valorIntegracion("errores", "reportUrl");
   if (!raw) return null;
   try {
     const url = new URL(raw);
-    if (url.protocol !== 'https:') {
-      console.error('ERROR_REPORT_URL tiene que ser https:// — se ignora');
+    if (url.protocol !== "https:") {
+      console.error("ERROR_REPORT_URL tiene que ser https:// — se ignora");
       return null;
     }
     return url.toString();
   } catch {
-    console.error('ERROR_REPORT_URL no es una URL válida — se ignora');
+    console.error("ERROR_REPORT_URL no es una URL válida — se ignora");
     return null;
   }
 }
 
-export type RequestErrorInfo = { path?: string; method?: string; reqId?: string };
+export type RequestErrorInfo = {
+  path?: string;
+  method?: string;
+  reqId?: string;
+};
 
 /**
  * La ruta sin la query. Next llena `path` con `req.url`, y en la query viajan
@@ -98,15 +103,18 @@ export function sinQuery(path: string | undefined): string | undefined {
 }
 
 /** Lo que se manda, escrito campo por campo. Ver la regla de arriba. */
-export function cuerpoDelReporte(error: unknown, info: RequestErrorInfo): string {
-  const err = error instanceof Error ? error : new Error(String(error));
+export function cuerpoDelReporte(
+  error: unknown,
+  info: RequestErrorInfo
+): string {
+  const err = safeError(error);
   return JSON.stringify({
     message: err.message.slice(0, 500),
     stack: err.stack?.slice(0, STACK_MAX),
-    path: info.path,
+    path: sinQuery(info.path),
     method: info.method,
     reqId: info.reqId,
-    sha: process.env.BUILD_SHA ?? 'desconocido',
+    sha: process.env.BUILD_SHA ?? "desconocido",
   });
 }
 
@@ -123,23 +131,31 @@ export function cuerpoDelReporte(error: unknown, info: RequestErrorInfo): string
  * edge, donde la base no existe. Nunca tira: sin base, todo sale del entorno.
  */
 export async function register(): Promise<void> {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-  const { cargarIntegraciones } = await import('@/lib/integraciones-store');
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { cargarIntegraciones } = await import("@/lib/integraciones-store");
   await cargarIntegraciones({ forzar: true });
 }
 
 export async function onRequestError(
   error: unknown,
-  request: { path?: string; method?: string; headers?: Record<string, string | undefined> },
+  request: {
+    path?: string;
+    method?: string;
+    headers?: Record<string, string | undefined>;
+  }
 ): Promise<void> {
-  const reqId = request.headers?.['x-request-id'];
-  const info: RequestErrorInfo = { path: sinQuery(request.path), method: request.method, reqId };
+  const reqId = request.headers?.["x-request-id"];
+  const info: RequestErrorInfo = {
+    path: sinQuery(request.path),
+    method: request.method,
+    reqId,
+  };
 
   const registrar = () =>
-    log.error('request falló', {
+    log.error("request falló", {
       path: info.path,
       method: info.method,
-      error: error instanceof Error ? error.message : String(error),
+      error: safeError(error).message,
     });
 
   // El `reqId` viene en el header porque `AsyncLocalStorage` no cruza hasta
@@ -154,13 +170,13 @@ export async function onRequestError(
 
   try {
     await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      method: "POST",
+      headers: { "content-type": "application/json" },
       body: cuerpoDelReporte(error, info),
       signal: AbortSignal.timeout(REPORTE_TIMEOUT_MS),
     });
   } catch (fallo) {
     // El webhook caído no es noticia dos veces: queda una línea y nada más.
-    console.error('no se pudo reportar el error', fallo instanceof Error ? fallo.message : fallo);
+    console.error("no se pudo reportar el error", safeError(fallo).message);
   }
 }

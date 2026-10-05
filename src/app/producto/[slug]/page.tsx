@@ -1,3 +1,4 @@
+import { productInquiryLinks } from "@/domain/product-inquiries";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -44,13 +45,18 @@ const BLOQUE_COMPRA_ID = "comprar";
 /** `cache()` memoiza por request: metadata y página comparten una consulta. */
 const loadProduct = cache(async (slug: string) => getProductBySlug(slug));
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Params;
+}): Promise<Metadata> {
   const { slug } = await params;
   const product = await loadProduct(slug).catch(() => null);
   if (!product) return { title: t("producto.noEncontrado") };
 
   const cheapest = product.variants.reduce<number | undefined>(
-    (min, variant) => (min === undefined || variant.pricePyg < min ? variant.pricePyg : min),
+    (min, variant) =>
+      min === undefined || variant.pricePyg < min ? variant.pricePyg : min,
     undefined
   );
 
@@ -77,7 +83,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // hoy, pero declarar el canonical explícito no le hace falta a un futuro
   // parámetro de tracking para dejar de indexarse como página aparte.
   const origin = siteOrigin();
-  const canonical = origin ? new URL(`/producto/${slug}`, origin).toString() : undefined;
+  const canonical = origin
+    ? new URL(`/producto/${slug}`, origin).toString()
+    : undefined;
 
   return {
     title: product.name,
@@ -113,10 +121,14 @@ export default async function ProductPage({ params }: { params: Params }) {
   if (!product) notFound();
 
   const cheapest = product.variants.reduce<number | undefined>(
-    (min, variant) => (min === undefined || variant.pricePyg < min ? variant.pricePyg : min),
+    (min, variant) =>
+      min === undefined || variant.pricePyg < min ? variant.pricePyg : min,
     undefined
   );
-  const totalAvailable = product.variants.reduce((total, variant) => total + variant.available, 0);
+  const totalAvailable = product.variants.reduce(
+    (total, variant) => total + variant.available,
+    0
+  );
 
   // Misma categoría, con stock, precio parecido. Sin nada que mostrar la
   // sección no se dibuja: una fila vacía o con un solo producto de relleno es
@@ -137,15 +149,24 @@ export default async function ProductPage({ params }: { params: Params }) {
   ]);
 
   // Al WhatsApp **público** (`/admin/ajustes`, o `WHATSAPP_NUMBER`).
-  const waHref = await waLinkPublico(t("producto.consultaWhatsApp", { nombre: product.name }));
+  const waHref =
+    product.saleMode === "showcase"
+      ? null
+      : await waLinkPublico(
+          t("producto.consultaWhatsApp", { nombre: product.name })
+        );
 
   // Para el link de consulta por variante (`variant-inquiry-link.tsx`, cliente):
   // el teléfono sale de los ajustes o de una variable sin `NEXT_PUBLIC_`, así
   // que se resuelve acá, en el servidor, y se pasa ya normalizado — el
   // componente cliente nunca lee `process.env` ni la base.
-  const whatsappPhone = await whatsappPublico();
+  const whatsappPhone =
+    product.saleMode === "showcase" ? null : await whatsappPublico();
+  const inquiryLinks = await productInquiryLinks(product);
   const origin = siteOrigin();
-  const productUrl = origin ? `${origin.origin}/producto/${product.slug}` : null;
+  const productUrl = origin
+    ? `${origin.origin}/producto/${product.slug}`
+    : null;
 
   // JSON-LD: PYG y priceValidUntil no se inventan — se dejan afuera si no
   // hay dato, que es mejor que un dato falso en el rich result. Lo arma
@@ -162,6 +183,8 @@ export default async function ProductPage({ params }: { params: Params }) {
       .map((image) => productImageUrl(image.cloudinaryId, "detail"))
       .filter((src): src is string => src !== null),
     variants: product.variants,
+    saleMode: product.saleMode,
+    showPrice: product.showPrice,
     rating,
     // Envío y devoluciones para Google, sólo con lo que el dueño cargó.
     merchant: ajustes.envioDevolucion,
@@ -186,7 +209,10 @@ export default async function ProductPage({ params }: { params: Params }) {
           {t("nav.inicio")}
         </Link>
         <span aria-hidden> / </span>
-        <Link href={`/categoria/${product.categorySlug}`} className="hover:text-foreground">
+        <Link
+          href={`/categoria/${product.categorySlug}`}
+          className="hover:text-foreground"
+        >
           {product.categoryName}
         </Link>
       </nav>
@@ -218,8 +244,12 @@ export default async function ProductPage({ params }: { params: Params }) {
         </div>
 
         <div>
-          <p className="text-muted-foreground text-sm">{product.brand ?? product.categoryName}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{product.name}</h1>
+          <p className="text-muted-foreground text-sm">
+            {product.brand ?? product.categoryName}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+            {product.name}
+          </h1>
           {rating.count >= 1 ? (
             <a
               href="#resenas"
@@ -237,9 +267,13 @@ export default async function ProductPage({ params }: { params: Params }) {
 
           {/* `id` para la barra de compra móvil (`StickyBuyBar`), que trae
               de vuelta hasta acá. */}
-          <div id={BLOQUE_COMPRA_ID} className="mt-6 flex scroll-mt-24 flex-wrap items-start gap-3">
+          <div
+            id={BLOQUE_COMPRA_ID}
+            className="mt-6 flex scroll-mt-24 flex-wrap items-start gap-3"
+          >
             <AddToCart
               product={product}
+              inquiryLinks={inquiryLinks}
               stockAlertsEnabled={stockAlertsEnabled()}
               whatsappPhone={whatsappPhone}
               productUrl={productUrl}
@@ -248,10 +282,17 @@ export default async function ProductPage({ params }: { params: Params }) {
               slug={product.slug}
               name={product.name}
               sku={
-                (product.variants.find((variant) => variant.pricePyg === cheapest) ??
-                  product.variants[0])?.sku
+                (
+                  product.variants.find(
+                    (variant) => variant.pricePyg === cheapest
+                  ) ?? product.variants[0]
+                )?.sku
               }
-              pricePyg={cheapest ?? product.variants[0]?.pricePyg}
+              pricePyg={
+                product.showPrice === false
+                  ? undefined
+                  : (cheapest ?? product.variants[0]?.pricePyg)
+              }
               size="inline"
             />
           </div>
@@ -269,27 +310,39 @@ export default async function ProductPage({ params }: { params: Params }) {
 
           {product.description ? (
             <div className="border-border mt-8 border-t pt-6">
-              <h2 className="text-sm font-medium">{t("producto.descripcion")}</h2>
-              <ProductDescription markdown={product.description} className="mt-2 text-sm" />
+              <h2 className="text-sm font-medium">
+                {t("producto.descripcion")}
+              </h2>
+              <ProductDescription
+                markdown={product.description}
+                className="mt-2 text-sm"
+              />
             </div>
           ) : null}
 
-          <dl className="border-border text-muted-foreground mt-6 grid grid-cols-2 gap-2 border-t pt-6 text-sm">
-            <dt>{t("producto.iva")}</dt>
-            <dd className="text-foreground">{t("producto.ivaValor", { tasa: product.ivaRate })}</dd>
-            <dt>{t("producto.disponibilidad")}</dt>
-            <dd className="text-foreground">
-              {totalAvailable > 0
-                ? t("producto.unidades", { n: totalAvailable })
-                : t("stock.sin")}
-            </dd>
-            {cheapest !== undefined ? (
-              <>
-                <dt>{t("producto.desde")}</dt>
-                <dd className="text-foreground tabular-nums">{formatGs(cheapest)}</dd>
-              </>
-            ) : null}
-          </dl>
+          {(product.saleMode ?? "stock") === "stock" &&
+          product.showPrice !== false ? (
+            <dl className="border-border text-muted-foreground mt-6 grid grid-cols-2 gap-2 border-t pt-6 text-sm">
+              <dt>{t("producto.iva")}</dt>
+              <dd className="text-foreground">
+                {t("producto.ivaValor", { tasa: product.ivaRate })}
+              </dd>
+              <dt>{t("producto.disponibilidad")}</dt>
+              <dd className="text-foreground">
+                {totalAvailable > 0
+                  ? t("producto.unidades", { n: totalAvailable })
+                  : t("stock.sin")}
+              </dd>
+              {cheapest !== undefined ? (
+                <>
+                  <dt>{t("producto.desde")}</dt>
+                  <dd className="text-foreground tabular-nums">
+                    {formatGs(cheapest)}
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+          ) : null}
         </div>
       </div>
 
@@ -299,12 +352,16 @@ export default async function ProductPage({ params }: { params: Params }) {
           data-testid={TESTIDS.productReviewsSection}
           className="border-border mt-12 scroll-mt-24 border-t pt-8"
         >
-          <h2 className="text-lg font-semibold tracking-tight">{t("producto.resenas.titulo")}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t("producto.resenas.titulo")}
+          </h2>
           <ul className="mt-4 grid gap-6">
             {reviews.map((review) => (
               <li key={review.id} className="text-sm">
                 <RatingStars value={review.rating} />
-                {review.title ? <p className="mt-1 font-medium">{review.title}</p> : null}
+                {review.title ? (
+                  <p className="mt-1 font-medium">{review.title}</p>
+                ) : null}
                 <p className="mt-1 whitespace-pre-line">{review.body}</p>
                 <p className="text-muted-foreground mt-1 text-xs">
                   {review.authorName} · {formatDatePY(review.createdAt)} ·{" "}
@@ -312,8 +369,12 @@ export default async function ProductPage({ params }: { params: Params }) {
                 </p>
                 {review.ownerReply ? (
                   <div className="border-border bg-muted/40 mt-2 rounded-lg border p-3">
-                    <p className="text-xs font-medium">{t("producto.resenas.respuesta")}</p>
-                    <p className="mt-1 whitespace-pre-line">{review.ownerReply}</p>
+                    <p className="text-xs font-medium">
+                      {t("producto.resenas.respuesta")}
+                    </p>
+                    <p className="mt-1 whitespace-pre-line">
+                      {review.ownerReply}
+                    </p>
                   </div>
                 ) : null}
               </li>
@@ -324,7 +385,9 @@ export default async function ProductPage({ params }: { params: Params }) {
 
       {related.length > 0 ? (
         <section className="border-border mt-12 border-t pt-8">
-          <h2 className="text-lg font-semibold tracking-tight">{t("producto.relacionados")}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t("producto.relacionados")}
+          </h2>
           <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
             {related.map((item) => (
               <ProductCard key={item.id} product={item} />
@@ -333,7 +396,10 @@ export default async function ProductPage({ params }: { params: Params }) {
         </section>
       ) : null}
 
-      {ajustes.vidriera.barraCompraMovil && product.variants.length > 0 ? (
+      {ajustes.vidriera.barraCompraMovil &&
+      (product.saleMode ?? "stock") === "stock" &&
+      product.showPrice !== false &&
+      product.variants.length > 0 ? (
         <StickyBuyBar
           targetId={BLOQUE_COMPRA_ID}
           name={product.name}
@@ -341,26 +407,31 @@ export default async function ProductPage({ params }: { params: Params }) {
         />
       ) : null}
 
-      <RecentlyViewed
-        current={{
-          slug: product.slug,
-          name: product.name,
-          pricePyg: cheapest ?? product.variants[0]?.pricePyg ?? 0,
-          imageCloudinaryId: product.images[0]?.cloudinaryId ?? null,
-          imageAlt: product.images[0]?.alt ?? null,
-        }}
-      />
+      {product.showPrice !== false ? (
+        <RecentlyViewed
+          current={{
+            slug: product.slug,
+            name: product.name,
+            pricePyg: cheapest ?? product.variants[0]?.pricePyg ?? 0,
+            imageCloudinaryId: product.images[0]?.cloudinaryId ?? null,
+            imageAlt: product.images[0]?.alt ?? null,
+          }}
+        />
+      ) : null}
 
       {/* "Vio el producto" para GA4/Meta (src/lib/funnel.ts), con el SKU de
           la variante más barata — el mismo id que el feed. */}
-      {analyticsActivo() && product.variants[0] ? (
+      {analyticsActivo() &&
+      product.showPrice !== false &&
+      product.variants[0] ? (
         <FunnelEvent
           event="view_item"
           items={[
             {
               id: (
-                product.variants.find((variant) => variant.pricePyg === cheapest) ??
-                product.variants[0]
+                product.variants.find(
+                  (variant) => variant.pricePyg === cheapest
+                ) ?? product.variants[0]
               ).sku,
               name: product.name,
               pricePyg: cheapest ?? product.variants[0].pricePyg,

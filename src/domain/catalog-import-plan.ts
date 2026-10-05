@@ -1,9 +1,14 @@
+import { safeError } from "@/lib/safe-error";
 import { count, eq, inArray, sql } from "drizzle-orm";
 
 import { categories, productImages, products, variants } from "@/db/schema";
 import { getDb } from "@/db";
 import { slugify } from "@/lib/slug";
-import { carpetaProductos, cloudinary, cloudinaryConfigured } from "@/lib/cloudinary";
+import {
+  carpetaProductos,
+  cloudinary,
+  cloudinaryConfigured,
+} from "@/lib/cloudinary";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 import { addProductImage } from "./admin-products";
@@ -47,7 +52,7 @@ export type CatalogImportPlan = {
  */
 export async function buildCatalogImportPlan(
   csvText: string,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<CatalogImportPlan> {
   const tx = executor ?? getDb();
   const { productos, errores: erroresParseo } = parseCatalogo(csvText);
@@ -101,7 +106,7 @@ export async function buildCatalogImportPlan(
       const dueno = duenoDeSku.get(variante.sku);
       if (dueno !== undefined && dueno !== producto.slug) {
         errores.push(
-          `El SKU "${variante.sku}" ya existe en la base y es del producto "${dueno}", no de "${producto.slug}". Cambiá el SKU o el slug en la planilla.`,
+          `El SKU "${variante.sku}" ya existe en la base y es del producto "${dueno}", no de "${producto.slug}". Cambiá el SKU o el slug en la planilla.`
         );
       }
     }
@@ -125,12 +130,20 @@ export async function buildCatalogImportPlan(
     .select({ id: products.id, slug: products.slug })
     .from(products)
     .where(inArray(products.slug, slugsProductos));
-  const idPorSlugExistente = new Map(productRows.map((row) => [row.slug, row.id]));
+  const idPorSlugExistente = new Map(
+    productRows.map((row) => [row.slug, row.id])
+  );
   const productosExistentes = new Set(productRows.map((row) => row.slug));
-  const productosNuevos = productos.filter((p) => !productosExistentes.has(p.slug)).length;
+  const productosNuevos = productos.filter(
+    (p) => !productosExistentes.has(p.slug)
+  ).length;
   const variantesTotal = skus.length;
   const variantesExistentes = duenoDeSku.size;
-  const fotosNuevas = await contarFotosNuevas(productos, idPorSlugExistente, tx);
+  const fotosNuevas = await contarFotosNuevas(
+    productos,
+    idPorSlugExistente,
+    tx
+  );
 
   return {
     productos,
@@ -154,7 +167,7 @@ export async function buildCatalogImportPlan(
 export async function contarFotosNuevas(
   productos: readonly CatalogoProducto[],
   idPorSlugExistente: Map<string, number>,
-  tx: Executor,
+  tx: Executor
 ): Promise<number> {
   const conFotos = productos.filter((p) => p.fotos.length > 0);
   if (conFotos.length === 0) return 0;
@@ -163,7 +176,9 @@ export async function contarFotosNuevas(
     .map((p) => idPorSlugExistente.get(p.slug))
     .filter((id): id is number => id !== undefined);
 
-  const tieneFotos = new Set(await productIdsConFotos(idsExistentesConFotos, tx));
+  const tieneFotos = new Set(
+    await productIdsConFotos(idsExistentesConFotos, tx)
+  );
 
   let total = 0;
   for (const producto of conFotos) {
@@ -175,7 +190,10 @@ export async function contarFotosNuevas(
 }
 
 /** IDs de producto, de entre los pasados, que ya tienen al menos una foto. */
-async function productIdsConFotos(productIds: number[], tx: Executor): Promise<number[]> {
+async function productIdsConFotos(
+  productIds: number[],
+  tx: Executor
+): Promise<number[]> {
   if (productIds.length === 0) return [];
   const filas = await tx
     .select({ productId: productImages.productId, total: count() })
@@ -185,7 +203,11 @@ async function productIdsConFotos(productIds: number[], tx: Executor): Promise<n
   return filas.filter((f) => f.total > 0).map((f) => f.productId);
 }
 
-export type CatalogFotoFallida = { producto: string; url: string; motivo: string };
+export type CatalogFotoFallida = {
+  producto: string;
+  url: string;
+  motivo: string;
+};
 
 export type CatalogFotosResult = {
   /** Cuántas fotos se subieron y quedaron registradas. */
@@ -216,7 +238,7 @@ const FOTOS_CONCURRENCIA = 4;
  */
 export async function applyCatalogFotos(
   productos: readonly CatalogoProducto[],
-  executor?: Executor,
+  executor?: Executor
 ): Promise<CatalogFotosResult> {
   const tx = executor ?? getDb();
   const conFotos = productos.filter((p) => p.fotos.length > 0);
@@ -237,7 +259,12 @@ export async function applyCatalogFotos(
     .from(products)
     .where(inArray(products.slug, slugs));
   const porSlug = new Map(rows.map((row) => [row.slug, row]));
-  const tieneFotos = new Set(await productIdsConFotos(rows.map((row) => row.id), tx));
+  const tieneFotos = new Set(
+    await productIdsConFotos(
+      rows.map((row) => row.id),
+      tx
+    )
+  );
 
   const grupos = conFotos
     .map((producto) => {
@@ -245,7 +272,10 @@ export async function applyCatalogFotos(
       if (!row || tieneFotos.has(row.id)) return null;
       return { productId: row.id, nombre: row.name, urls: producto.fotos };
     })
-    .filter((grupo): grupo is { productId: number; nombre: string; urls: string[] } => grupo !== null);
+    .filter(
+      (grupo): grupo is { productId: number; nombre: string; urls: string[] } =>
+        grupo !== null
+    );
 
   let fotosSubidas = 0;
   const fotosFallidas: CatalogFotoFallida[] = [];
@@ -268,16 +298,19 @@ export async function applyCatalogFotos(
             {
               productId: grupo.productId,
               cloudinaryId: uploaded.public_id,
-              alt: index === 0 ? grupo.nombre : `${grupo.nombre} — foto ${index + 1}`,
+              alt:
+                index === 0
+                  ? grupo.nombre
+                  : `${grupo.nombre} — foto ${index + 1}`,
             },
-            tx,
+            tx
           );
           fotosSubidas += 1;
         } catch (error) {
           fotosFallidas.push({
             producto: grupo.nombre,
             url,
-            motivo: error instanceof Error ? error.message : String(error),
+            motivo: safeError(error).message,
           });
         }
       }
@@ -285,7 +318,9 @@ export async function applyCatalogFotos(
   }
 
   await Promise.all(
-    Array.from({ length: Math.min(FOTOS_CONCURRENCIA, grupos.length) }, () => worker()),
+    Array.from({ length: Math.min(FOTOS_CONCURRENCIA, grupos.length) }, () =>
+      worker()
+    )
   );
 
   return { fotosSubidas, fotosOmitidas: 0, fotosFallidas };
@@ -298,7 +333,7 @@ export async function applyCatalogFotos(
  */
 export async function ensureCatalogCategories(
   plan: Pick<CatalogImportPlan, "productos" | "categoriaIdPorSlug">,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<Map<string, number>> {
   const tx = executor ?? getDb();
   const categoriaPorSlug = new Map(plan.categoriaIdPorSlug);
@@ -313,8 +348,11 @@ export async function ensureCatalogCategories(
   if (faltantes.size === 0) return categoriaPorSlug;
 
   const maxPosition =
-    (await tx.select({ max: sql<number>`COALESCE(MAX(${categories.position}), 0)` }).from(categories))[0]
-      ?.max ?? 0;
+    (
+      await tx
+        .select({ max: sql<number>`COALESCE(MAX(${categories.position}), 0)` })
+        .from(categories)
+    )[0]?.max ?? 0;
   let position = maxPosition;
   for (const [slug, nombre] of faltantes) {
     position += 1;
@@ -323,7 +361,11 @@ export async function ensureCatalogCategories(
       .values({ slug, name: nombre, position })
       .onDuplicateKeyUpdate({ set: { name: nombre, isActive: true } });
     const fila = (
-      await tx.select({ id: categories.id }).from(categories).where(eq(categories.slug, slug)).limit(1)
+      await tx
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.slug, slug))
+        .limit(1)
     )[0];
     if (!fila) throw new Error(`No pude releer la categoría ${slug}`);
     categoriaPorSlug.set(slug, fila.id);

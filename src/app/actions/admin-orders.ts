@@ -15,12 +15,40 @@ import {
   assertCanTransitionTo,
   requireAdminSession,
   requireStaffSession,
+  requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { formatGs } from "@/lib/money";
 import { formatDateTimePY } from "@/lib/py";
-import { EditOrderSchema, OrderNoteSchema, OrderTrackingSchema } from "@/lib/schemas";
+import {
+  EditOrderSchema,
+  OrderNoteSchema,
+  OrderTrackingSchema,
+} from "@/lib/schemas";
 import { t } from "@/i18n";
+import { retryOrderNotice } from "@/domain/notification-outbox";
+
+export async function resendOrderNotice(
+  input: unknown
+): Promise<AdminActionResult> {
+  try {
+    await requireOwnerSession();
+    const parsed = z
+      .object({
+        orderId: z.number().int().positive(),
+        noticeId: z.number().int().positive(),
+        reviewedDelivery: z.literal(true),
+      })
+      .safeParse(input);
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.noEntendi.pedido") };
+    await retryOrderNotice(parsed.data.orderId, parsed.data.noticeId);
+    revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);
+    return { ok: true };
+  } catch (error) {
+    return adminActionError("resendOrderNotice", error);
+  }
+}
 
 /**
  * Acciones del panel sobre un pedido (PLAN.md 4.4 y 4.5).
@@ -59,7 +87,10 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
     }
 
     if (parsed.data.to === "reembolsado") {
-      return { ok: false, error: t("adminError.pedido.reembolsoPorFormulario") };
+      return {
+        ok: false,
+        error: t("adminError.pedido.reembolsoPorFormulario"),
+      };
     }
 
     // El destino es lo que decide el permiso: los tres roles usan esta misma
@@ -73,7 +104,7 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
       parsed.data.reason || null,
       // El string `admin:email` es la verdad histórica; el id es lo que hace
       // consultable "qué hizo esta persona" (PR D).
-      { actorUserId: actor.userId, tracking: parsed.data.tracking },
+      { actorUserId: actor.userId, tracking: parsed.data.tracking }
     );
 
     revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);
@@ -92,7 +123,9 @@ const ReviewSchema = z.object({
 });
 
 /** Aprobar / rechazar un comprobante. El estado lo mueve `reviewReceipt`. */
-export async function decideReceipt(input: unknown): Promise<AdminActionResult> {
+export async function decideReceipt(
+  input: unknown
+): Promise<AdminActionResult> {
   try {
     const actor = await requireStaffSession();
 
@@ -129,7 +162,7 @@ const PreviewSchema = z.object({ receiptId: z.number().int().positive() });
  * listado. Dos minutos alcanzan para mirarla y no para repartirla.
  */
 export async function previewReceipt(
-  input: unknown,
+  input: unknown
 ): Promise<AdminActionResult<{ url: string; mime: string }>> {
   try {
     await requireStaffSession();
@@ -196,14 +229,23 @@ export async function addOrderNote(input: unknown): Promise<AdminActionResult> {
  * minuto, y el mensaje que sigue lo manda una persona, no el servidor.
  */
 export async function editPendingOrderAction(
-  input: unknown,
-): Promise<AdminActionResult<{ resultado: Awaited<ReturnType<typeof editPendingOrder>>; whatsapp: string }>> {
+  input: unknown
+): Promise<
+  AdminActionResult<{
+    resultado: Awaited<ReturnType<typeof editPendingOrder>>;
+    whatsapp: string;
+  }>
+> {
   try {
     const actor = await requireStaffSession();
 
     const parsed = EditOrderSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.noEntendi.pedido") };
+      return {
+        ok: false,
+        error:
+          parsed.error.issues[0]?.message ?? t("adminError.noEntendi.pedido"),
+      };
     }
 
     const resultado = await editPendingOrder({
@@ -219,9 +261,14 @@ export async function editPendingOrderAction(
     revalidatePath("/admin/pedidos");
     revalidatePath("/admin/actividad");
 
-    return { ok: true, resultado, whatsapp: editedOrderWhatsappText(resultado) };
+    return {
+      ok: true,
+      resultado,
+      whatsapp: editedOrderWhatsappText(resultado),
+    };
   } catch (error) {
-    if (error instanceof EditOrderError) return { ok: false, error: error.message };
+    if (error instanceof EditOrderError)
+      return { ok: false, error: error.message };
     return adminActionError("editPendingOrderAction", error);
   }
 }
@@ -233,13 +280,17 @@ export async function editPendingOrderAction(
  * cuándo, link tokenizado— y por la misma razón no lleva datos bancarios: ya
  * están en la página a la que apunta el link.
  */
-function editedOrderWhatsappText(resultado: Awaited<ReturnType<typeof editPendingOrder>>): string {
+function editedOrderWhatsappText(
+  resultado: Awaited<ReturnType<typeof editPendingOrder>>
+): string {
   const total = formatGs(resultado.totalPyg);
   const url = buyerOrderUrl({
     orderNumber: resultado.orderNumber,
     accessToken: resultado.accessToken,
   });
-  const limite = resultado.reservedUntil ? formatDateTimePY(resultado.reservedUntil) : null;
+  const limite = resultado.reservedUntil
+    ? formatDateTimePY(resultado.reservedUntil)
+    : null;
 
   return [
     t("wa.edicion.total", { numero: resultado.orderNumber, total }),

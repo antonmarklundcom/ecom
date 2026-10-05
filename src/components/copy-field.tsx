@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t } from "@/i18n/client";
 
 /**
  * Campo de datos bancarios con botón de copiar.
@@ -34,7 +34,13 @@ export function CopyField({ label, value }: { label: string; value: string }) {
         <dt className="text-muted-foreground text-xs">{label}</dt>
         <dd className="truncate text-sm font-medium tabular-nums">{value}</dd>
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={copy} className="shrink-0">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={copy}
+        className="shrink-0"
+      >
         {copied ? t("copiar.listo") : t("copiar.boton")}
       </Button>
     </div>

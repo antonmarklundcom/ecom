@@ -1,11 +1,11 @@
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from "drizzle-orm";
 
-import { getDb } from '@/db';
-import { categories, priceAdjustments, products, variants } from '@/db/schema';
-import type { MessageKey, Params } from '@/i18n';
+import { getDb } from "@/db";
+import { categories, priceAdjustments, products, variants } from "@/db/schema";
+import type { MessageKey, Params } from "@/i18n";
 
-import { DomainError } from './errors';
-import type { Executor, Tx } from './executor';
+import { DomainError } from "./errors";
+import type { Executor, Tx } from "./executor";
 
 /**
  * Acciones masivas del panel (plan-operacion §5.3 B).
@@ -35,7 +35,7 @@ import type { Executor, Tx } from './executor';
 export class AdminBulkError extends DomainError {
   constructor(code: MessageKey, params?: Params) {
     super(code, params);
-    this.name = 'AdminBulkError';
+    this.name = "AdminBulkError";
   }
 }
 
@@ -57,10 +57,15 @@ function validarIds(ids: readonly number[]): number[] {
   // Únicos: la pantalla puede mandar el mismo id dos veces si alguien tocó
   // "seleccionar todo" con un filtro raro, y procesarlo dos veces duplicaría
   // la auditoría (y aplicaría el porcentaje dos veces).
-  const unicos = [...new Set(ids)].filter((id) => Number.isInteger(id) && id > 0);
-  if (unicos.length === 0) throw new AdminBulkError('adminError.masivo.sinSeleccion');
+  const unicos = [...new Set(ids)].filter(
+    (id) => Number.isInteger(id) && id > 0
+  );
+  if (unicos.length === 0)
+    throw new AdminBulkError("adminError.masivo.sinSeleccion");
   if (unicos.length > BULK_MAX_IDS) {
-    throw new AdminBulkError('adminError.masivo.demasiados', { maximo: BULK_MAX_IDS });
+    throw new AdminBulkError("adminError.masivo.demasiados", {
+      maximo: BULK_MAX_IDS,
+    });
   }
   return unicos;
 }
@@ -69,7 +74,7 @@ function validarIds(ids: readonly number[]): number[] {
 export async function bulkSetActive(
   productIds: readonly number[],
   isActive: boolean,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<number> {
   const ids = validarIds(productIds);
   const tx = executor ?? getDb();
@@ -93,7 +98,7 @@ export async function bulkSetActive(
 export async function bulkMoveCategory(
   productIds: readonly number[],
   categoryId: number,
-  executor?: Executor,
+  executor?: Executor
 ): Promise<number> {
   const ids = validarIds(productIds);
 
@@ -104,8 +109,10 @@ export async function bulkMoveCategory(
       .where(eq(categories.id, categoryId))
       .limit(1);
 
-    if (!destino[0]) throw new AdminBulkError('adminError.masivo.categoriaNoExiste');
-    if (!destino[0].isActive) throw new AdminBulkError('adminError.masivo.categoriaApagada');
+    if (!destino[0])
+      throw new AdminBulkError("adminError.masivo.categoriaNoExiste");
+    if (!destino[0].isActive)
+      throw new AdminBulkError("adminError.masivo.categoriaApagada");
 
     const result = await tx
       .update(products)
@@ -155,7 +162,11 @@ export type BulkPriceResult = {
  *   pero sobre ₲500 daría ₲50 → redondeado, ₲100 igual, y sobre ₲50 daría ₲0:
  *   un producto gratis en la vidriera. El piso es `roundTo`.
  */
-export function precioAjustado(fromPyg: number, percent: number, roundTo: RoundTo): number {
+export function precioAjustado(
+  fromPyg: number,
+  percent: number,
+  roundTo: RoundTo
+): number {
   const bruto = Math.round((fromPyg * (100 + percent)) / 100);
   const redondeado = Math.round(bruto / roundTo) * roundTo;
   return Math.max(roundTo, redondeado);
@@ -169,30 +180,35 @@ export function precioAjustado(fromPyg: number, percent: number, roundTo: RoundT
  * a ese precio, y sin `price_adjustments` no habría siquiera forma de saber
  * cuál era el precio de antes.
  */
-export async function bulkAdjustPrices(input: BulkPriceInput): Promise<BulkPriceResult> {
+export async function bulkAdjustPrices(
+  input: BulkPriceInput
+): Promise<BulkPriceResult> {
   const reason = input.reason.trim();
   if (reason.length < BULK_MIN_REASON) {
-    throw new AdminBulkError('adminError.masivo.sinMotivo');
+    throw new AdminBulkError("adminError.masivo.sinMotivo");
   }
   if (!Number.isInteger(input.percent)) {
-    throw new AdminBulkError('adminError.masivo.porcentajeEntero');
+    throw new AdminBulkError("adminError.masivo.porcentajeEntero");
   }
   if (input.percent < PERCENT_MIN || input.percent > PERCENT_MAX) {
-    throw new AdminBulkError('adminError.masivo.porcentajeFuera', {
+    throw new AdminBulkError("adminError.masivo.porcentajeFuera", {
       min: PERCENT_MIN,
       max: PERCENT_MAX,
     });
   }
   if (!(ROUND_TO as readonly number[]).includes(input.roundTo)) {
-    throw new AdminBulkError('adminError.masivo.redondeoInvalido');
+    throw new AdminBulkError("adminError.masivo.redondeoInvalido");
   }
   // Un 0 % no es un error, pero tampoco es una operación: no cambia ni un
   // precio y dejaría cero filas de auditoría. Se corta antes de bloquear 500
   // filas para nada.
-  if (input.percent === 0) return { cambiadas: 0, miradas: 0, diferenciaPyg: 0 };
+  if (input.percent === 0)
+    return { cambiadas: 0, miradas: 0, diferenciaPyg: 0 };
 
   const porVariante = input.variantIds !== undefined;
-  const ids = validarIds(porVariante ? input.variantIds! : (input.productIds ?? []));
+  const ids = validarIds(
+    porVariante ? input.variantIds! : (input.productIds ?? [])
+  );
 
   return getDb().transaction(async (tx) => {
     // `FOR UPDATE` sobre todas las variantes afectadas, en orden de id: dos
@@ -201,9 +217,13 @@ export async function bulkAdjustPrices(input: BulkPriceInput): Promise<BulkPrice
     const filas = await tx
       .select({ id: variants.id, pricePyg: variants.pricePyg })
       .from(variants)
-      .where(porVariante ? inArray(variants.id, ids) : inArray(variants.productId, ids))
+      .where(
+        porVariante
+          ? inArray(variants.id, ids)
+          : inArray(variants.productId, ids)
+      )
       .orderBy(variants.id)
-      .for('update');
+      .for("update");
 
     let cambiadas = 0;
     let diferenciaPyg = 0;
@@ -215,7 +235,10 @@ export async function bulkAdjustPrices(input: BulkPriceInput): Promise<BulkPrice
       // llena de "de ₲10.000 a ₲10.000" es una auditoría que nadie lee.
       if (nuevo === fila.pricePyg) continue;
 
-      await tx.update(variants).set({ pricePyg: nuevo }).where(eq(variants.id, fila.id));
+      await tx
+        .update(variants)
+        .set({ pricePyg: nuevo })
+        .where(eq(variants.id, fila.id));
 
       await tx.insert(priceAdjustments).values({
         variantId: fila.id,
@@ -243,17 +266,30 @@ export async function bulkAdjustPrices(input: BulkPriceInput): Promise<BulkPrice
  * usaran cuentas distintas, la vista previa sería peor que no tenerla.
  */
 export async function previewPriceAdjustment(
-  input: { variantIds?: readonly number[]; productIds?: readonly number[]; percent: number; roundTo: RoundTo },
-  executor?: Executor,
-): Promise<BulkPriceResult & { ejemplos: Array<{ variantId: number; from: number; to: number }> }> {
+  input: {
+    variantIds?: readonly number[];
+    productIds?: readonly number[];
+    percent: number;
+    roundTo: RoundTo;
+  },
+  executor?: Executor
+): Promise<
+  BulkPriceResult & {
+    ejemplos: Array<{ variantId: number; from: number; to: number }>;
+  }
+> {
   const porVariante = input.variantIds !== undefined;
-  const ids = validarIds(porVariante ? input.variantIds! : (input.productIds ?? []));
+  const ids = validarIds(
+    porVariante ? input.variantIds! : (input.productIds ?? [])
+  );
   const tx = executor ?? getDb();
 
   const filas = await tx
     .select({ id: variants.id, pricePyg: variants.pricePyg })
     .from(variants)
-    .where(porVariante ? inArray(variants.id, ids) : inArray(variants.productId, ids))
+    .where(
+      porVariante ? inArray(variants.id, ids) : inArray(variants.productId, ids)
+    )
     .orderBy(variants.id);
 
   let cambiadas = 0;
@@ -299,13 +335,16 @@ export async function duplicateProduct(productId: number): Promise<number> {
       .where(eq(products.id, productId))
       .limit(1);
     const original = originales[0];
-    if (!original) throw new AdminBulkError('adminError.masivo.productoNoExiste');
+    if (!original)
+      throw new AdminBulkError("adminError.masivo.productoNoExiste");
 
     const slug = await slugLibre(tx, original.slug);
 
     await tx.insert(products).values({
       slug,
       name: `${original.name} (copia)`.slice(0, 200),
+      saleMode: original.saleMode,
+      showPrice: original.showPrice,
       description: original.description,
       categoryId: original.categoryId,
       brand: original.brand,
@@ -321,7 +360,7 @@ export async function duplicateProduct(productId: number): Promise<number> {
       .where(eq(products.slug, slug))
       .limit(1);
     const nuevoId = creados[0]?.id;
-    if (!nuevoId) throw new AdminBulkError('adminError.masivo.noPude');
+    if (!nuevoId) throw new AdminBulkError("adminError.masivo.noPude");
 
     const variantesOriginales = await tx
       .select()
@@ -352,7 +391,8 @@ export async function duplicateProduct(productId: number): Promise<number> {
 /** `remera` → `remera-copia`, `remera-copia-2`, … El slug es UNIQUE. */
 async function slugLibre(tx: Executor, base: string): Promise<string> {
   for (let intento = 1; intento <= 50; intento += 1) {
-    const candidato = intento === 1 ? `${base}-copia` : `${base}-copia-${intento}`;
+    const candidato =
+      intento === 1 ? `${base}-copia` : `${base}-copia-${intento}`;
     const recortado = candidato.slice(0, 160);
     const choque = await tx
       .select({ id: products.id })
@@ -361,13 +401,14 @@ async function slugLibre(tx: Executor, base: string): Promise<string> {
       .limit(1);
     if (!choque[0]) return recortado;
   }
-  throw new AdminBulkError('adminError.masivo.demasiadasCopias');
+  throw new AdminBulkError("adminError.masivo.demasiadasCopias");
 }
 
 /** `SKU-1` → `SKU-1-COPIA`, `SKU-1-COPIA-2`, … El SKU también es UNIQUE. */
 async function skuLibre(tx: Executor, base: string): Promise<string> {
   for (let intento = 1; intento <= 50; intento += 1) {
-    const candidato = intento === 1 ? `${base}-COPIA` : `${base}-COPIA-${intento}`;
+    const candidato =
+      intento === 1 ? `${base}-COPIA` : `${base}-COPIA-${intento}`;
     const recortado = candidato.slice(0, 64);
     const choque = await tx
       .select({ id: variants.id })
@@ -376,17 +417,23 @@ async function skuLibre(tx: Executor, base: string): Promise<string> {
       .limit(1);
     if (!choque[0]) return recortado;
   }
-  throw new AdminBulkError('adminError.masivo.demasiadasCopias');
+  throw new AdminBulkError("adminError.masivo.demasiadasCopias");
 }
 
 /** El historial de precios de una variante, para la ficha del producto. */
-export async function listPriceAdjustments(variantId: number, limit = 20, executor?: Executor) {
+export async function listPriceAdjustments(
+  variantId: number,
+  limit = 20,
+  executor?: Executor
+) {
   const tx = executor ?? getDb();
   return tx
     .select()
     .from(priceAdjustments)
     .where(eq(priceAdjustments.variantId, variantId))
-    .orderBy(sql`${priceAdjustments.createdAt} DESC, ${priceAdjustments.id} DESC`)
+    .orderBy(
+      sql`${priceAdjustments.createdAt} DESC, ${priceAdjustments.id} DESC`
+    )
     .limit(limit);
 }
 
