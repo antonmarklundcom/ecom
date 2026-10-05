@@ -219,7 +219,7 @@ describe('los secretos', () => {
 describe('lo que se pega en el hPanel', () => {
   it('nunca imprime secretos ni URLs de conexión en el bloque de consola', () => {
     const marker = 'private-fixture-value-never-for-console';
-    const keys = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'DATABASE_URL', 'WHATSAPP_CLOUD_TOKEN', 'CLOUDINARY_API_KEY', 'PAGOPAR_PUBLIC_KEY', 'PAGOPAR_PRIVATE_KEY'];
+    const keys = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'DATABASE_URL', 'WHATSAPP_CLOUD_ACCESS_TOKEN', 'CLOUDINARY_API_KEY', 'PAGOPAR_PUBLIC_KEY', 'PAGOPAR_PRIVATE_KEY'];
     const block = bloqueHPanel(Object.fromEntries(keys.map((key) => [key, marker])));
     expect(block).not.toContain(marker);
     for (const key of keys) expect(block).toContain(`${key}=<copiá el valor de .env.local>`);
