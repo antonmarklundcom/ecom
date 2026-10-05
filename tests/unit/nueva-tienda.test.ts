@@ -217,14 +217,21 @@ describe('los secretos', () => {
 });
 
 describe('lo que se pega en el hPanel', () => {
+  it('nunca imprime secretos ni URLs de conexión en el bloque de consola', () => {
+    const marker = 'private-fixture-value-never-for-console';
+    const keys = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'DATABASE_URL', 'WHATSAPP_CLOUD_TOKEN', 'CLOUDINARY_API_KEY', 'PAGOPAR_PUBLIC_KEY', 'PAGOPAR_PRIVATE_KEY'];
+    const block = bloqueHPanel(Object.fromEntries(keys.map((key) => [key, marker])));
+    expect(block).not.toContain(marker);
+    for (const key of keys) expect(block).toContain(`${key}=<copiá el valor de .env.local>`);
+  });
   it('va sin comillas: Hostinger las guardaría como parte del valor', () => {
     const bloque = bloqueHPanel({ SESSION_SECRET: 'abc', WHATSAPP_NUMBER: '+595981123456' });
-    expect(bloque).toBe('SESSION_SECRET=abc\nWHATSAPP_NUMBER=+595981123456');
+    expect(bloque).toBe('SESSION_SECRET=<copiá el valor de .env.local>\nWHATSAPP_NUMBER=+595981123456');
   });
 
   it('no lista lo que quedó vacío', () => {
     expect(bloqueHPanel({ SESSION_SECRET: 'abc', PAGOPAR_PUBLIC_KEY: '' })).toBe(
-      'SESSION_SECRET=abc',
+      'SESSION_SECRET=<copiá el valor de .env.local>',
     );
   });
 });

@@ -422,18 +422,18 @@ export function fijarEnv(
 }
 
 /**
- * El bloque para pegar en el hPanel de Hostinger, una variable por línea.
+ * Lista las variables del hPanel. Los secretos se copian del archivo local.
  *
  * Hostinger las carga de a una, a mano, así que lo que sirve es la lista
- * exacta y en el mismo formato que espera el panel (`CLAVE=valor`, sin
- * comillas: el panel las guardaría como parte del valor). Se imprimen sólo las
+ * exacta. Los valores públicos van sin comillas; los secretos se consultan en
+ * `.env.local` para que no terminen en logs o artifacts. Se listan sólo las
  * que este script conoce; el resto —Cloudinary, Pagopar, la base— las trae
  * quien tiene esas cuentas, y el script no las va a inventar.
  */
 export function bloqueHPanel(valores: ValoresEnv): string {
   return Object.entries(valores)
     .filter(([, valor]) => valor !== '')
-    .map(([clave, valor]) => `${clave}=${valor}`)
+    .map(([clave, valor]) => `${clave}=${/(?:SECRET|TOKEN|PASSWORD|(?:API|PUBLIC|PRIVATE)_KEY|DATABASE_URL)/i.test(clave) ? '<copiá el valor de .env.local>' : valor}`)
     .join('\n');
 }
 
@@ -749,7 +749,7 @@ function imprimirHPanel(contenidoEnv: string, claves: ValoresEnv): void {
   const leer = (lista: string[]): ValoresEnv =>
     Object.fromEntries(lista.map((clave) => [clave, leerValorEnv(contenidoEnv, clave)]));
 
-  console.log('\n  Para pegar en el hPanel de Hostinger (una por una):\n');
+  console.log('\n  Variables para el hPanel de Hostinger. Copiá los secretos de .env.local; no se imprimen en la consola:\n');
   for (const linea of bloqueHPanel(leer(imprescindibles)).split('\n')) console.log(`    ${linea}`);
   console.log('    DATABASE_URL=<la de la base MySQL de Hostinger, DEPLOY.md §2>');
   console.log('    NODE_ENV=production');
