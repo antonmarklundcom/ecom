@@ -34,6 +34,7 @@ import {
 describe.skipIf(!hasTestDb)("selling modes and usable payments", () => {
   beforeEach(async () => {
     vi.unstubAllEnvs();
+    vi.stubEnv("WHATSAPP_NUMBER", "");
     publicarFoto({});
     await resetTables();
   });

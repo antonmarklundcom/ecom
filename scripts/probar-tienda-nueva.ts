@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, toNamespacedPath } from "node:path";
 
 import { SOLO_TEMPLATE } from "./template-shared";
 import { runPnpm } from "./package-runner";
@@ -29,7 +29,34 @@ import { runPnpm } from "./package-runner";
 const NOMBRE = ["Probeta", "Fresca"].join(" ");
 
 const raiz = process.cwd();
-const destino = mkdtempSync(join(tmpdir(), "tienda-fresca-"));
+const temporaryRoot = realpathSync(tmpdir());
+const destino = mkdtempSync(join(temporaryRoot, "tienda-fresca-"));
+
+function cleanup(): void {
+  const target = realpathSync(destino);
+  if (
+    target !== destino ||
+    dirname(target) !== temporaryRoot ||
+    !basename(target).startsWith("tienda-fresca-")
+  ) {
+    throw new Error("Refusing to remove an unexpected temporary worktree path");
+  }
+  // Git on Windows cannot remove some deep pnpm paths. Node supports their
+  // namespaced form and removes links without following their targets.
+  rmSync(toNamespacedPath(join(target, "node_modules")), {
+    recursive: true,
+    force: true,
+    maxRetries: 3,
+  });
+  execFileSync(
+    "git",
+    ["-c", "core.longpaths=true", "worktree", "remove", "--force", target],
+    {
+      cwd: raiz,
+      stdio: ["ignore", "pipe", "pipe"],
+    }
+  );
+}
 
 function correr(comando: string, args: string[], cwd: string): void {
   if (comando !== "pnpm") throw new Error("Unsupported validation runner");
@@ -90,10 +117,7 @@ function main(): void {
 
     console.log("\n  ✓ Una tienda nueva desde este commit queda en verde.\n");
   } finally {
-    execFileSync("git", ["worktree", "remove", "--force", destino], {
-      cwd: raiz,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    cleanup();
   }
 }
 
