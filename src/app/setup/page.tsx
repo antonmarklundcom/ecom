@@ -29,12 +29,31 @@ export default function SetupPage() {
 
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">{t("setup.titulo")}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {t("setup.titulo")}
+      </h1>
       <p className="text-muted-foreground mt-2 text-sm">{t("setup.bajada")}</p>
+      <section
+        className="border-border mt-6 grid gap-3 rounded-xl border p-4 text-sm"
+        aria-label={t("setup.launchTitle")}
+      >
+        <h2 className="font-semibold">{t("setup.launchTitle")}</h2>
+        <p>{t("setup.launchRequired")}</p>
+        <h3 className="font-semibold">{t("setup.optionalTitle")}</h3>
+        <p className="text-muted-foreground">{t("setup.optionalHelp")}</p>
+      </section>
       <div className="mt-6">
         <SetupForm />
       </div>
-      <p className="text-muted-foreground mt-6 text-xs">{t("setup.despues")}</p>
+      <section className="mt-6 grid gap-3 text-sm">
+        <h2 className="font-semibold">{t("setup.nextTitle")}</h2>
+        <ol className="text-muted-foreground list-decimal space-y-2 pl-5">
+          <li>{t("setup.nextCatalog")}</li>
+          <li>{t("setup.nextPayments")}</li>
+          <li>{t("setup.nextLaunch")}</li>
+          <li>{t("setup.despues")}</li>
+        </ol>
+      </section>
     </main>
   );
 }

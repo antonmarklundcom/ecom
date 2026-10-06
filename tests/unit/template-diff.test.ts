@@ -235,6 +235,7 @@ describe("clasificar", () => {
     // Lo que no se negocia es la plata: las actions de admin están en
     // MAQUINARIA y tienen que seguir ahí, no acá.
     expect(MIXTOS).toContain("src/app/admin");
+    expect(MIXTOS).toContain("src/app/setup");
     expect(MAQUINARIA).not.toContain("src/app/admin");
 
     for (const accion of [

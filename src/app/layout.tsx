@@ -8,6 +8,7 @@ import { Analytics } from "@/components/analytics";
 import { CartSheet } from "@/components/cart-sheet";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { StorefrontShell } from "@/components/storefront-shell";
 import { WhatsAppFab } from "@/components/whatsapp-fab";
 import { Toaster } from "@/components/ui/sonner";
 import { getStoreSettings } from "@/domain/store-settings";
@@ -34,7 +35,10 @@ const geistMono = Geist_Mono({
  * `TIENDA.titulo` y `TIENDA.descripcion`, como siempre.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const [{ marca }, identidad] = await Promise.all([getStoreSettings(), marcaEfectiva()]);
+  const [{ marca }, identidad] = await Promise.all([
+    getStoreSettings(),
+    marcaEfectiva(),
+  ]);
 
   return {
     // Sin esto, la URL de la imagen de Open Graph sale relativa y ningún
@@ -52,7 +56,9 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     // El favicon subido en /admin/ajustes → Identidad. Sin él, queda
     // `src/app/favicon.ico` (el de la tienda o el del template).
-    ...(identidad.faviconUrl ? { icons: { icon: identidad.faviconUrl, apple: identidad.faviconUrl } } : {}),
+    ...(identidad.faviconUrl
+      ? { icons: { icon: identidad.faviconUrl, apple: identidad.faviconUrl } }
+      : {}),
     // La imagen sale de `opengraph-image.tsx` (o de la del producto, que la
     // pisa); acá sólo se pide que se muestre grande y no como miniatura.
     twitter: { card: "summary_large_image" },
@@ -80,22 +86,35 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       // El color de marca de /admin/ajustes → Identidad pisa `--primary` del
       // tema (ya validado como #RRGGBB, con el texto encima por contraste).
-      style={(marca.variablesColor ?? undefined) as React.CSSProperties | undefined}
+      style={
+        (marca.variablesColor ?? undefined) as React.CSSProperties | undefined
+      }
     >
       <body className="flex min-h-full flex-col">
-        {/* Apagada o sin texto no se monta nada (y en /admin se esconde sola). */}
-        {anuncio.activo && anuncio.texto ? (
-          <AnnouncementBar texto={anuncio.texto} href={linkSeguro(anuncio.href)} />
-        ) : null}
-        <SiteHeader />
-        <div className="flex-1">{children}</div>
-        <SiteFooter />
-        <CartSheet />
-        <WhatsAppFab />
+        <StorefrontShell
+          storefrontBefore={
+            <>
+              {anuncio.activo && anuncio.texto ? (
+                <AnnouncementBar
+                  texto={anuncio.texto}
+                  href={linkSeguro(anuncio.href)}
+                />
+              ) : null}
+              <SiteHeader />
+            </>
+          }
+          storefrontAfter={
+            <>
+              <SiteFooter />
+              <CartSheet />
+              <WhatsAppFab />
+              <Analytics />
+            </>
+          }
+        >
+          {children}
+        </StorefrontShell>
         <Toaster />
-        {/* Nada de terceros salvo que esta tienda configure medidores —
-            src/lib/analytics.ts. Sin variables, esto no renderiza nada. */}
-        <Analytics />
       </body>
     </html>
   );

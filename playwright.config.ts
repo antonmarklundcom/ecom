@@ -1,4 +1,5 @@
 import { config } from "dotenv";
+import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 
 // En CI las variables ya vienen del job (mismo criterio que `checks`). En
@@ -59,6 +60,11 @@ export default defineConfig({
   // test.
   webServer: {
     command: `pnpm start --port ${port}`,
+    // Enable the setup UI only in the server owned by this disposable browser run.
+    // The credential stays in process memory; setup UI tests intercept the POST.
+    env: {
+      SETUP_SECRET: process.env.SETUP_SECRET ?? randomBytes(32).toString("hex"),
+    },
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer:
       !process.env.CI && process.env.REQUIRE_DATABASE_TESTS !== "1",
