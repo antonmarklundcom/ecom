@@ -993,6 +993,27 @@ export const esPY = {
   // Panel (PR R)
   // -------------------------------------------------------------------------
   "panel.titulo": "Panel",
+  "panel.menu.label": "Menú del panel",
+  "panel.menu.edit": "Editar menú",
+  "panel.menu.editHelp":
+    "Arrastrá las secciones o usá las flechas para cambiar el orden. Guardá para aplicarlo.",
+  "panel.menu.up": "Subir {nombre}",
+  "panel.menu.down": "Bajar {nombre}",
+  "panel.menu.save": "Guardar",
+  "panel.menu.cancel": "Cancelar",
+  "panel.menu.restore": "Restaurar orden original",
+  "panel.menu.restoreHelp":
+    "Orden original preparado. Guardá para aplicarlo o cancelá para mantener tu orden.",
+  "panel.menu.saved": "Orden del menú guardado.",
+  "panel.menu.saveError":
+    "Este navegador no permite guardar el orden. Habilitá el almacenamiento local o cancelá para mantener el menú actual.",
+  "panel.menu.moved": "{nombre} ahora está en la posición {n}.",
+  "panel.menu.storage":
+    "El orden se guarda para tu cuenta en este navegador. No se sincroniza con otros dispositivos; borrar los datos del sitio restaura el orden original.",
+  "panel.menu.store": "Ver tienda",
+  "panel.menu.skip": "Ir al contenido del panel",
+  "panel.menu.open": "Abrir menú del panel",
+  "panel.menu.mobileHelp": "Elegí una sección o editá el orden del menú.",
   "panel.salir": "Salir",
   "panel.saliendo": "Saliendo…",
   "panel.nav.resumen": "Resumen",
@@ -2380,20 +2401,44 @@ export const esPY = {
   "setup.meta": "Configuración inicial",
   "setup.titulo": "Configuración inicial de la tienda",
   "setup.bajada":
-    "Crea las tablas de la base, la cuenta del dueño y, si querés, el catálogo de ejemplo. Es lo mismo que el curl de DEPLOY.md §4, sin terminal.",
+    "Prepará la base, la cuenta del dueño y, si querés, un catálogo de ejemplo. Inicializar no significa que la tienda ya esté lista para vender.",
   "setup.despues":
     "Terminado el setup, borrá SETUP_SECRET del hPanel y apretá Redeploy: esta página deja de existir. Después se entra por /admin.",
   "setup.secreto": "SETUP_SECRET",
   "setup.secretoAyuda":
-    "El valor que cargaste en el hPanel (lo imprime pnpm nueva-tienda). No se guarda en ningún lado.",
+    "Usá el valor de SETUP_SECRET que configuraste en el hosting. Se envía de forma segura al inicializar; no se guarda en el navegador.",
   "setup.duenio": "Cuenta del dueño",
   "setup.email": "Email",
   "setup.password": "Contraseña",
   "setup.nombre": "Nombre (opcional)",
   "setup.duenioAyuda":
     "Vacío = no se crea ni se cambia ninguna cuenta (sólo se aplican las migraciones).",
-  "setup.seed":
-    "Cargar el catálogo de ejemplo (sólo para probar; después se reemplaza por el real)",
+  "setup.seed": "Cargar productos de ejemplo para probar",
+  "setup.seedAyuda":
+    "Agrega productos ficticios. Importar tus productos reales no borra estos ejemplos automáticamente: eliminá o despublicá los ejemplos desde Productos antes de abrir la tienda.",
+  "setup.forceAyuda":
+    "Permite volver a cargar datos y puede cambiar la contraseña de un dueño existente. Si es la primera vez, dejá esta opción desmarcada.",
+  "setup.repeatPassword": "Repetir contraseña",
+  "setup.showPassword": "Mostrar: {campo}",
+  "setup.hidePassword": "Ocultar: {campo}",
+  "setup.error.passwords":
+    "Las contraseñas no coinciden. Revisá ambos campos antes de inicializar.",
+  "setup.adminLogin": "Ir al login del panel",
+  "setup.successNext":
+    "La inicialización terminó correctamente. Entrá al panel con la cuenta del dueño para completar la tienda.",
+  "setup.launchTitle": "Configuración necesaria para lanzar",
+  "setup.launchRequired":
+    "En el hosting: base de datos (DATABASE_URL), sesiones (SESSION_SECRET), dirección pública HTTPS (NEXT_PUBLIC_SITE_URL) y cron protegido (CRON_SECRET). SETUP_SECRET se usa sólo para inicializar: después borrala del hosting y hacé Redeploy.",
+  "setup.optionalTitle": "Integraciones según lo que necesites",
+  "setup.optionalHelp":
+    "Desde Integraciones en el panel podés configurar Cloudinary para subir fotos y comprobantes, WhatsApp para contacto y avisos, Pagopar para tarjetas, analítica y reportes de errores. No necesitás estas cuentas para inicializar. Cada función se habilita cuando la configurás.",
+  "setup.nextTitle": "Después de inicializar",
+  "setup.nextCatalog":
+    "Entrá al panel, cargá los productos reales y revisá precios y stock. Quitá los ejemplos si elegiste el catálogo de prueba.",
+  "setup.nextPayments":
+    "Configurá envíos y los medios de pago que vas a ofrecer. Si aceptás transferencias, completá Banco; si ofrecés tarjeta, configurá Pagopar y comprobá su webhook.",
+  "setup.nextLaunch":
+    "Revisá identidad, contacto e integraciones, comprobá el cron del hosting y hacé una compra de prueba antes de abrir al público.",
   "setup.force": "La tienda ya estaba inicializada y quiero repetirlo igual",
   "setup.correr": "Inicializar",
   "setup.corriendo": "Inicializando…",
