@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -15,6 +15,12 @@ import type {
   SupplierDetails,
 } from "@/lib/product-attributes";
 import { saveProduct } from "@/app/actions/admin-products";
+import {
+  FieldError,
+  fieldA11y,
+  useFocusFirstInvalid,
+} from "@/components/admin/field-error";
+import type { FieldErrors } from "@/lib/field-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +59,9 @@ export function ProductForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusFirstInvalid(formRef, fields);
   const [slug, setSlug] = useState(defaults.slug);
   // Sólo se autocompleta el slug de un producto nuevo: cambiarlo en uno ya
   // publicado le rompe la URL y el SEO.
@@ -62,17 +71,28 @@ export function ProductForm({
 
   return (
     <form
+      ref={formRef}
       className="grid gap-4"
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
+        setFields({});
         const data = new FormData(event.currentTarget);
-        let specifications: unknown, supplierDetails: unknown;
-        try {
-          specifications = metadataFormValue(data, "specifications");
-          supplierDetails = metadataFormValue(data, "supplierDetails");
-        } catch {
-          setError("Revisá el JSON de los datos del producto.");
+        // Cada JSON por separado: el error va al campo que está roto (F1).
+        const jsonErrors: FieldErrors = {};
+        const leer = (name: string): unknown => {
+          try {
+            return metadataFormValue(data, name);
+          } catch {
+            jsonErrors[name] = t("adminForm.jsonInvalido");
+            return null;
+          }
+        };
+        const specifications = leer("specifications");
+        const supplierDetails = leer("supplierDetails");
+        if (Object.keys(jsonErrors).length > 0) {
+          setError(t("adminForm.revisaCampos"));
+          setFields(jsonErrors);
           return;
         }
 
@@ -103,6 +123,7 @@ export function ProductForm({
 
           if (!result.ok) {
             setError(result.error);
+            setFields(result.fields ?? {});
             return;
           }
 
@@ -126,11 +147,13 @@ export function ProductForm({
             name="specifications"
             label="Ficha técnica pública verificada"
             value={defaults.specifications}
+            error={fields.specifications}
           />
           <MetadataField
             name="supplierDetails"
             label="Fuentes privadas y procedencia de imágenes"
             value={defaults.supplierDetails}
+            error={fields.supplierDetails}
           />
         </div>
       </details>
@@ -154,7 +177,9 @@ export function ProductForm({
           onChange={(event) => {
             if (!slugTouched) setSlug(slugify(event.target.value));
           }}
+          {...fieldA11y(fields, "name", "name")}
         />
+        <FieldError errors={fields} name="name" id="name" />
       </div>
 
       <div className="grid gap-1.5">
@@ -168,7 +193,9 @@ export function ProductForm({
             setSlugTouched(true);
             setSlug(event.target.value);
           }}
+          {...fieldA11y(fields, "slug", "slug")}
         />
+        <FieldError errors={fields} name="slug" id="slug" />
       </div>
 
       {/* Markdown seguro (O7 §5.3 D): el `<textarea name="description">` de
@@ -213,6 +240,7 @@ export function ProductForm({
             required
             defaultValue={String(defaults.categoryId || "")}
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+            {...fieldA11y(fields, "categoryId", "categoryId")}
           >
             <option value="" disabled>
               {t("panel.producto.elegiCategoria")}
@@ -223,11 +251,18 @@ export function ProductForm({
               </option>
             ))}
           </select>
+          <FieldError errors={fields} name="categoryId" id="categoryId" />
         </div>
 
         <div className="grid gap-1.5">
           <Label htmlFor="brand">{t("panel.producto.marca")}</Label>
-          <Input id="brand" name="brand" defaultValue={defaults.brand} />
+          <Input
+            id="brand"
+            name="brand"
+            defaultValue={defaults.brand}
+            {...fieldA11y(fields, "brand", "brand")}
+          />
+          <FieldError errors={fields} name="brand" id="brand" />
         </div>
 
         <div className="grid gap-1.5">
@@ -237,11 +272,13 @@ export function ProductForm({
             name="ivaRate"
             defaultValue={String(defaults.ivaRate)}
             className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+            {...fieldA11y(fields, "ivaRate", "ivaRate")}
           >
             <option value="10">{t("panel.producto.iva10")}</option>
             <option value="5">{t("panel.producto.iva5")}</option>
             <option value="0">{t("panel.producto.iva0")}</option>
           </select>
+          <FieldError errors={fields} name="ivaRate" id="ivaRate" />
         </div>
       </div>
 

@@ -18,10 +18,10 @@ import {
 /**
  * El corazón de favoritos. Dos formas, mismo componente:
  *
- * - `size="icon"`: la burbuja sobre la foto de `product-card.tsx`. Vive
- *   adentro del `<Link>` de la tarjeta, así que el click frena la navegación
- *   (`preventDefault`/`stopPropagation`) — tocar el corazón no tiene que
- *   abrir la ficha.
+ * - `size="icon"`: la burbuja sobre la foto de `product-card.tsx`. Es
+ *   hermana del `<Link>` de la tarjeta, no hija (F3); el click igual frena
+ *   la navegación (`preventDefault`/`stopPropagation`) por si una piel la
+ *   vuelve a meter adentro de un link.
  * - `size="inline"`: botón con texto, al lado de "Agregar al carrito" en la
  *   ficha de producto.
  *
@@ -55,7 +55,7 @@ export function WishlistButton({
   const label = saved ? t("favoritos.quitar") : t("favoritos.guardar");
 
   function handleClick(event: React.MouseEvent) {
-    // El botón "icon" vive adentro del <Link> de la tarjeta.
+    // Por si una piel pone el botón "icon" adentro de un <Link>.
     event.preventDefault();
     event.stopPropagation();
 

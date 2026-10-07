@@ -42,6 +42,7 @@ import {
 import {
   actorLabel,
   adminActionError,
+  adminFieldError,
   requireOwnerSession,
   requireStaffSession,
   type AdminActionResult,
@@ -56,6 +57,7 @@ import {
   VariantAttributesSchema,
 } from "@/lib/product-attributes";
 import { stripStamps } from "@/lib/verification-stamps";
+import { parseEs, zodFieldErrors } from "@/lib/field-errors";
 
 /**
  * Un hecho verificable tal como lo manda el formulario: sin sellos. La fecha y
@@ -126,11 +128,12 @@ export async function saveProduct(
   try {
     const actor = await requireStaffSession();
 
-    const parsed = ProductSchema.safeParse(input);
+    const parsed = parseEs(ProductSchema, input);
     if (!parsed.success) {
       return {
         ok: false,
-        error: parsed.error.issues[0]?.message ?? "Revisá los datos.",
+        error: t("adminForm.revisaCampos"),
+        fields: zodFieldErrors(parsed.error),
       };
     }
 
@@ -168,7 +171,11 @@ export async function saveProduct(
     revalidarVidriera();
     return { ok: true, productId };
   } catch (error) {
-    return adminActionError("saveProduct", error);
+    return adminFieldError("saveProduct", error, {
+      "adminError.producto.slugRepetido": "slug",
+      "adminError.producto.slugHistorico": "slug",
+      "adminError.producto.atributosInvalidos": "specifications",
+    });
   }
 }
 
@@ -211,11 +218,12 @@ export async function saveProductVariant(
   try {
     const actor = await requireStaffSession();
 
-    const parsed = VariantSchema.safeParse(input);
+    const parsed = parseEs(VariantSchema, input);
     if (!parsed.success) {
       return {
         ok: false,
-        error: parsed.error.issues[0]?.message ?? "Revisá los datos.",
+        error: t("adminForm.revisaCampos"),
+        fields: zodFieldErrors(parsed.error),
       };
     }
 
@@ -241,7 +249,12 @@ export async function saveProductVariant(
     revalidarVidriera();
     return { ok: true };
   } catch (error) {
-    return adminActionError("saveProductVariant", error);
+    return adminFieldError("saveProductVariant", error, {
+      "adminError.producto.skuRepetido": "sku",
+      "adminError.producto.precioCero": "pricePyg",
+      "adminError.producto.identificadoresSinVerificar": "identifiers",
+      "adminError.producto.atributosInvalidos": "attributes",
+    });
   }
 }
 

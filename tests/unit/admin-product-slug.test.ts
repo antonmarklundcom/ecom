@@ -43,7 +43,13 @@ describe('el slug de un producto', () => {
 
     const resultado = await saveProduct({ ...ENTRADA, slug: 'a'.repeat(161) });
 
-    expect(resultado).toEqual({ ok: false, error: 'El slug no puede pasar los 160 caracteres.' });
+    // El mensaje va pegado al campo (docs/TEMPLATE-IMPROVEMENT-PLAN.md F1);
+    // `error` es el resumen que muestra el formulario arriba.
+    expect(resultado).toEqual({
+      ok: false,
+      error: 'Revisá los campos marcados.',
+      fields: { slug: 'El slug no puede pasar los 160 caracteres.' },
+    });
     expect(createProduct).not.toHaveBeenCalled();
   });
 

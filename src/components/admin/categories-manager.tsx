@@ -12,6 +12,11 @@ import {
   moverCategoria,
   uploadCategoryImage,
 } from "@/app/actions/admin-categories";
+import {
+  FieldError,
+  fieldA11y,
+  useFocusFirstInvalid,
+} from "@/components/admin/field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +24,7 @@ import { productImageUrl } from "@/lib/images";
 import { slugify } from "@/lib/slug";
 import { TESTIDS } from "@/lib/testids";
 import { t, tPlural } from "@/i18n";
+import type { FieldErrors } from "@/lib/field-errors";
 
 export type AdminCategoryCard = {
   id: number;
@@ -289,6 +295,9 @@ function CategoryForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusFirstInvalid(formRef, fields);
   const [name, setName] = useState(category?.name ?? "");
   const [slug, setSlug] = useState(category?.slug ?? "");
   /*
@@ -314,10 +323,12 @@ function CategoryForm({
 
   return (
     <form
+      ref={formRef}
       className="border-border grid gap-4 rounded-xl border p-4"
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
+        setFields({});
 
         const payload = {
           seoTitle: seoTitle.trim() || null,
@@ -334,6 +345,7 @@ function CategoryForm({
 
           if (!result.ok) {
             setError(result.error);
+            setFields(result.fields ?? {});
             return;
           }
           toast.success(
@@ -375,8 +387,18 @@ function CategoryForm({
               setName(event.target.value);
               if (!slugTocado) setSlug(slugify(event.target.value));
             }}
+            {...fieldA11y(
+              fields,
+              "name",
+              "categoria-name",
+              "categoria-name-ayuda"
+            )}
           />
-          <p className="text-muted-foreground text-xs">
+          <FieldError errors={fields} name="name" id="categoria-name" />
+          <p
+            id="categoria-name-ayuda"
+            className="text-muted-foreground text-xs"
+          >
             {t("panel.categoria.nombreAyuda")}
           </p>
         </div>
@@ -392,8 +414,18 @@ function CategoryForm({
               setSlugTocado(true);
               setSlug(event.target.value);
             }}
+            {...fieldA11y(
+              fields,
+              "slug",
+              "categoria-slug",
+              "categoria-slug-ayuda"
+            )}
           />
-          <p className="text-muted-foreground text-xs break-all">
+          <FieldError errors={fields} name="slug" id="categoria-slug" />
+          <p
+            id="categoria-slug-ayuda"
+            className="text-muted-foreground text-xs break-all"
+          >
             {t("panel.categoria.urlPreview", { slug: slugFinal || "…" })}
           </p>
         </div>
@@ -403,20 +435,28 @@ function CategoryForm({
         <Label htmlFor="categoria-seo-title">Título SEO (opcional)</Label>
         <Input
           id="categoria-seo-title"
+          {...fieldA11y(fields, "seoTitle", "categoria-seo-title")}
           value={seoTitle}
           maxLength={200}
           onChange={(event) => setSeoTitle(event.target.value)}
         />
+        <FieldError errors={fields} name="seoTitle" id="categoria-seo-title" />
         <Label htmlFor="categoria-seo-description">
           Descripción SEO (opcional)
         </Label>
         <textarea
           id="categoria-seo-description"
+          {...fieldA11y(fields, "seoDescription", "categoria-seo-description")}
           value={seoDescription}
           maxLength={500}
           rows={3}
           onChange={(event) => setSeoDescription(event.target.value)}
           className="rounded border p-2"
+        />
+        <FieldError
+          errors={fields}
+          name="seoDescription"
+          id="categoria-seo-description"
         />
         <p className="text-muted-foreground text-sm">
           Sin estos campos se usan el título y la descripción editorial de la
@@ -427,12 +467,18 @@ function CategoryForm({
         </Label>
         <textarea
           id="categoria-description"
+          {...fieldA11y(fields, "description", "categoria-description")}
           value={description}
           maxLength={5000}
           rows={3}
           placeholder={t("panel.categoria.descripcion.placeholder")}
           onChange={(event) => setDescription(event.target.value)}
           className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+        />
+        <FieldError
+          errors={fields}
+          name="description"
+          id="categoria-description"
         />
       </div>
 

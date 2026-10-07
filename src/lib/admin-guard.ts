@@ -1,7 +1,9 @@
 import { safeError } from "@/lib/safe-error";
 import { redirect } from "next/navigation";
 
-import { t } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
+import { DomainError } from "@/domain/errors";
+import type { FieldErrors } from "@/lib/field-errors";
 import { can, type Capability } from "@/lib/permissions";
 import { validateAdminSession } from "./session-validation";
 import {
@@ -94,7 +96,17 @@ export async function requireCapabilityPage(
  * del caso exitoso (`unknown` por defecto: intersectarlo no agrega nada).
  */
 export type AdminActionResult<T = unknown> =
-  ({ ok: true } & T) | { ok: false; error: string };
+  | ({ ok: true } & T)
+  | {
+      ok: false;
+      error: string;
+      /**
+       * Errores por campo (`name` → mensaje), para marcarlos en el formulario
+       * (docs/TEMPLATE-IMPROVEMENT-PLAN.md F1). Opcional: `error` sigue
+       * siendo el resumen que toda pantalla muestra.
+       */
+      fields?: FieldErrors;
+    };
 
 /**
  * Traduce el error de una acción de admin a algo que el formulario pueda
@@ -121,6 +133,31 @@ export function adminActionError(
   }
   console.error(`${context} falló`, safeError(error).message);
   return { ok: false, error: t("adminError.generico") };
+}
+
+/**
+ * El campo de un error de dominio que es de un campo concreto (F1): `campos`
+ * dice qué código va a qué `name`. `undefined` si no es de ninguno.
+ */
+export function fieldFor(
+  error: unknown,
+  campos: Partial<Record<MessageKey, string>>
+): FieldErrors | undefined {
+  const field = error instanceof DomainError ? campos[error.code] : undefined;
+  return field && error instanceof Error
+    ? { [field]: error.message }
+    : undefined;
+}
+
+/** `adminActionError`, más el campo que marcar si el error es de uno. */
+export function adminFieldError(
+  context: string,
+  error: unknown,
+  campos: Partial<Record<MessageKey, string>>
+): { ok: false; error: string; fields?: FieldErrors } {
+  const result = adminActionError(context, error);
+  const fields = fieldFor(error, campos);
+  return fields ? { ...result, fields } : result;
 }
 
 const KNOWN_DOMAIN_ERRORS = [

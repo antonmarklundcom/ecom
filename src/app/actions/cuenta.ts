@@ -6,6 +6,8 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { t } from "@/i18n";
+
 import { cuentasClientesHabilitadas } from "@/lib/cuentas";
 import {
   CustomerError,
@@ -87,6 +89,9 @@ const RegisterSchema = z.object({
     .union([z.literal(""), z.email("Revisá el email").max(200)])
     .optional(),
   password: z.string().min(1, "Elegí una contraseña").max(200),
+  // La misma confirmación que el setup del dueño, también en el servidor
+  // (docs/TEMPLATE-IMPROVEMENT-PLAN.md F2).
+  passwordConfirmation: z.string().max(200),
   marketingOptIn: z.boolean().optional(),
 });
 
@@ -114,6 +119,9 @@ export async function registrarCliente(input: unknown): Promise<CuentaResult> {
     };
   }
 
+  if (parsed.data.password !== parsed.data.passwordConfirmation) {
+    return { ok: false, error: t("password.noCoinciden") };
+  }
   const strength = validatePasswordStrength(parsed.data.password);
   if (!strength.ok) {
     return {
@@ -470,8 +478,15 @@ export async function guardarContrasena(input: unknown): Promise<CuentaResult> {
   if (!(await cuentasClientesHabilitadas())) return APAGADO;
   try {
     const actor = await requireCustomerSession();
-    const parsed = z.object({ password: z.string().max(200) }).safeParse(input);
+    const parsed = z
+      .object({
+        password: z.string().max(200),
+        passwordConfirmation: z.string().max(200),
+      })
+      .safeParse(input);
     if (!parsed.success) return { ok: false, error: "Revisá la contraseña." };
+    if (parsed.data.password !== parsed.data.passwordConfirmation)
+      return { ok: false, error: t("password.noCoinciden") };
     const strength = validatePasswordStrength(parsed.data.password);
     if (!strength.ok)
       return { ok: false, error: passwordStrengthMessage(strength.reason) };

@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BrandFacet } from "@/db/queries";
+import type { CatalogueFacet } from "@/domain/catalogue-facets";
 import { t } from "@/i18n/client";
 import { PRICE_RANGES } from "@/lib/price-ranges";
 
@@ -29,7 +30,20 @@ const ALL = "__todas__";
  * Component cacheable y el comprador puede compartir el link filtrado por
  * WhatsApp, que es como se comparte todo acá.
  */
-export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
+export function CatalogFilters({
+  brands,
+  showPrice = true,
+  facets = [],
+}: {
+  brands: BrandFacet[];
+  /**
+   * Si algún producto de la categoría muestra precio (`categoryHasPrices`).
+   * Sin ninguno, un rango de precio devuelve siempre cero: no se ofrece (F4).
+   */
+  showPrice?: boolean;
+  /** Para nombrar en los chips los atributos puestos (`atributo.*`). */
+  facets?: CatalogueFacet[];
+}) {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -52,13 +66,37 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
     todo" obliga a rehacer los que sí servían.
   */
   // `orden` no entra: ordenar no achica el resultado, así que un chip con ✕
-  // ahí prometería devolver productos que nunca se fueron.
-  const activos: Array<{ key: "marca" | "precio"; label: string }> = [];
+  // ahí prometería devolver productos que nunca se fueron. Los atributos y el
+  // stock sí (F4): antes no tenían chip y "Limpiar todo" los borraba sin
+  // haberlos mostrado.
+  const activos: Array<{ key: string; label: string }> = [];
   if (marca) activos.push({ key: "marca", label: marca });
   if (precio) {
     const range = PRICE_RANGES.find((item) => item.id === precio);
     if (range) activos.push({ key: "precio", label: range.label });
   }
+  for (const [key, value] of params.entries()) {
+    if (!key.startsWith("atributo.") || !value) continue;
+    const facet = facets.find((item) => `atributo.${item.key}` === key);
+    activos.push({
+      key,
+      label: t("filtros.chipAtributo", {
+        atributo: facet?.label ?? key.slice("atributo.".length),
+        valor: value,
+      }),
+    });
+  }
+  if (params.get("stock") === "1")
+    activos.push({ key: "stock", label: t("filtros.stock") });
+
+  // Saca todos los filtros y deja el orden (y cualquier otro parámetro que no
+  // filtra): antes volvía a "?" y perdía el orden elegido.
+  const limpiarTodo = () => {
+    const next = new URLSearchParams(params.toString());
+    for (const filtro of activos) next.delete(filtro.key);
+    next.delete("page");
+    router.push(`?${next.toString()}`, { scroll: false });
+  };
 
   return (
     <div className="grid gap-3">
@@ -77,7 +115,13 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
             <SelectContent>
               <SelectItem value={ALL}>{t("filtros.marca.todas")}</SelectItem>
               {brands.map((facet) => (
-                <SelectItem key={facet.brand} value={facet.brand}>
+                <SelectItem
+                  key={facet.brand}
+                  value={facet.brand}
+                  // Con los otros filtros puestos, esta marca no tendría
+                  // ningún producto: se ve, pero no se elige (F4).
+                  disabled={facet.total === 0 && facet.brand !== marca}
+                >
                   {/*
                     El conteo va acá y no sólo en el chip: es antes de elegir
                     cuando sirve saber que esa marca tiene un solo producto.
@@ -92,27 +136,29 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
           </Select>
         ) : null}
 
-        <Select
-          value={precio ?? ALL}
-          onValueChange={(value) => update("precio", value)}
-        >
-          <SelectTrigger
-            className="w-[200px]"
-            aria-label={t("filtros.precio.label")}
+        {showPrice ? (
+          <Select
+            value={precio ?? ALL}
+            onValueChange={(value) => update("precio", value)}
           >
-            <SelectValue placeholder="Precio" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>
-              {t("filtros.precio.cualquiera")}
-            </SelectItem>
-            {PRICE_RANGES.map((range) => (
-              <SelectItem key={range.id} value={range.id}>
-                {range.label}
+            <SelectTrigger
+              className="w-[200px]"
+              aria-label={t("filtros.precio.label")}
+            >
+              <SelectValue placeholder="Precio" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>
+                {t("filtros.precio.cualquiera")}
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {PRICE_RANGES.map((range) => (
+                <SelectItem key={range.id} value={range.id}>
+                  {range.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
 
         <Select
           value={params.get("orden") ?? "relevancia"}
@@ -155,11 +201,7 @@ export function CatalogFilters({ brands }: { brands: BrandFacet[] }) {
           ))}
           {activos.length > 1 ? (
             <li>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("?", { scroll: false })}
-              >
+              <Button variant="ghost" size="sm" onClick={limpiarTodo}>
                 {t("filtros.limpiarTodo")}
               </Button>
             </li>

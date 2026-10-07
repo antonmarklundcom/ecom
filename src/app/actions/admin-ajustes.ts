@@ -51,7 +51,9 @@ export async function guardarAjustes(input: unknown): Promise<AdminActionResult>
     revalidatePath("/admin/ajustes");
     return { ok: true };
   } catch (error) {
-    if (error instanceof StoreSettingsError) return { ok: false, error: error.message };
+    // Con los campos que no pasaron, para marcarlos en el formulario (F1).
+    if (error instanceof StoreSettingsError)
+      return { ok: false, error: error.message, ...(error.fields ? { fields: error.fields } : {}) };
     return adminActionError("guardarAjustes", error);
   }
 }

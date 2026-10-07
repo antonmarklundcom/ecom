@@ -39,6 +39,12 @@ export type RecentlyViewedItem = {
   pricePyg: number | null;
   imageCloudinaryId: string | null;
   imageAlt: string | null;
+  /**
+   * La foto guardada es ilustrativa (no es este producto): se dibuja con su
+   * leyenda (docs/TEMPLATE-IMPROVEMENT-PLAN.md F6). Opcional: las entradas
+   * guardadas antes no lo tienen.
+   */
+  imageIllustrative?: boolean;
 };
 
 const STORAGE_KEY = `${CART_STORAGE_KEY}-vistos`;
@@ -54,7 +60,9 @@ function isItem(value: unknown): value is RecentlyViewedItem {
     (item.pricePyg === null || Number.isInteger(item.pricePyg)) &&
     (item.imageCloudinaryId === null ||
       typeof item.imageCloudinaryId === "string") &&
-    (item.imageAlt === null || typeof item.imageAlt === "string")
+    (item.imageAlt === null || typeof item.imageAlt === "string") &&
+    (item.imageIllustrative === undefined ||
+      typeof item.imageIllustrative === "boolean")
   );
 }
 
@@ -126,12 +134,19 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
               <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
                 <Image
                   src={url ?? categoryPlaceholderSrc("generico")}
-                  alt={item.imageAlt ?? item.name}
+                  // El dibujo genérico no es el producto: decorativo, el
+                  // nombre ya está en el título de la tarjeta.
+                  alt={url ? (item.imageAlt ?? item.name) : ""}
                   fill
                   unoptimized={Boolean(url)}
                   sizes="(max-width: 640px) 50vw, 300px"
                   className="object-cover"
                 />
+                {url && item.imageIllustrative ? (
+                  <span className="bg-background/85 text-foreground absolute inset-x-2 bottom-2 truncate rounded px-2 py-0.5 text-center text-xs">
+                    {t("catalogo.imagenIlustrativa")}
+                  </span>
+                ) : null}
               </div>
               <div className="mt-3 flex flex-1 flex-col gap-1">
                 <h3 className="group-hover:text-foreground line-clamp-2 text-sm font-medium">
