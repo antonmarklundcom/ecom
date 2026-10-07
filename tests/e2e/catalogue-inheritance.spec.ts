@@ -74,7 +74,7 @@ test("staff keeps product permissions and cannot access owner guides/settings or
     .getByTestId(TESTIDS.adminLoginPassword)
     .fill(process.env.OWNER_PASSWORD!);
   await page.getByTestId(TESTIDS.adminLoginSubmit).click();
-  await expect(page).toHaveURL(/\/admin/);
+  await expect(page).not.toHaveURL(/\/admin\/login(?:\?|$)/);
   await expect(
     page.getByRole("navigation", { name: "Menú del panel" })
   ).toBeVisible();
@@ -101,7 +101,7 @@ test("staff keeps product permissions and cannot access owner guides/settings or
   const savedOrder = await links.allTextContents();
   expect(savedOrder).not.toEqual(originalOrder);
   await page.reload();
-  expect(await links.allTextContents()).toEqual(savedOrder);
+  await expect.poll(() => links.allTextContents()).toEqual(savedOrder);
   await page.getByRole("button", { name: "Editar menú", exact: true }).click();
   await page.getByRole("button", { name: "Restaurar orden original" }).click();
   await page.getByRole("button", { name: "Guardar", exact: true }).click();

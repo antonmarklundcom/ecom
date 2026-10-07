@@ -13,6 +13,19 @@ import { ProductImage } from "@/components/product-image";
 describe("placeholder de ProductImage", () => {
   afterEach(cleanup);
 
+  it("keeps the server-resolved photo when the browser has no Cloudinary setting", () => {
+    const url = "https://res.cloudinary.com/disposable-gallery-fixture/image/upload/c_fill,w_160,h_160/productos/test";
+    render(
+      <ProductImage
+        image={{ cloudinaryId: "productos/test", alt: "Actual product", blurDataUrl: null }}
+        resolvedUrl={url}
+        alt="Product"
+        categorySlug="moda"
+      />,
+    );
+    expect(screen.getByRole("img", { name: "Actual product" })).toHaveAttribute("src", url);
+  });
+
   it("una de las cuatro categorías del seed usa su propio dibujo", () => {
     const { container } = render(<ProductImage image={null} alt="Remera azul" categorySlug="moda" />);
     const img = container.querySelector("img");

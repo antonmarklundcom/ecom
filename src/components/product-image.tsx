@@ -52,6 +52,7 @@ export function ProductImage({
   className,
   priority = false,
   sizes,
+  resolvedUrl,
 }: {
   image: CatalogImage | null;
   alt: string;
@@ -60,8 +61,12 @@ export function ProductImage({
   className?: string;
   priority?: boolean;
   sizes?: string;
+  /** Pass the server's public URL when rendering inside a client component. */
+  resolvedUrl?: string | null;
 }) {
-  const url = productImageUrl(image?.cloudinaryId, size);
+  const url = resolvedUrl === undefined
+    ? productImageUrl(image?.cloudinaryId, size)
+    : resolvedUrl;
   const wrapper = cn(
     "bg-muted relative aspect-square overflow-hidden rounded-lg",
     className

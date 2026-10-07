@@ -23,7 +23,9 @@ test("every admin section loads, has an active icon link, and excludes shopping 
 }) => {
   test.setTimeout(90_000);
   const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) =>
+    errors.push(`${page.url()}: ${error.message}`)
+  );
   await loginAsOwner(page);
   const menu = page.getByRole("navigation", {
     name: "Menú del panel",
@@ -45,6 +47,7 @@ test("every admin section loads, has an active icon link, and excludes shopping 
     await expect(page.getByTestId(TESTIDS.headerCategoryLink)).toHaveCount(0);
     await expect(page.getByRole("contentinfo")).toHaveCount(0);
     await expect(page.locator("[data-whatsapp-fab]")).toHaveCount(0);
+    expect(errors, route).toEqual([]);
   }
   expect(errors).toEqual([]);
   await page.getByRole("button", { name: "Salir", exact: true }).click();
