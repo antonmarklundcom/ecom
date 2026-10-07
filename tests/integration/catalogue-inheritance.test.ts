@@ -244,8 +244,13 @@ describe.skipIf(!hasTestDb)("template catalogue mechanisms", () => {
     }
     const { GET } = await import("@/app/api/health/route");
     expect((await GET()).status).toBe(200);
+    // CHANGE con la definición explícita y no RENAME COLUMN: MariaDB 10.11
+    // rechaza el RENAME de una columna JSON (con su CHECK json_valid
+    // automático) con "Unknown column … in 'CHECK'" según qué consultas haya
+    // visto antes el servidor; CHANGE simula la misma columna faltante en
+    // los dos motores.
     await getPool().query(
-      "ALTER TABLE variants RENAME COLUMN identifiers TO unavailable_identifiers"
+      "ALTER TABLE variants CHANGE identifiers unavailable_identifiers JSON NULL"
     );
     try {
       expect(await (await GET()).json()).toMatchObject({
@@ -255,7 +260,7 @@ describe.skipIf(!hasTestDb)("template catalogue mechanisms", () => {
       await expect(searchProducts("Botella")).rejects.toThrow();
     } finally {
       await getPool().query(
-        "ALTER TABLE variants RENAME COLUMN unavailable_identifiers TO identifiers"
+        "ALTER TABLE variants CHANGE unavailable_identifiers identifiers JSON NULL"
       );
     }
   });
