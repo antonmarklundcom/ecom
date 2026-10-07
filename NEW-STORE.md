@@ -1120,3 +1120,7 @@ no se agregan a mano en el hPanel — la migración es la única fuente.
 
 Si algún día son muchas tiendas, recién ahí conviene sacar `src/domain` y
 `src/lib` a un paquete compartido. Antes de eso es complejidad sin pagar.
+
+## Catalogue inheritance upgrade
+
+See `docs/TEMPLATE-INHERITANCE.md` for optional structured facts, public/private boundaries, attribute and editorial configuration, SKU links, URL history, payment selection, setup changes and migration/backup ordering. New store generation includes the generic mechanisms. Template updates preserve store-owned configuration and customized mixed UI; review the integration checklist in that document before enabling the features. No automatic distribution to existing stores is performed by this upgrade.

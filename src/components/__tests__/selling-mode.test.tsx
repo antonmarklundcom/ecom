@@ -51,7 +51,7 @@ describe("enquiry selector", () => {
     );
     expect(screen.getByRole("button", { name: "Large" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Large" }));
-    expect(screen.getByRole("link")).toHaveAttribute(
+    expect(screen.getByTestId(TESTIDS.variantInquiryLink)).toHaveAttribute(
       "href",
       expect.stringContaining("RING-L")
     );
@@ -64,7 +64,9 @@ describe("enquiry selector", () => {
     "missing contact shows %s without a purchase or dead enquiry button",
     (saleMode) => {
       render(<AddToCart product={{ ...product, saleMode }} />);
-      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId(TESTIDS.variantInquiryLink)
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByTestId(TESTIDS.productAddToCart)
       ).not.toBeInTheDocument();

@@ -1,18 +1,27 @@
-import { timingSafeEqual } from 'node:crypto';
-import path from 'node:path';
+import { timingSafeEqual } from "node:crypto";
+import path from "node:path";
 
-import { eq } from 'drizzle-orm';
-import { migrate } from 'drizzle-orm/mysql2/migrator';
-import { z } from 'zod';
+import { eq, sql } from "drizzle-orm";
+import { migrate } from "drizzle-orm/mysql2/migrator";
+import { z } from "zod";
 
-import { getDb, getPool } from '@/db';
-import { applySchemaExtras } from '@/db/extras';
-import { setupState, users } from '@/db/schema';
-import { preflight } from '@/domain/preflight';
-import { createUser, normalizeEmail } from '@/lib/auth';
-import { hashPassword, passwordStrengthMessage, validatePasswordStrength } from '@/lib/password';
-import { SETUP_LIMIT, SETUP_WINDOW_MS, clientIp, rateLimit } from '@/lib/rate-limit';
-import { log, mensajeDe } from '@/lib/log';
+import { getDb, getPool } from "@/db";
+import { applySchemaExtras } from "@/db/extras";
+import { setupState, users } from "@/db/schema";
+import { preflight } from "@/domain/preflight";
+import { createUser, normalizeEmail } from "@/lib/auth";
+import {
+  hashPassword,
+  passwordStrengthMessage,
+  validatePasswordStrength,
+} from "@/lib/password";
+import {
+  SETUP_LIMIT,
+  SETUP_WINDOW_MS,
+  clientIp,
+  rateLimit,
+} from "@/lib/rate-limit";
+import { log, mensajeDe } from "@/lib/log";
 
 /**
  * Inicialización de una tienda recién deployada (DEPLOY.md §4).
@@ -64,9 +73,9 @@ import { log, mensajeDe } from '@/lib/log';
  */
 
 // Corre migraciones y escribe: nunca se prerenderiza.
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 // Lee los .sql de ./drizzle del disco: es Node, no edge.
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
 const MIN_SECRET_LENGTH = 16;
 
@@ -81,28 +90,31 @@ export async function POST(request: Request): Promise<Response> {
   // deseado: terminado el setup, se saca SETUP_SECRET del hPanel y esto vuelve
   // a 503 para siempre (DEPLOY.md §4).
   if (!secret || secret.length < MIN_SECRET_LENGTH) {
-    log.error('SETUP_SECRET no está configurado (o es demasiado corto)');
-    return json({ error: 'not_configured' }, 503);
+    log.error("SETUP_SECRET no está configurado (o es demasiado corto)");
+    return json({ error: "not_configured" }, 503);
   }
 
   // La comparación de abajo es en tiempo constante, pero nada impide probar
   // secretos de a millones: el límite corta eso.
   const ip = clientIp(request.headers);
-  if (!rateLimit(`setup:${ip}`, { limit: SETUP_LIMIT, windowMs: SETUP_WINDOW_MS }).ok) {
-    return json({ error: 'rate_limited' }, 429);
+  if (
+    !rateLimit(`setup:${ip}`, { limit: SETUP_LIMIT, windowMs: SETUP_WINDOW_MS })
+      .ok
+  ) {
+    return json({ error: "rate_limited" }, 429);
   }
 
   // El secreto viaja en un header y la contraseña del dueño en el cuerpo: por
   // http en claro los dos quedan en cualquier proxy del camino. Mismo criterio
   // que el preflight le exige a NEXT_PUBLIC_SITE_URL.
   if (isProduction() && !isHttps(request)) {
-    return json({ error: 'https_required' }, 400);
+    return json({ error: "https_required" }, 400);
   }
 
   if (!presentedSecretMatches(request, secret)) {
     // Sin detalle y sin loguear nada de lo que llegó, igual que el cron.
-    log.warn('setup: intento rechazado');
-    return json({ error: 'unauthorized' }, 401);
+    log.warn("setup: intento rechazado");
+    return json({ error: "unauthorized" }, 401);
   }
 
   let body: unknown;
@@ -116,22 +128,33 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) {
     // El primer problema y en castellano. El cuerpo NO se refleja en la
     // respuesta: adentro viene la contraseña del dueño.
-    return json({ error: 'cuerpo_invalido', detalle: primerError(parsed.error) }, 400);
+    return json(
+      { error: "cuerpo_invalido", detalle: primerError(parsed.error) },
+      400
+    );
   }
   const input = parsed.data;
 
   if (input.owner) {
+    if (input.owner.password !== input.owner.passwordConfirmation)
+      return json({ error: "password_no_coincide" }, 400);
     const strength = validatePasswordStrength(input.owner.password);
     if (!strength.ok) {
-      return json({ error: 'password_debil', detalle: passwordStrengthMessage(strength.reason) }, 400);
+      return json(
+        {
+          error: "password_debil",
+          detalle: passwordStrengthMessage(strength.reason),
+        },
+        400
+      );
     }
   }
 
   try {
     return await run(input);
   } catch (error) {
-    log.error('setup: falló la corrida', { error: mensajeDe(error) });
-    return json({ error: 'internal_error' }, 500);
+    log.error("setup: falló la corrida", { error: mensajeDe(error) });
+    return json({ error: "internal_error" }, 500);
   }
 }
 
@@ -149,8 +172,9 @@ const BODY = z.object({
         .string()
         .trim()
         .max(200)
-        .pipe(z.email('el email del dueño no tiene forma de email')),
+        .pipe(z.email("el email del dueño no tiene forma de email")),
       password: z.string().max(200),
+      passwordConfirmation: z.string().max(200),
       name: z.string().max(160).optional(),
     })
     .optional(),
@@ -166,13 +190,23 @@ const BODY = z.object({
       z.object({
         slug: z.string().trim().min(1).max(120),
         name: z.string().trim().min(1).max(160),
-        cities: z.array(z.string().trim().min(1).max(120)).max(400).optional().default([]),
+        cities: z
+          .array(z.string().trim().min(1).max(120))
+          .max(400)
+          .optional()
+          .default([]),
         // Guaraníes enteros. `assertGs` lo vuelve a exigir adentro del upsert:
         // esto es el mensaje para quien escribe el curl, eso es la regla.
         pricePyg: z.number().int().min(0),
-        freeThresholdPyg: z.number().int().positive().nullable().optional().default(null),
+        freeThresholdPyg: z
+          .number()
+          .int()
+          .positive()
+          .nullable()
+          .optional()
+          .default(null),
         position: z.number().int().min(0).optional().default(0),
-      }),
+      })
     )
     .max(100)
     .optional(),
@@ -193,22 +227,25 @@ async function run(input: Input): Promise<Response> {
 
   // Siempre, y en este orden: primero las tablas, después los objetos que
   // drizzle-kit no sabe generar.
-  await migrate(db, { migrationsFolder: path.join(process.cwd(), 'drizzle') });
+  await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
   const extras = await applySchemaExtras(getPool());
 
   const pasos: Pasos = {
-    migraciones: 'aplicadas',
+    migraciones: "aplicadas",
     // `applySchemaExtras` devuelve lo que dejó en su lugar, no lo que faltaba:
     // en una base ya inicializada la lista es corta, no vacía.
     extras: `aplicados (${extras.length})`,
-    seed: 'no pedido',
-    zonas: 'no pedidas',
-    duenio: 'no pedido',
+    seed: "no pedido",
+    zonas: "no pedidas",
+    duenio: "no pedido",
   };
 
-  const previo = (await db.select().from(setupState).where(eq(setupState.id, 1)).limit(1))[0];
+  const previo = (
+    await db.select().from(setupState).where(eq(setupState.id, 1)).limit(1)
+  )[0];
   const yaInicializada = previo !== undefined;
-  const pideDatos = input.seed || input.owner !== undefined || input.zonas !== undefined;
+  const pideDatos =
+    input.seed || input.owner !== undefined || input.zonas !== undefined;
 
   // Segunda llamada pidiendo sembrar o crear al dueño, sin `force`: 409 y no
   // 200, porque no se hizo lo que se pidió. Las migraciones sí corrieron —esa
@@ -219,12 +256,12 @@ async function run(input: Input): Promise<Response> {
     return json(
       {
         ok: false,
-        error: 'ya_inicializada',
+        error: "ya_inicializada",
         pasos: {
           ...pasos,
-          seed: 'salteado (ya inicializada)',
-          zonas: 'salteadas (ya inicializada)',
-          duenio: 'salteado (ya inicializada)',
+          seed: "salteado (ya inicializada)",
+          zonas: "salteadas (ya inicializada)",
+          duenio: "salteado (ya inicializada)",
         },
         yaEstaba: {
           seed: previo.seededAt !== null,
@@ -233,7 +270,7 @@ async function run(input: Input): Promise<Response> {
         },
         comoForzar: 'repetí la llamada con {"force":true}',
       },
-      409,
+      409
     );
   }
 
@@ -243,19 +280,19 @@ async function run(input: Input): Promise<Response> {
     // sea fuera del alias `@`. Dinámico porque arrastra el catálogo de ejemplo
     // entero, y no tiene por qué estar en el bundle de una ruta que casi
     // siempre se llama sin sembrar.
-    const { seedCatalog } = await import('../../../../../scripts/seed');
+    const { seedCatalog } = await import("../../../../../scripts/seed");
     // `false` fijo: `--reset-stock` pisa el `on_hand` real. Eso no se ofrece
     // por HTTP ni con force.
     await seedCatalog(false);
     sembrado = true;
-    pasos.seed = 'sembrado';
+    pasos.seed = "sembrado";
   }
 
   if (input.zonas !== undefined) {
     // Mismo import dinámico y por la misma razón que el seed: `scripts/` vive
     // fuera del alias `@`, y no tiene por qué entrar al bundle de una ruta que
     // casi siempre se llama sin zonas.
-    const { upsertShippingZones } = await import('../../../../../scripts/seed');
+    const { upsertShippingZones } = await import("../../../../../scripts/seed");
     const n = await upsertShippingZones(
       input.zonas.map((zona, index) => ({
         slug: zona.slug,
@@ -266,12 +303,12 @@ async function run(input: Input): Promise<Response> {
         // Sin `position` explícita, el orden del array es el orden de la
         // tabla: es lo que quiso decir quien escribió el curl.
         position: zona.position || index,
-      })),
+      }))
     );
     pasos.zonas = `${n} actualizada(s)`;
   }
 
-  let duenio: 'creado' | 'actualizado' | undefined;
+  let duenio: "creado" | "actualizado" | undefined;
   if (input.owner) {
     duenio = await upsertOwner(input.owner);
     pasos.duenio = duenio;
@@ -306,28 +343,45 @@ async function run(input: Input): Promise<Response> {
  * confianza —quien tiene el secreto del servidor puede fijar la cuenta del
  * dueño— es el que ya había.
  */
-async function upsertOwner(owner: NonNullable<Input['owner']>): Promise<'creado' | 'actualizado'> {
+async function upsertOwner(
+  owner: NonNullable<Input["owner"]>
+): Promise<"creado" | "actualizado"> {
   const db = getDb();
   const email = normalizeEmail(owner.email);
 
-  const existing = (await db.select().from(users).where(eq(users.email, email)).limit(1))[0];
+  const existing = (
+    await db.select().from(users).where(eq(users.email, email)).limit(1)
+  )[0];
 
   if (existing) {
     await db
       .update(users)
-      .set({ passwordHash: await hashPassword(owner.password), role: 'owner', isActive: true })
+      .set({
+        passwordHash: await hashPassword(owner.password),
+        role: "owner",
+        isActive: true,
+        sessionVersion: sql`${users.sessionVersion} + 1`,
+      })
       .where(eq(users.id, existing.id));
-    return 'actualizado';
+    return "actualizado";
   }
 
-  await createUser({ email, password: owner.password, name: owner.name ?? null, role: 'owner' }, db);
-  return 'creado';
+  await createUser(
+    {
+      email,
+      password: owner.password,
+      name: owner.name ?? null,
+      role: "owner",
+    },
+    db
+  );
+  return "creado";
 }
 
 /** Una sola fila, id 1. `runs` sólo sube. */
 async function marcar(
   previo: typeof setupState.$inferSelect | undefined,
-  hecho: { sembrado?: boolean; duenio?: boolean },
+  hecho: { sembrado?: boolean; duenio?: boolean }
 ): Promise<void> {
   const db = getDb();
   const ahora = new Date();
@@ -361,7 +415,7 @@ async function contarUsuarios(): Promise<number> {
 }
 
 function isProduction(): boolean {
-  return process.env.NODE_ENV === 'production';
+  return process.env.NODE_ENV === "production";
 }
 
 /**
@@ -369,9 +423,10 @@ function isProduction(): boolean {
  * cliente vino por https es `x-forwarded-proto`.
  */
 function isHttps(request: Request): boolean {
-  const forwarded = request.headers.get('x-forwarded-proto');
-  if (forwarded) return forwarded.split(',')[0]?.trim().toLowerCase() === 'https';
-  return new URL(request.url).protocol === 'https:';
+  const forwarded = request.headers.get("x-forwarded-proto");
+  if (forwarded)
+    return forwarded.split(",")[0]?.trim().toLowerCase() === "https";
+  return new URL(request.url).protocol === "https:";
 }
 
 /**
@@ -384,12 +439,14 @@ function isHttps(request: Request): boolean {
  * escrito en los logs de acceso del servidor.
  */
 function presentedSecretMatches(request: Request, secret: string): boolean {
-  const header = request.headers.get('authorization') ?? '';
-  const presented = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
-  if (presented === '') return false;
+  const header = request.headers.get("authorization") ?? "";
+  const presented = header.startsWith("Bearer ")
+    ? header.slice("Bearer ".length)
+    : "";
+  if (presented === "") return false;
 
-  const a = Buffer.from(presented, 'utf8');
-  const b = Buffer.from(secret, 'utf8');
+  const a = Buffer.from(presented, "utf8");
+  const b = Buffer.from(secret, "utf8");
   // El largo se compara aparte: timingSafeEqual tira si difieren, y ese throw
   // ya filtraría el largo del secreto.
   if (a.length !== b.length) return false;
@@ -397,12 +454,15 @@ function presentedSecretMatches(request: Request, secret: string): boolean {
 }
 
 function primerError(error: z.ZodError): string {
-  return error.issues[0]?.message ?? 'cuerpo inválido';
+  return error.issues[0]?.message ?? "cuerpo inválido";
 }
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+    },
   });
 }

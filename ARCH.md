@@ -1150,3 +1150,7 @@ GET   /api/public/invoices/:id                    ← polling fallback
 Store side needs only: `orders.invoice_status` (`none|queued|approved|rejected`), `invoice_cdc`, `invoice_pdf_url`, an "Emitir factura" button in `/admin/pedidos/[id]`, and a webhook receiver reusing the same idempotency table (`payment_events` pattern).
 
 **Legal note, not a technical one:** issuing a legal factura requires the *merchant's* own **timbrado from DNIT**, and for electronic invoicing a digital certificate + SIFEN habilitación tied to their RUC. That authorization belongs to the merchant, not to the software. The DNIT rollout phases move — verify current requirements with a contador before making any compliance claim to a client.
+
+## Catalogue inheritance upgrade
+
+See `docs/TEMPLATE-INHERITANCE.md` for optional structured facts, public/private boundaries, attribute and editorial configuration, SKU links, URL history, payment selection, setup changes and migration/backup ordering. New store generation includes the generic mechanisms. Template updates preserve store-owned configuration and customized mixed UI; review the integration checklist in that document before enabling the features. No automatic distribution to existing stores is performed by this upgrade.

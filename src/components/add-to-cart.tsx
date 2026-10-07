@@ -12,6 +12,7 @@ import { VariantInquiryLink } from "@/components/variant-inquiry-link";
 import { useCart } from "@/lib/cart-store";
 import { sendFunnelEvent } from "@/lib/funnel";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
+import { variantFromSku, variantUrl } from "@/lib/variant-url";
 import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
 import type { CatalogProductDetail } from "@/db/queries";
@@ -37,12 +38,14 @@ export function AddToCart({
   whatsappPhone = null,
   productUrl = null,
   inquiryLinks = {},
+  initialVariantSku = null,
 }: {
   product: CatalogProductDetail;
   stockAlertsEnabled?: boolean;
   whatsappPhone?: string | null;
   productUrl?: string | null;
   inquiryLinks?: Record<number, string>;
+  initialVariantSku?: string | null;
 }) {
   const purchasable =
     (product.saleMode ?? "stock") === "stock" && product.showPrice !== false;
@@ -50,7 +53,6 @@ export function AddToCart({
   const firstAvailable = product.variants.find(
     (variant) => variant.available > 0
   );
-  const [picked, setPicked] = useState<number | undefined>(undefined);
   const [qty, setQty] = useState(1);
 
   /**
@@ -67,6 +69,28 @@ export function AddToCart({
     () => recallVariant(product.slug),
     () => null
   );
+  const urlSku = useSyncExternalStore(
+    (notify) => {
+      window.addEventListener("popstate", notify);
+      window.addEventListener("variant-selection-change", notify);
+      return () => {
+        window.removeEventListener("popstate", notify);
+        window.removeEventListener("variant-selection-change", notify);
+      };
+    },
+    () => {
+      const values = new URLSearchParams(window.location.search).getAll(
+        "variante"
+      );
+      return values.length === 0
+        ? null
+        : values.length === 1 && values[0] && values[0].length <= 64
+          ? values[0]
+          : "__invalid_variant_link__";
+    },
+    () => initialVariantSku
+  );
+  const shared = variantFromSku(product.variants, urlSku, purchasable);
   // Sólo vale si esa variante sigue existiendo y con stock: es un atajo, no
   // una decisión. Todo lo que se cobra lo recalcula el servidor.
   const remembered = product.variants.find(
@@ -75,13 +99,35 @@ export function AddToCart({
   );
 
   const variantId =
-    picked ?? remembered?.id ?? firstAvailable?.id ?? product.variants[0]?.id;
+    shared?.id ??
+    (urlSku === null ? remembered?.id : undefined) ??
+    firstAvailable?.id ??
+    product.variants[0]?.id;
   const selected = product.variants.find((variant) => variant.id === variantId);
   const max = Math.max(1, Math.min(99, selected?.available ?? 0));
   const canAdd = Boolean(purchasable && selected && selected.available > 0);
 
   return (
     <div className="space-y-4">
+      {urlSku && !shared ? (
+        <p role="status">
+          La variante del enlace no existe. Elegí una variante disponible.
+        </p>
+      ) : null}
+      {shared && purchasable && shared.available <= 0 ? (
+        <p role="status">
+          Esta variante está agotada. El enlace conserva su selección; no se
+          puede comprar.
+        </p>
+      ) : null}
+      {selected ? (
+        <a
+          className="inline-block text-sm underline underline-offset-4"
+          href={variantUrl(`/producto/${product.slug}`, selected.sku)}
+        >
+          Enlace a esta variante
+        </a>
+      ) : null}
       {product.variants.length > 1 ? (
         <fieldset>
           <legend className="mb-2 text-sm font-medium">
@@ -95,10 +141,16 @@ export function AddToCart({
                   key={variant.id}
                   type="button"
                   disabled={disabled}
+                  aria-pressed={variant.id === variantId}
                   onClick={() => {
-                    setPicked(variant.id);
                     setQty(1);
                     rememberVariant(product.slug, variant.id);
+                    window.history.replaceState(
+                      window.history.state,
+                      "",
+                      variantUrl(window.location.href, variant.sku)
+                    );
+                    window.dispatchEvent(new Event("variant-selection-change"));
                   }}
                   className={cn(
                     "rounded-lg border px-3 py-2 text-sm transition-colors",
@@ -187,7 +239,11 @@ export function AddToCart({
               productName={product.name}
               variantLabel={selected.label}
               sku={selected.sku}
-              productUrl={productUrl}
+              productUrl={
+                productUrl && selected
+                  ? variantUrl(productUrl, selected.sku)
+                  : productUrl
+              }
             />
           ) : null}
         </div>

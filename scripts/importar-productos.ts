@@ -7,7 +7,12 @@ import { readFileSync } from "node:fs";
 import { eq, inArray, sql } from "drizzle-orm";
 
 import { closePool, getDb } from "@/db";
-import { categories, products, variants } from "@/db/schema";
+import {
+  categories,
+  products,
+  productSlugRedirects,
+  variants,
+} from "@/db/schema";
 import { parseCatalogo, type CatalogoProducto } from "@/domain/catalog-import";
 import { slugify } from "@/lib/slug";
 
@@ -118,6 +123,23 @@ async function main(): Promise<void> {
   const duenoDeSku = new Map(skuRows.map((row) => [row.sku, row.productSlug]));
 
   const conflictos: string[] = [];
+  const aliasRows = productos.length
+    ? await db
+        .select({ slug: productSlugRedirects.slug, current: products.slug })
+        .from(productSlugRedirects)
+        .innerJoin(products, eq(productSlugRedirects.productId, products.id))
+        .where(
+          inArray(
+            productSlugRedirects.slug,
+            productos.map((p) => p.slug)
+          )
+        )
+    : [];
+  for (const alias of aliasRows)
+    if (alias.slug !== alias.current)
+      conflictos.push(
+        `El slug "${alias.slug}" es histórico; usá "${alias.current}".`
+      );
   for (const producto of productos) {
     for (const variante of producto.variants) {
       const dueno = duenoDeSku.get(variante.sku);
@@ -226,6 +248,10 @@ async function main(): Promise<void> {
       if (!categoryId)
         throw new Error(`Categoría sin id: ${producto.categoryName}`);
       return {
+        specifications: producto.specifications,
+        supplierDetails: producto.supplierDetails,
+        seoTitle: producto.seoTitle,
+        seoDescription: producto.seoDescription,
         saleMode: producto.saleMode,
         showPrice: producto.showPrice,
         slug: producto.slug,

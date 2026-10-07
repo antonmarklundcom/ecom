@@ -50,6 +50,7 @@ const TABLES = [
   "stock_adjustments",
   "variants",
   "product_images",
+  "product_slug_redirects",
   "products",
   "categories",
   "shipping_zones",
@@ -112,14 +113,12 @@ export async function seedPaymentReadiness(): Promise<void> {
   const { vi } = await import("vitest");
   vi.stubEnv("PAGOPAR_MODE", "mock");
   const { bankDetails } = await import("@/db/schema");
-  await getTestDb()
-    .insert(bankDetails)
-    .values({
-      id: 1,
-      banco: "Disposable Test Bank",
-      titular: "Test Store",
-      ruc: "80000000-0",
-      cuenta: "12345",
-      tipoCuenta: "corriente",
-    });
+  await getTestDb().insert(bankDetails).values({
+    id: 1,
+    banco: "Disposable Test Bank",
+    titular: "Test Store",
+    ruc: "80000000-0",
+    cuenta: "12345",
+    tipoCuenta: "corriente",
+  });
 }

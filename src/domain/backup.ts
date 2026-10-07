@@ -404,6 +404,7 @@ export const PRIMARY_KEY: Record<BackupTable, string | null> = {
   payment_events: "id",
   login_tokens: "id",
   products: "id",
+  product_slug_redirects: "slug",
   product_images: "id",
   variants: "id",
   stock_alerts: "id",

@@ -23,7 +23,9 @@ import { sessionOptions, type AdminSession } from "@/lib/session";
 export const config = {
   // Se excluyen los assets estáticos: no necesitan CSP ni sesión, y correr
   // esto en cada .js del bundle es puro costo por request.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)",
+  ],
 };
 
 /**
@@ -34,12 +36,13 @@ export const config = {
  * pantalla nueva y se olvida de agregarla acá, esa pantalla se queda sin
  * JavaScript en producción, y no se nota hasta que un cliente no puede comprar.
  */
-export const RUTAS_CACHEADAS = ["/", "/categoria"] as const;
+export const RUTAS_CACHEADAS = ["/"] as const;
 
 /** ¿El HTML de esta ruta sale de la caché de ISR? */
 export function esRutaCacheada(pathname: string): boolean {
   return RUTAS_CACHEADAS.some(
-    (ruta) => pathname === ruta || (ruta !== "/" && pathname.startsWith(`${ruta}/`)),
+    (ruta) =>
+      pathname === ruta || (ruta !== "/" && pathname.startsWith(`${ruta}/`))
   );
 }
 
@@ -87,20 +90,32 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const isLogin = request.nextUrl.pathname === "/admin/login";
 
   if (isAdmin && !isLogin) {
-    const session = await getIronSession<AdminSession>(request, NextResponse.next(), sessionOptions());
+    const session = await getIronSession<AdminSession>(
+      request,
+      NextResponse.next(),
+      sessionOptions()
+    );
     // Contra la lista del ENUM y no contra literales sueltos: un rol nuevo
     // agregado a `USER_ROLES` y olvidado acá quedaría rebotando al login para
     // siempre, con la cookie válida y sin ningún error que lo explique.
     const authenticated = Boolean(
-      session.userId && session.role && USER_ROLES.includes(session.role),
+      session.userId && session.role && USER_ROLES.includes(session.role)
     );
 
     if (!authenticated) {
       const login = new URL("/admin/login", request.url);
       // Sólo el path: `next` se vuelve a validar en la acción de login antes
       // de usarse como destino (ver safeNextPath).
-      login.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
-      return withSecurityHeaders(NextResponse.redirect(login), nonce, false, reqId);
+      login.searchParams.set(
+        "next",
+        request.nextUrl.pathname + request.nextUrl.search
+      );
+      return withSecurityHeaders(
+        NextResponse.redirect(login),
+        nonce,
+        false,
+        reqId
+      );
     }
   }
 
@@ -135,7 +150,7 @@ function withSecurityHeaders(
   response: NextResponse,
   nonce: string | null,
   isAdmin = false,
-  reqId?: string,
+  reqId?: string
 ): NextResponse {
   // El id viaja también de vuelta: es lo que hace que "me dio error" de una
   // compradora se pueda cruzar contra una línea concreta del log.
@@ -154,14 +169,20 @@ function withSecurityHeaders(
   ].join("");
   const imgHosts = [
     // GA4 cae a un pixel <img> cuando sendBeacon no puede.
-    ...(ga4Id ? [" https://www.googletagmanager.com https://www.google-analytics.com"] : []),
+    ...(ga4Id
+      ? [" https://www.googletagmanager.com https://www.google-analytics.com"]
+      : []),
     ...(metaPixelId ? [" https://www.facebook.com"] : []),
   ].join("");
   const connectHosts = [
     ...(ga4Id
-      ? [" https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com"]
+      ? [
+          " https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com",
+        ]
       : []),
-    ...(metaPixelId ? [" https://www.facebook.com https://connect.facebook.net"] : []),
+    ...(metaPixelId
+      ? [" https://www.facebook.com https://connect.facebook.net"]
+      : []),
   ].join("");
 
   const csp = [

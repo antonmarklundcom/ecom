@@ -1,10 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import path from 'node:path';
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
-import { esRutaCacheada } from '@/proxy';
-import { jsonLdScript } from '@/lib/seo';
+import { esRutaCacheada } from "@/proxy";
+import { jsonLdScript } from "@/lib/seo";
 
 /**
  * El CSP contra las páginas cacheadas.
@@ -24,10 +24,10 @@ import { jsonLdScript } from '@/lib/seo';
  * filesystem y no a mano.
  */
 
-const APP = path.join('src', 'app');
+const APP = path.join("src", "app");
 
 /** Todos los `page.tsx` de `src/app` con su ruta y su fuente. */
-function paginas(dir = APP, ruta = ''): { ruta: string; source: string }[] {
+function paginas(dir = APP, ruta = ""): { ruta: string; source: string }[] {
   const salida: { ruta: string; source: string }[] = [];
 
   for (const entrada of readdirSync(dir)) {
@@ -35,13 +35,16 @@ function paginas(dir = APP, ruta = ''): { ruta: string; source: string }[] {
 
     if (statSync(completo).isDirectory()) {
       // Los grupos —`(panel)`— no aparecen en la URL.
-      const segmento = entrada.startsWith('(') ? '' : `/${entrada}`;
+      const segmento = entrada.startsWith("(") ? "" : `/${entrada}`;
       salida.push(...paginas(completo, ruta + segmento));
       continue;
     }
 
-    if (entrada === 'page.tsx') {
-      salida.push({ ruta: ruta === '' ? '/' : ruta, source: readFileSync(completo, 'utf8') });
+    if (entrada === "page.tsx") {
+      salida.push({
+        ruta: ruta === "" ? "/" : ruta,
+        source: readFileSync(completo, "utf8"),
+      });
     }
   }
 
@@ -50,19 +53,19 @@ function paginas(dir = APP, ruta = ''): { ruta: string; source: string }[] {
 
 /** `/categoria/[slug]` → `/categoria/x`: un path como el que llega. */
 function rutaConcreta(ruta: string): string {
-  return ruta.replace(/\[(?:\.\.\.)?([^\]]+)\]/g, 'x');
+  return ruta.replace(/\[(?:\.\.\.)?([^\]]+)\]/g, "x");
 }
 
-describe('CSP y las páginas cacheadas', () => {
+describe("CSP y las páginas cacheadas", () => {
   const todas = paginas();
 
-  it('encuentra las páginas de la app', () => {
+  it("encuentra las páginas de la app", () => {
     // Si el crawler se rompe, el resto de los tests pasarían vacíos.
     expect(todas.length).toBeGreaterThan(10);
-    expect(todas.map((pagina) => pagina.ruta)).toContain('/');
+    expect(todas.map((pagina) => pagina.ruta)).toContain("/");
   });
 
-  it('toda página con revalidate está declarada como cacheada en el proxy', () => {
+  it("toda página con revalidate está declarada como cacheada en el proxy", () => {
     const cacheadas = todas
       .filter((pagina) => /export const revalidate\s*=/.test(pagina.source))
       .map((pagina) => rutaConcreta(pagina.ruta));
@@ -71,46 +74,60 @@ describe('CSP y las páginas cacheadas', () => {
     // RUTAS_CACHEADAS o se le saca el revalidate.
     expect(cacheadas.length).toBeGreaterThan(0);
     for (const ruta of cacheadas) {
-      expect(esRutaCacheada(ruta), `${ruta} se cachea pero el proxy le manda nonce`).toBe(true);
+      expect(
+        esRutaCacheada(ruta),
+        `${ruta} se cachea pero el proxy le manda nonce`
+      ).toBe(true);
     }
   });
 
-  it('ninguna página que se renderiza por request se trata como cacheada', () => {
+  it("ninguna página que se renderiza por request se trata como cacheada", () => {
     const porRequest = todas
       .filter((pagina) => !/export const revalidate\s*=/.test(pagina.source))
       .map((pagina) => rutaConcreta(pagina.ruta));
 
     for (const ruta of porRequest) {
-      expect(esRutaCacheada(ruta), `${ruta} no se cachea: tiene que ir con nonce`).toBe(false);
+      expect(
+        esRutaCacheada(ruta),
+        `${ruta} no se cachea: tiene que ir con nonce`
+      ).toBe(false);
     }
   });
 
-  it('las rutas con plata o sesión nunca pierden el nonce', () => {
+  it("las rutas con plata o sesión nunca pierden el nonce", () => {
     // El contrato explícito, por si algún día la lista se edita a mano.
-    for (const ruta of ['/checkout', '/admin', '/admin/pedidos', '/cuenta', '/pedido/PY-000123']) {
+    for (const ruta of [
+      "/checkout",
+      "/admin",
+      "/admin/pedidos",
+      "/cuenta",
+      "/pedido/PY-000123",
+    ]) {
       expect(esRutaCacheada(ruta)).toBe(false);
     }
   });
 
-  it('la home y las categorías sí', () => {
-    expect(esRutaCacheada('/')).toBe(true);
-    expect(esRutaCacheada('/categoria/electronica')).toBe(true);
+  it("la home se cachea; las categorías consultan reservas en vivo", () => {
+    expect(esRutaCacheada("/")).toBe(true);
+    expect(esRutaCacheada("/categoria/electronica")).toBe(false);
   });
 
-  it('no confunde una ruta que sólo empieza igual', () => {
-    expect(esRutaCacheada('/categorias-falsas')).toBe(false);
+  it("no confunde una ruta que sólo empieza igual", () => {
+    expect(esRutaCacheada("/categorias-falsas")).toBe(false);
   });
 });
 
-describe('jsonLdScript', () => {
-  it('no deja cerrar la etiqueta desde adentro', () => {
-    const salida = jsonLdScript({ name: 'Camiseta</script><script>alert(1)</script>' });
-    expect(salida).not.toContain('</script>');
-    expect(salida).not.toContain('<');
+describe("jsonLdScript", () => {
+  it("no deja cerrar la etiqueta desde adentro", () => {
+    const salida = jsonLdScript({
+      name: "Camiseta</script><script>alert(1)</script>",
+    });
+    expect(salida).not.toContain("</script>");
+    expect(salida).not.toContain("<");
   });
 
-  it('sigue siendo el mismo dato después de parsearlo', () => {
-    const valor = { name: 'Silla & Mesa <chica>', price: 185000 };
+  it("sigue siendo el mismo dato después de parsearlo", () => {
+    const valor = { name: "Silla & Mesa <chica>", price: 185000 };
     expect(JSON.parse(jsonLdScript(valor))).toEqual(valor);
   });
 });

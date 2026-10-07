@@ -28,7 +28,8 @@ import { t } from "@/i18n";
  * - `lista`: varios inputs con el mismo `name` (las líneas del checkout).
  * - `triestado`: un `<select>` con `""` / `"si"` / `"no"` → `null` / `true` / `false`.
  */
-export type TipoCampo = "texto" | "booleano" | "lista" | "triestado";
+export type TipoCampo =
+  "texto" | "booleano" | "lista" | "triestado" | "politicaPago";
 
 /**
  * Una sección de `/admin/ajustes`: su formulario, su botón de guardar y su
@@ -62,7 +63,10 @@ export function SettingsSectionForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const correr = (accion: () => Promise<{ ok: true } | { ok: false; error: string }>, ok: string) => {
+  const correr = (
+    accion: () => Promise<{ ok: true } | { ok: false; error: string }>,
+    ok: string
+  ) => {
     setError(null);
     startTransition(async () => {
       const result = await accion();
@@ -88,12 +92,15 @@ export function SettingsSectionForm({
               seccion,
               valores: anidarEn ? { [anidarEn]: valores } : valores,
             }),
-          t("panel.ajustes.guardado"),
+          t("panel.ajustes.guardado")
         );
       }}
     >
       {error ? (
-        <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm">
+        <p
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
+        >
           {error}
         </p>
       ) : null}
@@ -102,7 +109,9 @@ export function SettingsSectionForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={isPending}>
-          {isPending ? t("panel.acciones.guardando") : t("panel.abm.guardarCambios")}
+          {isPending
+            ? t("panel.acciones.guardando")
+            : t("panel.abm.guardarCambios")}
         </Button>
         <Button
           type="button"
@@ -115,7 +124,7 @@ export function SettingsSectionForm({
                 restaurar
                   ? guardarAjustes({ seccion, valores: restaurar })
                   : restaurarAjustes({ seccion }),
-              t("panel.ajustes.restaurado"),
+              t("panel.ajustes.restaurado")
             );
           }}
         >
@@ -126,10 +135,18 @@ export function SettingsSectionForm({
   );
 }
 
-function leerCampos(data: FormData, campos: Record<string, TipoCampo>): Record<string, unknown> {
+function leerCampos(
+  data: FormData,
+  campos: Record<string, TipoCampo>
+): Record<string, unknown> {
   const valores: Record<string, unknown> = {};
   for (const [nombre, tipo] of Object.entries(campos)) {
     switch (tipo) {
+      case "politicaPago":
+        valores[nombre] = data.has("politicaPagoPropia")
+          ? data.getAll(nombre).map(String)
+          : null;
+        break;
       case "booleano":
         valores[nombre] = data.get(nombre) !== null;
         break;
@@ -169,10 +186,15 @@ export function HeroImagePanel({
 
   return (
     <div className="border-border grid gap-3 rounded-lg border p-3">
-      <p className="text-sm font-medium">{t("panel.ajustes.marca.heroImagen")}</p>
+      <p className="text-sm font-medium">
+        {t("panel.ajustes.marca.heroImagen")}
+      </p>
 
       {error ? (
-        <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm">
+        <p
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
+        >
           {error}
         </p>
       ) : null}
@@ -180,7 +202,14 @@ export function HeroImagePanel({
       {imagenUrl ? (
         <div className="flex flex-wrap items-center gap-4">
           <div className="border-border relative h-24 w-40 overflow-hidden rounded-lg border">
-            <Image src={imagenUrl} alt="" fill unoptimized sizes="160px" className="object-cover" />
+            <Image
+              src={imagenUrl}
+              alt=""
+              fill
+              unoptimized
+              sizes="160px"
+              className="object-cover"
+            />
           </div>
           <Button
             type="button"
@@ -204,7 +233,9 @@ export function HeroImagePanel({
           </Button>
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">{t("panel.ajustes.marca.imagenVacia")}</p>
+        <p className="text-muted-foreground text-sm">
+          {t("panel.ajustes.marca.imagenVacia")}
+        </p>
       )}
 
       {habilitado ? (
@@ -228,7 +259,9 @@ export function HeroImagePanel({
           }}
         >
           <div className="grid gap-1.5">
-            <Label htmlFor="ajustes-hero-archivo">{t("panel.ajustes.marca.imagenArchivo")}</Label>
+            <Label htmlFor="ajustes-hero-archivo">
+              {t("panel.ajustes.marca.imagenArchivo")}
+            </Label>
             <Input
               id="ajustes-hero-archivo"
               name="file"
@@ -238,11 +271,15 @@ export function HeroImagePanel({
             />
           </div>
           <Button type="submit" disabled={isPending}>
-            {isPending ? t("panel.fotos.subiendo") : t("panel.ajustes.marca.imagenSubir")}
+            {isPending
+              ? t("panel.fotos.subiendo")
+              : t("panel.ajustes.marca.imagenSubir")}
           </Button>
         </form>
       ) : (
-        <p className="text-muted-foreground text-xs">{t("panel.ajustes.marca.sinCloudinary")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.ajustes.marca.sinCloudinary")}
+        </p>
       )}
     </div>
   );
@@ -265,8 +302,14 @@ export function MarcaImagenPanel({
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const titulo = tipo === "logo" ? t("panel.ajustes.identidad.logo") : t("panel.ajustes.identidad.favicon");
-  const ayuda = tipo === "logo" ? t("panel.ajustes.identidad.logoAyuda") : t("panel.ajustes.identidad.faviconAyuda");
+  const titulo =
+    tipo === "logo"
+      ? t("panel.ajustes.identidad.logo")
+      : t("panel.ajustes.identidad.favicon");
+  const ayuda =
+    tipo === "logo"
+      ? t("panel.ajustes.identidad.logoAyuda")
+      : t("panel.ajustes.identidad.faviconAyuda");
   const inputId = `ajustes-${tipo}-archivo`;
 
   return (
@@ -275,7 +318,10 @@ export function MarcaImagenPanel({
       <p className="text-muted-foreground text-xs">{ayuda}</p>
 
       {error ? (
-        <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm">
+        <p
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
+        >
           {error}
         </p>
       ) : null}
@@ -289,7 +335,14 @@ export function MarcaImagenPanel({
                 : "border-border relative size-12 overflow-hidden rounded-lg border"
             }
           >
-            <Image src={imagenUrl} alt="" fill unoptimized sizes="160px" className="object-contain" />
+            <Image
+              src={imagenUrl}
+              alt=""
+              fill
+              unoptimized
+              sizes="160px"
+              className="object-contain"
+            />
           </div>
           <Button
             type="button"
@@ -313,7 +366,9 @@ export function MarcaImagenPanel({
           </Button>
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">{t("panel.ajustes.identidad.sinImagen")}</p>
+        <p className="text-muted-foreground text-sm">
+          {t("panel.ajustes.identidad.sinImagen")}
+        </p>
       )}
 
       {habilitado ? (
@@ -338,15 +393,27 @@ export function MarcaImagenPanel({
           }}
         >
           <div className="grid gap-1.5">
-            <Label htmlFor={inputId}>{t("panel.ajustes.marca.imagenArchivo")}</Label>
-            <Input id={inputId} name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
+            <Label htmlFor={inputId}>
+              {t("panel.ajustes.marca.imagenArchivo")}
+            </Label>
+            <Input
+              id={inputId}
+              name="file"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              required
+            />
           </div>
           <Button type="submit" disabled={isPending}>
-            {isPending ? t("panel.fotos.subiendo") : t("panel.ajustes.marca.imagenSubir")}
+            {isPending
+              ? t("panel.fotos.subiendo")
+              : t("panel.ajustes.marca.imagenSubir")}
           </Button>
         </form>
       ) : (
-        <p className="text-muted-foreground text-xs">{t("panel.ajustes.marca.sinCloudinary")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.ajustes.marca.sinCloudinary")}
+        </p>
       )}
     </div>
   );

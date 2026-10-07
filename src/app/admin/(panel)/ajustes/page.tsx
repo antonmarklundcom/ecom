@@ -63,16 +63,29 @@ export default async function AdminAjustesPage() {
   return (
     <div className="grid gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("panel.ajustes.titulo")}</h1>
-        <p className="text-muted-foreground mt-1 text-sm">{t("panel.ajustes.bajada")}</p>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {t("panel.ajustes.titulo")}
+        </h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {t("panel.ajustes.bajada")}
+        </p>
         {updatedAt ? (
           <p className="text-muted-foreground mt-1 text-xs">
-            {t("panel.ajustes.actualizado", { fecha: formatDateTimePY(updatedAt) })}
+            {t("panel.ajustes.actualizado", {
+              fecha: formatDateTimePY(updatedAt),
+            })}
           </p>
         ) : null}
-        <nav className="mt-3 flex flex-wrap gap-2 text-sm" aria-label={t("panel.ajustes.indice")}>
+        <nav
+          className="mt-3 flex flex-wrap gap-2 text-sm"
+          aria-label={t("panel.ajustes.indice")}
+        >
           {INDICE.map(([id, clave]) => (
-            <a key={id} href={`#${id}`} className="hover:bg-muted rounded-lg border px-2.5 py-1">
+            <a
+              key={id}
+              href={`#${id}`}
+              className="hover:bg-muted rounded-lg border px-2.5 py-1"
+            >
               {t(clave)}
             </a>
           ))}
@@ -137,7 +150,11 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
   };
 
   return (
-    <Tarjeta id="marca" titulo={t("panel.ajustes.marca.titulo")} bajada={t("panel.ajustes.marca.bajada")}>
+    <Tarjeta
+      id="marca"
+      titulo={t("panel.ajustes.marca.titulo")}
+      bajada={t("panel.ajustes.marca.bajada")}
+    >
       <SettingsSectionForm seccion="marca" campos={campos}>
         <div className="grid gap-3 sm:grid-cols-2">
           <CampoTexto
@@ -165,7 +182,9 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
         </div>
 
         <fieldset className="border-border grid gap-3 rounded-lg border p-3">
-          <legend className="px-1 text-sm font-medium">{t("panel.ajustes.marca.hero")}</legend>
+          <legend className="px-1 text-sm font-medium">
+            {t("panel.ajustes.marca.hero")}
+          </legend>
           <CampoCheck
             nombre="heroActivo"
             etiqueta={t("panel.ajustes.marca.heroActivo")}
@@ -198,7 +217,9 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
               nombre="heroCtaHref"
               etiqueta={t("panel.ajustes.marca.heroCtaHref")}
               valor={m.heroCtaHref}
-              porDefecto={base.cta?.href || t("panel.ajustes.marca.heroCtaHrefDefecto")}
+              porDefecto={
+                base.cta?.href || t("panel.ajustes.marca.heroCtaHrefDefecto")
+              }
               max={300}
               ayuda={t("panel.ajustes.marca.heroCtaHrefAyuda")}
             />
@@ -212,11 +233,18 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
           </div>
           {/* La foto se sube aparte (abajo); este campo viaja con el formulario
               para que guardar los textos no la borre. */}
-          <input type="hidden" name="heroImagenId" defaultValue={m.heroImagenId ?? ""} />
+          <input
+            type="hidden"
+            name="heroImagenId"
+            defaultValue={m.heroImagenId ?? ""}
+          />
         </fieldset>
       </SettingsSectionForm>
 
-      <HeroImagePanel imagenUrl={imagenUrl} habilitado={cloudinaryConfigured()} />
+      <HeroImagePanel
+        imagenUrl={imagenUrl}
+        habilitado={cloudinaryConfigured()}
+      />
     </Tarjeta>
   );
 }
@@ -247,7 +275,9 @@ function IdentidadSection({ settings }: { settings: StoreSettings }) {
             ayuda={t("panel.ajustes.identidad.nombreAyuda")}
           />
           <div className="grid gap-1.5">
-            <Label htmlFor="ajustes-colorPrimario">{t("panel.ajustes.identidad.color")}</Label>
+            <Label htmlFor="ajustes-colorPrimario">
+              {t("panel.ajustes.identidad.color")}
+            </Label>
             <div className="flex items-center gap-2">
               <Input
                 id="ajustes-colorPrimario"
@@ -266,13 +296,19 @@ function IdentidadSection({ settings }: { settings: StoreSettings }) {
                 />
               ) : null}
             </div>
-            <p className="text-muted-foreground text-xs">{t("panel.ajustes.identidad.colorAyuda")}</p>
+            <p className="text-muted-foreground text-xs">
+              {t("panel.ajustes.identidad.colorAyuda")}
+            </p>
           </div>
         </div>
         {/* Las imágenes se suben aparte (abajo); viajan con el formulario
             para que guardar el nombre o el color no las borre. */}
         <input type="hidden" name="logoId" defaultValue={i.logoId ?? ""} />
-        <input type="hidden" name="faviconId" defaultValue={i.faviconId ?? ""} />
+        <input
+          type="hidden"
+          name="faviconId"
+          defaultValue={i.faviconId ?? ""}
+        />
       </SettingsSectionForm>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -293,7 +329,9 @@ function IdentidadSection({ settings }: { settings: StoreSettings }) {
 
 function CuentasSection({ settings }: { settings: StoreSettings }) {
   const c = settings.cuentas;
-  const porDefecto = TIENDA.cuentasClientes ? t("panel.ajustes.si") : t("panel.ajustes.no");
+  const porDefecto = TIENDA.cuentasClientes
+    ? t("panel.ajustes.si")
+    : t("panel.ajustes.no");
   return (
     <Tarjeta
       id="cuentas"
@@ -312,7 +350,10 @@ function CuentasSection({ settings }: { settings: StoreSettings }) {
           ]}
         />
         {!customerSessionConfigured() ? (
-          <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm">
+          <p
+            role="alert"
+            className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
+          >
             {t("panel.ajustes.cuentas.sinSecreto")}
           </p>
         ) : null}
@@ -324,9 +365,20 @@ function CuentasSection({ settings }: { settings: StoreSettings }) {
 function AnuncioSection({ settings }: { settings: StoreSettings }) {
   const a = settings.anuncio;
   return (
-    <Tarjeta id="anuncio" titulo={t("panel.ajustes.anuncio.titulo")} bajada={t("panel.ajustes.anuncio.bajada")}>
-      <SettingsSectionForm seccion="anuncio" campos={{ activo: "booleano", texto: "texto", href: "texto" }}>
-        <CampoCheck nombre="activo" etiqueta={t("panel.ajustes.anuncio.activo")} valor={a.activo} />
+    <Tarjeta
+      id="anuncio"
+      titulo={t("panel.ajustes.anuncio.titulo")}
+      bajada={t("panel.ajustes.anuncio.bajada")}
+    >
+      <SettingsSectionForm
+        seccion="anuncio"
+        campos={{ activo: "booleano", texto: "texto", href: "texto" }}
+      >
+        <CampoCheck
+          nombre="activo"
+          etiqueta={t("panel.ajustes.anuncio.activo")}
+          valor={a.activo}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           <CampoTexto
             nombre="texto"
@@ -368,7 +420,11 @@ function ContactoSection({
     tiktok: "texto",
   };
   return (
-    <Tarjeta id="contacto" titulo={t("panel.ajustes.contacto.titulo")} bajada={t("panel.ajustes.contacto.bajada")}>
+    <Tarjeta
+      id="contacto"
+      titulo={t("panel.ajustes.contacto.titulo")}
+      bajada={t("panel.ajustes.contacto.bajada")}
+    >
       <SettingsSectionForm seccion="contacto" campos={campos}>
         <div className="grid gap-3 sm:grid-cols-2">
           <CampoTexto
@@ -403,9 +459,33 @@ function ContactoSection({
             max={200}
             ejemplo={t("panel.ajustes.contacto.horarioEjemplo")}
           />
-          <CampoTexto nombre="instagram" etiqueta="Instagram" valor={c.instagram} porDefecto={null} max={300} tipo="url" ejemplo="https://instagram.com/…" />
-          <CampoTexto nombre="facebook" etiqueta="Facebook" valor={c.facebook} porDefecto={null} max={300} tipo="url" ejemplo="https://facebook.com/…" />
-          <CampoTexto nombre="tiktok" etiqueta="TikTok" valor={c.tiktok} porDefecto={null} max={300} tipo="url" ejemplo="https://tiktok.com/@…" />
+          <CampoTexto
+            nombre="instagram"
+            etiqueta="Instagram"
+            valor={c.instagram}
+            porDefecto={null}
+            max={300}
+            tipo="url"
+            ejemplo="https://instagram.com/…"
+          />
+          <CampoTexto
+            nombre="facebook"
+            etiqueta="Facebook"
+            valor={c.facebook}
+            porDefecto={null}
+            max={300}
+            tipo="url"
+            ejemplo="https://facebook.com/…"
+          />
+          <CampoTexto
+            nombre="tiktok"
+            etiqueta="TikTok"
+            valor={c.tiktok}
+            porDefecto={null}
+            max={300}
+            tipo="url"
+            ejemplo="https://tiktok.com/@…"
+          />
         </div>
       </SettingsSectionForm>
     </Tarjeta>
@@ -426,13 +506,33 @@ function EnvioDevolucionSection({ settings }: { settings: StoreSettings }) {
     returnMethod: "texto",
   };
   return (
-    <Tarjeta id="envio" titulo={t("panel.ajustes.envio.titulo")} bajada={t("panel.ajustes.envio.bajada")}>
+    <Tarjeta
+      id="envio"
+      titulo={t("panel.ajustes.envio.titulo")}
+      bajada={t("panel.ajustes.envio.bajada")}
+    >
       <SettingsSectionForm seccion="envioDevolucion" campos={campos}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CampoNumero nombre="handlingDaysMin" etiqueta={t("panel.ajustes.envio.preparacionMin")} valor={e.handlingDaysMin} />
-          <CampoNumero nombre="handlingDaysMax" etiqueta={t("panel.ajustes.envio.preparacionMax")} valor={e.handlingDaysMax} />
-          <CampoNumero nombre="transitDaysMin" etiqueta={t("panel.ajustes.envio.transitoMin")} valor={e.transitDaysMin} />
-          <CampoNumero nombre="transitDaysMax" etiqueta={t("panel.ajustes.envio.transitoMax")} valor={e.transitDaysMax} />
+          <CampoNumero
+            nombre="handlingDaysMin"
+            etiqueta={t("panel.ajustes.envio.preparacionMin")}
+            valor={e.handlingDaysMin}
+          />
+          <CampoNumero
+            nombre="handlingDaysMax"
+            etiqueta={t("panel.ajustes.envio.preparacionMax")}
+            valor={e.handlingDaysMax}
+          />
+          <CampoNumero
+            nombre="transitDaysMin"
+            etiqueta={t("panel.ajustes.envio.transitoMin")}
+            valor={e.transitDaysMin}
+          />
+          <CampoNumero
+            nombre="transitDaysMax"
+            etiqueta={t("panel.ajustes.envio.transitoMax")}
+            valor={e.transitDaysMax}
+          />
           <CampoNumero
             nombre="shippingFromPyg"
             etiqueta={t("panel.ajustes.envio.desde")}
@@ -445,14 +545,20 @@ function EnvioDevolucionSection({ settings }: { settings: StoreSettings }) {
           <CampoSelect
             nombre="acceptsReturns"
             etiqueta={t("panel.ajustes.envio.aceptaDevoluciones")}
-            valor={e.acceptsReturns === null ? "" : e.acceptsReturns ? "si" : "no"}
+            valor={
+              e.acceptsReturns === null ? "" : e.acceptsReturns ? "si" : "no"
+            }
             opciones={[
               ["", t("panel.ajustes.envio.sinResponder")],
               ["si", t("panel.ajustes.si")],
               ["no", t("panel.ajustes.no")],
             ]}
           />
-          <CampoNumero nombre="returnDays" etiqueta={t("panel.ajustes.envio.diasDevolucion")} valor={e.returnDays} />
+          <CampoNumero
+            nombre="returnDays"
+            etiqueta={t("panel.ajustes.envio.diasDevolucion")}
+            valor={e.returnDays}
+          />
           <CampoSelect
             nombre="returnFees"
             etiqueta={t("panel.ajustes.envio.costoDevolucion")}
@@ -475,7 +581,9 @@ function EnvioDevolucionSection({ settings }: { settings: StoreSettings }) {
             ]}
           />
         </div>
-        <p className="text-muted-foreground text-xs">{t("panel.ajustes.envio.ayuda")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.ajustes.envio.ayuda")}
+        </p>
       </SettingsSectionForm>
     </Tarjeta>
   );
@@ -493,10 +601,17 @@ function PaginasSection({ settings }: { settings: StoreSettings }) {
       {PAGINAS.map((slug) => {
         const pagina = paginaEfectiva(settings, slug);
         return (
-          <div key={slug} className="border-border grid gap-3 rounded-lg border p-3">
+          <div
+            key={slug}
+            className="border-border grid gap-3 rounded-lg border p-3"
+          >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="font-medium">{pagina.titulo}</h3>
-              <Link href={`/${slug}`} target="_blank" className="text-sm underline">
+              <Link
+                href={`/${slug}`}
+                target="_blank"
+                className="text-sm underline"
+              >
                 {t("panel.ajustes.paginas.ver", { ruta: `/${slug}` })}
               </Link>
             </div>
@@ -509,10 +624,17 @@ function PaginasSection({ settings }: { settings: StoreSettings }) {
               seccion="paginas"
               anidarEn={slug}
               campos={{ activo: "booleano", titulo: "texto", cuerpo: "texto" }}
-              restaurar={{ [slug]: { activo: pagina.activo, titulo: null, cuerpo: null } }}
+              restaurar={{
+                [slug]: { activo: pagina.activo, titulo: null, cuerpo: null },
+              }}
               restaurarLabel={t("panel.ajustes.paginas.restaurar")}
             >
-              <CampoCheck nombre="activo" etiqueta={t("panel.ajustes.paginas.activo")} valor={pagina.activo} id={`pagina-${slug}-activo`} />
+              <CampoCheck
+                nombre="activo"
+                etiqueta={t("panel.ajustes.paginas.activo")}
+                valor={pagina.activo}
+                id={`pagina-${slug}-activo`}
+              />
               <CampoTexto
                 nombre="titulo"
                 etiqueta={t("panel.ajustes.paginas.titulo")}
@@ -522,7 +644,9 @@ function PaginasSection({ settings }: { settings: StoreSettings }) {
                 id={`pagina-${slug}-titulo`}
               />
               <div className="grid gap-1.5">
-                <Label htmlFor={`pagina-${slug}-cuerpo`}>{t("panel.ajustes.paginas.cuerpo")}</Label>
+                <Label htmlFor={`pagina-${slug}-cuerpo`}>
+                  {t("panel.ajustes.paginas.cuerpo")}
+                </Label>
                 <textarea
                   id={`pagina-${slug}-cuerpo`}
                   name="cuerpo"
@@ -531,7 +655,9 @@ function PaginasSection({ settings }: { settings: StoreSettings }) {
                   defaultValue={pagina.cuerpo}
                   className="border-input bg-background rounded-md border px-3 py-2 font-mono text-xs"
                 />
-                <p className="text-muted-foreground text-xs">{t("panel.markdown.ayuda")}</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("panel.markdown.ayuda")}
+                </p>
               </div>
             </SettingsSectionForm>
           </div>
@@ -544,10 +670,17 @@ function PaginasSection({ settings }: { settings: StoreSettings }) {
 function VidrieraSection({ settings }: { settings: StoreSettings }) {
   const v = settings.vidriera;
   return (
-    <Tarjeta id="vidriera" titulo={t("panel.ajustes.vidriera.titulo")} bajada={t("panel.ajustes.vidriera.bajada")}>
+    <Tarjeta
+      id="vidriera"
+      titulo={t("panel.ajustes.vidriera.titulo")}
+      bajada={t("panel.ajustes.vidriera.bajada")}
+    >
       <SettingsSectionForm
         seccion="vidriera"
-        campos={{ estrellasEnTarjetas: "booleano", barraCompraMovil: "booleano" }}
+        campos={{
+          estrellasEnTarjetas: "booleano",
+          barraCompraMovil: "booleano",
+        }}
       >
         <CampoCheck
           nombre="estrellasEnTarjetas"
@@ -578,9 +711,53 @@ function CheckoutSection({ settings }: { settings: StoreSettings }) {
     >
       <SettingsSectionForm
         seccion="checkout"
-        campos={{ confianzaActiva: "booleano", confianzaTitulo: "texto", confianzaLineas: "lista" }}
+        campos={{
+          confianzaActiva: "booleano",
+          confianzaTitulo: "texto",
+          confianzaLineas: "lista",
+          metodosPago: "politicaPago",
+        }}
       >
-        <CampoCheck nombre="confianzaActiva" etiqueta={t("panel.ajustes.checkout.activo")} valor={c.confianzaActiva} />
+        <fieldset className="grid gap-2 rounded border p-3">
+          <legend>Métodos de pago</legend>
+          <label>
+            <input
+              type="checkbox"
+              name="politicaPagoPropia"
+              defaultChecked={c.metodosPago !== null}
+            />{" "}
+            Usar selección propia del panel
+          </label>
+          {(["transferencia", "contra_entrega", "tarjeta"] as const).map(
+            (method) => (
+              <label key={method}>
+                <input
+                  type="checkbox"
+                  name="metodosPago"
+                  value={method}
+                  defaultChecked={(
+                    c.metodosPago ?? [
+                      "transferencia",
+                      "contra_entrega",
+                      "tarjeta",
+                    ]
+                  ).includes(method)}
+                />{" "}
+                {method.replace("_", " ")}
+              </label>
+            )
+          )}
+          <p className="text-sm">
+            Sin selección propia se usa la configuración de la tienda.
+            Transferencia requiere datos bancarios y tarjeta requiere proveedor
+            configurado. Una selección propia vacía desactiva el checkout.
+          </p>
+        </fieldset>
+        <CampoCheck
+          nombre="confianzaActiva"
+          etiqueta={t("panel.ajustes.checkout.activo")}
+          valor={c.confianzaActiva}
+        />
         <CampoTexto
           nombre="confianzaTitulo"
           etiqueta={t("panel.ajustes.checkout.titulo")}
@@ -589,7 +766,9 @@ function CheckoutSection({ settings }: { settings: StoreSettings }) {
           max={60}
         />
         <div className="grid gap-2">
-          <p className="text-sm font-medium">{t("panel.ajustes.checkout.lineas")}</p>
+          <p className="text-sm font-medium">
+            {t("panel.ajustes.checkout.lineas")}
+          </p>
           {[0, 1, 2, 3].map((indice) => (
             <Input
               key={indice}
@@ -597,10 +776,14 @@ function CheckoutSection({ settings }: { settings: StoreSettings }) {
               aria-label={t("panel.ajustes.checkout.lineaN", { n: indice + 1 })}
               maxLength={120}
               defaultValue={propias[indice] ?? ""}
-              placeholder={propias.length === 0 ? (porDefecto[indice] ?? "") : ""}
+              placeholder={
+                propias.length === 0 ? (porDefecto[indice] ?? "") : ""
+              }
             />
           ))}
-          <p className="text-muted-foreground text-xs">{t("panel.ajustes.checkout.lineasAyuda")}</p>
+          <p className="text-muted-foreground text-xs">
+            {t("panel.ajustes.checkout.lineasAyuda")}
+          </p>
         </div>
       </SettingsSectionForm>
     </Tarjeta>
@@ -609,8 +792,15 @@ function CheckoutSection({ settings }: { settings: StoreSettings }) {
 
 function StockSection({ settings }: { settings: StoreSettings }) {
   return (
-    <Tarjeta id="stock" titulo={t("panel.ajustes.stock.titulo")} bajada={t("panel.ajustes.stock.bajada")}>
-      <SettingsSectionForm seccion="stock" campos={{ umbralStockBajo: "texto" }}>
+    <Tarjeta
+      id="stock"
+      titulo={t("panel.ajustes.stock.titulo")}
+      bajada={t("panel.ajustes.stock.bajada")}
+    >
+      <SettingsSectionForm
+        seccion="stock"
+        campos={{ umbralStockBajo: "texto" }}
+      >
         <CampoNumero
           nombre="umbralStockBajo"
           etiqueta={t("panel.ajustes.stock.umbral")}
@@ -638,7 +828,10 @@ function Tarjeta({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="border-border grid scroll-mt-20 gap-4 rounded-xl border p-4">
+    <section
+      id={id}
+      className="border-border grid scroll-mt-20 gap-4 rounded-xl border p-4"
+    >
       <div>
         <h2 className="font-medium">{titulo}</h2>
         <p className="text-muted-foreground mt-1 text-sm">{bajada}</p>
@@ -782,10 +975,18 @@ function CampoCheck({
   return (
     <div className="grid gap-1">
       <label htmlFor={inputId} className="flex items-center gap-2 text-sm">
-        <input id={inputId} name={nombre} type="checkbox" defaultChecked={valor} className="size-4" />
+        <input
+          id={inputId}
+          name={nombre}
+          type="checkbox"
+          defaultChecked={valor}
+          className="size-4"
+        />
         {etiqueta}
       </label>
-      {ayuda ? <p className="text-muted-foreground pl-6 text-xs">{ayuda}</p> : null}
+      {ayuda ? (
+        <p className="text-muted-foreground pl-6 text-xs">{ayuda}</p>
+      ) : null}
     </div>
   );
 }

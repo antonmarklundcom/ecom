@@ -45,6 +45,8 @@ function revalidarVidriera(): void {
 }
 
 const CreateSchema = z.object({
+  seoTitle: z.string().trim().max(200).nullish(),
+  seoDescription: z.string().trim().max(500).nullish(),
   name: z.string().trim().min(1, t("adminForm.nombreCategoria")).max(120),
   slug: z.string().trim().max(120).optional(),
   /**
@@ -57,16 +59,23 @@ const CreateSchema = z.object({
   imageAlt: z.string().trim().max(200).nullish(),
 });
 
-export async function crearCategoria(input: unknown): Promise<AdminActionResult<{ id: number }>> {
+export async function crearCategoria(
+  input: unknown
+): Promise<AdminActionResult<{ id: number }>> {
   try {
     await requireOwnerSession();
 
     const parsed = CreateSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos"),
+      };
     }
 
     const created = await createCategory({
+      seoTitle: parsed.data.seoTitle,
+      seoDescription: parsed.data.seoDescription,
       name: parsed.data.name,
       slug: parsed.data.slug || null,
       description: parsed.data.description,
@@ -77,12 +86,15 @@ export async function crearCategoria(input: unknown): Promise<AdminActionResult<
     revalidarVidriera();
     return { ok: true, id: created.id };
   } catch (error) {
-    if (error instanceof AdminCategoryError) return { ok: false, error: error.message };
+    if (error instanceof AdminCategoryError)
+      return { ok: false, error: error.message };
     return adminActionError("crearCategoria", error);
   }
 }
 
 const UpdateSchema = z.object({
+  seoTitle: z.string().trim().max(200).nullish(),
+  seoDescription: z.string().trim().max(500).nullish(),
   categoryId: z.number().int().positive(),
   name: z.string().trim().min(1, t("adminForm.nombreCategoria")).max(120),
   slug: z.string().trim().max(120).optional(),
@@ -96,16 +108,23 @@ const UpdateSchema = z.object({
   imageAlt: z.string().trim().max(200).nullish(),
 });
 
-export async function editarCategoria(input: unknown): Promise<AdminActionResult> {
+export async function editarCategoria(
+  input: unknown
+): Promise<AdminActionResult> {
   try {
     await requireOwnerSession();
 
     const parsed = UpdateSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos") };
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos"),
+      };
     }
 
     await updateCategory({
+      seoTitle: parsed.data.seoTitle,
+      seoDescription: parsed.data.seoDescription,
       categoryId: parsed.data.categoryId,
       name: parsed.data.name,
       slug: parsed.data.slug || null,
@@ -117,7 +136,8 @@ export async function editarCategoria(input: unknown): Promise<AdminActionResult
     revalidarVidriera();
     return { ok: true };
   } catch (error) {
-    if (error instanceof AdminCategoryError) return { ok: false, error: error.message };
+    if (error instanceof AdminCategoryError)
+      return { ok: false, error: error.message };
     return adminActionError("editarCategoria", error);
   }
 }
@@ -140,7 +160,9 @@ export async function editarCategoria(input: unknown): Promise<AdminActionResult
  * en Cloudinary, y el peor caso de hacerlo al revés es una categoría apuntando
  * a una foto que ya no existe.
  */
-export async function uploadCategoryImage(formData: FormData): Promise<AdminActionResult> {
+export async function uploadCategoryImage(
+  formData: FormData
+): Promise<AdminActionResult> {
   try {
     await requireOwnerSession();
 
@@ -155,11 +177,14 @@ export async function uploadCategoryImage(formData: FormData): Promise<AdminActi
     }
 
     const content = Buffer.from(await file.arrayBuffer());
-    const { mime } = validateProductImage({ bytes: content.byteLength, content });
+    const { mime } = validateProductImage({
+      bytes: content.byteLength,
+      content,
+    });
 
     const uploaded = await cloudinary.uploader.upload(
       `data:${mime};base64,${content.toString("base64")}`,
-      { folder: carpetaCategorias(), resource_type: "image", overwrite: false },
+      { folder: carpetaCategorias(), resource_type: "image", overwrite: false }
     );
 
     const altRaw = String(formData.get("alt") ?? "").trim();
@@ -167,12 +192,18 @@ export async function uploadCategoryImage(formData: FormData): Promise<AdminActi
       categoryId,
       imageCloudinaryId: uploaded.public_id,
       // Ausente = no se toca el alt que ya había.
-      imageAlt: formData.has("alt") ? (altRaw === "" ? null : altRaw.slice(0, 200)) : undefined,
+      imageAlt: formData.has("alt")
+        ? altRaw === ""
+          ? null
+          : altRaw.slice(0, 200)
+        : undefined,
     });
 
     if (previousCloudinaryId) {
       try {
-        await cloudinary.uploader.destroy(previousCloudinaryId, { resource_type: "image" });
+        await cloudinary.uploader.destroy(previousCloudinaryId, {
+          resource_type: "image",
+        });
       } catch (error) {
         log.warn("uploadCategoryImage.destroy", { error: mensajeDe(error) });
       }
@@ -181,7 +212,8 @@ export async function uploadCategoryImage(formData: FormData): Promise<AdminActi
     revalidarVidriera();
     return { ok: true };
   } catch (error) {
-    if (error instanceof AdminCategoryError) return { ok: false, error: error.message };
+    if (error instanceof AdminCategoryError)
+      return { ok: false, error: error.message };
     return adminActionError("uploadCategoryImage", error);
   }
 }
@@ -191,12 +223,15 @@ const ActiveSchema = z.object({
   isActive: z.boolean(),
 });
 
-export async function cambiarEstadoCategoria(input: unknown): Promise<AdminActionResult> {
+export async function cambiarEstadoCategoria(
+  input: unknown
+): Promise<AdminActionResult> {
   try {
     await requireOwnerSession();
 
     const parsed = ActiveSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.categoria") };
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.noEntendi.categoria") };
 
     await setCategoryActive({
       categoryId: parsed.data.categoryId,
@@ -206,7 +241,8 @@ export async function cambiarEstadoCategoria(input: unknown): Promise<AdminActio
     revalidarVidriera();
     return { ok: true };
   } catch (error) {
-    if (error instanceof AdminCategoryError) return { ok: false, error: error.message };
+    if (error instanceof AdminCategoryError)
+      return { ok: false, error: error.message };
     return adminActionError("cambiarEstadoCategoria", error);
   }
 }
@@ -216,12 +252,15 @@ const MoveSchema = z.object({
   direction: z.enum(["up", "down"]),
 });
 
-export async function moverCategoria(input: unknown): Promise<AdminActionResult> {
+export async function moverCategoria(
+  input: unknown
+): Promise<AdminActionResult> {
   try {
     await requireOwnerSession();
 
     const parsed = MoveSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: t("adminError.noEntendi.mover") };
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.noEntendi.mover") };
 
     await moveCategory({
       categoryId: parsed.data.categoryId,
@@ -231,7 +270,8 @@ export async function moverCategoria(input: unknown): Promise<AdminActionResult>
     revalidarVidriera();
     return { ok: true };
   } catch (error) {
-    if (error instanceof AdminCategoryError) return { ok: false, error: error.message };
+    if (error instanceof AdminCategoryError)
+      return { ok: false, error: error.message };
     return adminActionError("moverCategoria", error);
   }
 }

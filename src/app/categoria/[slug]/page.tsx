@@ -4,6 +4,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
 
+import { CATALOGUE } from "@/config/catalogue";
+import { CatalogueEditorial } from "@/components/catalogue-editorial";
+import { AttributeFilters } from "@/components/attribute-filters";
+import {
+  getCatalogueFacets,
+  parseCatalogueFilters,
+} from "@/domain/catalogue-facets";
 import { CatalogFilters } from "@/components/catalog-filters";
 import { ProductCard } from "@/components/product-card";
 import { ProductDescription } from "@/components/product-description";
@@ -23,7 +30,7 @@ import {
   isCatalogSort,
 } from "@/db/queries";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type Params = Promise<{ slug: string }>;
@@ -48,13 +55,14 @@ export async function generateMetadata({
   searchParams: SearchParams;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const category = await loadCategory(slug).catch(() => null);
+  const category = await loadCategory(slug);
   if (!category) return { title: t("categoria.meta") };
 
   // `markdownToText`: la descripción acepta markdown (O7), y una que empiece
   // con `**Importado**` publicaría literalmente los asteriscos en el
   // resultado de Google — mismo motivo que en `producto/[slug]`.
   const description =
+    category.seoDescription?.trim() ||
     markdownToText(category.description).slice(0, 160) ||
     t("categoria.metaDescripcion", { nombre: category.name });
 
@@ -76,7 +84,7 @@ export async function generateMetadata({
     : undefined;
 
   return {
-    title: category.name,
+    title: category.seoTitle?.trim() || category.name,
     description,
     ...(filtered ? { robots: { index: false, follow: true } } : {}),
     ...(canonical ? { alternates: { canonical } } : {}),
@@ -115,8 +123,9 @@ export default async function CategoryPage({
       : 1;
 
   const { vidriera } = await getStoreSettings();
-  const [result, brands] = await Promise.all([
+  const [result, brands, facets] = await Promise.all([
     getCategoryProducts({
+      ...parseCatalogueFilters(query),
       categorySlug: slug,
       brand: first(query.marca),
       minPricePyg: min,
@@ -125,6 +134,7 @@ export default async function CategoryPage({
       page,
     }),
     getBrands(slug),
+    getCatalogueFacets(slug),
   ]);
 
   const buildPageHref = (target: number) => {
@@ -206,6 +216,7 @@ export default async function CategoryPage({
       <div className="mt-5">
         <Suspense fallback={null}>
           <CatalogFilters brands={brands} />
+          <AttributeFilters facets={facets} />
         </Suspense>
       </div>
 
@@ -237,6 +248,7 @@ export default async function CategoryPage({
         </div>
       )}
 
+      <CatalogueEditorial content={CATALOGUE.categories[category.slug]} />
       {result.totalPages > 1 ? (
         <nav
           className="mt-8 flex items-center justify-center gap-3"

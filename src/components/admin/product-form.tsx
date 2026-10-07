@@ -4,6 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import {
+  MetadataField,
+  ProductSeoFields,
+  metadataFormValue,
+} from "./metadata-field";
+import type {
+  ProductSpecifications,
+  SupplierDetails,
+} from "@/lib/product-attributes";
 import { saveProduct } from "@/app/actions/admin-products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +23,10 @@ import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
 
 export type ProductFormValues = {
+  specifications?: ProductSpecifications | null;
+  supplierDetails?: SupplierDetails | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   productId?: number;
@@ -53,9 +66,22 @@ export function ProductForm({
         event.preventDefault();
         setError(null);
         const data = new FormData(event.currentTarget);
+        let specifications: unknown, supplierDetails: unknown;
+        try {
+          specifications = metadataFormValue(data, "specifications");
+          supplierDetails = metadataFormValue(data, "supplierDetails");
+        } catch {
+          setError("Revisá el JSON de los datos del producto.");
+          return;
+        }
 
         startTransition(async () => {
           const result = await saveProduct({
+            specifications,
+            supplierDetails,
+            seoTitle: String(data.get("seoTitle") ?? "").trim() || null,
+            seoDescription:
+              String(data.get("seoDescription") ?? "").trim() || null,
             productId: defaults.productId,
             saleMode: String(data.get("saleMode") ?? "stock"),
             showPrice: data.get("showPrice") === "on",
@@ -84,6 +110,25 @@ export function ProductForm({
         });
       }}
     >
+      <ProductSeoFields
+        title={defaults.seoTitle}
+        description={defaults.seoDescription}
+      />
+      <details className="rounded border p-3">
+        <summary>Hechos públicos y fuentes privadas (opcionales)</summary>
+        <div className="mt-3 grid gap-4">
+          <MetadataField
+            name="specifications"
+            label="Ficha técnica pública verificada"
+            value={defaults.specifications}
+          />
+          <MetadataField
+            name="supplierDetails"
+            label="Fuentes privadas y procedencia de imágenes"
+            value={defaults.supplierDetails}
+          />
+        </div>
+      </details>
       {error ? (
         <p
           role="alert"

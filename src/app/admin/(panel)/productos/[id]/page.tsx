@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DuplicateProductButton } from "@/components/admin/bulk-actions";
+import { ProductCompleteness } from "@/components/admin/product-completeness";
 import { ProductForm } from "@/components/admin/product-form";
 import { ProductImages } from "@/components/admin/product-images";
 import { VariantEditor } from "@/components/admin/variant-editor";
@@ -68,6 +69,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
         </Link>
       </p>
 
+      <ProductCompleteness input={{ ...product, images, variants }} />
       <section className="mt-6">
         <h2 className="font-medium">{t("panel.producto.datos")}</h2>
         <div className="mt-2">
@@ -77,6 +79,10 @@ export default async function AdminProductPage({ params }: { params: Params }) {
               name: category.name,
             }))}
             defaults={{
+              specifications: product.specifications,
+              supplierDetails: product.supplierDetails,
+              seoTitle: product.seoTitle,
+              seoDescription: product.seoDescription,
               productId: product.id,
               saleMode: product.saleMode,
               showPrice: product.showPrice,
@@ -101,6 +107,8 @@ export default async function AdminProductPage({ params }: { params: Params }) {
             productId={product.id}
             variants={variants.map((variant) => ({
               id: variant.id,
+              attributes: variant.attributes,
+              identifiers: variant.identifiers,
               sku: variant.sku,
               label: variant.label,
               pricePyg: variant.pricePyg,

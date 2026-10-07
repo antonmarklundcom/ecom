@@ -1,9 +1,16 @@
 import { eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { categories, priceAdjustments, products, variants } from "@/db/schema";
+import {
+  categories,
+  priceAdjustments,
+  products,
+  productSlugRedirects,
+  variants,
+} from "@/db/schema";
 import type { MessageKey, Params } from "@/i18n";
 
+import { claimProductSlug } from "./product-slugs";
 import { DomainError } from "./errors";
 import type { Executor, Tx } from "./executor";
 
@@ -346,6 +353,10 @@ export async function duplicateProduct(productId: number): Promise<number> {
       saleMode: original.saleMode,
       showPrice: original.showPrice,
       description: original.description,
+      specifications: original.specifications,
+      supplierDetails: null,
+      seoTitle: original.seoTitle,
+      seoDescription: original.seoDescription,
       categoryId: original.categoryId,
       brand: original.brand,
       ivaRate: original.ivaRate,
@@ -362,6 +373,8 @@ export async function duplicateProduct(productId: number): Promise<number> {
     const nuevoId = creados[0]?.id;
     if (!nuevoId) throw new AdminBulkError("adminError.masivo.noPude");
 
+    await claimProductSlug(tx, slug, nuevoId);
+
     const variantesOriginales = await tx
       .select()
       .from(variants)
@@ -373,6 +386,8 @@ export async function duplicateProduct(productId: number): Promise<number> {
         productId: nuevoId,
         sku: await skuLibre(tx, variante.sku),
         label: variante.label,
+        attributes: variante.attributes,
+        identifiers: null,
         pricePyg: variante.pricePyg,
         compareAtPyg: variante.compareAtPyg,
         reorderPoint: variante.reorderPoint,
@@ -399,7 +414,12 @@ async function slugLibre(tx: Executor, base: string): Promise<string> {
       .from(products)
       .where(eq(products.slug, recortado))
       .limit(1);
-    if (!choque[0]) return recortado;
+    const [alias] = await tx
+      .select({ slug: productSlugRedirects.slug })
+      .from(productSlugRedirects)
+      .where(eq(productSlugRedirects.slug, recortado))
+      .limit(1);
+    if (!choque[0] && !alias) return recortado;
   }
   throw new AdminBulkError("adminError.masivo.demasiadasCopias");
 }

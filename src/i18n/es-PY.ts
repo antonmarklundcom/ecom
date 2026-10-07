@@ -1985,7 +1985,6 @@ export const esPY = {
 
   // `/admin/resenas`.
   "panel.nav.resenas": "Reseñas",
-  "panel.nav.resenasPendientes": "Reseñas ({n})",
   "panel.resenas.meta": "Reseñas",
   "panel.resenas.titulo": "Reseñas",
   "panel.resenas.bajada":
@@ -2392,13 +2391,10 @@ export const esPY = {
   "setup.nombre": "Nombre (opcional)",
   "setup.duenioAyuda":
     "Vacío = no se crea ni se cambia ninguna cuenta (sólo se aplican las migraciones).",
-  "setup.seed":
-    "Cargar el catálogo de ejemplo (sólo para probar; después se reemplaza por el real)",
   "setup.force": "La tienda ya estaba inicializada y quiero repetirlo igual",
   "setup.correr": "Inicializar",
   "setup.corriendo": "Inicializando…",
   "setup.listo": "Listo. La tienda quedó inicializada.",
-  "setup.preflight": "Lo que falta para cobrar de verdad:",
   "setup.error.secreto": "El SETUP_SECRET no coincide.",
   "setup.error.limite": "Demasiados intentos. Esperá unos minutos.",
   "setup.error.https": "Hace falta entrar por https://.",
@@ -2406,4 +2402,57 @@ export const esPY = {
     'La tienda ya estaba inicializada: las migraciones corrieron, pero no se tocaron datos. Marcá "quiero repetirlo igual" si de verdad hace falta.',
   "setup.error.sinSecreto": "SETUP_SECRET no está configurado en el hosting.",
   "setup.error.generico": "No se pudo inicializar. Mirá el log del hPanel.",
+
+  "panel.menu.abrir": "Menú",
+  "panel.menu.ayuda":
+    "Arrastrá las secciones o usá las flechas. Guardá para confirmar los cambios.",
+  "panel.menu.bajar": "Bajar {item}",
+  "panel.menu.cancelar": "Cancelar",
+  "panel.menu.cerrar": "Cerrar menú",
+  "panel.menu.editar": "Editar menú",
+  "panel.menu.guardado": "Orden guardado.",
+  "panel.menu.guardar": "Guardar",
+  "panel.menu.local":
+    "El orden se guarda sólo para tu cuenta en este navegador y este sitio.",
+  "panel.menu.navegacion": "Navegación del panel",
+  "panel.menu.pendientes": "{n} reseñas pendientes",
+  "panel.menu.restaurar": "Restaurar orden original",
+  "panel.menu.sinAlmacenamiento":
+    "El navegador no permite guardar el orden. Se mantiene durante esta visita.",
+  "panel.menu.subir": "Subir {item}",
+  "panel.menu.verTienda": "Ver tienda",
+  "panel.nav.guia": "Guía",
+  "password.confirmar": "Repetí la contraseña",
+  "password.mostrar": "Mostrar contraseña",
+  "password.noCoinciden": "Las contraseñas no coinciden. Volvé a escribirlas.",
+  "password.ocultar": "Ocultar contraseña",
+  "setup.avanzado": "Recuperar o actualizar una cuenta existente",
+  "setup.catalogoAyuda":
+    "Este paso crea tu acceso al panel. El catálogo de productos se prepara después, con productos reales y datos confirmados. No se cargan productos de ejemplo.",
+  "setup.demoCatalogo": "Cargar el catálogo de ejemplo para pruebas",
+  "setup.demoCatalogoAyuda":
+    "Agrega productos ficticios para probar la tienda. Importar productos reales después no elimina estos ejemplos: tendrás que retirarlos por separado antes de vender.",
+  "setup.detalles": "Ver detalles técnicos",
+  "setup.detallesAyuda":
+    "Este informe incluye funciones opcionales y revisa algunas variables del servidor. No significa que falló la creación de tu cuenta ni reemplaza los ajustes guardados en el panel.",
+  "setup.entrando": "Estamos abriendo tu panel y la guía de primeros pasos…",
+  "setup.error.cuentaIncompleta":
+    "Completá el email y la contraseña de tu cuenta.",
+  "setup.error.cuentaSinConfirmar":
+    "El sistema respondió, pero no confirmó la creación de la cuenta. Entrá al panel si ya tenés acceso o revisá el resultado antes de repetir el setup.",
+  "setup.forceAyuda":
+    "Si es tu primera configuración, dejá esta opción sin marcar. Permite repetir el setup en una tienda ya inicializada. Si el email ya existe, se reemplaza su contraseña, se habilita su acceso como dueño y se cierran sus sesiones anteriores.",
+  "setup.listoAyuda":
+    "Tu acceso al panel está listo. La configuración de productos, pagos y entregas se hace desde allí; no hace falta completar todo para empezar a preparar el catálogo.",
+  "setup.loginButton": "Ir al login de administración",
+  "setup.loginManual":
+    "La cuenta quedó guardada, pero el ingreso automático no se completó. Entrá con el email y la contraseña que elegiste; no repitas la creación de la cuenta.",
+  "setup.mostrarSecreto": "Mostrar secreto",
+  "setup.ocultarSecreto": "Ocultar secreto",
+  "setup.passwordAyuda": "Al menos {minimo} caracteres, con letras y números.",
+  "setup.yaTengoCuenta": "Ya tengo una cuenta: entrar al panel",
+  "adminError.producto.atributosInvalidos":
+    "Revisá los atributos, las fuentes y los identificadores verificados.",
+  "adminError.producto.slugHistorico":
+    "La URL {slug} ya está reservada por el catálogo o su historial. Elegí otra URL.",
 } as const satisfies Record<string, string>;

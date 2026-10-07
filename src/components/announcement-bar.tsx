@@ -15,7 +15,13 @@ import { usePathname } from "next/navigation";
  * Piel: cada tienda la puede rediseñar libre (colores, íconos, un botón para
  * cerrarla).
  */
-export function AnnouncementBar({ texto, href }: { texto: string; href: string | null }) {
+export function AnnouncementBar({
+  texto,
+  href,
+}: {
+  texto: string;
+  href: string | null;
+}) {
   const pathname = usePathname();
   if (pathname?.startsWith("/admin")) return null;
 
@@ -23,10 +29,18 @@ export function AnnouncementBar({ texto, href }: { texto: string; href: string |
   const externo = href?.startsWith("https://") ?? false;
 
   return (
-    <div className="bg-foreground text-background px-4 py-2 text-center text-xs sm:text-sm">
+    <div
+      data-announcement-bar=""
+      className="s9-no-print bg-foreground text-background px-4 py-2 text-center text-xs sm:text-sm"
+    >
       {href ? (
         externo ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline"
+          >
             {contenido}
           </a>
         ) : (

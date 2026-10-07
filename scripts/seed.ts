@@ -6,6 +6,20 @@ import { closePool, getDb } from "@/db";
 import { categories, products, shippingZones, variants } from "@/db/schema";
 import { assertGs } from "@/lib/money";
 import { safeError } from "@/lib/safe-error";
+import {
+  ProductSpecificationsSchema,
+  SupplierDetailsSchema,
+  VariantAttributesSchema,
+  VerifiedIdentifiersSchema,
+  type ProductSpecifications,
+  type SupplierDetails,
+  type VariantAttributes,
+  type VerifiedIdentifiers,
+} from "@/lib/product-attributes";
+import {
+  assertProductSlugAvailable,
+  claimProductSlug,
+} from "@/domain/product-slugs";
 
 import {
   SEED_CATEGORIES,
@@ -96,6 +110,10 @@ export async function upsertShippingZones(
  * segundo lugar donde olvidarse del `assertGs` o del "no pisar `on_hand`".
  */
 export type CatalogProductUpsert = {
+  specifications?: ProductSpecifications | null;
+  supplierDetails?: SupplierDetails | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   slug: string;
@@ -105,6 +123,8 @@ export type CatalogProductUpsert = {
   brand: string | null;
   ivaRate: number;
   variants: Array<{
+    attributes?: VariantAttributes | null;
+    identifiers?: VerifiedIdentifiers | null;
     sku: string;
     label: string;
     pricePyg: number;
@@ -135,76 +155,132 @@ export async function upsertCatalogProducts(
   let variantCount = 0;
 
   for (const product of items) {
-    await db
-      .insert(products)
-      .values({
-        saleMode: product.saleMode,
-        showPrice: product.showPrice,
-        slug: product.slug,
-        name: product.name,
-        description: product.description,
-        categoryId: product.categoryId,
-        brand: product.brand,
-        ivaRate: product.ivaRate,
-        isActive: true,
-        publishedAt,
-      })
-      .onDuplicateKeyUpdate({
-        set: {
+    await db.transaction(async (db) => {
+      const [current] = await db
+        .select({ id: products.id, slug: products.slug })
+        .from(products)
+        .where(eq(products.slug, product.slug))
+        .limit(1);
+      await assertProductSlugAvailable(
+        db,
+        product.slug,
+        current?.id ?? null,
+        current?.slug
+      );
+      const details = {
+        ...(product.specifications === undefined
+          ? {}
+          : {
+              specifications: ProductSpecificationsSchema.nullable().parse(
+                product.specifications
+              ),
+            }),
+        ...(product.supplierDetails === undefined
+          ? {}
+          : {
+              supplierDetails: SupplierDetailsSchema.nullable().parse(
+                product.supplierDetails
+              ),
+            }),
+        ...(product.seoTitle === undefined
+          ? {}
+          : { seoTitle: product.seoTitle }),
+        ...(product.seoDescription === undefined
+          ? {}
+          : { seoDescription: product.seoDescription }),
+      };
+      await db
+        .insert(products)
+        .values({
+          ...details,
           saleMode: product.saleMode,
           showPrice: product.showPrice,
+          slug: product.slug,
           name: product.name,
           description: product.description,
           categoryId: product.categoryId,
           brand: product.brand,
           ivaRate: product.ivaRate,
           isActive: true,
-        },
-      });
-
-    const productRow = (
-      await db
-        .select({ id: products.id })
-        .from(products)
-        .where(eq(products.slug, product.slug))
-        .limit(1)
-    )[0];
-    if (!productRow)
-      throw new Error(`No pude releer el producto ${product.slug}`);
-
-    for (const [index, variant] of product.variants.entries()) {
-      assertGs(variant.pricePyg, `${variant.sku}.price_pyg`);
-      if (variant.compareAtPyg !== null) {
-        assertGs(variant.compareAtPyg, `${variant.sku}.compare_at_pyg`);
-      }
-
-      await db
-        .insert(variants)
-        .values({
-          productId: productRow.id,
-          sku: variant.sku,
-          label: variant.label,
-          pricePyg: variant.pricePyg,
-          compareAtPyg: variant.compareAtPyg,
-          onHand: variant.onHand,
-          position: index,
-          isActive: true,
+          publishedAt,
         })
         .onDuplicateKeyUpdate({
           set: {
+            ...details,
+            saleMode: product.saleMode,
+            showPrice: product.showPrice,
+            name: product.name,
+            description: product.description,
+            categoryId: product.categoryId,
+            brand: product.brand,
+            ivaRate: product.ivaRate,
+            isActive: true,
+          },
+        });
+
+      const productRow = (
+        await db
+          .select({ id: products.id })
+          .from(products)
+          .where(eq(products.slug, product.slug))
+          .limit(1)
+      )[0];
+      if (!productRow)
+        throw new Error(`No pude releer el producto ${product.slug}`);
+      await claimProductSlug(db, product.slug, productRow.id);
+
+      for (const [index, variant] of product.variants.entries()) {
+        const variantDetails = {
+          ...(variant.attributes === undefined
+            ? {}
+            : {
+                attributes: VariantAttributesSchema.nullable().parse(
+                  variant.attributes
+                ),
+              }),
+          ...(variant.identifiers === undefined
+            ? {}
+            : {
+                identifiers: VerifiedIdentifiersSchema.nullable().parse(
+                  variant.identifiers
+                ),
+              }),
+        };
+        assertGs(variant.pricePyg, `${variant.sku}.price_pyg`);
+        if (variant.compareAtPyg !== null) {
+          assertGs(variant.compareAtPyg, `${variant.sku}.compare_at_pyg`);
+        }
+
+        await db
+          .insert(variants)
+          .values({
+            ...variantDetails,
             productId: productRow.id,
+            sku: variant.sku,
             label: variant.label,
             pricePyg: variant.pricePyg,
             compareAtPyg: variant.compareAtPyg,
+            onHand: variant.onHand,
             position: index,
             isActive: true,
-            // El stock real lo maneja la operación del negocio: re-sembrar no
-            // debería pisarlo salvo que se pida explícitamente.
-            onHand: resetStock ? variant.onHand : sql`${variants.onHand}`,
-          },
-        });
-      variantCount += 1;
-    }
+          })
+          .onDuplicateKeyUpdate({
+            set: {
+              ...variantDetails,
+              productId: productRow.id,
+              label: variant.label,
+              pricePyg: variant.pricePyg,
+              compareAtPyg: variant.compareAtPyg,
+              position: index,
+              isActive: true,
+              // El stock real lo maneja la operación del negocio: re-sembrar no
+              // debería pisarlo salvo que se pida explícitamente.
+              onHand: resetStock ? variant.onHand : sql`${variants.onHand}`,
+            },
+          });
+        variantCount += 1;
+      }
+    });
   }
 
   return variantCount;

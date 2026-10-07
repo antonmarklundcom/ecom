@@ -48,6 +48,12 @@ import {
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { t } from "@/i18n";
+import {
+  ProductSpecificationsSchema,
+  SupplierDetailsSchema,
+  VariantAttributesSchema,
+  VerifiedIdentifiersSchema,
+} from "@/lib/product-attributes";
 
 function revalidarVidriera() {
   revalidatePath("/", "layout");
@@ -68,6 +74,10 @@ import {
  */
 
 const ProductSchema = z.object({
+  specifications: ProductSpecificationsSchema.nullable().optional(),
+  supplierDetails: SupplierDetailsSchema.nullable().optional(),
+  seoTitle: z.string().trim().max(200).nullable().optional(),
+  seoDescription: z.string().trim().max(500).nullable().optional(),
   saleMode: z.enum(["stock", "enquiry", "showcase"]).optional(),
   showPrice: z.boolean().optional(),
   productId: z.number().int().positive().optional(),
@@ -115,6 +125,10 @@ export async function saveProduct(
     }
 
     const write = {
+      specifications: parsed.data.specifications,
+      supplierDetails: parsed.data.supplierDetails,
+      seoTitle: parsed.data.seoTitle,
+      seoDescription: parsed.data.seoDescription,
       saleMode: parsed.data.saleMode,
       showPrice: parsed.data.showPrice,
       slug: parsed.data.slug,
@@ -147,6 +161,8 @@ export async function saveProduct(
 }
 
 const VariantSchema = z.object({
+  attributes: VariantAttributesSchema.nullable().optional(),
+  identifiers: VerifiedIdentifiersSchema.nullable().optional(),
   productId: z.number().int().positive(),
   variantId: z.number().int().positive().optional(),
   sku: z.string().trim().min(1, t("adminForm.sku")).max(64),
@@ -186,6 +202,8 @@ export async function saveProductVariant(
     }
 
     await saveVariant(parsed.data.productId, {
+      attributes: parsed.data.attributes,
+      identifiers: parsed.data.identifiers,
       id: parsed.data.variantId,
       sku: parsed.data.sku,
       label: parsed.data.label,
@@ -452,6 +470,10 @@ export async function applyCatalogImport(
         if (!categoryId)
           throw new Error(`Categoría sin id: ${producto.categoryName}`);
         return {
+          specifications: producto.specifications,
+          supplierDetails: producto.supplierDetails,
+          seoTitle: producto.seoTitle,
+          seoDescription: producto.seoDescription,
           saleMode: producto.saleMode,
           showPrice: producto.showPrice,
           slug: producto.slug,
@@ -593,9 +615,7 @@ const BulkPriceSchema = z
     { message: "Elegí variantes o productos, no las dos cosas." }
   );
 
-export async function bulkAdjustProductPrices(
-  input: unknown
-): Promise<
+export async function bulkAdjustProductPrices(input: unknown): Promise<
   AdminActionResult<{
     cambiadas: number;
     miradas: number;

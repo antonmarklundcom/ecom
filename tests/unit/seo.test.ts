@@ -217,7 +217,7 @@ describe("productJsonLd", () => {
     ]);
     expect(jsonLd.url).toBe("https://tienda.com.py/producto/conjunto-encaje");
     expect(jsonLd.offers[0]).toMatchObject({
-      url: "https://tienda.com.py/producto/conjunto-encaje",
+      url: "https://tienda.com.py/producto/conjunto-encaje?variante=CE-S",
       itemCondition: "https://schema.org/NewCondition",
       availability: "https://schema.org/InStock",
       priceCurrency: "PYG",

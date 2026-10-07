@@ -16,6 +16,9 @@
  * Puro, sin base ni entorno: lo arma `src/app/feed.xml/route.ts`.
  */
 
+import { variantUrl } from "./variant-url";
+import { publicIdentifiers } from "./public-product-facts";
+
 export type FeedProduct = {
   slug: string;
   name: string;
@@ -30,6 +33,7 @@ export type FeedProduct = {
     pricePyg: number;
     compareAtPyg: number | null;
     available: number;
+    identifiers?: unknown;
   }[];
 };
 
@@ -46,19 +50,23 @@ const DESCRIPTION_MAX = 5000;
 const ADDITIONAL_IMAGES_MAX = 10;
 
 export function escapeXml(texto: string): string {
-  return texto
-    // Caracteres de control que XML 1.0 no admite ni escapados.
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  return (
+    texto
+      // Caracteres de control que XML 1.0 no admite ni escapados.
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;")
+  );
 }
 
 function recortar(texto: string, max: number): string {
   const limpio = texto.replace(/\s+/g, " ").trim();
-  return limpio.length > max ? `${limpio.slice(0, max - 1).trimEnd()}…` : limpio;
+  return limpio.length > max
+    ? `${limpio.slice(0, max - 1).trimEnd()}…`
+    : limpio;
 }
 
 /** Guaraníes enteros: PYG no tiene decimales. */
@@ -70,27 +78,46 @@ function tag(nombre: string, valor: string): string {
   return `<${nombre}>${escapeXml(valor)}</${nombre}>`;
 }
 
-function item(origin: URL, product: FeedProduct, variant: FeedProduct["variants"][number]): string {
+function item(
+  origin: URL,
+  product: FeedProduct,
+  variant: FeedProduct["variants"][number]
+): string {
   const varias = product.variants.length > 1;
   const titulo = varias ? `${product.name} — ${variant.label}` : product.name;
-  const enOferta = variant.compareAtPyg !== null && variant.compareAtPyg > variant.pricePyg;
+  const enOferta =
+    variant.compareAtPyg !== null && variant.compareAtPyg > variant.pricePyg;
   const [principal, ...resto] = product.images;
+  const identifiers = publicIdentifiers(variant.identifiers);
 
   const campos = [
     tag("g:id", variant.sku),
     varias ? tag("g:item_group_id", product.slug) : null,
     tag("title", recortar(titulo, TITLE_MAX)),
-    tag("description", recortar(product.description || product.name, DESCRIPTION_MAX)),
-    tag("link", `${origin.origin}/producto/${product.slug}`),
+    tag(
+      "description",
+      recortar(product.description || product.name, DESCRIPTION_MAX)
+    ),
+    tag(
+      "link",
+      variantUrl(`${origin.origin}/producto/${product.slug}`, variant.sku)
+    ),
     tag("g:image_link", principal ?? ""),
-    ...resto.slice(0, ADDITIONAL_IMAGES_MAX).map((src) => tag("g:additional_image_link", src)),
+    ...resto
+      .slice(0, ADDITIONAL_IMAGES_MAX)
+      .map((src) => tag("g:additional_image_link", src)),
     tag("g:availability", variant.available > 0 ? "in_stock" : "out_of_stock"),
     // Con precio "antes", `price` es el de lista y `sale_price` el que se
     // cobra: así Google muestra el tachado igual que la ficha.
     tag("g:price", precio(enOferta ? variant.compareAtPyg! : variant.pricePyg)),
     enOferta ? tag("g:sale_price", precio(variant.pricePyg)) : null,
     tag("g:condition", "new"),
-    product.brand ? tag("g:brand", product.brand) : tag("g:identifier_exists", "no"),
+    product.brand ? tag("g:brand", product.brand) : null,
+    identifiers?.gtin ? tag("g:gtin", identifiers.gtin) : null,
+    identifiers?.mpn ? tag("g:mpn", identifiers.mpn) : null,
+    !identifiers?.gtin && !(product.brand && identifiers?.mpn)
+      ? tag("g:identifier_exists", "no")
+      : null,
     tag("g:product_type", product.categoryName),
   ];
 
@@ -100,7 +127,11 @@ function item(origin: URL, product: FeedProduct, variant: FeedProduct["variants"
 export function buildProductFeed(input: FeedInput): string {
   const items = input.products
     .filter((product) => product.images.length > 0)
-    .flatMap((product) => product.variants.map((variant) => item(input.origin, product, variant)));
+    .flatMap((product) =>
+      product.variants
+        .filter((v) => Number.isSafeInteger(v.pricePyg) && v.pricePyg > 0)
+        .map((variant) => item(input.origin, product, variant))
+    );
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',

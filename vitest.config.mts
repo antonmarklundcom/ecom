@@ -41,7 +41,9 @@ export default defineConfig({
           // Las suites de integración comparten una sola base: sin esto, una
           // trunca tablas mientras otra las usa.
           fileParallelism: false,
-          testTimeout: 30_000,
+          // Windows git fixtures and bcrypt setup can exceed 30s under local IO/CPU contention.
+          // Linux CI retains its existing threshold; database lock waits remain independently bounded.
+          testTimeout: process.platform === "win32" ? 90_000 : 30_000,
           hookTimeout: 60_000,
         },
       },
