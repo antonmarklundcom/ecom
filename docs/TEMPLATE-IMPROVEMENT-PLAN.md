@@ -38,12 +38,16 @@ contain `test`:
 | `pnpm install --frozen-lockfile` | PASS, lockfile unchanged |
 | `pnpm typecheck` / `pnpm lint` | PASS / PASS |
 | `pnpm test`, MySQL 8.4.11 | PASS: 179 files, 1,863 passed, 1 skipped (live Pagopar sandbox, needs external credentials) |
-| `pnpm test --project integration`, MariaDB 10.11.19 | PASS: 84 files, 858 passed, 18 skipped |
+| `pnpm test --project integration`, MariaDB 10.11.19 | PASS: 84 files, 875 passed, 1 skipped (same live Pagopar test) |
+| Playwright Chromium, desktop + 390 px | PASS: 39 passed |
 
 Note: run the suites through `pnpm test`, not `pnpm vitest`. The importer and
 seed CLI tests re-launch the package manager through `npm_execpath`, which
 `pnpm vitest` does not set; that invocation fails six CLI tests with
-`Cannot find module '…/undefined'` on an unmodified checkout.
+`Cannot find module '…/undefined'` on an unmodified checkout. Run browser
+suites with nothing else using the same database server: an overlapping
+integration run (which drops and recreates its own test database) made five
+storefront specs time out once; the isolated rerun passed.
 
 ## PR order
 
