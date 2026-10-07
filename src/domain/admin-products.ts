@@ -9,6 +9,7 @@ import {
   products,
   stockAdjustments,
   variants,
+  type ImageProvenance,
 } from "@/db/schema";
 
 import type { AdminProductSort } from "@/lib/admin-product-sort";
@@ -27,11 +28,16 @@ import {
   SupplierDetailsSchema,
   VariantAttributesSchema,
   VerifiedIdentifiersSchema,
+  decoded,
   type ProductSpecifications,
   type SupplierDetails,
   type VariantAttributes,
   type VerifiedIdentifiers,
 } from "@/lib/product-attributes";
+import {
+  stampVerification,
+  type VerificationActor,
+} from "@/lib/verification-stamps";
 import { assertProductSlugAvailable, claimProductSlug } from "./product-slugs";
 
 /**
@@ -60,6 +66,16 @@ export function skuAjenoError(params: {
 /** Una planilla cambia precios o stock sin `precios.masivo` (C6). */
 export function preciosSoloDuenioError(): AdminInputError {
   return new AdminInputError("adminError.importar.preciosSoloDuenio");
+}
+
+/** Un GTIN/MPN que cambia sin que nadie lo confirme (E1). */
+export function identificadoresSinVerificarError(sku: string): AdminInputError {
+  return new AdminInputError(
+    "adminError.producto.identificadoresSinVerificar",
+    {
+      sku,
+    }
+  );
 }
 
 export const PRODUCTS_PER_PAGE = 20;
@@ -326,15 +342,44 @@ function validateOptional<T>(
   return result.data;
 }
 
-function validateProductAttributes(input: ProductWrite) {
+/**
+ * Sella y valida los hechos verificables de un producto
+ * (docs/TEMPLATE-IMPROVEMENT-PLAN.md E1): los sellos que manda el formulario
+ * no cuentan, confirmar sella con la hora del servidor y la sesión, y guardar
+ * sin cambios conserva el sello de antes.
+ */
+function validateProductAttributes(
+  input: ProductWrite,
+  previous: { specifications: unknown; supplierDetails: unknown } | null
+) {
+  const now = new Date();
+  const actor = input.actor ?? null;
   return {
     specifications: validateOptional(
       ProductSpecificationsSchema,
-      input.specifications
+      stampVerification({
+        previous: decoded(previous?.specifications) as Record<
+          string,
+          unknown
+        > | null,
+        submitted: input.specifications,
+        confirm: input.verify?.specifications === true,
+        actor,
+        now,
+      })
     ),
     supplierDetails: validateOptional(
       SupplierDetailsSchema,
-      input.supplierDetails
+      stampVerification({
+        previous: decoded(previous?.supplierDetails) as Record<
+          string,
+          unknown
+        > | null,
+        submitted: input.supplierDetails,
+        confirm: input.verify?.supplierDetails === true,
+        actor,
+        now,
+      })
     ),
     seoTitle: validateOptional(z.string().trim().max(200), input.seoTitle),
     seoDescription: validateOptional(
@@ -345,8 +390,13 @@ function validateProductAttributes(input: ProductWrite) {
 }
 
 export type ProductWrite = {
+  /** Sus `verifiedAt`/`verifiedBy` se ignoran: los pone el servidor (E1). */
   specifications?: ProductSpecifications | null;
   supplierDetails?: SupplierDetails | null;
+  /** "Verifiqué estos datos": sella con la hora del servidor y `actor`. */
+  verify?: { specifications?: boolean; supplierDetails?: boolean };
+  /** Quién guarda. Sin actor, confirmar no sella nada. */
+  actor?: VerificationActor | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
   saleMode?: "stock" | "enquiry" | "showcase";
@@ -375,7 +425,7 @@ export async function createProduct(
   const tx = executor ?? getDb();
   await assertSlugFree(tx, input.slug, null);
   await assertProductSlugAvailable(tx, input.slug, null);
-  const attributes = validateProductAttributes(input);
+  const attributes = validateProductAttributes(input, null);
 
   await tx.insert(products).values({
     ...attributes,
@@ -417,6 +467,8 @@ export async function updateProduct(
       slug: products.slug,
       publishedAt: products.publishedAt,
       saleMode: products.saleMode,
+      specifications: products.specifications,
+      supplierDetails: products.supplierDetails,
     })
     .from(products)
     .where(eq(products.id, productId))
@@ -425,8 +477,8 @@ export async function updateProduct(
   const current = existing[0];
   if (!current) throw new AdminInputError("adminError.producto.noExiste");
   await assertSlugFree(tx, input.slug, productId);
-  await assertProductSlugAvailable(tx, input.slug, productId, current.slug);
-  const attributes = validateProductAttributes(input);
+  await assertProductSlugAvailable(tx, input.slug, productId);
+  const attributes = validateProductAttributes(input, current);
   await claimProductSlug(tx, current.slug, productId);
   await claimProductSlug(tx, input.slug, productId);
 
@@ -511,8 +563,19 @@ async function assertSlugFree(
 }
 
 export type VariantWrite = {
+  /** Sus `verifiedAt`/`verifiedBy` se ignoran: los pone el servidor (E1). */
   attributes?: VariantAttributes | null;
-  identifiers?: VerifiedIdentifiers | null;
+  /**
+   * GTIN/MPN. Como en `attributes`, el sello que venga se ignora; uno que
+   * cambia sin `verify.identifiers` no se guarda (un identificador sólo
+   * existe verificado).
+   */
+  identifiers?:
+    | VerifiedIdentifiers
+    | { gtin?: string; mpn?: string; verifiedAt?: string }
+    | null;
+  /** "Verifiqué estos datos": sella con la hora del servidor y quien audita. */
+  verify?: { attributes?: boolean; identifiers?: boolean };
   id?: number;
   sku: string;
   label: string;
@@ -573,13 +636,55 @@ export async function saveVariant(
     });
   }
 
+  // Lo de antes, bajo lock: el precio para `price_adjustments` (C7) y los
+  // hechos verificados para conservar su sello si no cambiaron (E1).
+  const before =
+    input.id === undefined
+      ? null
+      : ((
+          await tx
+            .select({
+              pricePyg: variants.pricePyg,
+              attributes: variants.attributes,
+              identifiers: variants.identifiers,
+            })
+            .from(variants)
+            .where(
+              and(eq(variants.id, input.id), eq(variants.productId, productId))
+            )
+            .limit(1)
+            .for("update")
+        )[0] ?? null);
+  if (input.id !== undefined && !before)
+    throw new AdminInputError("adminError.producto.varianteNoExiste");
+
+  const now = new Date();
+  const actor: VerificationActor | null = audit
+    ? { userId: audit.actorUserId, label: audit.actor }
+    : null;
   const attributes = validateOptional(
     VariantAttributesSchema,
-    input.attributes
+    stampVerification({
+      previous: decoded(before?.attributes) as Record<string, unknown> | null,
+      submitted: input.attributes,
+      confirm: input.verify?.attributes === true,
+      actor,
+      now,
+    })
   );
+  const stampedIdentifiers = stampVerification({
+    previous: decoded(before?.identifiers) as Record<string, unknown> | null,
+    submitted: input.identifiers as Record<string, unknown> | null | undefined,
+    confirm: input.verify?.identifiers === true,
+    actor,
+    now,
+  });
+  if (stampedIdentifiers && !stampedIdentifiers.verifiedAt) {
+    throw identificadoresSinVerificarError(input.sku);
+  }
   const identifiers = validateOptional(
     VerifiedIdentifiersSchema,
-    input.identifiers
+    stampedIdentifiers as VerifiedIdentifiers | null | undefined
   );
 
   const clash = await tx
@@ -610,17 +715,9 @@ export async function saveVariant(
     return;
   }
 
-  // El precio de antes, bajo lock: un cambio de precio a mano queda en
-  // `price_adjustments` igual que uno masivo (docs/TEMPLATE-IMPROVEMENT-PLAN.md
-  // C7). Sin esa fila, "¿a cuánto estaba la semana pasada?" no tiene respuesta.
-  const before = (
-    await tx
-      .select({ pricePyg: variants.pricePyg })
-      .from(variants)
-      .where(and(eq(variants.id, input.id), eq(variants.productId, productId)))
-      .limit(1)
-      .for("update")
-  )[0];
+  // Un cambio de precio a mano queda en `price_adjustments` igual que uno
+  // masivo (docs/TEMPLATE-IMPROVEMENT-PLAN.md C7). Sin esa fila, "¿a cuánto
+  // estaba la semana pasada?" no tiene respuesta.
   if (!before)
     throw new AdminInputError("adminError.producto.varianteNoExiste");
 
@@ -795,6 +892,37 @@ export async function addProductImage(
     alt: input.alt,
     position: row?.total ?? 0,
   });
+}
+
+/**
+ * La procedencia de **una** foto (docs/TEMPLATE-IMPROVEMENT-PLAN.md E2): propia,
+ * autorizada por el proveedor o ilustrativa. `null` la deja sin marcar (vale
+ * la del producto). La fecha la pone el servidor; la foto tiene que ser de
+ * ese producto.
+ */
+export async function setProductImageProvenance(
+  input: {
+    productId: number;
+    imageId: number;
+    provenance: ImageProvenance | null;
+  },
+  executor?: Executor
+): Promise<void> {
+  const tx = executor ?? getDb();
+  const [result] = await tx
+    .update(productImages)
+    .set({
+      provenance: input.provenance,
+      verifiedAt: input.provenance === null ? null : new Date(),
+    })
+    .where(
+      and(
+        eq(productImages.id, input.imageId),
+        eq(productImages.productId, input.productId)
+      )
+    );
+  if (result.affectedRows === 0)
+    throw new AdminInputError("adminError.imagenInvalida");
 }
 
 export async function deleteProductImage(

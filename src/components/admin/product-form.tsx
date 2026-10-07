@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   MetadataField,
   ProductSeoFields,
+  metadataConfirmed,
   metadataFormValue,
 } from "./metadata-field";
 import type {
@@ -79,6 +80,10 @@ export function ProductForm({
           const result = await saveProduct({
             specifications,
             supplierDetails,
+            verify: {
+              specifications: metadataConfirmed(data, "specifications"),
+              supplierDetails: metadataConfirmed(data, "supplierDetails"),
+            },
             seoTitle: String(data.get("seoTitle") ?? "").trim() || null,
             seoDescription:
               String(data.get("seoDescription") ?? "").trim() || null,

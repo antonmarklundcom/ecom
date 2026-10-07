@@ -5,14 +5,28 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { removeProductImage, uploadProductImage } from "@/app/actions/admin-products";
+import {
+  markProductImageProvenance,
+  removeProductImage,
+  uploadProductImage,
+} from "@/app/actions/admin-products";
+import type { ImageProvenance } from "@/db/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { productImageUrl } from "@/lib/images";
+import { formatDateTimePY } from "@/lib/py";
 import { t } from "@/i18n";
 
-type ImageCard = { id: number; cloudinaryId: string; alt: string | null };
+type ImageCard = {
+  id: number;
+  cloudinaryId: string;
+  alt: string | null;
+  /** La de la foto, no la efectiva: `null` = sin marcar. */
+  provenance?: ImageProvenance | null;
+  /** ISO; lo sella el servidor al marcar. */
+  verifiedAt?: string | null;
+};
 
 export function ProductImages({
   productId,
@@ -25,6 +39,17 @@ export function ProductImages({
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const procedencias: { value: ImageProvenance; label: string }[] = [
+    { value: "owned-photo", label: t("panel.fotos.procedencia.propia") },
+    {
+      value: "supplier-authorized",
+      label: t("panel.fotos.procedencia.proveedor"),
+    },
+    {
+      value: "illustrative",
+      label: t("panel.fotos.procedencia.ilustrativa"),
+    },
+  ];
 
   return (
     <div className="grid gap-4">
@@ -54,6 +79,55 @@ export function ProductImages({
                       className="object-cover"
                     />
                   ) : null}
+                </div>
+                <div className="grid gap-1 p-2">
+                  <Label htmlFor={`procedencia-${image.id}`} className="text-xs">
+                    {t("panel.fotos.procedencia")}
+                  </Label>
+                  <select
+                    id={`procedencia-${image.id}`}
+                    className="bg-background rounded border p-1 text-sm"
+                    defaultValue={image.provenance ?? ""}
+                    disabled={isPending}
+                    aria-describedby={`procedencia-ayuda-${image.id}`}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setError(null);
+                      startTransition(async () => {
+                        const result = await markProductImageProvenance({
+                          imageId: image.id,
+                          productId,
+                          provenance: value === "" ? null : value,
+                        });
+                        if (!result.ok) {
+                          setError(result.error);
+                          return;
+                        }
+                        toast.success(t("panel.fotos.procedencia.guardada"));
+                        router.refresh();
+                      });
+                    }}
+                  >
+                    <option value="">
+                      {t("panel.fotos.procedencia.sinMarcar")}
+                    </option>
+                    {procedencias.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p
+                    id={`procedencia-ayuda-${image.id}`}
+                    className="text-muted-foreground text-xs"
+                  >
+                    {image.verifiedAt
+                      ? t("panel.fotos.procedencia.marcada", {
+                          fecha: formatDateTimePY(new Date(image.verifiedAt)),
+                        })
+                      : null}{" "}
+                    {t("panel.fotos.procedencia.ayuda")}
+                  </p>
                 </div>
                 <Button
                   type="button"

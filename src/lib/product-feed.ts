@@ -8,16 +8,22 @@
  * catálogo y las etiquetas de compra de Instagram — sin cargar un producto a
  * mano en ningún lado.
  *
- * Un ítem por **variante** (así lo pide Google: talle y color son ítems con
- * el mismo `item_group_id`). Lo que no se puede dar bien no se da: sin foto
- * no hay ítem (Google lo rechaza entero), y sin marca va
- * `identifier_exists=no` en vez de inventar una.
+ * Un ítem por **variante**. Las que forman un grupo de verdad (talle,
+ * color… declarado y verificado, la misma regla que el `ProductGroup` del
+ * JSON-LD) comparten `item_group_id` y llevan su atributo; las demás son
+ * ítems sueltos. Lo que no se puede dar bien no se da: sin foto no hay ítem
+ * (Google lo rechaza entero), y sin identificador verificado no se afirma
+ * `identifier_exists=no` salvo que la tienda lo declare
+ * (`PUBLIC_FACTS.noManufacturerIdentifiers`) — docs/TEMPLATE-IMPROVEMENT-PLAN.md E6.
  *
  * Puro, sin base ni entorno: lo arma `src/app/feed.xml/route.ts`.
  */
 
+import { PUBLIC_FACTS } from "@/config/public-facts";
+
 import { variantUrl } from "./variant-url";
 import { publicIdentifiers } from "./public-product-facts";
+import { variantGrouping, type VariantGrouping } from "./variant-grouping";
 
 export type FeedProduct = {
   slug: string;
@@ -34,6 +40,7 @@ export type FeedProduct = {
     compareAtPyg: number | null;
     available: number;
     identifiers?: unknown;
+    attributes?: unknown;
   }[];
 };
 
@@ -81,9 +88,11 @@ function tag(nombre: string, valor: string): string {
 function item(
   origin: URL,
   product: FeedProduct,
-  variant: FeedProduct["variants"][number]
+  variant: FeedProduct["variants"][number],
+  grouping: VariantGrouping | null
 ): string {
   const varias = product.variants.length > 1;
+  const facts = grouping?.facts[product.variants.indexOf(variant)];
   const titulo = varias ? `${product.name} — ${variant.label}` : product.name;
   const enOferta =
     variant.compareAtPyg !== null && variant.compareAtPyg > variant.pricePyg;
@@ -92,7 +101,7 @@ function item(
 
   const campos = [
     tag("g:id", variant.sku),
-    varias ? tag("g:item_group_id", product.slug) : null,
+    grouping ? tag("g:item_group_id", product.slug) : null,
     tag("title", recortar(titulo, TITLE_MAX)),
     tag(
       "description",
@@ -115,9 +124,14 @@ function item(
     product.brand ? tag("g:brand", product.brand) : null,
     identifiers?.gtin ? tag("g:gtin", identifiers.gtin) : null,
     identifiers?.mpn ? tag("g:mpn", identifiers.mpn) : null,
-    !identifiers?.gtin && !(product.brand && identifiers?.mpn)
+    PUBLIC_FACTS.noManufacturerIdentifiers &&
+    !identifiers?.gtin &&
+    !(product.brand && identifiers?.mpn)
       ? tag("g:identifier_exists", "no")
       : null,
+    ...(grouping?.dimensions ?? []).map((d) =>
+      tag(`g:${d.schemaProperty}`, String(facts?.[d.key]))
+    ),
     tag("g:product_type", product.categoryName),
   ];
 
@@ -127,11 +141,12 @@ function item(
 export function buildProductFeed(input: FeedInput): string {
   const items = input.products
     .filter((product) => product.images.length > 0)
-    .flatMap((product) =>
-      product.variants
+    .flatMap((product) => {
+      const grouping = variantGrouping(product.variants);
+      return product.variants
         .filter((v) => Number.isSafeInteger(v.pricePyg) && v.pricePyg > 0)
-        .map((variant) => item(input.origin, product, variant))
-    );
+        .map((variant) => item(input.origin, product, variant, grouping));
+    });
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',

@@ -52,12 +52,14 @@ describe("buildProductFeed", () => {
     expect(xml).toContain("<g:price>150000 PYG</g:price>");
     expect(xml).toContain("<g:availability>in_stock</g:availability>");
     expect(xml).toContain("<g:condition>new</g:condition>");
-    // Sin marca no se inventa una.
-    expect(xml).toContain("<g:identifier_exists>no</g:identifier_exists>");
+    // Sin marca no se inventa una, y sin identificador verificado tampoco se
+    // afirma que no existe (E6, tests/unit/structured-identifiers.test.ts).
+    expect(xml).not.toContain("<g:brand>");
+    expect(xml).not.toContain("identifier_exists");
     expect(xml).not.toContain("<g:item_group_id>");
   });
 
-  it("variantes: mismo grupo, título con el talle, y el tachado como sale_price", () => {
+  it("variantes: título con la etiqueta y el tachado como sale_price", () => {
     const xml = buildProductFeed({
       origin,
       tienda,
@@ -85,9 +87,9 @@ describe("buildProductFeed", () => {
     });
 
     expect(xml.match(/<item>/g)).toHaveLength(2);
-    expect(
-      xml.match(/<g:item_group_id>conjunto-encaje<\/g:item_group_id>/g)
-    ).toHaveLength(2);
+    // Sin un talle declarado y verificado no es un grupo: Google exige el
+    // atributo de variante en cada ítem de un grupo (E6).
+    expect(xml).not.toContain("<g:item_group_id>");
     expect(xml).toContain("<title>Conjunto de encaje — S</title>");
     expect(xml).toContain(
       "<g:price>150000 PYG</g:price><g:sale_price>120000 PYG</g:sale_price>"

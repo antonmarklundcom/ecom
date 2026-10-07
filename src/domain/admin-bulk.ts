@@ -11,6 +11,18 @@ import {
 import type { MessageKey, Params } from "@/i18n";
 
 import { claimProductSlug } from "./product-slugs";
+import { decoded } from "@/lib/product-attributes";
+import { withoutStamps } from "@/lib/verification-stamps";
+
+/**
+ * Lo verificable de un producto, sin el sello: una copia es otro producto y
+ * nadie la verificó (docs/TEMPLATE-IMPROVEMENT-PLAN.md E1).
+ */
+function sinVerificar<T>(value: T | null): T | null {
+  const plain = decoded(value);
+  if (!plain || typeof plain !== "object" || Array.isArray(plain)) return null;
+  return withoutStamps(plain) as T;
+}
 import { DomainError } from "./errors";
 import type { Executor, Tx } from "./executor";
 
@@ -358,7 +370,7 @@ export async function duplicateProduct(productId: number): Promise<number> {
       saleMode: original.saleMode,
       showPrice: original.showPrice,
       description: original.description,
-      specifications: original.specifications,
+      specifications: sinVerificar(original.specifications),
       supplierDetails: null,
       seoTitle: original.seoTitle,
       seoDescription: original.seoDescription,
@@ -391,7 +403,7 @@ export async function duplicateProduct(productId: number): Promise<number> {
         productId: nuevoId,
         sku: await skuLibre(tx, variante.sku),
         label: variante.label,
-        attributes: variante.attributes,
+        attributes: sinVerificar(variante.attributes),
         identifiers: null,
         pricePyg: variante.pricePyg,
         compareAtPyg: variante.compareAtPyg,

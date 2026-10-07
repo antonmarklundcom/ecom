@@ -18,6 +18,8 @@ import {
   SupplierDetailsSchema,
   VariantAttributesSchema,
   VerifiedIdentifiersSchema,
+  decoded,
+  type IdentifiersInput,
   type ProductSpecifications,
   type SupplierDetails,
   type VariantAttributes,
@@ -25,9 +27,11 @@ import {
 } from "@/lib/product-attributes";
 import {
   assertActiveVariantsPriced,
+  identificadoresSinVerificarError,
   preciosSoloDuenioError,
   skuAjenoError,
 } from "@/domain/admin-products";
+import { stampVerification } from "@/lib/verification-stamps";
 import type { Executor } from "@/domain/executor";
 import {
   assertProductSlugAvailable,
@@ -143,7 +147,8 @@ export type CatalogProductUpsert = {
   ivaRate?: number;
   variants: Array<{
     attributes?: VariantAttributes | null;
-    identifiers?: VerifiedIdentifiers | null;
+    /** En `import`, sin sello: sólo pasa si es el mismo que ya está (E1). */
+    identifiers?: VerifiedIdentifiers | IdentifiersInput | null;
     sku: string;
     label?: string;
     pricePyg: number;
@@ -216,30 +221,44 @@ export async function upsertCatalogProducts(
         isActive: products.isActive,
         publishedAt: products.publishedAt,
         saleMode: products.saleMode,
+        specifications: products.specifications,
+        supplierDetails: products.supplierDetails,
       })
       .from(products)
       .where(eq(products.slug, product.slug))
       .limit(1)
       .for("update");
-    await assertProductSlugAvailable(
-      db,
-      product.slug,
-      current?.id ?? null,
-      current?.slug
-    );
+    // Una planilla no verifica (docs/TEMPLATE-IMPROVEMENT-PLAN.md E1): sus
+    // sellos se ignoran, lo igual conserva el de la base y lo distinto queda
+    // sin verificar. El seed de ejemplo sí trae sus sellos: es código, no
+    // un archivo del proveedor.
+    const sellar = <T extends Record<string, unknown>>(
+      previous: unknown,
+      submitted: T | null | undefined
+    ) =>
+      mode === "import"
+        ? stampVerification({
+            previous: decoded(previous) as Record<string, unknown> | null,
+            submitted,
+            confirm: false,
+            actor: null,
+            now: new Date(),
+          })
+        : submitted;
+    await assertProductSlugAvailable(db, product.slug, current?.id ?? null);
     const details = {
       ...(product.specifications === undefined
         ? {}
         : {
             specifications: ProductSpecificationsSchema.nullable().parse(
-              product.specifications
+              sellar(current?.specifications, product.specifications)
             ),
           }),
       ...(product.supplierDetails === undefined
         ? {}
         : {
             supplierDetails: SupplierDetailsSchema.nullable().parse(
-              product.supplierDetails
+              sellar(current?.supplierDetails, product.supplierDetails)
             ),
           }),
       ...(product.seoTitle === undefined ? {} : { seoTitle: product.seoTitle }),
@@ -302,22 +321,6 @@ export async function upsertCatalogProducts(
 
     let nextPosition: number | null = null;
     for (const [index, variant] of product.variants.entries()) {
-      const variantDetails = {
-        ...(variant.attributes === undefined
-          ? {}
-          : {
-              attributes: VariantAttributesSchema.nullable().parse(
-                variant.attributes
-              ),
-            }),
-        ...(variant.identifiers === undefined
-          ? {}
-          : {
-              identifiers: VerifiedIdentifiersSchema.nullable().parse(
-                variant.identifiers
-              ),
-            }),
-      };
       assertGs(variant.pricePyg, `${variant.sku}.price_pyg`);
       if (variant.compareAtPyg !== undefined && variant.compareAtPyg !== null) {
         assertGs(variant.compareAtPyg, `${variant.sku}.compare_at_pyg`);
@@ -332,11 +335,38 @@ export async function upsertCatalogProducts(
           productId: variants.productId,
           pricePyg: variants.pricePyg,
           onHand: variants.onHand,
+          attributes: variants.attributes,
+          identifiers: variants.identifiers,
         })
         .from(variants)
         .where(eq(variants.sku, variant.sku))
         .limit(1)
         .for("update");
+
+      const identifiers = sellar(
+        existing?.identifiers,
+        variant.identifiers as Record<string, unknown> | null | undefined
+      );
+      // El plan ya lo frena; esto es la misma regla bajo lock, para quien
+      // llame sin plan.
+      if (identifiers && !identifiers.verifiedAt) {
+        throw identificadoresSinVerificarError(variant.sku);
+      }
+      const variantDetails = {
+        ...(variant.attributes === undefined
+          ? {}
+          : {
+              attributes: VariantAttributesSchema.nullable().parse(
+                sellar(existing?.attributes, variant.attributes)
+              ),
+            }),
+        ...(identifiers === undefined
+          ? {}
+          : {
+              identifiers:
+                VerifiedIdentifiersSchema.nullable().parse(identifiers),
+            }),
+      };
 
       if (existing && existing.productId !== productId) {
         const owner = (

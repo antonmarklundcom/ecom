@@ -31,8 +31,7 @@ export async function claimProductSlug(
 export async function assertProductSlugAvailable(
   tx: Executor,
   slug: string,
-  productId: number | null,
-  currentSlug?: string
+  productId: number | null
 ) {
   const [product] = await tx
     .select({ id: products.id })
@@ -45,8 +44,11 @@ export async function assertProductSlugAvailable(
     .from(productSlugRedirects)
     .where(eq(productSlugRedirects.slug, slug))
     .limit(1);
-  if (alias && (alias.productId !== productId || slug !== currentSlug))
-    conflict(slug);
+  // Un slug histórico es del producto que lo tuvo: otro no lo toma, pero el
+  // mismo sí puede volver a él (A→B→A, docs/TEMPLATE-IMPROVEMENT-PLAN.md E5).
+  // No arma una cadena: `getProductSlugRedirect` resuelve siempre directo al
+  // slug actual.
+  if (alias && alias.productId !== productId) conflict(slug);
 }
 /** Resolve straight to the current visible product: no external target or redirect chain. */
 export async function getProductSlugRedirect(

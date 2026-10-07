@@ -461,62 +461,137 @@ after the receipt arrived (D5). Acceptance tests:
 
 ## Batch E — verified facts, image provenance and SEO projection (PR 5)
 
+Reproduced before fixing:
+- **E1.** `updateProduct` stored a hand-typed `verifiedAt: 2001-01-01` and
+  published it.
+- **E2.** The sharing image of a product whose photos were marked
+  illustrative was the illustrative `fixture-front` photo (browser test
+  against a production build).
+- **E3.** `og:site_name` and `og:locale` were missing on every product page,
+  and a product without photos had no `og:image` at all: the page's
+  `openGraph` replaces the layout's.
+- **E4.** `SupplierDetailsSchema` threw `TypeError: Invalid URL`.
+- **E5.** A→B→A was rejected with "La URL bottle ya está reservada".
+- **E6.** For a two-variant product, JSON-LD published `sku: "A-2"` (the
+  first variant in stock). The feed claimed `identifier_exists=no` and sent
+  `item_group_id` without any variant attribute.
+
+Acceptance tests:
+- `tests/unit/verification-stamps.test.ts` and
+  `tests/integration/verification-stamping.test.ts` (E1);
+- `tests/unit/image-provenance.test.ts` and
+  `tests/integration/image-provenance.test.ts` (E2);
+- `tests/e2e/sharing-metadata.spec.ts` and `tests/unit/og-image.test.ts`
+  (E2, E3);
+- `tests/integration/catalogue-inheritance.test.ts` (E5);
+- `tests/unit/structured-identifiers.test.ts` and
+  `tests/unit/product-feed.test.ts` (E6).
+
 ### E1 · Verification dates are typed by the browser and never attributed — P1
 
-- **Failure.** `verifiedAt` is free JSON in a textarea; any staff user can
-  back-date it, the actor is discarded, and changed facts keep the old date.
-  Duplicating a product copies verification.
-- **Fix.** The form sends a "verified" confirmation; the server stamps
-  `verifiedAt` and `verifiedBy` from the session inside the product lock,
-  preserves an unchanged stamp, clears it when values change without
-  confirmation, and duplicates are unverified. Public projections never
-  include `verifiedBy`.
-- **Status.** planned.
+- **Failure.**
+  - `verifiedAt` is free JSON in a textarea: any staff user can back-date it,
+    and the actor is discarded.
+  - Changed facts keep the old date.
+  - Duplicating a product copies the verification.
+  - A spreadsheet can set any date, including on GTINs.
+- **Fix.**
+  - `src/lib/verification-stamps.ts` drops every submitted
+    `verifiedAt`/`verifiedBy`.
+  - The form's "Verifiqué estos datos" checkbox makes the server stamp the
+    time and the session's user (`verifiedBy`, private).
+  - Saving unchanged content keeps the previous stamp as it was; a
+    historical stamp without an author gets no invented author.
+  - Changed content without confirmation stays unverified, so it is not
+    published.
+  - Applies to specifications, supplier details, variant attributes and
+    identifiers.
+  - Identifiers only exist verified: a changed GTIN/MPN without confirmation
+    is rejected (`adminError.producto.identificadoresSinVerificar`).
+  - A spreadsheet never verifies. An equal value keeps its stamp; a
+    different one is stored unverified, and a new or different GTIN/MPN is
+    rejected in the preview.
+  - Duplicates are unverified.
+  - Public projections strip `verifiedBy`.
+- **Status.** fixed in PR E.
 
 ### E2 · Image provenance is per product; the sharing image ignores it — P1
 
 - **Failure.** Provenance lives in `supplierDetails.imageProvenance`, so one
-  illustrative image marks or unmarks them all; the OG image uses the first
-  photo even when the product is marked illustrative.
-- **Fix.** Nullable per-image `provenance` and `verified_at` (migration
-  `0024`, same column names as the equivalent store migration so a store can
-  adopt it); illustrative or unknown images are excluded from OG, JSON-LD and
-  the feed and captioned in the storefront.
-- **Status.** planned (after B1).
+  illustrative image marks or unmarks them all. The OG image used the first
+  photo even when the product was marked illustrative.
+- **Fix.**
+  - Migration `0024`: nullable `product_images.provenance` and
+    `verified_at timestamp(3)`.
+  - The panel marks each photo, and the server stamps the date.
+  - Effective provenance = the photo's own, else the product's, else
+    unknown.
+  - Illustrative photos never go outside the page (OG, JSON-LD, feed) and
+    are captioned in the gallery.
+  - Completeness reads each photo.
+- **Hook.** `src/config/public-facts.ts` (new store-owned file) →
+  `PUBLIC_FACTS.publishUnknownImages`. The template default `true` keeps
+  publishing unmarked photos as before; a store that requires declared
+  provenance sets `false`.
+- **Cross-store note.** A store created from the baseline added the same two
+  columns in its own `0024` with byte-identical SQL, but its `0023` differs
+  from this template's. B1's guard stops that store's sync with a `choque`
+  report; adopting the template's history is a store-side decision (see
+  "Needs a decision").
+- **Status.** fixed in PR E.
 
 ### E3 · Product metadata drops the site's sharing image — P2
 
-- **Failure.** Without a publishable photo the product page still sets
-  `openGraph` without `images`, and Next replaces the parent object: no image,
-  site name or locale.
-- **Fix.** Omit `openGraph` when there is no publishable photo; otherwise
-  include site name and locale.
-- **Status.** planned.
+- **Failure.** Next replaces the layout's `openGraph` with the page's, so
+  every product page lost `og:site_name` and `og:locale`. A product without
+  photos had no `og:image` either.
+- **Fix.**
+  - The product page repeats the site name (`nombreTienda()`) and locale.
+  - Without a publishable photo it points at the site's own
+    `/opengraph-image`.
+  - Skipping `openGraph` altogether would also have dropped `og:title` and
+    `og:description`, so it is kept.
+- **Status.** fixed in PR E.
 
 ### E4 · Supplier URL validation throws — P2
 
-- **Failure.** `.refine(new URL(v))` runs after `z.url()` already failed;
+- **Failure.** `.refine(new URL(v))` runs after `z.url()` already failed, so
   "not a url" throws `TypeError` and the admin shows a generic error.
 - **Fix.** `z.url({ protocol: /^https$/ })` with a Spanish message.
-- **Status.** planned.
+- **Status.** fixed in PR E.
 
 ### E5 · A product cannot take back its own previous slug — P2
 
-- **Failure.** A→B→A is rejected as a conflict although the alias belongs
+- **Failure.** A→B→A is rejected as a conflict, although the alias belongs
   to the same product.
-- **Fix.** Reject only aliases owned by another product.
-- **Status.** planned.
+- **Fix.**
+  - Only aliases owned by another product are rejected.
+  - There is no chain or cycle risk: `getProductSlugRedirect` always
+    resolves straight to the current slug.
+  - The import preview still refuses a historical slug, because there the
+    slug identifies the product.
+- **Status.** fixed in PR E.
 
 ### E6 · Structured data and feed claim facts nobody verified — P2
 
-- **Failure.** Single-Product JSON-LD takes `sku`/`gtin`/`mpn` from the
-  first in-stock variant (they change when it sells out); the feed sends
-  `identifier_exists=no` merely because no identifier was entered, and
-  `item_group_id` for any multi-variant product.
-- **Fix.** Top-level identifiers only for single-variant products; omit
-  `identifier_exists` unless the store declares it; group with the same rule
-  as JSON-LD.
-- **Status.** planned.
+- **Failure.**
+  - Product JSON-LD takes the top-level `sku`/`gtin`/`mpn` from the first
+    in-stock variant, so they change when it sells out.
+  - The feed sends `identifier_exists=no` merely because no identifier was
+    entered (Merchant Center disapproves a branded product that does have
+    one).
+  - The feed sends `item_group_id` for any multi-variant product, with no
+    variant attribute.
+- **Fix.**
+  - Top-level identifiers only for single-variant products; offers keep
+    their SKU.
+  - `identifier_exists=no` only when the store declares it.
+  - One grouping rule, `src/lib/variant-grouping.ts`, for both outputs: a
+    declared `schemaProperty` dimension, verified on every variant, with
+    more than one value. The feed then also sends `g:color`, `g:size`, etc.
+- **Hook.** `PUBLIC_FACTS.noManufacturerIdentifiers` (`false` in the
+  template).
+- **Status.** fixed in PR E.
 
 ### Checked in batch E and not present
 
@@ -580,3 +655,29 @@ after the receipt arrived (D5). Acceptance tests:
 
 - Role-aware sidebar (server-filtered), mobile admin drawer with logout,
   remito print rules, setup confirmation/visibility and success hand-off.
+
+---
+
+## Needs a decision
+
+These are business or store-side choices. The template ships a neutral default
+and a hook; none of them is decided for a store.
+
+- **A store whose own migrations collide with the template's** (B1, E2). A
+  store created from the baseline has its own `0023` (the template's DDL
+  without the current-slug backfill) and its own `0024`, whose SQL is
+  identical to the template's new `0024`.
+  - B1's guard stops its sync before writing anything, which is the safe
+    outcome.
+  - To adopt the template's history, the store has to reconcile its
+    `__drizzle_migrations` rows and journal by hand, following the steps in
+    NEW-STORE.md § "Migraciones propias de una tienda". It should take a
+    backup first and rehearse on a disposable copy.
+  - The other option is to keep its own history and port template changes
+    by hand.
+  - That is the store owner's call, not the template's.
+- **Unmarked photos outside the page** (E2). Should a store publish photos
+  whose provenance nobody declared (`PUBLIC_FACTS.publishUnknownImages`)?
+  The template keeps publishing them.
+- **Receipt review window** (D5). `RECEIPT_REVIEW.holdHours` defaults to 48
+  hours.

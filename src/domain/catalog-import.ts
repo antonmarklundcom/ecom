@@ -3,15 +3,16 @@ import { parseCsv } from "@/lib/csv";
 import { slugify } from "@/lib/slug";
 import { z } from "zod";
 import {
+  IdentifiersInputSchema,
   ProductSpecificationsSchema,
   SupplierDetailsSchema,
   VariantAttributesSchema,
-  VerifiedIdentifiersSchema,
+  type IdentifiersInput,
   type ProductSpecifications,
   type SupplierDetails,
   type VariantAttributes,
-  type VerifiedIdentifiers,
 } from "@/lib/product-attributes";
+import { stripStamps } from "@/lib/verification-stamps";
 
 /**
  * La planilla de productos → un catálogo validado (`pnpm importar:productos`).
@@ -49,8 +50,14 @@ import {
  * antes) se ponen sólo al insertar (docs/TEMPLATE-IMPROVEMENT-PLAN.md C2).
  */
 export type CatalogoVariante = {
+  /**
+   * Los JSON verificables llegan **sin sellos**: una planilla no verifica
+   * nada (docs/TEMPLATE-IMPROVEMENT-PLAN.md E1). Lo que no cambió conserva su
+   * sello al escribirse; lo que cambió queda sin verificar, y un GTIN/MPN que
+   * cambia lo frena el plan.
+   */
   attributes?: VariantAttributes | null;
-  identifiers?: VerifiedIdentifiers | null;
+  identifiers?: IdentifiersInput | null;
   sku: string;
   label?: string;
   pricePyg: number;
@@ -432,11 +439,9 @@ export function parseCatalogo(text: string): CatalogoImportado {
         const raw = celda(fila, key);
         if (!raw) return undefined;
         try {
-          return schema.nullable().parse(JSON.parse(raw));
+          return schema.nullable().parse(stripStamps(JSON.parse(raw)));
         } catch {
-          throw new Error(
-            `${key}: JSON inválido, identificador inválido o fecha de verificación inválida/futura`
-          );
+          throw new Error(`${key}: JSON inválido o identificador inválido`);
         }
       };
       const seoTitle = celda(fila, "seoTitle");
@@ -468,7 +473,7 @@ export function parseCatalogo(text: string): CatalogoImportado {
           ? { attributes: readJson("attributes", VariantAttributesSchema) }
           : {}),
         ...(celda(fila, "identifiers")
-          ? { identifiers: readJson("identifiers", VerifiedIdentifiersSchema) }
+          ? { identifiers: readJson("identifiers", IdentifiersInputSchema) }
           : {}),
       };
     } catch (error) {
