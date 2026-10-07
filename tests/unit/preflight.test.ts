@@ -490,3 +490,61 @@ describe("preflight entiende las dos fuentes: /admin/integraciones y el entorno"
     expect(preflight(envSano()).checks.some((item) => item.id === "integraciones_panel")).toBe(false);
   });
 });
+
+/**
+ * docs/TEMPLATE-IMPROVEMENT-PLAN.md D1: los medios de pago **efectivos**.
+ * Antes, `preflight` miraba sólo las `BANCO_*` del entorno y nunca qué
+ * métodos ofrece el checkout: sin banco en ningún lado y la política en
+ * "sólo transferencia", el checkout estaba cerrado y el reporte decía "Nada
+ * bloquea el cobro".
+ */
+describe("preflight · medios de pago efectivos", () => {
+  const sinBanco = {
+    BANCO_NOMBRE: "",
+    BANCO_TITULAR: "",
+    BANCO_RUC: "",
+    BANCO_CUENTA: "",
+    BANCO_TIPO_CUENTA: "",
+  };
+  const pagos = (
+    metodosPago: Array<"transferencia" | "contra_entrega" | "tarjeta"> | null,
+    bancoEnPanel = false
+  ) => ({ pagos: { lectura: "ok" as const, metodosPago, bancoEnPanel } });
+  const medios = (env: PreflightEnv, ajustes: Parameters<typeof preflight>[2]) =>
+    preflight(env, undefined, ajustes).checks.find((c) => c.id === "medios_pago");
+
+  it("bloquea cuando ningún medio de pago puede cobrar", () => {
+    const check = medios(
+      envSano({ ...sinBanco, STORE_PAYMENT_METHODS: "transferencia" }),
+      pagos(null)
+    );
+    expect(check?.severity).toBe("bloquea");
+    expect(check?.detail).toMatch(/transferencia/);
+  });
+
+  it("la pausa del dueño (lista vacía en Ajustes) también bloquea", () => {
+    expect(medios(envSano(), pagos([]))?.severity).toBe("bloquea");
+  });
+
+  it("el banco cargado en /admin/banco cuenta, y el control de banco deja de avisar", () => {
+    const env = envSano({ ...sinBanco, STORE_PAYMENT_METHODS: "transferencia" });
+    const report = preflight(env, undefined, pagos(null, true));
+    expect(report.checks.find((c) => c.id === "medios_pago")?.severity).toBe("ok");
+    expect(report.checks.find((c) => c.id === "banco")?.severity).toBe("ok");
+  });
+
+  it("un método elegido sin configurar advierte, si queda otro que cobra", () => {
+    const check = medios(envSano(sinBanco), pagos(null));
+    expect(check?.severity).toBe("advierte");
+    expect(check?.detail).toMatch(/transferencia/);
+  });
+
+  it("sin base para leer, avisa con lo que dice el entorno y no frena por lo que no puede ver", () => {
+    const check = medios(
+      envSano({ ...sinBanco, STORE_PAYMENT_METHODS: "transferencia" }),
+      { pagos: { lectura: "fallo" } }
+    );
+    expect(check?.severity).toBe("advierte");
+    expect(check?.detail).toMatch(/base/);
+  });
+});

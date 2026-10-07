@@ -21,6 +21,7 @@ import {
   type StoreSettings,
 } from "@/domain/store-settings-schema";
 import { t } from "@/i18n";
+import { paymentPolicy } from "@/domain/payment-policy";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { cloudinaryConfigured } from "@/lib/cloudinary";
 import { customerSessionConfigured } from "@/lib/customer-session";
@@ -735,12 +736,12 @@ function CheckoutSection({ settings }: { settings: StoreSettings }) {
                   type="checkbox"
                   name="metodosPago"
                   value={method}
+                  // Heredando, se ven los que de verdad rigen hoy
+                  // (STORE_PAYMENT_METHODS o src/config/checkout.ts), y "selección
+                  // propia" arranca de ahí (docs/TEMPLATE-IMPROVEMENT-PLAN.md D2).
                   defaultChecked={(
-                    c.metodosPago ?? [
-                      "transferencia",
-                      "contra_entrega",
-                      "tarjeta",
-                    ]
+                    c.metodosPago ??
+                    paymentPolicy(null, process.env.STORE_PAYMENT_METHODS)
                   ).includes(method)}
                 />{" "}
                 {method.replace("_", " ")}

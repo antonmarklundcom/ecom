@@ -25,6 +25,18 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Cobrar lo que el checkout de verdad ofrece** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  D1–D5). `pnpm preflight` evalúa los medios de pago efectivos (Ajustes >
+  `STORE_PAYMENT_METHODS` > `checkout.ts`, con el banco de `/admin/banco`) y
+  bloquea si no queda ninguno que cobre; antes decía "Nada bloquea el cobro"
+  con el checkout cerrado. `STORE_PAYMENT_METHODS` vacía ya no cierra todo
+  (es "no está"), y una sección de Ajustes rota cierra en vez de reabrir. Sin
+  almacenamiento de comprobantes, la página del pedido ofrece WhatsApp en vez
+  de un formulario que fallaba. El comprobante se registra bajo el lock del
+  pedido (no más cupo excedido ni comprobantes colgados de pedidos
+  cancelados) y la reserva de stock se sostiene hasta el primer comprobante +
+  48 h (`src/config/receipt-review.ts`, archivo nuevo de la tienda). Sin
+  migración.
 - **La planilla no pisa ni muda lo que no dice** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   C1–C7). Importar es todo o nada (categorías incluidas); una columna ausente
   no toca lo guardado (antes, una planilla de SKU y precio dejaba IVA 10,

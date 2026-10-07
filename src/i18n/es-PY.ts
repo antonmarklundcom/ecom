@@ -412,6 +412,10 @@ export const esPY = {
   "pedido.pasos.5": "Sacá una captura del comprobante y subila acá abajo.",
 
   "pedido.comprobante.titulo": "Subí tu comprobante",
+  "pedido.comprobante.sinAlmacenamiento":
+    "Por ahora el comprobante no se sube desde esta página: mandáselo a la tienda por WhatsApp, con tu número de pedido.",
+  "pedido.comprobante.sinAlmacenamientoNiWhatsApp":
+    "Por ahora el comprobante no se sube desde esta página. Mandáselo a la tienda por el medio de contacto que figura en el pie, con tu número de pedido.",
   "pedido.comprobante.waAyuda":
     "También podés mandarnos el comprobante directo por WhatsApp:",
   "pedido.comprobante.waBoton": "Enviar comprobante por WhatsApp",
@@ -575,6 +579,8 @@ export const esPY = {
   "error.comprobante.noEsperaComprobante":
     "Este pedido ya no está esperando el comprobante.",
   "error.comprobante.pedidoNoEncontrado": "No encontramos ese pedido.",
+  "error.comprobante.sinAlmacenamiento":
+    "Esta tienda todavía no recibe comprobantes por acá. Mandalo por WhatsApp o escribile a la tienda.",
   "error.comprobante.elegiArchivo": "Elegí el archivo del comprobante.",
   "error.comprobante.generico":
     "No pudimos subir el comprobante. Probá de nuevo.",

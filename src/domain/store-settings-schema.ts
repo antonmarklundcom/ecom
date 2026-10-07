@@ -43,6 +43,15 @@ function seccion<Forma extends z.ZodRawShape>(forma: Forma) {
   return schema.catch(() => schema.parse({}));
 }
 
+/** Como `seccion`, pero una sección presente y rota cierra los medios de pago. */
+function seccionCerrada<Forma extends z.ZodRawShape>(forma: Forma) {
+  const schema = z.object(forma);
+  return schema.catch((ctx) => ({
+    ...schema.parse({}),
+    ...(ctx.input === undefined ? {} : { metodosPago: [] }),
+  }));
+}
+
 export const PAGINAS = [
   "envios",
   "devoluciones",
@@ -137,7 +146,13 @@ export const StoreSettingsSchema = z.object({
     estrellasEnTarjetas: interruptor(true),
     barraCompraMovil: interruptor(true),
   }),
-  checkout: seccion({
+  // La única sección que **no** cae a sus defaults si llega rota: el default
+  // de `metodosPago` es `null` ("heredá la política"), y heredar acá
+  // reabriría un checkout que el dueño había pausado con una lista vacía. Una
+  // sección checkout que existe pero no tiene forma cierra los medios de pago
+  // hasta que alguien la guarde de nuevo (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  // D2). Si no existe (tienda que nunca la tocó), hereda como siempre.
+  checkout: seccionCerrada({
     metodosPago: z
       .array(z.enum(["transferencia", "contra_entrega", "tarjeta"]))
       .max(3)

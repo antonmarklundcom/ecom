@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { CopyField } from "@/components/copy-field";
 import { PurchaseEvent } from "@/components/purchase-event";
 import { GuardarDatosCta } from "@/components/cuenta/guardar-datos";
-import { ReceiptUpload } from "@/components/receipt-upload";
+import { ReceiptSection } from "@/components/receipt-section";
 import { ReviewForms } from "@/components/review-form";
 import { getOrderItems, requireOrderAccess, orderUrl } from "@/domain/order-access";
 import { getOrderEvents } from "@/domain/orders";
@@ -14,7 +14,9 @@ import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import { REVIEWABLE_ORDER_STATUS, listReviewableItems } from "@/domain/reviews";
 import { t } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
+import { cloudinaryConfigured } from "@/lib/cloudinary";
 import { getDatosBancarios, waLinkPublico } from "@/lib/comercio";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 import { formatGs, formatGsPlain } from "@/lib/money";
 import { ORDER_STATUS_LABEL_COMPRADOR } from "@/lib/order-labels";
 import { formatDateTimePY } from "@/lib/py";
@@ -81,6 +83,8 @@ export default async function OrderPage({
   // (ARCH.md §5 punto 4).
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const buyerUrl = `${siteUrl}${orderUrl(order.orderNumber, order.accessToken)}`;
+  // El almacenamiento de comprobantes puede venir de /admin/integraciones.
+  await cargarIntegraciones();
   const comprobanteWaHref = await waLinkPublico(
     t("pedido.comprobante.waMensaje", {
       numero: order.orderNumber,
@@ -154,31 +158,13 @@ export default async function OrderPage({
       {["pendiente_pago", "rechazado", "esperando_verificacion"].includes(order.status) &&
       order.paymentMethod === "transferencia" &&
       token ? (
-        <section className="border-border mt-6 rounded-xl border p-4">
-          <h2 className="font-medium">{t("pedido.comprobante.titulo")}</h2>
-          <div className="mt-3">
-            <ReceiptUpload
-              orderNumber={order.orderNumber}
-              token={token}
-              remaining={RECEIPT_MAX_PER_ORDER - receiptCount}
-            />
-          </div>
-          {comprobanteWaHref ? (
-            <>
-              <p className="text-muted-foreground mt-4 text-xs">
-                {t("pedido.comprobante.waAyuda")}
-              </p>
-              <a
-                href={comprobanteWaHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="border-border mt-2 inline-flex rounded-lg border px-4 py-2 text-sm"
-              >
-                {t("pedido.comprobante.waBoton")}
-              </a>
-            </>
-          ) : null}
-        </section>
+        <ReceiptSection
+          orderNumber={order.orderNumber}
+          token={token}
+          remaining={RECEIPT_MAX_PER_ORDER - receiptCount}
+          storageReady={cloudinaryConfigured()}
+          waHref={comprobanteWaHref}
+        />
       ) : null}
 
       <section className="mt-6">

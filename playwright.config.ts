@@ -64,6 +64,18 @@ export default defineConfig({
     // The credential stays in process memory; setup UI tests intercept the POST.
     env: {
       SETUP_SECRET: process.env.SETUP_SECRET ?? randomBytes(32).toString("hex"),
+      // The receipt form is only offered when receipt storage is configured
+      // (docs/TEMPLATE-IMPROVEMENT-PLAN.md D3). Disposable fixture values for
+      // this browser server only, never used for a real upload: the receipt
+      // spec sends an invalid file that validation rejects before any upload.
+      // Real values from the environment win.
+      CLOUDINARY_CLOUD_NAME:
+        process.env.CLOUDINARY_CLOUD_NAME || "disposable-gallery-fixture",
+      CLOUDINARY_API_KEY:
+        process.env.CLOUDINARY_API_KEY || "disposable-browser-fixture-key",
+      CLOUDINARY_API_SECRET:
+        process.env.CLOUDINARY_API_SECRET ||
+        "disposable-browser-fixture-secret",
     },
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer:

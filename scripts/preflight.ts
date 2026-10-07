@@ -9,6 +9,7 @@ import {
 } from "../src/domain/admin-shipping-methods";
 import { preflight, type PreflightCheck } from "../src/domain/preflight";
 import { listShippingZones } from "../src/domain/shipping";
+import { readBankDetails } from "../src/domain/admin-bank";
 import { readStoreSettings } from "../src/domain/store-settings";
 import { leerIntegracionesDelPanel } from "../src/lib/integraciones-store";
 
@@ -111,12 +112,20 @@ async function main(): Promise<void> {
   const panel = await leerIntegracionesDelPanel();
   // El nombre y las cuentas de cliente también se deciden en /admin/ajustes.
   // Sin base, `tienda.ts` (lo dice el control de lectura de arriba).
-  const ajustes = await readStoreSettings()
-    .then(({ settings }) => ({
+  // Y la política de medios de pago y la cuenta de /admin/banco: sin eso el
+  // reporte no puede saber si el checkout cobra (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  // D1). Sólo lectura; sin base, se evalúa con el entorno y se avisa.
+  const ajustes = await Promise.all([readStoreSettings(), readBankDetails()])
+    .then(([{ settings }, banco]) => ({
       nombreTienda: settings.identidad.nombre,
       cuentasClientes: settings.cuentas.activas,
+      pagos: {
+        lectura: "ok" as const,
+        metodosPago: settings.checkout.metodosPago,
+        bancoEnPanel: banco !== null,
+      },
     }))
-    .catch(() => ({}));
+    .catch(() => ({ pagos: { lectura: "fallo" as const } }));
   const report = preflight(process.env, panel, ajustes);
 
   console.log("\nPreflight — lo que falta para cobrar de verdad\n");
