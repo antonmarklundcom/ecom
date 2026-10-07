@@ -17,7 +17,9 @@ leé:
   revisión `fable/REVIEW.md` (2026-09-11). La última revisión de maquinaria es
   `fable/REVIEW-2026-09-13.md` (ya aplicada, #109) y la auditoría del template
   como fábrica de tiendas es `fable/TEMPLATE-REVIEW.md` (2026-09-19, T1–T7, todos
-  cerrados). La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
+  cerrados). La auditoría de octubre (A–F, PRs #148–#153, todo mergeado) está en
+  `docs/TEMPLATE-IMPROVEMENT-PLAN.md`; **lo que falta y cómo seguir** está en
+  `fable/HANDOFF-2026-10-07.md` — leelo primero si retomás ese trabajo. La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
   en el template: una tienda no lo tiene (`pnpm nueva-tienda` lo borra).
 - **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
   remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).
