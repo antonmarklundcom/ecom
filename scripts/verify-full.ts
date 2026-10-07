@@ -38,6 +38,9 @@ env.NEXT_PUBLIC_SITE_URL = `http://127.0.0.1:${env.E2E_PORT?.trim() || 3000}`;
 for (const fields of Object.values(CAMPOS))
   for (const field of fields)
     if (!(field.env === "WHATSAPP_NUMBER")) env[field.env] = "";
+// Synthetic image URL namespace: browser tests intercept the requests.
+// No API credentials or live Cloudinary account are required.
+env.CLOUDINARY_CLOUD_NAME = "disposable-gallery-fixture";
 for (const args of [
   ["typecheck"],
   ["lint"],

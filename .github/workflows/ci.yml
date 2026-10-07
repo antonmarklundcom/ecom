@@ -180,6 +180,7 @@ jobs:
       OWNER_PASSWORD: "Contrasena-Segura-Para-CI-123"
       OWNER_NAME: "Dueño CI"
       TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/ecom_test
+      CLOUDINARY_CLOUD_NAME: disposable-gallery-fixture
 
     steps:
       - uses: actions/checkout@v7

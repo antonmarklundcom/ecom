@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import HomeLoading from "@/components/home-loading";
 
 import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
@@ -20,7 +22,15 @@ import { nombreTienda } from "@/lib/marca";
  */
 export const revalidate = 300;
 
-export default async function HomePage() {
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HomeLoading />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+async function HomeContent() {
   let categories: Awaited<ReturnType<typeof getCategories>> = [];
   let featured: CatalogProduct[] = [];
   let isChosen = false;

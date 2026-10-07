@@ -8,10 +8,8 @@ import { ProductCardSkeleton } from "@/components/product-card";
  * El esqueleto copia la grilla real —hero, categorías, 8 tarjetas— para que el
  * contenido no salte cuando llega.
  *
- * `/categoria/[slug]` y `/producto/[slug]` **no** llevan `loading.tsx` a
- * propósito: ambas deciden su 404 en el cuerpo, y el Suspense de un
- * `loading.tsx` manda el shell —y con él un 200— antes de que se sepa si la
- * página existe (ver el comentario en `producto/[slug]/page.tsx`).
+ * Se monta dentro de la home: un loading.tsx en la raíz también envolvería
+ * productos y categorías, enviando 200 antes de decidir sus 404/redirects.
  */
 export default function HomeLoading() {
   return (

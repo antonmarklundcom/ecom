@@ -37,6 +37,8 @@ The missing mechanisms are implemented in this branch; existing visibility, role
 
 ## Migration and recovery
 
+The home skeleton now lives inside the home page. A root `loading.tsx` sends HTTP 200 before descendant product/category pages can decide their 308 redirects or 404s. Existing stores with a customized root loading boundary must remove or narrow it as part of the reviewed update.
+
 `0023_lucky_black_widow.sql` was generated against this template's own `0022` snapshot, then extended with a current-slug backfill. Apply the committed migration and schema extras before starting code that reads the new columns. Do not use `db:push` on production or let two application versions edit slugs during migration. Deployment must provide an explicit maintenance/migration step; deploying this code against an unmigrated database is not safe. No production migration is performed by this PR.
 
 Backups include the nullable columns and `product_slug_redirects`, paginated by slug. Format-2 hashes and snapshots still identify the schema that made a backup. Restore an older supported format-2 backup into a brand-new empty recovery database, load its original schema/rows first, and then run remaining migrations (including the current-slug backfill). A recovery target newer than the backup is deliberately rejected. The legacy format remains explicit opt-in and cannot restore secrets without the matching session secret. Never reset a live catalogue as a verification step.

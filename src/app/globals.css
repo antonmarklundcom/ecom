@@ -153,12 +153,8 @@
    `src/proxy.ts` no permite `'unsafe-inline'` en `style-src` para las rutas
    con nonce, y `/admin` es justamente una de ésas.
 
-   `header` es el único <header> que existe bajo `/admin` — el del layout del
-   panel (`src/app/admin/(panel)/layout.tsx`) — así que ocultarlo acá alcanza
-   para sacar el nav de cualquier página del panel que se imprima, sin tocar
-   ese layout (fuera de los Owns de esta fase). `.s9-no-print` es para lo que
-   la fase sí dibuja: el botón "Imprimir" y el link "Volver al pedido" del
-   remito. */
+   `.s9-no-print` oculta la navegación y los controles de impresión.
+   No se ocultan todos los headers: el remito conserva su propio encabezado. */
 @media print {
   .s9-no-print {
     display: none !important;
@@ -166,9 +162,6 @@
   .admin-workspace-content {
     max-width: none !important;
     padding: 0 !important;
-  }
-  .s9-no-print {
-    display: none !important;
   }
   .s9-print-page {
     max-width: none !important;
