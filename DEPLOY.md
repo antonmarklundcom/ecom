@@ -489,10 +489,21 @@ el logger los redacta por nombre de campo.
 curl -fsS https://TU-DOMINIO/api/health
 ```
 
-Tiene que devolver `{"ok":true,"db":true,"cron":true}`. `db:false` significa
-que la app levantó pero no llega a MySQL — volvé al punto 3 con `pnpm
-db:check`. `cron:false` es que `vencer-pedidos` todavía no corrió (o no corre
-desde hace 2 h): revisá el punto 5 — recién configurado, esperá 15 minutos.
+Tiene que devolver
+`{"ok":true,"db":true,"catalog":true,"cron":true,"migrations":true,"backup":true}`.
+`db:false` significa que la app levantó pero no llega a MySQL — volvé al punto
+3 con `pnpm db:check`. `catalog:false`, que llega a la base pero el catálogo
+no responde (casi siempre: columnas que el código espera y la base no tiene).
+`migrations:false`, que la base no tiene exactamente las migraciones de este
+código: entre el redeploy y el setup es normal —corré el `POST
+/api/setup/init` del §4—; si sigue en `false` después, `pnpm db:check` y
+`/api/version` dicen cuáles faltan o cuáles drizzle saltearía (NEW-STORE.md §
+"Migraciones propias de una tienda"). `cron:false` es que `vencer-pedidos`
+todavía no corrió (o no corre desde hace 2 h): revisá el punto 5 — recién
+configurado, esperá 15 minutos. `backup:false`, que el backup automático está
+configurado y no terminó bien en las últimas 26 h (§5, tercera entrada); sin
+Cloudinary no hay backup automático que vigilar y el campo queda en `true`
+—eso no prueba que exista una copia, ver §7.
 
 Y desde tu máquina, apuntando al entorno real:
 
@@ -513,11 +524,15 @@ checkout, y entrar a `/admin` con la cuenta del dueño.
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/version
 ```
 
-Devuelve `{"sha","builtAt","node"}` (ARCH.md § "Observabilidad") — el SHA corto
-del build que está corriendo. Compará contra el commit que acabás de deployar;
-si no coincide, el redeploy de Hostinger no levantó el build nuevo (ver el
-punto 2, cache del build). Mismo `CRON_SECRET` que las tres rutas de cron: sin
-él, 503.
+Devuelve `{"sha","builtAt","node","migrations"}` (ARCH.md § "Observabilidad")
+— el SHA corto del build que está corriendo. Compará contra el commit que
+acabás de deployar; si no coincide, el redeploy de Hostinger no levantó el
+build nuevo (ver el punto 2, cache del build). `migrations` dice si también
+tomó la migración: `current`, y si no, `pending` (las que faltan), `skipped`
+(las que drizzle no va a correr nunca porque son más viejas que la última
+aplicada) y `foreign` (filas aplicadas que no son de este código); `null` si
+la base no contestó a tiempo. Mismo `CRON_SECRET` que las tres rutas de cron:
+sin él, 503.
 
 ---
 
@@ -577,10 +592,21 @@ Stack, Hetrix): apuntalo a `https://TU-DOMINIO/api/health` cada 5 minutos.
 > puede vender nada.
 
 En el monitor, entonces: alertar si la respuesta **no contiene**
-`"db":true,"cron":true`. El `cron` es el otro silencio: `false` si
-`vencer-pedidos` no corrió en las últimas 2 horas (§5) — sin él no vence
-ningún pedido sin pagar, el stock queda reservado y no sale ningún
-recordatorio de pago.
+`"db":true,"catalog":true,"cron":true,"migrations":true` (en ese orden, tal
+cual: es una sola palabra clave para los monitores que aceptan una). El
+`cron` es el otro silencio: `false` si `vencer-pedidos` no corrió en las
+últimas 2 horas (§5) — sin él no vence ningún pedido sin pagar, el stock queda
+reservado y no sale ningún recordatorio de pago. `migrations` agarra el deploy
+que subió código nuevo sin migrar la base.
+
+Un segundo monitor, más espaciado (una vez por hora alcanza), con la palabra
+`"backup":true`: el backup corre una vez por día y nadie se entera si el cron
+desapareció del hPanel (el aviso por WhatsApp sólo sale cuando corre y falla).
+
+> Hasta octubre de 2026 este punto decía `"db":true,"cron":true`, que dejó de
+> aparecer cuando se agregó `catalog` en el medio: un monitor configurado así
+> alerta siempre (o, al revés, se configuró "contiene" y nunca alerta).
+> Cambialo por la palabra de arriba.
 
 Con varias tiendas, uno por tienda y con el nombre del comercio en la alerta:
 a las 3 de la mañana no vas a adivinar cuál de las cuatro se cayó.

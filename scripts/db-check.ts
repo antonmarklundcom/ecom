@@ -2,6 +2,8 @@ import '@/lib/load-env';
 
 import mysql from 'mysql2/promise';
 
+import { migrationStatus, type MigrationStatus } from '@/db/migration-status';
+
 /**
  * `pnpm db:check` — ¿la `DATABASE_URL` que tengo es la que creo que tengo?
  *
@@ -154,12 +156,46 @@ async function main(): Promise<void> {
     console.log(`  base seleccionada  ${fila?.base ?? '(ninguna)'}`);
     console.log(`  servidor           ${fila?.version ?? '?'}`);
     console.log('');
+
+    // ¿La base tiene exactamente las migraciones de este código?
+    // (docs/TEMPLATE-IMPROVEMENT-PLAN.md B2)
+    const migraciones = await migrationStatus(connection);
+    for (const linea of describirMigraciones(migraciones)) console.log(linea);
+    console.log('');
+    if (!migraciones.current) process.exitCode = 1;
   } catch (error) {
     console.error(`✗ ${explicarError(error, conexion)}\n`);
     process.exitCode = 1;
   } finally {
     await connection?.end();
   }
+}
+
+/** El estado de las migraciones en líneas para la terminal. Puro, para testearlo solo. */
+export function describirMigraciones(status: MigrationStatus): string[] {
+  if (status.current) {
+    return [`✓ migraciones al día (${status.applied}/${status.expected})`];
+  }
+  const lineas = [
+    `✗ la base no tiene exactamente las migraciones de este código (${status.applied} aplicadas, ${status.expected} en drizzle/)`,
+  ];
+  if (status.pending.length > 0) {
+    lineas.push(`  pendientes        ${status.pending.join(', ')}`);
+  }
+  if (status.skipped.length > 0) {
+    lineas.push(
+      `  drizzle saltearía ${status.skipped.join(', ')} (más viejas que la última aplicada: no las corre nunca)`,
+    );
+  }
+  if (status.foreign > 0) {
+    lineas.push(`  ${status.foreign} fila(s) aplicadas que no son de este journal`);
+  }
+  lineas.push(
+    status.skipped.length > 0 || status.foreign > 0
+      ? '  No migres a ciegas: NEW-STORE.md § "Migraciones propias de una tienda".'
+      : '  Aplicalas con `pnpm db:migrate` (local) o el setup del servidor (DEPLOY.md §4).',
+  );
+  return lineas;
 }
 
 // Igual que `scripts/seed.ts`: los tests importan las funciones puras de acá

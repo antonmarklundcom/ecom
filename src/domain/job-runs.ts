@@ -196,6 +196,22 @@ export function cronAtrasado(
   return now.getTime() - run.lastOkAt.getTime() > maxMinutes * 60_000;
 }
 
+/**
+ * ¿El backup automático dejó de correr? (docs/TEMPLATE-IMPROVEMENT-PLAN.md B5)
+ *
+ * Corre una vez por día (DEPLOY.md §5): 26 h sin un éxito es una noche
+ * perdida más el margen de un cron que arrancó tarde. `true` también si nunca
+ * corrió bien. Quien llama decide si los backups están configurados: sin
+ * almacenamiento no hay nada que exigir.
+ */
+export function backupAtrasado(
+  run: { lastOkAt: Date | null } | null,
+  now: Date = new Date(),
+  maxHours = 26,
+): boolean {
+  return cronAtrasado(run, now, maxHours * 60);
+}
+
 /** El estado de un trabajo, para el panel y para los tests. */
 export async function getJobRun(job: JobName, executor?: Executor) {
   const tx = executor ?? getDb();

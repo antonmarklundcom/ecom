@@ -52,7 +52,9 @@ describe('GET /api/version', () => {
     const cuerpo = (await response.json()) as Record<string, string>;
 
     expect(response.status).toBe(200);
-    expect(Object.keys(cuerpo).sort()).toEqual(['builtAt', 'node', 'sha']);
+    // `migrations` (docs/TEMPLATE-IMPROVEMENT-PLAN.md B2): ¿tomó el
+    // redeploy *y* la migración? `null` cuando no hay base que preguntar.
+    expect(Object.keys(cuerpo).sort()).toEqual(['builtAt', 'migrations', 'node', 'sha']);
     expect(cuerpo.node).toBe(process.version);
   });
 

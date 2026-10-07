@@ -3,6 +3,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { mensajeProblemasMigraciones, problemasEntreRefs } from './template-migrations';
+
 import {
   BASELINE_FILE,
   commitsClasificados,
@@ -78,7 +80,9 @@ export type Opciones = {
   commitearConflictos?: boolean;
 };
 
-export function parseArgs(argv: string[]): Opciones {
+export function parseArgs(entrada: string[]): Opciones {
+  // pnpm 11 pasa el `--` de `pnpm <script> -- --flag` tal cual (B6).
+  const argv = entrada.filter((arg) => arg !== '--');
   const opciones: Opciones = {
     remoto: 'template',
     rama: 'main',
@@ -581,6 +585,22 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
       mensaje: opciones.hasta
         ? `"${opciones.hasta}" no es un commit del template posterior al baseline (${baseline.slice(0, 12)}).`
         : `El baseline ${baseline.slice(0, 12)} no está en la historia de ${ref}. ¿Es un SHA del template?`,
+    };
+  }
+
+  // La historia de migraciones se decide antes de tocar un solo archivo —y
+  // también en `--dry-run`—: un journal fusionado a medias, o una migración
+  // del template que drizzle saltearía, no se arregla después con un merge
+  // (docs/TEMPLATE-IMPROVEMENT-PLAN.md B1).
+  const problemasMigraciones = problemasEntreRefs(cwd, {
+    base: baseline,
+    tienda: 'HEAD',
+    template: objetivo,
+  });
+  if (problemasMigraciones.length > 0) {
+    return {
+      estado: 'precondicion',
+      mensaje: mensajeProblemasMigraciones(problemasMigraciones),
     };
   }
 

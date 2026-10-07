@@ -118,7 +118,9 @@ export function debeExcluir(rutaRelativa: string): boolean {
 
 export type Opciones = { destino: string; dryRun: boolean; forzar: boolean };
 
-export function parseArgs(argv: string[]): Opciones {
+export function parseArgs(entrada: string[]): Opciones {
+  // pnpm 11 pasa el `--` de `pnpm <script> -- --flag` tal cual (B6).
+  const argv = entrada.filter((arg) => arg !== "--");
   const opciones: Opciones = { destino: "", dryRun: false, forzar: false };
 
   for (let i = 0; i < argv.length; i += 1) {

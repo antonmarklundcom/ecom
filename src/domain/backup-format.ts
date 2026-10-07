@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { sql } from "drizzle-orm";
 import journal from "../../drizzle/meta/_journal.json";
-import { BACKUP_TABLES } from "@/db/schema";
+import { BACKUP_TABLES, type BackupTable } from "@/db/schema";
 import { validSessionSecret } from "@/lib/session-secret";
 import type { Executor } from "./executor";
 
@@ -56,6 +56,18 @@ export function tablesForMigration(tag: string): string[] {
     .map((table) => table.name)
     .sort();
 }
+/**
+ * Las tablas que un backup vuelca: las de `BACKUP_TABLES` que existen en la
+ * migración que **la base** tiene aplicada, no en la del código
+ * (docs/TEMPLATE-IMPROVEMENT-PLAN.md B4). Entre un deploy y su migración
+ * —el orden documentado— el código conoce tablas que la base todavía no
+ * tiene, y el backup nocturno se caía en el primer `SELECT` a una de ellas.
+ * Es exactamente la lista que `restore` exige para esa migración.
+ */
+export function backupTablesForMigration(tag: string): BackupTable[] {
+  const present = new Set(tablesForMigration(tag));
+  return BACKUP_TABLES.filter((table) => present.has(table));
+}
 export async function backupManifest(tx: Executor): Promise<BackupManifest> {
   const [migrationRows] = await tx.execute(
     sql`SELECT hash FROM __drizzle_migrations ORDER BY id DESC LIMIT 1`
@@ -72,7 +84,7 @@ export async function backupManifest(tx: Executor): Promise<BackupManifest> {
     migration,
     server: (versionRows as unknown as { version: string }[])[0]!.version,
     app: process.env.BUILD_SHA ?? "unknown",
-    tables: BACKUP_TABLES,
+    tables: backupTablesForMigration(migration.tag),
     keyCheck: backupKeyCheck(),
   };
 }

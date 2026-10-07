@@ -26,11 +26,15 @@ describe.skipIf(!hasTestDb)("GET /api/health", () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
+    // `migrations` y `backup` (docs/TEMPLATE-IMPROVEMENT-PLAN.md B2, B5): la
+    // base de tests está migrada entera y no tiene backups configurados.
     expect(await response.json()).toEqual({
       ok: true,
       db: true,
       catalog: true,
       cron: false,
+      migrations: true,
+      backup: true,
     });
 
     // Un monitor por palabra clave (DEPLOY.md §8) ve el cron andando.
@@ -53,9 +57,11 @@ describe.skipIf(!hasTestDb)("GET /api/health", () => {
 
     // Booleanos y nada más.
     expect(Object.keys(JSON.parse(body) as object).sort()).toEqual([
+      "backup",
       "catalog",
       "cron",
       "db",
+      "migrations",
       "ok",
     ]);
     expect(body).not.toMatch(/mysql|maria|version|8\.\d|schema/i);
@@ -83,6 +89,8 @@ describe("GET /api/health sin base", () => {
       db: false,
       catalog: false,
       cron: false,
+      migrations: false,
+      backup: false,
     });
 
     vi.doUnmock("@/db");

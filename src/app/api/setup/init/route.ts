@@ -2,11 +2,12 @@ import { timingSafeEqual } from "node:crypto";
 import path from "node:path";
 
 import { eq, sql } from "drizzle-orm";
-import { migrate } from "drizzle-orm/mysql2/migrator";
 import { z } from "zod";
 
 import { getDb, getPool } from "@/db";
 import { applySchemaExtras } from "@/db/extras";
+import { migrateWithBoundedLocks } from "@/db/migrate";
+import { migrationStatus } from "@/db/migration-status";
 import { setupState, users } from "@/db/schema";
 import { preflight } from "@/domain/preflight";
 import { createUser, normalizeEmail } from "@/lib/auth";
@@ -227,7 +228,34 @@ async function run(input: Input): Promise<Response> {
 
   // Siempre, y en este orden: primero las tablas, después los objetos que
   // drizzle-kit no sabe generar.
-  await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+  // Una conexión propia y con tope de espera de locks
+  // (docs/TEMPLATE-IMPROVEMENT-PLAN.md B3): un ALTER detrás de una
+  // transacción abierta no puede colgar la tienda entera.
+  const connection = await getPool().getConnection();
+  try {
+    // Drizzle saltea sin avisar una migración más vieja que la última
+    // aplicada, y no ve una fila que no es de este journal (B2). Migrar así
+    // deja el código nuevo contra un esquema viejo: se frena acá, antes de
+    // tocar nada, y se revisa a mano (NEW-STORE.md § "Migraciones propias de
+    // una tienda").
+    const status = await migrationStatus(connection);
+    if (status.skipped.length > 0 || status.foreign > 0) {
+      return json(
+        {
+          error: "migration_history_mismatch",
+          pending: status.pending,
+          skipped: status.skipped,
+          foreign: status.foreign,
+        },
+        409
+      );
+    }
+    await migrateWithBoundedLocks(connection, {
+      migrationsFolder: path.join(process.cwd(), "drizzle"),
+    });
+  } finally {
+    connection.release();
+  }
   const extras = await applySchemaExtras(getPool());
 
   const pasos: Pasos = {

@@ -1138,6 +1138,59 @@ sincroniza el código antes de migrar, la lectura de la tabla falla en silencio
 Sigue valiendo lo de siempre: Dependabot no mueve nada de esto y las columnas
 no se agregan a mano en el hPanel — la migración es la única fuente.
 
+### Migraciones propias de una tienda
+
+Una tienda **puede** generar su propia migración (`pnpm db:generate` después
+de tocar `src/db/schema.ts`), pero comparte con el template una sola
+numeración y un solo journal. Dos reglas de drizzle hacen que eso no se pueda
+fusionar a ciegas:
+
+- el journal (`drizzle/meta/_journal.json`) es una lista con índices
+  contiguos: si la tienda tiene su `0024` y el template trae otra `0024`,
+  chocan;
+- el migrador aplica una migración sólo si su `when` es **mayor** que el
+  `created_at` de la última aplicada, y no compara hashes: una migración del
+  template más vieja que la última de la tienda se **saltea para siempre**,
+  sin error, en toda base donde la de la tienda ya corrió.
+
+Por eso `template:sync` (también en `--dry-run` y en `distribuir.yml`) mira la
+historia de migraciones **antes de escribir nada** y se frena con un mensaje
+que nombra cada migración en conflicto (docs/TEMPLATE-IMPROVEMENT-PLAN.md B1):
+índice repetido, migración del template anterior a la última de la tienda,
+migración publicada que el template o la tienda reescribieron, o un journal con
+marcadores de conflicto. `template:diff` lo lista y `--marcar` se niega
+mientras dure. Una tienda **sin** migraciones propias nunca choca, y una
+**con** migraciones propias sincroniza normalmente mientras el template no
+traiga migraciones nuevas.
+
+Cómo se sale, según el caso:
+
+1. **La migración propia todavía no se aplicó en ninguna base de verdad**
+   (sólo en tu local o en una base de pruebas). En una rama: borrá su `.sql`,
+   su `drizzle/meta/NNNN_snapshot.json` y su entrada del journal, commiteá,
+   corré `pnpm template:sync`, y después `pnpm db:generate` otra vez: la
+   migración propia renace con el número siguiente y un `when` posterior a las
+   del template. En tu base local, volvé a crearla desde cero con
+   `pnpm db:migrate` (es una base desechable).
+2. **La migración propia ya corrió en producción.** No hay arreglo
+   automático, y no se editan `__drizzle_migrations` ni migraciones
+   publicadas a ciegas. Antes que nada: backup (DEPLOY.md §7), `pnpm db:check`
+   contra esa base y el esquema real a la vista. Si la migración propia es
+   **equivalente** a la del template (mismo DDL; pasa cuando una mejora de una
+   tienda se generalizó en el template), el plan es adoptar los archivos del
+   template y registrar la equivalencia con una revisión escrita, probada
+   primero en una copia restaurada. Si no son equivalentes, la del template se
+   aplica a mano, revisada, en una ventana de mantenimiento.
+3. **El template reescribió una migración publicada.** Es un error del
+   template: no se sincroniza. Avisá en el repo del template.
+
+`pnpm db:check`, `/api/version` y el campo `migrations` de `/api/health`
+dicen si la base tiene exactamente las migraciones del código: pendientes, las
+que drizzle saltearía, y filas que no son de este journal. `pnpm db:migrate` y
+`POST /api/setup/init` se niegan a migrar sobre una historia cruzada, y ninguno
+de los dos espera más de 30 segundos un lock (un `ALTER` detrás de una
+transacción abierta ya no cuelga la tienda: falla y se reintenta).
+
 Si algún día son muchas tiendas, recién ahí conviene sacar `src/domain` y
 `src/lib` a un paquete compartido. Antes de eso es complejidad sin pagar.
 
