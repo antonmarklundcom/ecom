@@ -2,7 +2,12 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { categories, products, variants } from "@/db/schema";
-import { assertGs, ivaBreakdown, lineTotal } from "@/lib/money";
+import {
+  assertGs,
+  isChargeablePrice,
+  ivaBreakdown,
+  lineTotal,
+} from "@/lib/money";
 
 import type { CartIssue } from "@/lib/cart-issues";
 
@@ -135,7 +140,11 @@ export async function priceCart(
     }
     const displayName = `${row.name} — ${row.variantLabel}`;
 
-    if (available <= 0) {
+    // Un precio que no se cobra tampoco se vende: `price_pyg` acepta 0 para
+    // borradores y consultas, y una fila vieja publicada así no puede
+    // terminar en un pedido de ₲0 con stock reservado
+    // (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1).
+    if (available <= 0 || !isChargeablePrice(row.pricePyg)) {
       issues.push({
         type: "no_disponible",
         variantId: row.variantId,

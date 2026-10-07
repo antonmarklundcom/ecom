@@ -8,7 +8,11 @@ import { DEFAULT_REORDER_POINT, lowStockVariants } from "@/domain/admin-products
 import { getStoreSettings } from "@/domain/store-settings";
 import { umbralStockBajo } from "@/domain/store-settings-schema";
 import { cronAtrasado, getJobRun } from "@/domain/job-runs";
-import { countActiveDemoProducts, countActiveShippingZones } from "@/domain/launch-checks";
+import {
+  countActiveDemoProducts,
+  countActiveShippingZones,
+  countUnpricedSellableVariants,
+} from "@/domain/launch-checks";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
 import { getDatosBancarios } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
@@ -27,7 +31,7 @@ export default async function AdminDashboardPage() {
   // variante igual gana.
   const { stock } = await getStoreSettings();
 
-  const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas, cron] =
+  const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas, cron, sinPrecio] =
     await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
@@ -39,6 +43,7 @@ export default async function AdminDashboardPage() {
     countActiveDemoProducts(),
     countActiveShippingZones(),
     getJobRun("vencer_pedidos"),
+    countUnpricedSellableVariants(),
   ]);
 
   return (
@@ -75,6 +80,21 @@ export default async function AdminDashboardPage() {
           <p className="text-muted-foreground mt-1 text-sm">{t("panel.resumen.demo.ayuda")}</p>
           <Link href="/admin/productos" className="mt-2 inline-block text-sm font-medium underline">
             {t("panel.resumen.demo.link")}
+          </Link>
+        </section>
+      ) : null}
+
+      {/*
+        Filas viejas publicadas con stock y en ₲0: el carrito no las vende y
+        la vidriera no muestra el precio (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1),
+        así que sin este aviso nadie sabría por qué "no se venden".
+      */}
+      {sinPrecio > 0 && can(actor.role, "productos") ? (
+        <section className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
+          <h2 className="font-medium">{t("panel.resumen.sinPrecio", { n: sinPrecio })}</h2>
+          <p className="text-muted-foreground mt-1 text-sm">{t("panel.resumen.sinPrecio.ayuda")}</p>
+          <Link href="/admin/productos" className="mt-2 inline-block text-sm font-medium underline">
+            {t("panel.resumen.sinPrecio.link")}
           </Link>
         </section>
       ) : null}

@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { MoneyError, assertGs, formatGs, formatGsPlain, ivaBreakdown, ivaIncluded, lineTotal } from '@/lib/money';
+import {
+  MoneyError,
+  assertGs,
+  formatGs,
+  formatGsPlain,
+  isChargeablePrice,
+  ivaBreakdown,
+  ivaIncluded,
+  lineTotal,
+  lowestChargeablePrice,
+} from '@/lib/money';
 
 describe('formatGs', () => {
   it('formatea con separador de miles paraguayo', () => {
@@ -83,5 +93,21 @@ describe('lineTotal', () => {
   it('rechaza cantidades inválidas', () => {
     expect(() => lineTotal(110000, 0)).toThrow(MoneyError);
     expect(() => lineTotal(110000, 1.5)).toThrow(MoneyError);
+  });
+});
+
+describe('precios cobrables (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1)', () => {
+  it('sólo un entero seguro mayor que cero es un precio que se cobra', () => {
+    expect(isChargeablePrice(1)).toBe(true);
+    expect(isChargeablePrice(150_000)).toBe(true);
+    for (const value of [0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1, null, undefined]) {
+      expect(isChargeablePrice(value)).toBe(false);
+    }
+  });
+
+  it('el "desde" ignora ₲0 y no inventa un precio cuando no hay ninguno', () => {
+    expect(lowestChargeablePrice([{ pricePyg: 0 }, { pricePyg: 90_000 }, { pricePyg: 50_000 }])).toBe(50_000);
+    expect(lowestChargeablePrice([{ pricePyg: 0 }])).toBeUndefined();
+    expect(lowestChargeablePrice([])).toBeUndefined();
   });
 });

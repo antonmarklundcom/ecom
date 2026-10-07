@@ -27,7 +27,7 @@ import { analyticsActivo } from "@/lib/analytics";
 import { waLinkPublico, whatsappPublico } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
-import { formatGs } from "@/lib/money";
+import { formatGs, lowestChargeablePrice } from "@/lib/money";
 import { formatDatePY } from "@/lib/py";
 import { jsonLdScript, productJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
@@ -62,11 +62,7 @@ export async function generateMetadata({
   const product = await loadProduct(slug);
   if (!product) return { title: t("producto.noEncontrado") };
 
-  const cheapest = product.variants.reduce<number | undefined>(
-    (min, variant) =>
-      min === undefined || variant.pricePyg < min ? variant.pricePyg : min,
-    undefined
-  );
+  const cheapest = lowestChargeablePrice(product.variants);
 
   // `markdownToText` y no la descripción cruda (O7): desde que el campo acepta
   // markdown, una que empiece con `**Importado**` publicaría literalmente los
@@ -75,10 +71,12 @@ export async function generateMetadata({
   const description =
     product.seoDescription ||
     markdownToText(product.description).slice(0, 160) ||
-    t("producto.metaDescripcion", {
-      nombre: product.name,
-      precio: cheapest ? formatGs(cheapest) : "",
-    });
+    (cheapest !== undefined
+      ? t("producto.metaDescripcion", {
+          nombre: product.name,
+          precio: formatGs(cheapest),
+        })
+      : product.name);
 
   // La foto principal, recortada a la caja que espera WhatsApp. Si el
   // producto todavía no tiene fotos (o falta el cloud de Cloudinary), se
@@ -165,11 +163,10 @@ export default async function ProductPage({
     product.variants.find((v) => v.available > 0) ??
     product.variants[0];
 
-  const cheapest = product.variants.reduce<number | undefined>(
-    (min, variant) =>
-      min === undefined || variant.pricePyg < min ? variant.pricePyg : min,
-    undefined
-  );
+  // Sólo precios que se cobran: con el precio oculto `hydrate` los deja en 0,
+  // y una fila vieja en ₲0 tampoco es "desde ₲0". Sin ninguno, `undefined`:
+  // no hay "desde", ni precio en la barra fija, ni en vistos recientemente.
+  const cheapest = lowestChargeablePrice(product.variants);
   const totalAvailable = product.variants.reduce(
     (total, variant) => total + variant.available,
     0
@@ -499,7 +496,7 @@ export default async function ProductPage({
           current={{
             slug: product.slug,
             name: product.name,
-            pricePyg: cheapest ?? product.variants[0]?.pricePyg ?? 0,
+            pricePyg: cheapest ?? null,
             imageCloudinaryId: product.images[0]?.cloudinaryId ?? null,
             imageAlt: product.images[0]?.alt ?? null,
           }}

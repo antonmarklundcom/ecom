@@ -41,6 +41,7 @@ import {
 import type { Executor } from "@/domain/executor";
 import { getRatingSummaries, type RatingSummary } from "@/domain/reviews";
 import { heldQtyMap } from "@/domain/stock";
+import { isChargeablePrice } from "@/lib/money";
 
 export type CatalogVariant = {
   attributes?: VariantAttributes;
@@ -125,7 +126,9 @@ export function isCatalogSort(value: string | undefined): value is CatalogSort {
 }
 
 /** Precio mínimo por producto — es el número por el que la gente ordena y filtra. */
-const minPriceSql = sql<number>`MIN(CASE WHEN ${products.showPrice} THEN ${variants.pricePyg} ELSE NULL END)`;
+// Sólo precios que se cobran: un ₲0 (borrador viejo, consulta sin precio) no
+// puede salir primero en "menor precio" ni pasar un filtro "hasta ₲X".
+const minPriceSql = sql<number>`MIN(CASE WHEN ${products.showPrice} AND ${variants.pricePyg} > 0 THEN ${variants.pricePyg} ELSE NULL END)`;
 
 type ProductRow = {
   specifications?: unknown;
@@ -235,9 +238,20 @@ async function hydrate(
     categoryName: row.categoryName,
     categorySlug: row.categorySlug,
     image: imagesByProduct.get(row.id)?.[0] ?? null,
-    variants: (variantsByProduct.get(row.id) ?? []).map((variant) =>
-      row.showPrice ? variant : { ...variant, pricePyg: 0, compareAtPyg: null }
-    ),
+    variants: (variantsByProduct.get(row.id) ?? []).map((variant) => {
+      // Lo que no se puede comprar no publica disponibilidad: ni el stock de
+      // depósito de un producto de consulta o muestra (no es dato público), ni
+      // una variante con un precio que no se cobra (una fila vieja en ₲0 no
+      // se ofrece como "hay 5").
+      const sellable =
+        row.saleMode === "stock" &&
+        row.showPrice &&
+        isChargeablePrice(variant.pricePyg);
+      const shown = sellable ? variant : { ...variant, available: 0 };
+      return row.showPrice
+        ? shown
+        : { ...shown, pricePyg: 0, compareAtPyg: null };
+    }),
     ...(ratings.has(row.id) ? { rating: ratings.get(row.id) } : {}),
   }));
 }
@@ -674,6 +688,19 @@ const CO_PURCHASE_STATUSES = [
 const CO_PURCHASE_MAX_ORDERS = 500;
 
 /**
+ * ¿Vale la pena sugerirlo? Un producto con stock, sólo si le queda algo para
+ * vender después de las reservas ajenas. Uno de consulta o de muestra no
+ * publica su disponibilidad (`hydrate` la deja en 0), así que alcanza con el
+ * `on_hand > 0` que ya pidió la consulta.
+ */
+function worthSuggesting(product: CatalogProduct): boolean {
+  return (
+    product.saleMode !== "stock" ||
+    product.variants.some((variant) => variant.available > 0)
+  );
+}
+
+/**
  * Paso 1 de `getRelatedProducts`: lo que se compró junto con `productId`, en
  * cualquier categoría.
  *
@@ -741,11 +768,7 @@ async function getCoPurchasedProducts(
 
   const hydrated = await hydrate(tx, rows);
 
-  return hydrated
-    .filter((product) =>
-      product.variants.some((variant) => variant.available > 0)
-    )
-    .slice(0, limit);
+  return hydrated.filter(worthSuggesting).slice(0, limit);
 }
 
 /**
@@ -793,10 +816,13 @@ async function getSameCategoryRelated(
     de producto que tuviera en su categoría algo más barato que él se caía con
     error 500, que es casi cualquier ficha de un catálogo real.
   */
-  const cercaniaDePrecio =
-    input.pricePyg === undefined
-      ? sql`0`
-      : sql`ABS(CAST(${minPriceSql} AS SIGNED) - ${input.pricePyg})`;
+  // Sin precio de referencia (ficha sin variantes activas, de precio oculto o
+  // sin precio cobrable) el término **no va**: un 0 literal en ORDER BY es
+  // el número de columna 0 para MySQL/MariaDB —"Unknown column '0' in 'order
+  // clause'"— y la ficha entera se caía con un 500.
+  const cercaniaDePrecio = isChargeablePrice(input.pricePyg)
+    ? sql`ABS(CAST(${minPriceSql} AS SIGNED) - ${input.pricePyg})`
+    : undefined;
 
   const rows = await tx
     .select({ ...PRODUCT_COLUMNS, minPrice: minPriceSql })
@@ -816,16 +842,16 @@ async function getSameCategoryRelated(
       )
     )
     .groupBy(products.id, categories.name, categories.slug)
-    .orderBy(mismaMarca, cercaniaDePrecio, asc(products.name))
+    .orderBy(
+      mismaMarca,
+      ...(cercaniaDePrecio ? [cercaniaDePrecio] : []),
+      asc(products.name)
+    )
     .limit(limit * 3);
 
   const hydrated = await hydrate(tx, rows);
 
-  return hydrated
-    .filter((product) =>
-      product.variants.some((variant) => variant.available > 0)
-    )
-    .slice(0, limit);
+  return hydrated.filter(worthSuggesting).slice(0, limit);
 }
 
 /**

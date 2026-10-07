@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
@@ -12,6 +12,7 @@ import {
 
 import type { AdminProductSort } from "@/lib/admin-product-sort";
 import { EXPORT_MAX_ROWS } from "@/lib/csv";
+import { isChargeablePrice } from "@/lib/money";
 
 import type { MessageKey, Params } from "@/i18n";
 
@@ -404,15 +405,17 @@ export async function updateProduct(
   await claimProductSlug(tx, current.slug, productId);
   await claimProductSlug(tx, input.slug, productId);
 
+  const nextSaleMode = input.saleMode ?? current.saleMode;
+  if (input.isActive && input.published && nextSaleMode === "stock") {
+    await assertActiveVariantsPriced(tx, productId);
+  }
+
   await tx
     .update(products)
     .set({
       ...attributes,
       saleMode: input.saleMode,
-      showPrice:
-        (input.saleMode ?? current.saleMode) === "stock"
-          ? true
-          : input.showPrice,
+      showPrice: nextSaleMode === "stock" ? true : input.showPrice,
       slug: input.slug,
       name: input.name,
       description: input.description,
@@ -431,6 +434,39 @@ export async function updateProduct(
       publishedAt: input.published ? (current.publishedAt ?? new Date()) : null,
     })
     .where(eq(products.id, productId));
+}
+
+/**
+ * Un producto a la venta con stock no puede tener una variante activa sin
+ * precio cobrable (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1).
+ *
+ * El 0 sigue siendo válido donde nadie puede comprar: borrador sin publicar,
+ * producto apagado, variante apagada o modo consulta/muestra. Lo que no se
+ * permite es *publicar* ese 0 como mercadería — el carrito igual lo rechaza
+ * (`priceCart`), pero el panel tiene que avisarle al dueño antes, con el SKU.
+ */
+async function assertActiveVariantsPriced(
+  tx: Executor,
+  productId: number
+): Promise<void> {
+  const unpriced = await tx
+    .select({ sku: variants.sku })
+    .from(variants)
+    .where(
+      and(
+        eq(variants.productId, productId),
+        eq(variants.isActive, true),
+        lte(variants.pricePyg, 0)
+      )
+    )
+    .orderBy(asc(variants.position), asc(variants.id))
+    .limit(1);
+  const first = unpriced[0];
+  if (first) {
+    throw new AdminInputError("adminError.producto.precioCero", {
+      sku: first.sku,
+    });
+  }
 }
 
 async function assertSlugFree(
@@ -477,7 +513,38 @@ export async function saveVariant(
   input: VariantWrite,
   executor?: Executor
 ): Promise<void> {
-  const tx = executor ?? getDb();
+  if (!executor)
+    return getDb().transaction((tx) => saveVariant(productId, input, tx));
+  const tx = executor;
+
+  // Primero el producto, como `updateProduct`: el mismo orden de bloqueo
+  // (producto → variantes) y la regla de precio se decide contra el estado
+  // que no puede cambiar mientras se guarda.
+  const owner = (
+    await tx
+      .select({
+        isActive: products.isActive,
+        publishedAt: products.publishedAt,
+        saleMode: products.saleMode,
+      })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1)
+      .for("update")
+  )[0];
+  if (!owner) throw new AdminInputError("adminError.producto.noExiste");
+  if (
+    input.isActive &&
+    owner.isActive &&
+    owner.publishedAt !== null &&
+    owner.saleMode === "stock" &&
+    !isChargeablePrice(input.pricePyg)
+  ) {
+    throw new AdminInputError("adminError.producto.precioCero", {
+      sku: input.sku,
+    });
+  }
+
   const attributes = validateOptional(
     VariantAttributesSchema,
     input.attributes

@@ -816,6 +816,8 @@ export const esPY = {
   "adminError.producto.skuRepetido":
     'El SKU "{sku}" ya está usado por otra variante.',
   "adminError.producto.varianteNoExiste": "Esa variante no existe.",
+  "adminError.producto.precioCero":
+    'La variante "{sku}" no tiene precio: para venderla con stock el precio tiene que ser mayor a ₲0. Mientras no lo tenga, dejá el producto sin publicar, la variante apagada o el producto en modo consulta.',
   "adminError.stock.sinMotivo":
     "Escribí el motivo del ajuste (ej: rotura, conteo, reposición).",
   "adminError.stock.deltaCero":
@@ -1447,6 +1449,11 @@ export const esPY = {
   "panel.resumen.demo.ayuda":
     "Son los que sembró el setup para ver la tienda andando (auriculares, termos, remeras…), con stock de mentira. Apagalos o borralos antes de publicitar la tienda: un pedido por uno de esos es un pedido que no se puede entregar.",
   "panel.resumen.demo.link": "Ir a productos →",
+  "panel.resumen.sinPrecio":
+    "{n} variante(s) a la venta con stock no tienen precio (₲0)",
+  "panel.resumen.sinPrecio.ayuda":
+    "La tienda no las vende ni las muestra con precio hasta que tengan uno mayor a ₲0. Cargales el precio, o apagá la variante o pasá el producto a consulta.",
+  "panel.resumen.sinPrecio.link": "Ir a productos →",
   "panel.resumen.sinZonas":
     "No hay zonas de envío activas: el envío sale gratis a todo el país",
   "panel.resumen.sinZonas.ayuda":

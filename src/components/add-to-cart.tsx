@@ -10,6 +10,7 @@ import { PriceTag } from "@/components/price-tag";
 import { Button } from "@/components/ui/button";
 import { VariantInquiryLink } from "@/components/variant-inquiry-link";
 import { useCart } from "@/lib/cart-store";
+import { isChargeablePrice } from "@/lib/money";
 import { sendFunnelEvent } from "@/lib/funnel";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
 import { variantFromSku, variantUrl } from "@/lib/variant-url";
@@ -190,7 +191,9 @@ export function AddToCart({
               )}
             </span>
           )}
-          {!purchasable && product.showPrice !== false ? (
+          {!purchasable &&
+          product.showPrice !== false &&
+          isChargeablePrice(selected.pricePyg) ? (
             <p className="text-sm">{t("producto.precioOrientativo")}</p>
           ) : null}
         </div>

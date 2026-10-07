@@ -25,6 +25,16 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **₲0 no se vende ni se muestra** (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1–A3).
+  El carrito rechaza una variante sin precio cobrable aunque esté publicada
+  (filas viejas incluidas), el panel no deja publicar con stock una variante
+  activa en ₲0 (borradores, variantes apagadas y productos de consulta siguen
+  aceptando 0), la vidriera no dibuja "₲ 0" ni "−100 %", el orden por precio
+  y el filtro "hasta ₲X" los ignoran, y el resumen del panel cuenta las
+  variantes viejas que quedaron a la venta sin precio. Los productos de
+  consulta y muestra ya no publican cuántas unidades hay en depósito. Arregla
+  además el error 500 de una ficha sin precio de referencia (`ORDER BY 0` en
+  "también te puede interesar"). Sin migración.
 - **Identidad desde el panel** (`/admin/ajustes` → Identidad): nombre, logo,
   favicon y color de marca, sin tocar `tienda.ts` ni redeployar. `tienda.ts`
   queda como default. Todo lo que mostraba `TIENDA.nombre` (header, títulos,

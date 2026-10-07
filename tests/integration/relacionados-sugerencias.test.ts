@@ -210,6 +210,41 @@ describe.skipIf(!hasTestDb)('también te puede interesar', () => {
     expect(rows[1]?.slug).toBe('lejos');
     expect(rows[2]?.slug).toBe('con-marca-cerquísima');
   });
+
+  it('sin precio de referencia ordena por marca y nombre, sin ORDER BY 0', async () => {
+    /*
+      La regresión (docs/TEMPLATE-IMPROVEMENT-PLAN.md A2): sin precio el
+      término de cercanía era `sql\`0\``, y MySQL/MariaDB leen un entero en
+      ORDER BY como número de columna —"Unknown column '0' in 'order
+      clause'"—. Una ficha publicada sin variantes activas (o de precio
+      oculto) se caía con un 500.
+    */
+    const ids = await catalogo('ropa', BASE);
+
+    const rows = await getRelatedProducts({
+      productId: ids.get('el-que-miro')!,
+      categorySlug: 'ropa',
+      brand: 'Marca A',
+    });
+
+    expect(rows.map((row) => row.slug)).toEqual([
+      'misma-marca-lejos',
+      'otra-marca-cerca',
+      'otra-marca-lejos',
+    ]);
+  });
+
+  it('sin precio de referencia y sin candidatos devuelve una lista vacía', async () => {
+    const ids = await catalogo('ropa', [BASE[0]!]);
+
+    expect(
+      await getRelatedProducts({
+        productId: ids.get('el-que-miro')!,
+        categorySlug: 'ropa',
+        brand: 'Marca A',
+      }),
+    ).toEqual([]);
+  });
 });
 
 /**
