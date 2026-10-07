@@ -76,7 +76,7 @@ test("staff keeps product permissions and cannot access owner guides/settings or
   await page.getByTestId(TESTIDS.adminLoginSubmit).click();
   await expect(page).toHaveURL(/\/admin/);
   await expect(
-    page.getByRole("navigation", { name: "Navegación del panel" })
+    page.getByRole("navigation", { name: "Menú del panel" })
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Productos", exact: true })
@@ -107,7 +107,10 @@ test("staff keeps product permissions and cannot access owner guides/settings or
   await page.getByRole("button", { name: "Guardar", exact: true }).click();
   expect(await links.allTextContents()).toEqual(originalOrder);
   await page.setViewportSize({ width: 390, height: 844 });
-  const menu = page.getByRole("button", { name: "Menú", exact: true });
+  const menu = page.getByRole("button", {
+    name: "Abrir menú del panel",
+    exact: true,
+  });
   await menu.click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");

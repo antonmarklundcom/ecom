@@ -97,6 +97,7 @@ export function esMixto(ruta: string): boolean {
 export const MIXTOS = [
   "src/components",
   "src/app/admin",
+  "src/app/setup",
   "src/app/checkout",
   "src/app/cuenta",
   "src/app/carrito",
@@ -104,7 +105,6 @@ export const MIXTOS = [
   "src/app/producto",
   "src/app/categoria",
   "src/app/comparar",
-  "src/app/setup",
   "src/app/page.tsx",
   "src/app/layout.tsx",
 ] as const;

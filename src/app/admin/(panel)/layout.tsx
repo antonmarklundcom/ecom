@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import type React from "react";
 
-import { AdminNavigation } from "@/components/admin/admin-navigation";
-import { getAdminNavigationItems } from "@/lib/admin-navigation";
+import { AdminWorkspace } from "@/components/admin/sidebar";
+import { adminMenuFor } from "@/components/admin/menu";
 import { countPendingReviews } from "@/domain/reviews";
 import { can } from "@/lib/permissions";
 import { UnauthorizedError, type AdminActor } from "@/lib/session";
@@ -41,15 +41,11 @@ export default async function PanelLayout({
     : 0;
 
   return (
-    <div data-admin-panel="" className="admin-workspace flex min-h-dvh">
-      <AdminNavigation
-        userId={actor.userId}
-        items={getAdminNavigationItems(actor.role, resenasPendientes)}
-        homeHref={can(actor.role, "dashboard") ? "/admin" : "/admin/pedidos"}
-      />
-      <main className="admin-workspace-content mx-auto w-full max-w-6xl min-w-0 flex-1 px-4 pt-20 pb-6 sm:px-6 lg:py-8">
-        {children}
-      </main>
-    </div>
+    <AdminWorkspace
+      userId={actor.userId}
+      items={adminMenuFor(actor.role, resenasPendientes)}
+    >
+      {children}
+    </AdminWorkspace>
   );
 }

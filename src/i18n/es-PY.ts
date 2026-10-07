@@ -2379,12 +2379,12 @@ export const esPY = {
   "setup.meta": "Configuración inicial",
   "setup.titulo": "Configuración inicial de la tienda",
   "setup.bajada":
-    "Crea las tablas de la base, la cuenta del dueño y, si querés, el catálogo de ejemplo. Es lo mismo que el curl de DEPLOY.md §4, sin terminal.",
+    "Prepará la base, la cuenta del dueño y, si querés, un catálogo de ejemplo. Inicializar no significa que la tienda ya esté lista para vender.",
   "setup.despues":
     "Terminado el setup, borrá SETUP_SECRET del hPanel y apretá Redeploy: esta página deja de existir. Después se entra por /admin.",
   "setup.secreto": "SETUP_SECRET",
   "setup.secretoAyuda":
-    "El valor que cargaste en el hPanel (lo imprime pnpm nueva-tienda). No se guarda en ningún lado.",
+    "Usá el valor de SETUP_SECRET que configuraste en el hosting. Se envía de forma segura al inicializar; no se guarda en el navegador.",
   "setup.duenio": "Cuenta del dueño",
   "setup.email": "Email",
   "setup.password": "Contraseña",
@@ -2403,56 +2403,67 @@ export const esPY = {
   "setup.error.sinSecreto": "SETUP_SECRET no está configurado en el hosting.",
   "setup.error.generico": "No se pudo inicializar. Mirá el log del hPanel.",
 
-  "panel.menu.abrir": "Menú",
-  "panel.menu.ayuda":
-    "Arrastrá las secciones o usá las flechas. Guardá para confirmar los cambios.",
-  "panel.menu.bajar": "Bajar {item}",
-  "panel.menu.cancelar": "Cancelar",
-  "panel.menu.cerrar": "Cerrar menú",
-  "panel.menu.editar": "Editar menú",
-  "panel.menu.guardado": "Orden guardado.",
-  "panel.menu.guardar": "Guardar",
-  "panel.menu.local":
-    "El orden se guarda sólo para tu cuenta en este navegador y este sitio.",
-  "panel.menu.navegacion": "Navegación del panel",
-  "panel.menu.pendientes": "{n} reseñas pendientes",
-  "panel.menu.restaurar": "Restaurar orden original",
-  "panel.menu.sinAlmacenamiento":
-    "El navegador no permite guardar el orden. Se mantiene durante esta visita.",
-  "panel.menu.subir": "Subir {item}",
-  "panel.menu.verTienda": "Ver tienda",
   "panel.nav.guia": "Guía",
+  "panel.nav.seo": "Plan editorial y SEO",
   "password.confirmar": "Repetí la contraseña",
   "password.mostrar": "Mostrar contraseña",
   "password.noCoinciden": "Las contraseñas no coinciden. Volvé a escribirlas.",
   "password.ocultar": "Ocultar contraseña",
-  "setup.avanzado": "Recuperar o actualizar una cuenta existente",
-  "setup.catalogoAyuda":
-    "Este paso crea tu acceso al panel. El catálogo de productos se prepara después, con productos reales y datos confirmados. No se cargan productos de ejemplo.",
-  "setup.demoCatalogo": "Cargar el catálogo de ejemplo para pruebas",
-  "setup.demoCatalogoAyuda":
-    "Agrega productos ficticios para probar la tienda. Importar productos reales después no elimina estos ejemplos: tendrás que retirarlos por separado antes de vender.",
-  "setup.detalles": "Ver detalles técnicos",
-  "setup.detallesAyuda":
-    "Este informe incluye funciones opcionales y revisa algunas variables del servidor. No significa que falló la creación de tu cuenta ni reemplaza los ajustes guardados en el panel.",
-  "setup.entrando": "Estamos abriendo tu panel y la guía de primeros pasos…",
-  "setup.error.cuentaIncompleta":
-    "Completá el email y la contraseña de tu cuenta.",
   "setup.error.cuentaSinConfirmar":
     "El sistema respondió, pero no confirmó la creación de la cuenta. Entrá al panel si ya tenés acceso o revisá el resultado antes de repetir el setup.",
   "setup.forceAyuda":
-    "Si es tu primera configuración, dejá esta opción sin marcar. Permite repetir el setup en una tienda ya inicializada. Si el email ya existe, se reemplaza su contraseña, se habilita su acceso como dueño y se cierran sus sesiones anteriores.",
-  "setup.listoAyuda":
-    "Tu acceso al panel está listo. La configuración de productos, pagos y entregas se hace desde allí; no hace falta completar todo para empezar a preparar el catálogo.",
-  "setup.loginButton": "Ir al login de administración",
+    "Permite volver a cargar datos y puede cambiar la contraseña de un dueño existente. Si es la primera vez, dejá esta opción desmarcada.",
   "setup.loginManual":
     "La cuenta quedó guardada, pero el ingreso automático no se completó. Entrá con el email y la contraseña que elegiste; no repitas la creación de la cuenta.",
-  "setup.mostrarSecreto": "Mostrar secreto",
-  "setup.ocultarSecreto": "Ocultar secreto",
-  "setup.passwordAyuda": "Al menos {minimo} caracteres, con letras y números.",
-  "setup.yaTengoCuenta": "Ya tengo una cuenta: entrar al panel",
   "adminError.producto.atributosInvalidos":
     "Revisá los atributos, las fuentes y los identificadores verificados.",
   "adminError.producto.slugHistorico":
     "La URL {slug} ya está reservada por el catálogo o su historial. Elegí otra URL.",
+  "panel.menu.label": "Menú del panel",
+  "panel.menu.edit": "Editar menú",
+  "panel.menu.editHelp":
+    "Arrastrá las secciones o usá las flechas para cambiar el orden. Guardá para aplicarlo.",
+  "panel.menu.up": "Subir {nombre}",
+  "panel.menu.down": "Bajar {nombre}",
+  "panel.menu.save": "Guardar",
+  "panel.menu.cancel": "Cancelar",
+  "panel.menu.restore": "Restaurar orden original",
+  "panel.menu.restoreHelp":
+    "Orden original preparado. Guardá para aplicarlo o cancelá para mantener tu orden.",
+  "panel.menu.saved": "Orden del menú guardado.",
+  "panel.menu.saveError":
+    "Este navegador no permite guardar el orden. Habilitá el almacenamiento local o cancelá para mantener el menú actual.",
+  "panel.menu.moved": "{nombre} ahora está en la posición {n}.",
+  "panel.menu.storage":
+    "El orden se guarda para tu cuenta en este navegador. No se sincroniza con otros dispositivos; borrar los datos del sitio restaura el orden original.",
+  "panel.menu.store": "Ver tienda",
+  "panel.menu.skip": "Ir al contenido del panel",
+  "panel.menu.open": "Abrir menú del panel",
+  "panel.menu.mobileHelp": "Elegí una sección o editá el orden del menú.",
+  "panel.nav.resenasPendientes": "Reseñas ({n})",
+  "setup.seed": "Cargar productos de ejemplo para probar",
+  "setup.seedAyuda":
+    "Agrega productos ficticios. Importar tus productos reales no borra estos ejemplos automáticamente: eliminá o despublicá los ejemplos desde Productos antes de abrir la tienda.",
+  "setup.repeatPassword": "Repetir contraseña",
+  "setup.showPassword": "Mostrar: {campo}",
+  "setup.hidePassword": "Ocultar: {campo}",
+  "setup.error.passwords":
+    "Las contraseñas no coinciden. Revisá ambos campos antes de inicializar.",
+  "setup.adminLogin": "Ir al login del panel",
+  "setup.successNext":
+    "La inicialización terminó correctamente. Entrá al panel con la cuenta del dueño para completar la tienda.",
+  "setup.launchTitle": "Configuración necesaria para lanzar",
+  "setup.launchRequired":
+    "En el hosting: base de datos (DATABASE_URL), sesiones (SESSION_SECRET), dirección pública HTTPS (NEXT_PUBLIC_SITE_URL) y cron protegido (CRON_SECRET). SETUP_SECRET se usa sólo para inicializar: después borrala del hosting y hacé Redeploy.",
+  "setup.optionalTitle": "Integraciones según lo que necesites",
+  "setup.optionalHelp":
+    "Desde Integraciones en el panel podés configurar Cloudinary para subir fotos y comprobantes, WhatsApp para contacto y avisos, Pagopar para tarjetas, analítica y reportes de errores. No necesitás estas cuentas para inicializar. Cada función se habilita cuando la configurás.",
+  "setup.nextTitle": "Después de inicializar",
+  "setup.nextCatalog":
+    "Entrá al panel, cargá los productos reales y revisá precios y stock. Quitá los ejemplos si elegiste el catálogo de prueba.",
+  "setup.nextPayments":
+    "Configurá envíos y los medios de pago que vas a ofrecer. Si aceptás transferencias, completá Banco; si ofrecés tarjeta, configurá Pagopar y comprobá su webhook.",
+  "setup.nextLaunch":
+    "Revisá identidad, contacto e integraciones, comprobá el cron del hosting y hacé una compra de prueba antes de abrir al público.",
+  "setup.preflight": "Lo que falta para cobrar de verdad:",
 } as const satisfies Record<string, string>;

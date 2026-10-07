@@ -682,6 +682,26 @@ Dos cosas que conviene saber antes de tocar nada:
 
 ### 4f. La operación diaria del panel (S9–S11, después del lanzamiento)
 
+El panel usa un menú lateral con íconos y la sección actual marcada también
+en sus fichas. En celular se abre con **Abrir menú del panel**; la cabecera,
+el pie, el carrito y el WhatsApp flotante de la tienda no aparecen en `/admin`.
+Los permisos y las acciones de cada rol son los mismos.
+
+**Editar menú** permite arrastrar secciones o moverlas con las flechas.
+**Guardar** aplica el orden; **Cancelar** descarta los cambios. **Restaurar
+orden original** prepara el orden de fábrica y también requiere Guardar.
+La preferencia se guarda en `localStorage`, por cuenta y por navegador del
+sitio: no cambia el menú de otra cuenta ni se sincroniza a otros dispositivos.
+Si se borran los datos del sitio, vuelve el orden original. No hace falta una
+migración ni configuración por tienda.
+
+En `/setup`, repetí la contraseña del dueño y revisá el resultado que aparece
+arriba del formulario. El botón **Ir al login del panel** lleva a `/admin/login`.
+El catálogo de prueba agrega productos ficticios: importar productos reales
+no los borra. La opción de repetir inicialización puede cambiar la contraseña
+de un dueño existente y debe quedar desmarcada la primera vez. Seguí los pasos
+de lanzamiento que muestra la página y quitá `SETUP_SECRET` del hosting al terminar.
+
 Nada de esto necesita configuración — viene andando desde que la tienda sale
 del template. Lo que sigue es sólo dónde encontrarlo:
 

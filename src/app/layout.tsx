@@ -5,10 +5,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { TIENDA } from "@/config/tienda";
 import { AnnouncementBar } from "@/components/announcement-bar";
 import { Analytics } from "@/components/analytics";
-import { PublicStoreChrome } from "@/components/public-store-chrome";
 import { CartSheet } from "@/components/cart-sheet";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { StorefrontShell } from "@/components/storefront-shell";
 import { WhatsAppFab } from "@/components/whatsapp-fab";
 import { Toaster } from "@/components/ui/sonner";
 import { getStoreSettings } from "@/domain/store-settings";
@@ -91,26 +91,30 @@ export default async function RootLayout({
       }
     >
       <body className="flex min-h-full flex-col">
-        {/* Apagada o sin texto no se monta nada (y en /admin se esconde sola). */}
-        <PublicStoreChrome>
-          {anuncio.activo && anuncio.texto ? (
-            <AnnouncementBar
-              texto={anuncio.texto}
-              href={linkSeguro(anuncio.href)}
-            />
-          ) : null}
-          <SiteHeader />
-        </PublicStoreChrome>
-        <div className="flex-1">{children}</div>
-        <PublicStoreChrome>
-          <SiteFooter />
-          <CartSheet />
-          <WhatsAppFab />
-        </PublicStoreChrome>
+        <StorefrontShell
+          storefrontBefore={
+            <>
+              {anuncio.activo && anuncio.texto ? (
+                <AnnouncementBar
+                  texto={anuncio.texto}
+                  href={linkSeguro(anuncio.href)}
+                />
+              ) : null}
+              <SiteHeader />
+            </>
+          }
+          storefrontAfter={
+            <>
+              <SiteFooter />
+              <CartSheet />
+              <WhatsAppFab />
+              <Analytics />
+            </>
+          }
+        >
+          {children}
+        </StorefrontShell>
         <Toaster />
-        {/* Nada de terceros salvo que esta tienda configure medidores —
-            src/lib/analytics.ts. Sin variables, esto no renderiza nada. */}
-        <Analytics />
       </body>
     </html>
   );

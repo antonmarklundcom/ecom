@@ -1,20 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-
 import { loginAdminAfterSetup } from "@/app/actions/admin-auth";
+import { PasswordInput } from "@/components/ui/password-input";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
+
+export const SETUP_WELCOME_PATH = "/admin/bienvenida";
+export const SETUP_LOGIN_PATH = "/admin/login?next=%2Fadmin%2Fbienvenida";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  NewPasswordFields,
-  passwordsMatch,
-} from "@/components/ui/new-password-fields";
-import { PasswordInput } from "@/components/ui/password-input";
 import { t } from "@/i18n";
-import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 type Chequeo = {
   id: string;
@@ -22,6 +22,7 @@ type Chequeo = {
   title: string;
   detail: string;
 };
+
 type Respuesta = {
   ok?: boolean;
   error?: string;
@@ -31,205 +32,240 @@ type Respuesta = {
   loginError?: boolean;
 };
 
-export const SETUP_WELCOME_PATH = "/admin/bienvenida";
-export const SETUP_LOGIN_PATH = "/admin/login?next=%2Fadmin%2Fbienvenida";
-
-/** Fictional catalogue is an explicit opt-in for demos and staging only. */
-export function SetupForm({
-  allowDemoCatalogue = true,
-}: {
-  allowDemoCatalogue?: boolean;
-}) {
+/**
+ * El formulario de `/setup`. Hace el mismo POST que el curl de DEPLOY.md §4:
+ * el secreto en `Authorization: Bearer`, el dueño y el catálogo de ejemplo en
+ * el cuerpo. Lo que muestra es lo que contesta la ruta — los pasos y el
+ * reporte de preflight —, nunca lo que se tipeó.
+ */
+export function SetupForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [respuesta, setRespuesta] = useState<Respuesta | null>(null);
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (respuesta) resultRef.current?.focus();
+  }, [respuesta]);
 
   return (
     <div className="grid gap-6">
-      {respuesta ? <Resultado respuesta={respuesta} /> : null}
-      {!respuesta?.ok ? (
-        <form
-          className="border-border grid gap-5 rounded-xl border p-4 sm:p-6"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            const data = new FormData(form);
-            const secreto = String(data.get("secreto") ?? "");
-            const email = String(data.get("email") ?? "").trim();
-            const password = String(data.get("password") ?? "");
-            const nombre = String(data.get("nombre") ?? "").trim();
-            if (!email || !password) {
-              setRespuesta({ ok: false, error: "cuenta_incompleta" });
-              return;
-            }
-            if (!passwordsMatch(data)) {
-              setRespuesta({ ok: false, error: "password_no_coincide" });
-              return;
-            }
-            const cuerpo = {
-              seed: allowDemoCatalogue && data.get("seed") !== null,
-              force: data.get("force") !== null,
-              owner: {
-                email,
-                password,
-                passwordConfirmation: String(
-                  data.get("passwordConfirmation") ?? ""
-                ),
-                ...(nombre ? { name: nombre } : {}),
-              },
-            };
-
-            startTransition(async () => {
-              setRespuesta(null);
-              let result: Respuesta;
-              try {
-                const res = await fetch("/api/setup/init", {
-                  method: "POST",
-                  headers: {
-                    authorization: `Bearer ${secreto}`,
-                    "content-type": "application/json",
-                  },
-                  body: JSON.stringify(cuerpo),
-                });
-                const json = (await res.json().catch(() => ({}))) as Respuesta;
-                result = { ...json, ok: res.ok && json?.ok === true };
-              } catch {
-                setRespuesta({ ok: false, error: "red" });
-                return;
-              }
-              if (!result.ok) {
-                setRespuesta(result);
-                return;
-              }
-              const ownerReady =
-                result.pasos?.duenio === "creado" ||
-                result.pasos?.duenio === "actualizado";
-              if (!ownerReady) {
-                setRespuesta({
-                  ...result,
-                  ok: false,
-                  error: "cuenta_sin_confirmar",
-                });
-                return;
-              }
-
-              // Clear the form before authenticating. Nothing is saved in browser storage.
-              form.reset();
-              setRespuesta({ ...result, ok: true });
-              const credentials = new FormData();
-              credentials.set("email", email);
-              credentials.set("password", password);
-              // Use normal login guards; preserve account success if login transport fails.
-              let authenticated = false;
-              try {
-                const login = await loginAdminAfterSetup(credentials);
-                authenticated = login.ok;
-              } catch {
-                // Account creation already succeeded; offer the usual login below.
-              }
-              if (authenticated) router.replace(SETUP_WELCOME_PATH);
-              else setRespuesta({ ...result, ok: true, loginError: true });
-            });
-          }}
-        >
-          <div className="grid gap-1.5">
-            <Label htmlFor="setup-secreto">{t("setup.secreto")}</Label>
-            <PasswordInput
-              id="setup-secreto"
-              name="secreto"
-              required
-              autoComplete="off"
-              showLabel={t("setup.mostrarSecreto")}
-              hideLabel={t("setup.ocultarSecreto")}
-              aria-describedby="setup-secreto-help"
-            />
-            <p
-              id="setup-secreto-help"
-              className="text-muted-foreground text-xs"
-            >
-              {t("setup.secretoAyuda")}
-            </p>
-          </div>
-          <fieldset className="border-border grid gap-4 rounded-lg border p-3">
-            <legend className="px-1 text-sm font-medium">
-              {t("setup.duenio")}
-            </legend>
-            <div className="grid gap-1.5">
-              <Label htmlFor="setup-email">{t("setup.email")}</Label>
-              <Input
-                id="setup-email"
-                name="email"
-                type="email"
-                required
-                maxLength={200}
-                autoComplete="username"
-                autoCapitalize="none"
-              />
-            </div>
-            <NewPasswordFields
-              id="setup-password"
-              label={t("setup.password")}
-              help={t("setup.passwordAyuda", { minimo: MIN_PASSWORD_LENGTH })}
-            />
-            <div className="grid gap-1.5">
-              <Label htmlFor="setup-nombre">{t("setup.nombre")}</Label>
-              <Input
-                id="setup-nombre"
-                name="nombre"
-                maxLength={160}
-                autoComplete="name"
-              />
-            </div>
-            <p className="text-muted-foreground text-xs">
-              {t("setup.duenioAyuda")}
-            </p>
-          </fieldset>
-          {allowDemoCatalogue ? (
-            <div className="grid gap-2">
-              <label className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  name="seed"
-                  className="mt-1"
-                  aria-describedby="setup-demo-help"
-                />
-                <span>{t("setup.demoCatalogo")}</span>
-              </label>
-              <p id="setup-demo-help" className="text-muted-foreground text-sm">
-                {t("setup.demoCatalogoAyuda")}
-              </p>
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              {t("setup.catalogoAyuda")}
-            </p>
-          )}
-          <details className="border-border rounded-lg border p-3 text-sm">
-            <summary className="cursor-pointer font-medium">
-              {t("setup.avanzado")}
-            </summary>
-            <p className="text-muted-foreground mt-3">
-              {t("setup.forceAyuda")}
-            </p>
-            <label className="mt-3 flex items-start gap-2">
-              <input type="checkbox" name="force" className="mt-1" />
-              <span>{t("setup.force")}</span>
-            </label>
-          </details>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? t("setup.corriendo") : t("setup.correr")}
-          </Button>
-          <Link href="/admin/login" className="text-center text-sm underline">
-            {t("setup.yaTengoCuenta")}
-          </Link>
-        </form>
+      {respuesta ? (
+        <Resultado respuesta={respuesta} resultRef={resultRef} />
       ) : null}
+      <form
+        className="border-border grid gap-4 rounded-xl border p-4"
+        aria-busy={isPending}
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          const data = new FormData(form);
+          const secreto = String(data.get("secreto") ?? "");
+          const email = String(data.get("email") ?? "").trim();
+          const password = String(data.get("password") ?? "");
+          const repeatPassword = String(data.get("repeatPassword") ?? "");
+          if (email && password !== repeatPassword) {
+            setRespuesta({ ok: false, error: "passwords_do_not_match" });
+            return;
+          }
+          const nombre = String(data.get("nombre") ?? "").trim();
+          const cuerpo = {
+            seed: data.get("seed") !== null,
+            force: data.get("force") !== null,
+            ...(email !== ""
+              ? {
+                  owner: {
+                    email,
+                    password,
+                    passwordConfirmation: repeatPassword,
+                    ...(nombre ? { name: nombre } : {}),
+                  },
+                }
+              : {}),
+          };
+
+          startTransition(async () => {
+            setRespuesta(null);
+            try {
+              const res = await fetch("/api/setup/init", {
+                method: "POST",
+                headers: {
+                  authorization: `Bearer ${secreto}`,
+                  "content-type": "application/json",
+                },
+                body: JSON.stringify(cuerpo),
+              });
+              const json = (await res.json().catch(() => ({}))) as Respuesta;
+              const success = res.ok && json.ok === true;
+              const ownerReady =
+                json.pasos?.duenio === "creado" ||
+                json.pasos?.duenio === "actualizado";
+              if (success && email && !ownerReady) {
+                setRespuesta({ ok: false, error: "cuenta_sin_confirmar" });
+                return;
+              }
+              setRespuesta({ ...json, ok: success });
+              // La contraseña y el secreto no se quedan en pantalla.
+              if (success) {
+                form.reset();
+                setOwnerEmail("");
+                if (email && ownerReady) {
+                  const credentials = new FormData();
+                  credentials.set("email", email);
+                  credentials.set("password", password);
+                  let authenticated = false;
+                  try {
+                    authenticated = (await loginAdminAfterSetup(credentials))
+                      .ok;
+                  } catch {
+                    /* Account already created; preserve success and offer login. */
+                  }
+                  if (authenticated) router.replace(SETUP_WELCOME_PATH);
+                  else setRespuesta({ ...json, ok: true, loginError: true });
+                }
+              }
+            } catch {
+              setRespuesta({ ok: false, error: "red" });
+            }
+          });
+        }}
+      >
+        <div className="grid gap-1.5">
+          <Label htmlFor="setup-secreto">{t("setup.secreto")}</Label>
+          <Input
+            id="setup-secreto"
+            name="secreto"
+            type="password"
+            required
+            autoComplete="off"
+            disabled={isPending}
+          />
+          <p className="text-muted-foreground text-xs">
+            {t("setup.secretoAyuda")}
+          </p>
+        </div>
+
+        <fieldset
+          disabled={isPending}
+          className="border-border grid gap-3 rounded-lg border p-3"
+        >
+          <legend className="px-1 text-sm font-medium">
+            {t("setup.duenio")}
+          </legend>
+          <div className="grid gap-1.5">
+            <Label htmlFor="setup-email">{t("setup.email")}</Label>
+            <Input
+              id="setup-email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              value={ownerEmail}
+              onChange={(event) => setOwnerEmail(event.target.value)}
+            />
+          </div>
+          <PasswordField
+            id="setup-password"
+            name="password"
+            label={t("setup.password")}
+            required={ownerEmail.trim() !== ""}
+          />
+          <PasswordField
+            id="setup-repeat-password"
+            name="repeatPassword"
+            label={t("setup.repeatPassword")}
+            required={ownerEmail.trim() !== ""}
+          />
+          <div className="grid gap-1.5">
+            <Label htmlFor="setup-nombre">{t("setup.nombre")}</Label>
+            <Input id="setup-nombre" name="nombre" autoComplete="off" />
+          </div>
+          <p className="text-muted-foreground text-xs">
+            {t("setup.duenioAyuda")}
+          </p>
+        </fieldset>
+
+        <div className="grid gap-1">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="seed"
+              aria-describedby="setup-seed-help"
+              disabled={isPending}
+              className="mt-1"
+            />
+            {t("setup.seed")}
+          </label>
+          <p
+            id="setup-seed-help"
+            className="text-muted-foreground ml-6 text-xs"
+          >
+            {t("setup.seedAyuda")}
+          </p>
+        </div>
+        <div className="grid gap-1">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="force"
+              aria-describedby="setup-force-help"
+              disabled={isPending}
+              className="mt-1"
+            />
+            {t("setup.force")}
+          </label>
+          <p
+            id="setup-force-help"
+            className="text-muted-foreground ml-6 text-xs"
+          >
+            {t("setup.forceAyuda")}
+          </p>
+        </div>
+
+        <Button type="submit" disabled={isPending}>
+          {isPending ? t("setup.corriendo") : t("setup.correr")}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+function PasswordField({
+  id,
+  name,
+  label,
+  required,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  required: boolean;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <PasswordInput
+        id={id}
+        name={name}
+        autoComplete="new-password"
+        required={required}
+        minLength={MIN_PASSWORD_LENGTH}
+        maxLength={200}
+        showLabel={t("setup.showPassword", { campo: label })}
+        hideLabel={t("setup.hidePassword", { campo: label })}
+      />
     </div>
   );
 }
 
 function mensajeDeError(respuesta: Respuesta): string {
   switch (respuesta.error) {
+    case "passwords_do_not_match":
+      return t("setup.error.passwords");
+    case "password_no_coincide":
+      return t("setup.error.passwords");
+    case "cuenta_sin_confirmar":
+      return t("setup.error.cuentaSinConfirmar");
     case "unauthorized":
       return t("setup.error.secreto");
     case "rate_limited":
@@ -238,12 +274,6 @@ function mensajeDeError(respuesta: Respuesta): string {
       return t("setup.error.https");
     case "ya_inicializada":
       return t("setup.error.yaInicializada");
-    case "password_no_coincide":
-      return t("password.noCoinciden");
-    case "cuenta_incompleta":
-      return t("setup.error.cuentaIncompleta");
-    case "cuenta_sin_confirmar":
-      return t("setup.error.cuentaSinConfirmar");
     case "password_debil":
     case "cuerpo_invalido":
       return respuesta.detalle ?? t("setup.error.generico");
@@ -254,79 +284,71 @@ function mensajeDeError(respuesta: Respuesta): string {
   }
 }
 
-function Resultado({ respuesta }: { respuesta: Respuesta }) {
-  const resultRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    resultRef.current?.focus();
-  }, [respuesta]);
+function Resultado({
+  respuesta,
+  resultRef,
+}: {
+  respuesta: Respuesta;
+  resultRef: React.Ref<HTMLDivElement>;
+}) {
   return (
-    <section
+    <div
       ref={resultRef}
       tabIndex={-1}
-      role="status"
-      aria-live="polite"
-      aria-labelledby="setup-result-heading"
-      className="border-border focus-visible:ring-ring grid scroll-mt-28 gap-4 rounded-xl border p-5 text-sm focus-visible:ring-2"
+      role={respuesta.ok ? "status" : "alert"}
+      className={`grid gap-3 rounded-xl border p-4 text-sm outline-offset-4 ${respuesta.ok ? "border-primary bg-primary/5" : "border-destructive/40"}`}
     >
-      <h2
-        id="setup-result-heading"
+      <p
         className={
-          respuesta.ok
-            ? "text-xl font-semibold"
-            : "text-destructive font-medium"
+          respuesta.ok ? "font-medium" : "text-destructive font-medium"
         }
       >
+        {respuesta.ok ? (
+          <CheckCircle2 className="mr-2 inline size-5" aria-hidden="true" />
+        ) : null}
         {respuesta.ok ? t("setup.listo") : mensajeDeError(respuesta)}
-      </h2>
+      </p>
       {respuesta.ok ? (
         <>
-          <p>{t("setup.listoAyuda")}</p>
-          {respuesta.loginError ? (
-            <p>{t("setup.loginManual")}</p>
-          ) : (
-            <p>{t("setup.entrando")}</p>
-          )}
-          <Link
-            href={SETUP_LOGIN_PATH}
-            className="bg-primary text-primary-foreground inline-flex min-h-10 items-center justify-center rounded-md px-4 font-medium"
-          >
-            {t("setup.loginButton")}
-          </Link>
+          <p>{t("setup.successNext")}</p>
+          {respuesta.loginError ? <p>{t("setup.loginManual")}</p> : null}
+          <Button asChild className="w-fit">
+            <Link href={SETUP_LOGIN_PATH}>{t("setup.adminLogin")}</Link>
+          </Button>
         </>
       ) : null}
-      {respuesta.pasos || respuesta.preflight ? (
-        <details className="border-border rounded-lg border p-3">
-          <summary className="cursor-pointer font-medium">
-            {t("setup.detalles")}
-          </summary>
-          <p className="text-muted-foreground mt-3">
-            {t("setup.detallesAyuda")}
-          </p>
-          {respuesta.pasos ? (
-            <ul className="mt-3 grid gap-2">
-              {Object.entries(respuesta.pasos).map(([paso, estado]) => (
-                <li key={paso}>
-                  {paso}: {estado}
+      {respuesta.pasos ? (
+        <ul className="text-muted-foreground grid gap-1">
+          {Object.entries(respuesta.pasos).map(([paso, estado]) => (
+            <li key={paso}>
+              <span className="text-foreground">{paso}</span>: {estado}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {respuesta.preflight ? (
+        <div className="grid gap-1">
+          <p className="font-medium">{t("setup.preflight")}</p>
+          <ul className="grid gap-1">
+            {respuesta.preflight.checks
+              .filter((chequeo) => chequeo.severity !== "ok")
+              .map((chequeo) => (
+                <li key={chequeo.id}>
+                  <span
+                    className={
+                      chequeo.severity === "bloquea" ? "text-destructive" : ""
+                    }
+                  >
+                    {chequeo.severity === "bloquea" ? "✗" : "!"} {chequeo.title}
+                  </span>
+                  <span className="text-muted-foreground block text-xs">
+                    {chequeo.detail}
+                  </span>
                 </li>
               ))}
-            </ul>
-          ) : null}
-          {respuesta.preflight ? (
-            <ul className="mt-4 grid gap-3">
-              {respuesta.preflight.checks
-                .filter((check) => check.severity !== "ok")
-                .map((check) => (
-                  <li key={check.id}>
-                    <p className="font-medium">{check.title}</p>
-                    <p className="text-muted-foreground mt-1 text-xs">
-                      {check.detail}
-                    </p>
-                  </li>
-                ))}
-            </ul>
-          ) : null}
-        </details>
+          </ul>
+        </div>
       ) : null}
-    </section>
+    </div>
   );
 }
