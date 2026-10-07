@@ -604,52 +604,128 @@ Acceptance tests:
 
 ## Batch F — accessibility and catalogue usability (PR 6)
 
+Reproduced before fixing:
+- **F1.** Product, variant, category and settings forms: no field got
+  `aria-invalid`, and focus stayed on the submit button.
+- **F2.** Customer registration and password change had no confirmation
+  field.
+- **F3.** The product-card link contained the wishlist `<button>`.
+- **F4.**
+  - At 390 px the filter controls were all open, with no disclosure button.
+  - Brand and attribute counts could not take the other filters at all: the
+    query functions had no parameter for them.
+  - The price filter showed for categories with no visible price.
+  - "Limpiar todo" dropped the sort order.
+- **F5.** `/comparar` shipped the SKUs of products not being compared.
+- **F6.** Recently viewed cards had no caption for an illustrative photo,
+  and the generic placeholder used the product name as its alt text.
+
+Acceptance tests:
+- `src/components/__tests__/admin-field-errors.test.tsx` (F1);
+- `src/components/__tests__/customer-password.test.tsx` (F2);
+- `src/components/__tests__/catalogue-cards.test.tsx` (F3, F6);
+- `src/components/__tests__/catalogue-filters.test.tsx` and
+  `tests/integration/catalogue-filters.test.ts` (F4);
+- `tests/e2e/accesibilidad.spec.ts`: axe (WCAG 2.1 A/AA) on seven storefront
+  and admin pages at 1280 and 390 px, plus F4 and F5 in a real browser.
+
+axe found no violations on those pages before F, so they were already
+clean. It does not flag F3: a `<button>` inside an `<a>` is invalid HTML,
+but axe's `nested-interactive` rule only applies to roles with
+presentational children. The component test covers F3.
+
 ### F1 · Admin validation errors are not tied to fields — P2
 
 - **Failure.** Product, variant, settings and category forms show the first
-  zod issue (often in English) in one alert; no `aria-invalid`,
-  `aria-describedby` or focus; collapsed sections stay closed.
-- **Fix.** Field error maps from the actions; each field gets
-  `aria-invalid`/`aria-describedby`; focus moves to the first invalid field
-  and opens its `<details>`.
-- **Status.** planned.
+  zod issue, often in English, in one alert. Fields get no `aria-invalid`,
+  no `aria-describedby` and no focus, and collapsed sections stay closed.
+- **Fix.**
+  - Actions return `fields` (`name` → message) next to `error`, parsed with
+    zod's Spanish messages (`parseEs`; the schemas' own messages still win).
+  - Domain errors that belong to a field are mapped to it: repeated slug or
+    SKU, ₲0 price, unverified GTIN.
+  - Each field gets `aria-invalid` and `aria-describedby`. Focus moves to
+    the first invalid field and opens its `<details>`.
+  - A broken JSON field is marked on its own instead of with a generic
+    alert.
+  - Settings fields are drawn by the page, so that form marks them by
+    `name` without touching their markup.
+- **Hook.**
+  - `src/lib/field-errors.ts`: `parseEs`, `zodFieldErrors`.
+  - `src/components/admin/field-error.tsx`: `fieldA11y`, `FieldError`,
+    `useFocusFirstInvalid`.
+  - `adminFieldError`/`fieldFor` in `src/lib/admin-guard.ts`.
+- **Status.** fixed in PR F.
 
 ### F2 · Customer password forms lack confirmation and visibility — P2
 
-- **Failure.** `/cuenta` password change and registration use a bare input;
-  a typo is saved silently. (Setup already confirms and reveals.)
-- **Fix.** Reuse `NewPasswordFields`.
-- **Status.** planned.
+- **Failure.** `/cuenta` password change and registration use a bare input,
+  so a typo is saved silently. Setup already confirms and reveals.
+- **Fix.**
+  - Both forms use `NewPasswordFields`: typed twice, with show/hide.
+  - `registrarCliente` and `guardarContrasena` also compare
+    `passwordConfirmation` on the server, like setup.
+- **Status.** fixed in PR F.
 
 ### F3 · Product-card controls are nested inside the link — P2
 
-- **Failure.** The wishlist `<button>` is inside the card `<a>` (invalid
-  interactive content; the link's name includes "Guardar en favoritos").
-- **Fix.** Sibling controls; keep `data-testid` and `data-slug` on the link.
-- **Status.** planned.
+- **Failure.** The wishlist `<button>` is inside the card `<a>`. That is
+  invalid interactive content, and the link's name includes "Guardar en
+  favoritos".
+- **Fix.**
+  - The heart is a sibling of the link.
+  - The link still covers the whole card through a stretched `::after`.
+  - `data-testid` and `data-slug` stay on the link.
+- **Status.** fixed in PR F.
 
 ### F4 · Catalogue filters are unusable on mobile and counts ignore other filters — P2
 
-- **Failure.** Up to eleven open controls above the grid on a phone; the
-  result count is not announced; facet counts ignore other selected filters;
-  empty facets and an always-on price filter offer choices that return
-  nothing; "clear all" drops unrelated parameters.
-- **Fix.** Mobile disclosure with `aria-expanded`; `role="status"` count;
-  facets conditioned on the other filters; availability (including whether
-  any price is visible) derived from the whole category.
-- **Status.** planned.
+- **Failure.**
+  - Up to eleven open controls sit above the grid on a phone.
+  - The result count is not announced.
+  - Facet counts ignore the other selected filters.
+  - Empty facets and an always-on price filter offer choices that return
+    nothing.
+  - "Limpiar todo" drops the sort order and attribute filters that had no
+    chip.
+- **Fix.**
+  - Mobile disclosure: `FilterDisclosure` with `aria-expanded`, always open
+    from `md` up.
+  - The count paragraph is `role="status"`.
+  - Every brand and attribute count is conditioned on the other filters.
+    Options come from the whole category, so a 0 option is shown but
+    disabled.
+  - For variant attributes, the same variant must satisfy the other
+    variant filters and the stock filter.
+  - Attributes without values are hidden.
+  - The price filter is offered only when some product in the category
+    shows a price (`categoryHasPrices`).
+  - Attributes and stock get chips, and "Limpiar todo" keeps the sort
+    order.
+- **Hook.** `CatalogFilters` takes optional `showPrice` and `facets`;
+  `getBrands`/`getCatalogueFacets` take an optional filter context. Existing
+  calls keep working.
+- **Status.** fixed in PR F.
 
 ### F5 · Comparison serializes the whole catalogue to the client — P3
 
 - **Failure.** `/comparar` loads up to 100 hydrated products and passes them
-  to the client picker that needs only slug and name.
-- **Fix.** A slim, bounded candidate query.
-- **Status.** planned.
+  to the client picker, which needs only slug and name.
+- **Fix.**
+  - A slim, bounded `getComparisonCandidates`.
+  - The chosen products come first, so they can be unchecked even when they
+    are outside the first 100.
+- **Status.** fixed in PR F.
 
 ### F6 · Recently viewed and cards drop image provenance — P2
 
-- **Fix.** Store and caption illustrative images; placeholder `alt=""`.
-- **Status.** planned (after E2).
+- **Fix.**
+  - Product cards and recently viewed caption an illustrative photo
+    ("Imagen ilustrativa").
+  - Recently viewed stores the first non-illustrative photo, and an
+    illustrative one is flagged.
+  - The generic placeholder gets `alt=""`.
+- **Status.** fixed in PR F.
 
 ### Checked in batch F and not present
 

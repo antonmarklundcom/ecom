@@ -14,9 +14,11 @@ import {
 import { validateProductImage } from "@/domain/product-images";
 import {
   adminActionError,
+  fieldFor,
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
+import { parseEs, zodFieldErrors } from "@/lib/field-errors";
 import { cloudinary, carpetaCategorias } from "@/lib/cloudinary";
 import { log, mensajeDe } from "@/lib/log";
 import { t } from "@/i18n";
@@ -59,17 +61,27 @@ const CreateSchema = z.object({
   imageAlt: z.string().trim().max(200).nullish(),
 });
 
+const CAMPOS_CATEGORIA = {
+  "adminError.categoria.nombreCorto": "name",
+  "adminError.categoria.nombreLargo": "name",
+  "adminError.categoria.sinUrl": "slug",
+  "adminError.categoria.slugLargo": "slug",
+  "adminError.categoria.urlRepetida": "slug",
+  "adminError.categoria.urlRepetidaOtra": "slug",
+} as const;
+
 export async function crearCategoria(
   input: unknown
 ): Promise<AdminActionResult<{ id: number }>> {
   try {
     await requireOwnerSession();
 
-    const parsed = CreateSchema.safeParse(input);
+    const parsed = parseEs(CreateSchema, input);
     if (!parsed.success) {
       return {
         ok: false,
-        error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos"),
+        error: t("adminForm.revisaCampos"),
+        fields: zodFieldErrors(parsed.error),
       };
     }
 
@@ -86,8 +98,11 @@ export async function crearCategoria(
     revalidarVidriera();
     return { ok: true, id: created.id };
   } catch (error) {
-    if (error instanceof AdminCategoryError)
-      return { ok: false, error: error.message };
+    // Los errores de la categoría van al campo que los causa (F1).
+    if (error instanceof AdminCategoryError) {
+      const fields = fieldFor(error, CAMPOS_CATEGORIA);
+      return { ok: false, error: error.message, ...(fields ? { fields } : {}) };
+    }
     return adminActionError("crearCategoria", error);
   }
 }
@@ -114,11 +129,12 @@ export async function editarCategoria(
   try {
     await requireOwnerSession();
 
-    const parsed = UpdateSchema.safeParse(input);
+    const parsed = parseEs(UpdateSchema, input);
     if (!parsed.success) {
       return {
         ok: false,
-        error: parsed.error.issues[0]?.message ?? t("adminError.revisaDatos"),
+        error: t("adminForm.revisaCampos"),
+        fields: zodFieldErrors(parsed.error),
       };
     }
 
@@ -136,8 +152,11 @@ export async function editarCategoria(
     revalidarVidriera();
     return { ok: true };
   } catch (error) {
-    if (error instanceof AdminCategoryError)
-      return { ok: false, error: error.message };
+    // Los errores de la categoría van al campo que los causa (F1).
+    if (error instanceof AdminCategoryError) {
+      const fields = fieldFor(error, CAMPOS_CATEGORIA);
+      return { ok: false, error: error.message, ...(fields ? { fields } : {}) };
+    }
     return adminActionError("editarCategoria", error);
   }
 }

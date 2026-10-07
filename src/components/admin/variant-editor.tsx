@@ -10,19 +10,25 @@ import type {
   VerifiedIdentifiers,
 } from "@/lib/product-attributes";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
   adjustVariantStock,
   saveProductVariant,
 } from "@/app/actions/admin-products";
+import {
+  FieldError,
+  fieldA11y,
+  useFocusFirstInvalid,
+} from "@/components/admin/field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatGs } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
 import { t } from "@/i18n";
+import type { FieldErrors } from "@/lib/field-errors";
 
 export type VariantCard = {
   attributes?: VariantAttributes | null;
@@ -160,20 +166,35 @@ function VariantFields({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusFirstInvalid(formRef, fields);
+  const key = variant?.id ?? "new";
 
   return (
     <form
+      ref={formRef}
       className="border-border grid gap-3 rounded-lg border p-3"
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
+        setFields({});
         const data = new FormData(event.currentTarget);
-        let attributes: unknown, identifiers: unknown;
-        try {
-          attributes = metadataFormValue(data, "attributes");
-          identifiers = metadataFormValue(data, "identifiers");
-        } catch {
-          setError("Revisá el JSON de atributos e identificadores.");
+        // Cada JSON por separado: el error va al campo que está roto (F1).
+        const jsonErrors: FieldErrors = {};
+        const leer = (name: string): unknown => {
+          try {
+            return metadataFormValue(data, name);
+          } catch {
+            jsonErrors[name] = t("adminForm.jsonInvalido");
+            return null;
+          }
+        };
+        const attributes = leer("attributes");
+        const identifiers = leer("identifiers");
+        if (Object.keys(jsonErrors).length > 0) {
+          setError(t("adminForm.revisaCampos"));
+          setFields(jsonErrors);
           return;
         }
         const compareAt = String(data.get("compareAtPyg") ?? "").trim();
@@ -201,6 +222,7 @@ function VariantFields({
 
           if (!result.ok) {
             setError(result.error);
+            setFields(result.fields ?? {});
             return;
           }
           toast.success(t("panel.variante.guardada"));
@@ -217,12 +239,14 @@ function VariantFields({
             label="Atributos públicos de esta variante"
             value={variant?.attributes}
             suffix={`-${variant?.id ?? "new"}`}
+            error={fields.attributes}
           />
           <MetadataField
             name="identifiers"
             label="GTIN / MPN verificados"
             value={variant?.identifiers}
             suffix={`-${variant?.id ?? "new"}`}
+            error={fields.identifiers}
           />
         </div>
       </details>
@@ -246,7 +270,9 @@ function VariantFields({
             required
             defaultValue={variant?.label ?? ""}
             placeholder={t("panel.variante.etiqueta.placeholder")}
+            {...fieldA11y(fields, "label", `label-${key}`)}
           />
+          <FieldError errors={fields} name="label" id={`label-${key}`} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`sku-${variant?.id ?? "new"}`}>
@@ -256,9 +282,12 @@ function VariantFields({
             id={`sku-${variant?.id ?? "new"}`}
             name="sku"
             required
+            maxLength={64}
             defaultValue={variant?.sku ?? ""}
             placeholder={t("panel.variante.sku.placeholder")}
+            {...fieldA11y(fields, "sku", `sku-${key}`)}
           />
+          <FieldError errors={fields} name="sku" id={`sku-${key}`} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`price-${variant?.id ?? "new"}`}>
@@ -275,7 +304,9 @@ function VariantFields({
             step={1}
             inputMode="numeric"
             defaultValue={variant?.pricePyg ?? ""}
+            {...fieldA11y(fields, "pricePyg", `price-${key}`)}
           />
+          <FieldError errors={fields} name="pricePyg" id={`price-${key}`} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`compare-${variant?.id ?? "new"}`}>
@@ -289,6 +320,12 @@ function VariantFields({
             step={1}
             inputMode="numeric"
             defaultValue={variant?.compareAtPyg ?? ""}
+            {...fieldA11y(fields, "compareAtPyg", `compare-${key}`)}
+          />
+          <FieldError
+            errors={fields}
+            name="compareAtPyg"
+            id={`compare-${key}`}
           />
         </div>
         <div className="grid gap-1.5">
@@ -306,8 +343,22 @@ function VariantFields({
             data-testid={TESTIDS.adminVariantReorderPoint}
             placeholder={t("panel.variante.puntoReposicion.placeholder")}
             defaultValue={variant?.reorderPoint ?? ""}
+            {...fieldA11y(
+              fields,
+              "reorderPoint",
+              `reorder-${key}`,
+              `reorder-${key}-ayuda`
+            )}
           />
-          <p className="text-muted-foreground text-xs">
+          <FieldError
+            errors={fields}
+            name="reorderPoint"
+            id={`reorder-${key}`}
+          />
+          <p
+            id={`reorder-${key}-ayuda`}
+            className="text-muted-foreground text-xs"
+          >
             {t("panel.variante.puntoReposicion.ayuda")}
           </p>
         </div>

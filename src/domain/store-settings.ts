@@ -24,6 +24,7 @@ export {
   type StoreSettings,
   type StoreSettingsSection,
 } from "./store-settings-schema";
+import { parseEs, zodFieldErrors, type FieldErrors } from "@/lib/field-errors";
 
 /**
  * Los ajustes de la tienda (`/admin/ajustes`): leer y guardar la fila única de
@@ -42,9 +43,13 @@ export {
  *    pisarían la mitad de los ajustes. Se relee la fila con `FOR UPDATE`, se
  *    reemplaza esa sección y se escribe.
  */
-
 export class StoreSettingsError extends DomainError {
-  constructor(code: MessageKey, params?: Params) {
+  constructor(
+    code: MessageKey,
+    params?: Params,
+    /** Errores por campo, para marcarlos en el formulario (F1). */
+    readonly fields?: FieldErrors
+  ) {
     super(code, params);
     this.name = "StoreSettingsError";
   }
@@ -122,11 +127,13 @@ export async function saveStoreSettingsSection(
   const schema = SECTION_INPUT[section];
   if (!schema) throw new StoreSettingsError("adminError.ajustes.seccion");
 
-  const parsed = schema.safeParse(values ?? {});
+  const parsed = parseEs(schema, values ?? {});
   if (!parsed.success) {
-    throw new StoreSettingsError("adminError.ajustes.invalido", {
-      detalle: parsed.error.issues[0]?.message ?? "",
-    });
+    throw new StoreSettingsError(
+      "adminError.ajustes.invalido",
+      { detalle: parsed.error.issues[0]?.message ?? "" },
+      zodFieldErrors(parsed.error)
+    );
   }
 
   const guardado = await getDb().transaction(async (tx) => {

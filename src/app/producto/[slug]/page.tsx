@@ -158,6 +158,9 @@ export default async function ProductPage({
       );
     notFound();
   }
+  const recentPhoto =
+    product.images.find((image) => image.provenance !== "illustrative") ??
+    product.images[0];
   const initialVariantSku =
     typeof query.variante === "string" &&
     query.variante.length > 0 &&
@@ -499,8 +502,11 @@ export default async function ProductPage({
             slug: product.slug,
             name: product.name,
             pricePyg: cheapest ?? null,
-            imageCloudinaryId: product.images[0]?.cloudinaryId ?? null,
-            imageAlt: product.images[0]?.alt ?? null,
+            // La primera foto que no es ilustrativa; si todas lo son, la
+            // primera, con su leyenda (F6).
+            imageCloudinaryId: recentPhoto?.cloudinaryId ?? null,
+            imageAlt: recentPhoto?.alt ?? null,
+            imageIllustrative: recentPhoto?.provenance === "illustrative",
           }}
         />
       ) : null}

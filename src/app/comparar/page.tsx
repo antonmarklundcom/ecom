@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CATALOGUE } from "@/config/catalogue";
-import { getCatalog, getProductBySlug } from "@/db/queries";
+import { getComparisonCandidates, getProductBySlug } from "@/db/queries";
 import { ComparisonPicker } from "@/components/comparison-picker";
 import { comparisonLimit, comparisonSlugs } from "@/lib/comparison";
 import { formatGs, lowestChargeablePrice } from "@/lib/money";
@@ -24,11 +24,18 @@ export default async function ComparePage({
   const query = await searchParams;
   const limit = comparisonLimit(CATALOGUE.comparisonLimit);
   const slugs = comparisonSlugs(query.p, limit);
-  const [catalogue, records] = await Promise.all([
-    getCatalog({ limit: 100 }),
+  const [candidates, records] = await Promise.all([
+    getComparisonCandidates(100),
     Promise.all(slugs.map((slug) => getProductBySlug(slug))),
   ]);
   const products = records.filter((p) => p !== null);
+  // Lo elegido va primero aunque no esté entre los cien de la lista, para
+  // poder sacarlo; al cliente viajan sólo slug y nombre (F5).
+  const elegidos = new Set(products.map((p) => p.slug));
+  const catalogue = [
+    ...products.map((p) => ({ slug: p.slug, name: p.name })),
+    ...candidates.filter((c) => !elegidos.has(c.slug)),
+  ];
   const facts = CATALOGUE.attributes.filter((d) => d.compare).slice(0, 30);
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">

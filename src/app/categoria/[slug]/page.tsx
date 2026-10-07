@@ -12,6 +12,7 @@ import {
   parseCatalogueFilters,
 } from "@/domain/catalogue-facets";
 import { CatalogFilters } from "@/components/catalog-filters";
+import { FilterDisclosure } from "@/components/filter-disclosure";
 import { ProductCard } from "@/components/product-card";
 import { ProductDescription } from "@/components/product-description";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { parsePriceRange } from "@/lib/price-ranges";
 import { breadcrumbJsonLd, itemListJsonLd, jsonLdScript } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 import {
+  categoryHasPrices,
   getBrands,
   getCategories,
   getCategoryBySlug,
@@ -123,19 +125,30 @@ export default async function CategoryPage({
       : 1;
 
   const { vidriera } = await getStoreSettings();
-  const [result, brands, facets] = await Promise.all([
+  // Los mismos filtros condicionan el listado y cada conteo de las opciones
+  // (docs/TEMPLATE-IMPROVEMENT-PLAN.md F4).
+  const filtros = {
+    ...parseCatalogueFilters(query),
+    brand: first(query.marca),
+    minPricePyg: min,
+    maxPricePyg: max,
+  };
+  const [result, brands, facets, hasPrices] = await Promise.all([
     getCategoryProducts({
-      ...parseCatalogueFilters(query),
+      ...filtros,
       categorySlug: slug,
-      brand: first(query.marca),
-      minPricePyg: min,
-      maxPricePyg: max,
       sort: isCatalogSort(sortParam) ? sortParam : "relevancia",
       page,
     }),
-    getBrands(slug),
-    getCatalogueFacets(slug),
+    getBrands(slug, filtros),
+    getCatalogueFacets(slug, filtros),
+    categoryHasPrices(slug),
   ]);
+  const activeFilters =
+    (filtros.brand ? 1 : 0) +
+    (first(query.precio) ? 1 : 0) +
+    Object.keys(filtros.attributes ?? {}).length +
+    (filtros.inStock ? 1 : 0);
 
   const buildPageHref = (target: number) => {
     const next = new URLSearchParams();
@@ -182,7 +195,9 @@ export default async function CategoryPage({
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">
         {category.name}
       </h1>
-      <p className="text-muted-foreground mt-1 text-sm">
+      {/* `role="status"`: al cambiar un filtro el número cambia sin recargar
+          la página, y un lector de pantalla tiene que enterarse (F4). */}
+      <p className="text-muted-foreground mt-1 text-sm" role="status">
         {tPlural("catalogo.productos", result.total)} ·{" "}
         {t("catalogo.ivaIncluidoNota")}
       </p>
@@ -215,8 +230,14 @@ export default async function CategoryPage({
 
       <div className="mt-5">
         <Suspense fallback={null}>
-          <CatalogFilters brands={brands} />
-          <AttributeFilters facets={facets} />
+          <FilterDisclosure activeCount={activeFilters}>
+            <CatalogFilters
+              brands={brands}
+              showPrice={hasPrices}
+              facets={facets}
+            />
+            <AttributeFilters facets={facets} />
+          </FilterDisclosure>
         </Suspense>
       </div>
 

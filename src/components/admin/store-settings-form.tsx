@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type React from "react";
 import { toast } from "sonner";
 
@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { StoreSettingsSection } from "@/domain/store-settings-schema";
 import { t } from "@/i18n";
+import type { FieldErrors } from "@/lib/field-errors";
 
 /**
  * Cómo se lee cada campo del `FormData`:
@@ -62,16 +63,67 @@ export function SettingsSectionForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorId = `ajustes-${seccion}-error`;
+
+  // Los campos los dibuja la página (server) y llegan como `children`: se
+  // marcan por `name`, sin tocar su markup, y el foco va al primero (F1).
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    for (const marcado of form.querySelectorAll("[data-campo-invalido]")) {
+      marcado.removeAttribute("aria-invalid");
+      marcado.removeAttribute("data-campo-invalido");
+      const antes = marcado.getAttribute("data-describedby-original");
+      if (antes) marcado.setAttribute("aria-describedby", antes);
+      else marcado.removeAttribute("aria-describedby");
+      marcado.removeAttribute("data-describedby-original");
+    }
+    let primero: HTMLElement | null = null;
+    for (const nombre of Object.keys(fields)) {
+      const campo = form.querySelector<HTMLElement>(
+        `[name="${CSS.escape(nombre)}"]`
+      );
+      if (!campo) continue;
+      const antes = campo.getAttribute("aria-describedby");
+      if (antes) campo.setAttribute("data-describedby-original", antes);
+      campo.setAttribute("aria-invalid", "true");
+      campo.setAttribute("data-campo-invalido", "");
+      campo.setAttribute(
+        "aria-describedby",
+        [antes, `${errorId}-${nombre}`].filter(Boolean).join(" ")
+      );
+      if (
+        !primero ||
+        primero.compareDocumentPosition(campo) &
+          Node.DOCUMENT_POSITION_PRECEDING
+      )
+        primero = campo;
+    }
+    if (primero) {
+      let padre = primero.parentElement;
+      while (padre) {
+        if (padre instanceof HTMLDetailsElement) padre.open = true;
+        padre = padre.parentElement;
+      }
+      primero.focus();
+    }
+  }, [fields, errorId]);
 
   const correr = (
-    accion: () => Promise<{ ok: true } | { ok: false; error: string }>,
+    accion: () => Promise<
+      { ok: true } | { ok: false; error: string; fields?: FieldErrors }
+    >,
     ok: string
   ) => {
     setError(null);
+    setFields({});
     startTransition(async () => {
       const result = await accion();
       if (!result.ok) {
         setError(result.error);
+        setFields(result.fields ?? {});
         return;
       }
       toast.success(ok);
@@ -81,6 +133,7 @@ export function SettingsSectionForm({
 
   return (
     <form
+      ref={formRef}
       className="grid gap-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -97,12 +150,22 @@ export function SettingsSectionForm({
       }}
     >
       {error ? (
-        <p
+        <div
           role="alert"
+          id={errorId}
           className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
         >
-          {error}
-        </p>
+          <p>{error}</p>
+          {Object.keys(fields).length > 0 ? (
+            <ul className="mt-1 list-disc pl-5">
+              {Object.entries(fields).map(([nombre, mensaje]) => (
+                <li key={nombre} id={`${errorId}-${nombre}`}>
+                  {mensaje}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
 
       {children}

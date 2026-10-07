@@ -46,72 +46,80 @@ export function ProductCard({
   );
   const hasVariantRange = product.variants.length > 1;
 
+  // El corazón es **hermano** del link, no hijo (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  // F3): un <button> adentro de un <a> es HTML inválido y el lector de
+  // pantalla leía "Guardar en favoritos" como parte del nombre del producto.
+  // El link se estira sobre toda la tarjeta (`after:`) y el corazón queda
+  // encima, sobre la foto.
   return (
-    <Link
-      href={`/producto/${product.slug}`}
-      data-testid={TESTIDS.productCard}
-      data-slug={product.slug}
-      className="group border-border hover:border-foreground/20 focus-visible:ring-ring flex flex-col rounded-xl border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-    >
-      <div className="relative">
+    <div className="group border-border hover:border-foreground/20 focus-within:ring-ring relative flex flex-col rounded-xl border p-3 transition-colors focus-within:ring-2">
+      <Link
+        href={`/producto/${product.slug}`}
+        data-testid={TESTIDS.productCard}
+        data-slug={product.slug}
+        className="flex flex-1 flex-col after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+      >
         <ProductImage
           image={product.image}
           alt={product.name}
           categorySlug={product.categorySlug}
           priority={priority}
         />
+
+        <div className="mt-3 flex flex-1 flex-col gap-1">
+          <p className="text-muted-foreground text-xs">
+            {product.brand ?? product.categoryName}
+          </p>
+          <h3 className="group-hover:text-foreground line-clamp-2 text-sm font-medium">
+            {product.name}
+          </h3>
+          {showRating && product.rating && product.rating.count >= 1 ? (
+            <p className="text-muted-foreground flex items-center gap-1 text-xs">
+              <RatingStars value={product.rating.average} size={12} />
+              <span aria-hidden>{formatRating(product.rating.average)}</span>
+              <span>({tPlural("catalogo.resenas", product.rating.count)})</span>
+            </p>
+          ) : null}
+
+          <div className="mt-auto pt-2">
+            {shown && product.showPrice !== false ? (
+              <PriceTag
+                pricePyg={shown.pricePyg}
+                compareAtPyg={shown.compareAtPyg}
+                size="sm"
+              />
+            ) : null}
+            <div className="mt-2 flex items-center gap-2">
+              {(product.saleMode ?? "stock") === "stock" ? (
+                <StockBadge available={totalAvailable} />
+              ) : (
+                <span className="text-xs">
+                  {t(
+                    product.saleMode === "enquiry"
+                      ? "producto.soloConsulta"
+                      : "producto.muestra"
+                  )}
+                </span>
+              )}
+              {hasVariantRange ? (
+                <span className="text-muted-foreground text-xs">
+                  {t("catalogo.opciones", { n: product.variants.length })}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </Link>
+      <div className="pointer-events-none absolute inset-x-3 top-3 aspect-square">
         <WishlistButton
           slug={product.slug}
           name={product.name}
           sku={shown?.sku ?? product.variants[0]?.sku}
           pricePyg={product.showPrice === false ? undefined : shown?.pricePyg}
+          className="pointer-events-auto"
         />
       </div>
-
-      <div className="mt-3 flex flex-1 flex-col gap-1">
-        <p className="text-muted-foreground text-xs">
-          {product.brand ?? product.categoryName}
-        </p>
-        <h3 className="group-hover:text-foreground line-clamp-2 text-sm font-medium">
-          {product.name}
-        </h3>
-        {showRating && product.rating && product.rating.count >= 1 ? (
-          <p className="text-muted-foreground flex items-center gap-1 text-xs">
-            <RatingStars value={product.rating.average} size={12} />
-            <span aria-hidden>{formatRating(product.rating.average)}</span>
-            <span>({tPlural("catalogo.resenas", product.rating.count)})</span>
-          </p>
-        ) : null}
-
-        <div className="mt-auto pt-2">
-          {shown && product.showPrice !== false ? (
-            <PriceTag
-              pricePyg={shown.pricePyg}
-              compareAtPyg={shown.compareAtPyg}
-              size="sm"
-            />
-          ) : null}
-          <div className="mt-2 flex items-center gap-2">
-            {(product.saleMode ?? "stock") === "stock" ? (
-              <StockBadge available={totalAvailable} />
-            ) : (
-              <span className="text-xs">
-                {t(
-                  product.saleMode === "enquiry"
-                    ? "producto.soloConsulta"
-                    : "producto.muestra"
-                )}
-              </span>
-            )}
-            {hasVariantRange ? (
-              <span className="text-muted-foreground text-xs">
-                {t("catalogo.opciones", { n: product.variants.length })}
-              </span>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </Link>
+    </div>
   );
 }
 

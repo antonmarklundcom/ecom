@@ -27,7 +27,10 @@ import {
 } from "@/lib/public-product-facts";
 import {
   catalogueAttributePredicate,
+  catalogueContextPredicate,
+  productMinPriceSql,
   type CatalogueAttributeFilters,
+  type CatalogueFilterContext,
 } from "@/domain/catalogue-facets";
 import {
   categories,
@@ -296,6 +299,26 @@ const PRODUCT_COLUMNS = {
 } as const;
 
 /** Catálogo completo (home / demo). */
+/**
+ * Lo que necesita el selector de `/comparar`: slug y nombre, nada más
+ * (docs/TEMPLATE-IMPROVEMENT-PLAN.md F5). Antes la página le pasaba al
+ * componente cliente cien productos hidratados —variantes, fotos, atributos—
+ * y todo eso viajaba serializado en el HTML para dibujar casillas.
+ */
+export async function getComparisonCandidates(
+  limit = 100,
+  executor?: Executor
+): Promise<{ slug: string; name: string }[]> {
+  const tx = executor ?? getDb();
+  return tx
+    .select({ slug: products.slug, name: products.name })
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(PUBLISHED())
+    .orderBy(asc(categories.position), asc(products.name))
+    .limit(limit);
+}
+
 export async function getCatalog(
   options: { categorySlug?: string; limit?: number; featured?: boolean } = {},
   executor?: Executor
@@ -671,13 +694,25 @@ export type BrandFacet = { brand: string; total: number };
  *
  * Cuenta productos y no variantes: lo que se va a listar son fichas.
  */
+/**
+ * Las marcas de la categoría, con cuántos productos quedarían eligiendo cada
+ * una **además** de los otros filtros puestos (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+ * F4). La lista sale de toda la categoría: una marca con 0 sigue apareciendo.
+ */
 export async function getBrands(
   categorySlug: string,
+  context: CatalogueFilterContext = {},
   executor?: Executor
 ): Promise<BrandFacet[]> {
   const tx = executor ?? getDb();
+  const condition = catalogueContextPredicate(context, { brand: true });
   const rows = await tx
-    .select({ brand: products.brand, total: count(products.id) })
+    .select({
+      brand: products.brand,
+      total: condition
+        ? sql<number>`SUM(CASE WHEN ${condition} THEN 1 ELSE 0 END)`
+        : count(products.id),
+    })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(
@@ -695,6 +730,31 @@ export async function getBrands(
       Boolean(row.brand)
     )
     .map((row) => ({ brand: row.brand, total: Number(row.total) }));
+}
+
+/**
+ * Si algún producto publicado de la categoría muestra un precio cobrable:
+ * sin ninguno, el filtro de precio no se ofrece (F4) — elegir un rango en una
+ * categoría de productos a consulta devolvía siempre cero.
+ */
+export async function categoryHasPrices(
+  categorySlug: string,
+  executor?: Executor
+): Promise<boolean> {
+  const tx = executor ?? getDb();
+  const rows = await tx
+    .select({ id: products.id })
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(
+      and(
+        PUBLISHED(),
+        eq(categories.slug, categorySlug),
+        sql`${productMinPriceSql()} IS NOT NULL`
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 /**

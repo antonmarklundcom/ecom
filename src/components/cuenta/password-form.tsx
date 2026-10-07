@@ -4,10 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { guardarContrasena } from "@/app/actions/cuenta";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { NewPasswordFields } from "@/components/ui/new-password-fields";
 import { t } from "@/i18n/client";
-import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 export function CustomerPasswordForm({ required }: { required: boolean }) {
   const [message, setMessage] = useState("");
@@ -23,6 +21,9 @@ export function CustomerPasswordForm({ required }: { required: boolean }) {
         startTransition(async () => {
           const result = await guardarContrasena({
             password: String(data.get("password") ?? ""),
+            passwordConfirmation: String(
+              data.get("passwordConfirmation") ?? ""
+            ),
           });
           setMessage(result.ok ? t("cuenta.password.guardada") : result.error);
           if (result.ok) {
@@ -36,16 +37,9 @@ export function CustomerPasswordForm({ required }: { required: boolean }) {
       {required ? (
         <p className="text-sm">{t("cuenta.password.verificada")}</p>
       ) : null}
-      <Label htmlFor="new-password">{t("cuenta.password.nueva")}</Label>
-      <Input
-        id="new-password"
-        name="password"
-        type="password"
-        autoComplete="new-password"
-        minLength={MIN_PASSWORD_LENGTH}
-        maxLength={200}
-        required
-      />
+      {/* Dos veces y con "mostrar", como el setup del dueño
+          (docs/TEMPLATE-IMPROVEMENT-PLAN.md F2). */}
+      <NewPasswordFields id="new-password" label={t("cuenta.password.nueva")} />
       {message ? (
         <p role="status" className="text-sm">
           {message}

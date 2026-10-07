@@ -25,6 +25,27 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  F1–F6). Sin migración.
+  - Errores del panel: los formularios de producto, variante, categoría y
+    ajustes marcan el campo con error (`aria-invalid`, mensaje en
+    castellano), llevan el foco ahí y abren la sección plegada.
+  - Cuenta: la clienta escribe la contraseña nueva dos veces y la puede
+    mostrar.
+  - Tarjeta de producto: el corazón ya no está adentro del link.
+  - Filtros:
+    - en el celular se pliegan;
+    - el total se anuncia;
+    - cada conteo tiene en cuenta los otros filtros;
+    - el de precio sólo aparece si algo muestra precio;
+    - "Limpiar todo" conserva el orden.
+  - `/comparar` ya no manda el catálogo entero al navegador.
+  - Fotos ilustrativas: llevan leyenda también en las tarjetas y en "vistos
+    recientemente".
+  - Nuevo spec `accesibilidad.spec.ts` (axe, escritorio y 390 px).
+  - Una tienda con la página de categoría rediseñada puede pasarle a
+    `CatalogFilters` `showPrice` y `facets`, y envolver los filtros en
+    `FilterDisclosure`.
 - **Lo verificado lo sella el servidor; las fotos dicen de dónde salen**
   (docs/TEMPLATE-IMPROVEMENT-PLAN.md E1–E6). **Migración: sí** (`0024`:
   `product_images.provenance` y `verified_at`; redeploy + setup).

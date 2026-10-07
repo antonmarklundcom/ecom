@@ -29,11 +29,14 @@ export function MetadataField({
   label,
   value,
   suffix = "",
+  error,
 }: {
   name: string;
   label: string;
   value?: unknown;
   suffix?: string;
+  /** El error de este campo (F1): lo marca y lo describe. */
+  error?: string;
 }) {
   const stored = plainObject(value);
   const stamps = (stored ?? {}) as Stamps;
@@ -48,13 +51,19 @@ export function MetadataField({
         name={name}
         className="bg-background min-h-28 rounded border p-2 font-mono text-xs"
         maxLength={12000}
-        aria-describedby={`${id}-estado ${id}-ayuda`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={`${id}-estado ${id}-ayuda${error ? ` ${id}-error` : ""}`}
         defaultValue={
           content && Object.keys(content).length > 0
             ? JSON.stringify(content, null, 2)
             : ""
         }
       />
+      {error ? (
+        <p id={`${id}-error`} className="text-destructive text-xs">
+          {error}
+        </p>
+      ) : null}
       <p id={`${id}-estado`} className="text-xs">
         {verifiedAt && !Number.isNaN(verifiedAt.getTime())
           ? stamps.verifiedBy?.label

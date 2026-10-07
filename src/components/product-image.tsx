@@ -125,6 +125,13 @@ export function ProductImage({
         placeholder={image?.blurDataUrl ? "blur" : "empty"}
         blurDataURL={image?.blurDataUrl ?? undefined}
       />
+      {/* Una foto ilustrativa no es este producto: lo dice donde se vea
+          (docs/TEMPLATE-IMPROVEMENT-PLAN.md F6), como la galería de la ficha. */}
+      {image?.provenance === "illustrative" ? (
+        <span className="bg-background/85 text-foreground absolute inset-x-2 bottom-2 truncate rounded px-2 py-0.5 text-center text-xs">
+          {t("catalogo.imagenIlustrativa")}
+        </span>
+      ) : null}
     </div>
   );
 }

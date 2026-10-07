@@ -17,6 +17,17 @@ export type CatalogueAttributeFilters = {
   inStock?: boolean;
   invalid?: boolean;
 };
+/**
+ * Todos los filtros puestos en una categoría: con esto se condiciona cada
+ * conteo de las opciones (docs/TEMPLATE-IMPROVEMENT-PLAN.md F4). Un conteo
+ * dice cuántos productos quedarían si se elige esa opción **además** de las
+ * otras; la opción misma no se condiciona a sí misma.
+ */
+export type CatalogueFilterContext = CatalogueAttributeFilters & {
+  brand?: string;
+  minPricePyg?: number;
+  maxPricePyg?: number;
+};
 export type CatalogueFacet = {
   key: string;
   label: string;
@@ -126,16 +137,115 @@ export function catalogueAttributePredicate(
   return predicates.length ? and(...predicates) : undefined;
 }
 
+/**
+ * El precio "desde" de un producto, como el de `getCategoryProducts`
+ * (`minPriceSql`), pero por fila de producto: sirve en un WHERE o adentro de
+ * un conteo, sin agrupar la consulta de afuera.
+ */
+export function productMinPriceSql(): SQL<number | null> {
+  return sql<number | null>`(SELECT MIN(CASE WHEN ${products.showPrice} AND fv.price_pyg > 0 THEN fv.price_pyg ELSE NULL END)
+    FROM ${variants} AS fv WHERE fv.product_id = ${products.id} AND fv.is_active = TRUE)`;
+}
+
+/** El rango de precio de la URL, con la misma regla que el listado. */
+export function priceRangePredicate(
+  minPricePyg: number | undefined,
+  maxPricePyg: number | undefined
+): SQL | undefined {
+  return and(
+    minPricePyg !== undefined
+      ? sql`${productMinPriceSql()} >= ${minPricePyg}`
+      : undefined,
+    maxPricePyg !== undefined
+      ? sql`${productMinPriceSql()} <= ${maxPricePyg}`
+      : undefined
+  );
+}
+
+/**
+ * Lo que un producto tiene que cumplir para entrar con estos filtros, sin
+ * los que se nombran en `omit` (el conteo de una opción no se condiciona a
+ * sí mismo).
+ */
+export function catalogueContextPredicate(
+  context: CatalogueFilterContext,
+  omit: { brand?: boolean; attribute?: string } = {}
+): SQL | undefined {
+  if (context.invalid) return sql`FALSE`;
+  const attributes = { ...context.attributes };
+  if (omit.attribute) delete attributes[omit.attribute];
+  return and(
+    !omit.brand && context.brand
+      ? eq(products.brand, context.brand)
+      : undefined,
+    priceRangePredicate(context.minPricePyg, context.maxPricePyg),
+    catalogueAttributePredicate({ attributes, inStock: context.inStock })
+  );
+}
+
+/**
+ * Las opciones de cada atributo filtrable de la categoría, con su conteo
+ * condicionado a los demás filtros puestos (F4). Las opciones salen de toda
+ * la categoría —una con 0 sigue en la lista, para que se vea qué hay y qué
+ * no con esta combinación—; el conteo, de los filtros.
+ *
+ * Para un atributo de **variante** (talle), la misma variante tiene que
+ * cumplir los otros atributos de variante y el stock: un producto con S sin
+ * stock y M con stock no cuenta para "S" con "con stock" puesto, porque
+ * elegirlo no devolvería nada.
+ */
 export async function getCatalogueFacets(
   categorySlug: string,
+  context: CatalogueFilterContext = {},
   executor?: Executor
 ): Promise<CatalogueFacet[]> {
   const tx = executor ?? getDb();
+  const definitions = filterDefinitions();
   return Promise.all(
-    filterDefinitions().map(async (definition) => {
+    definitions.map(async (definition) => {
       const value = attribute(definition);
+      let condition: SQL | undefined;
+      if (context.invalid) {
+        condition = sql`FALSE`;
+      } else if (definition.scope === "product") {
+        condition = catalogueContextPredicate(context, {
+          attribute: definition.key,
+        });
+      } else {
+        // Los atributos de producto, la marca y el precio, sobre el producto;
+        // los de variante y el stock, sobre **esta** variante.
+        const productScope: Record<string, string> = {};
+        const variantScope: SQL[] = [];
+        for (const [key, selected] of Object.entries(
+          context.attributes ?? {}
+        )) {
+          if (key === definition.key) continue;
+          const other = definitions.find((d) => d.key === key);
+          if (!other) {
+            variantScope.push(sql`FALSE`);
+          } else if (other.scope === "product") {
+            productScope[key] = selected;
+          } else {
+            variantScope.push(
+              and(verified(source(other)), eq(attribute(other), selected))!
+            );
+          }
+        }
+        condition = and(
+          context.brand ? eq(products.brand, context.brand) : undefined,
+          priceRangePredicate(context.minPricePyg, context.maxPricePyg),
+          catalogueAttributePredicate({ attributes: productScope }),
+          ...variantScope,
+          context.inStock
+            ? sql`${products.saleMode} = 'stock' AND ${products.showPrice} = TRUE AND ${liveStock()}`
+            : undefined
+        );
+      }
+      const total = condition
+        ? sql<number>`COUNT(DISTINCT CASE WHEN ${condition} THEN ${products.id} END)`
+        : countDistinct(products.id);
       const rows = await tx
-        .select({ value, total: countDistinct(products.id) })
+        .select({ value, total })
         .from(products)
         .innerJoin(categories, eq(products.categoryId, categories.id))
         .innerJoin(variants, eq(variants.productId, products.id))
