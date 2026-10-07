@@ -99,7 +99,7 @@ export function ProductList({
               onChange={() => toggle(product.id)}
             />
 
-            <Link href={`/admin/productos/${product.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+            <Link href={`/admin/productos/${product.id}`} prefetch={false} className="flex min-w-0 flex-1 items-center gap-3">
               {/* Miniatura chica: el dueño reconoce el producto por la foto
                   mucho antes que por el nombre, y son 24 filas en un
                   celular. */}

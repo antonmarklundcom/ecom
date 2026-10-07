@@ -151,6 +151,7 @@ function WorkspaceContent({
       <div className="flex items-center justify-between gap-2">
         <Link
           href={items[0]?.href ?? "/admin/pedidos"}
+          prefetch={false}
           className="flex items-center gap-2 font-semibold"
           onClick={() => setDrawerOpen(false)}
         >
@@ -244,6 +245,7 @@ function WorkspaceContent({
                 ) : (
                   <Link
                     href={item.href}
+                    prefetch={false}
                     data-testid={item.testId}
                     aria-current={active ? "page" : undefined}
                     onClick={() => setDrawerOpen(false)}

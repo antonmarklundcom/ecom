@@ -110,6 +110,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
             <li key={order.id} className="border-border rounded-xl border">
               <Link
                 href={`/admin/pedidos/${order.id}`}
+                prefetch={false}
                 data-testid={TESTIDS.adminOrderRowLink}
                 data-order={order.orderNumber}
                 className="hover:bg-muted/50 block p-4"

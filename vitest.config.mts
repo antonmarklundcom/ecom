@@ -15,6 +15,8 @@ export default defineConfig({
         test: {
           name: "ui",
           fsModuleCache: true,
+          // jsdom role queries are slower on Windows under local CPU/IO contention.
+          testTimeout: process.platform === "win32" ? 30_000 : 5_000,
           environment: "jsdom",
           setupFiles: ["./vitest.setup.ts"],
           include: ["src/**/*.test.{ts,tsx}", "src/**/__tests__/**/*.{ts,tsx}"],
@@ -29,7 +31,8 @@ export default defineConfig({
           fsModuleCache: true,
           environment: "node",
           include: ["tests/unit/**/*.test.ts"],
-          testTimeout: 30_000,
+          // Cold module transforms and repository scans can exceed 30s on Windows.
+          testTimeout: process.platform === "win32" ? 90_000 : 30_000,
         },
       },
       // Dominio y datos contra MySQL. jsdom acá sólo rompe mysql2.
