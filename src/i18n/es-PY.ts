@@ -816,6 +816,10 @@ export const esPY = {
   "adminError.producto.skuRepetido":
     'El SKU "{sku}" ya está usado por otra variante.',
   "adminError.producto.varianteNoExiste": "Esa variante no existe.",
+  "adminError.importar.skuAjeno":
+    'El SKU "{sku}" ya es del producto "{dueno}", no de "{producto}": una planilla no muda una variante a otro producto. Cambiá el SKU o el slug. No se escribió nada.',
+  "adminError.importar.preciosSoloDuenio":
+    "Esta planilla cambia precios o pisa stock, y un cambio en masa de precios o de inventario lo aplica sólo el dueño. Pedile que la importe, o sacá esas columnas. No se escribió nada.",
   "adminError.producto.precioCero":
     'La variante "{sku}" no tiene precio: para venderla con stock el precio tiene que ser mayor a ₲0. Mientras no lo tenga, dejá el producto sin publicar, la variante apagada o el producto en modo consulta.',
   "adminError.stock.sinMotivo":
@@ -942,6 +946,11 @@ export const esPY = {
   "csv.producto.variante": "Variante",
   "csv.producto.precio": "Precio (₲)",
   "csv.producto.stock": "Stock",
+  "csv.producto.slug": "Slug",
+  "csv.producto.precioAntes": "Precio antes (₲)",
+  "csv.producto.descripcion": "Descripción",
+  "csv.producto.marca": "Marca",
+  "csv.producto.iva": "IVA",
   "csv.cliente.nombre": "Nombre",
   "csv.cliente.email": "Email",
   "csv.cliente.acepto": "Aceptó el",
@@ -1530,7 +1539,7 @@ export const esPY = {
 
   "panel.productos.importar.titulo": "Cargar planilla",
   "panel.productos.importar.ayuda":
-    "CSV o Excel, una fila por variante — el mismo formato que baja el botón de arriba. Primero se revisa; recién se escribe cuando confirmás.",
+    "CSV o Excel, una fila por variante — el mismo formato que baja el botón de arriba. Una columna que no está no se toca; una celda vacía en Descripción, Marca o Precio antes lo borra. Primero se revisa; recién se escribe cuando confirmás, y entra todo o nada.",
   "panel.productos.importar.revisar": "Revisar",
   "panel.productos.importar.confirmar": "Confirmar e importar",
   "panel.productos.importar.aplicando": "Importando…",
@@ -1552,6 +1561,14 @@ export const esPY = {
     "{n} variantes a actualizar",
   "panel.productos.importar.categoriasNuevas":
     "Categorías a crear: {categorias}.",
+  "panel.productos.importar.nuevosBorrador":
+    "Los productos nuevos entran como borrador: revisalos y publicalos desde su ficha.",
+  "panel.productos.importar.preciosCambian.uno":
+    "{n} precio cambia (queda registrado quién y de cuánto a cuánto)",
+  "panel.productos.importar.preciosCambian.varios":
+    "{n} precios cambian (queda registrado quién y de cuánto a cuánto)",
+  "panel.productos.importar.requiereDuenio":
+    "Esta planilla cambia precios o pisa stock: es un cambio en masa y lo aplica sólo el dueño. Sacá esas columnas o pedile que la importe.",
   "panel.productos.importar.fotosNuevas.uno": "{n} foto a subir",
   "panel.productos.importar.fotosNuevas.varios": "{n} fotos a subir",
   "panel.productos.importar.fotosOmitidas":

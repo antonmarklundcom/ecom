@@ -1,27 +1,15 @@
 import "@/lib/load-env";
 
-import { safeError } from "../src/lib/safe-error";
-
 import { readFileSync } from "node:fs";
 
-import { eq, inArray, sql } from "drizzle-orm";
-
-import { closePool, getDb } from "@/db";
-import {
-  categories,
-  products,
-  productSlugRedirects,
-  variants,
-} from "@/db/schema";
-import { parseCatalogo, type CatalogoProducto } from "@/domain/catalog-import";
-import { slugify } from "@/lib/slug";
-
+import { closePool } from "@/db";
 import {
   applyCatalogFotos,
-  contarFotosNuevas,
+  applyCatalogImportPlan,
+  buildCatalogImportPlan,
 } from "@/domain/catalog-import-plan";
 
-import { upsertCatalogProducts, type CatalogProductUpsert } from "./seed";
+import { safeError } from "../src/lib/safe-error";
 
 /**
  * `pnpm importar:productos <planilla.csv>` — el catálogo entero de una vez.
@@ -56,13 +44,22 @@ import { upsertCatalogProducts, type CatalogProductUpsert } from "./seed";
  * actualiza precios y textos sin duplicar, y el `on_hand` de variantes que ya
  * existen no se toca salvo `--pisar-stock`. Las categorías que no existan se
  * crean al final del menú.
+ *
+ * Mismo plan y misma escritura que la importación del panel
+ * (`buildCatalogImportPlan` + `applyCatalogImportPlan`): todo o nada, una
+ * columna ausente no pisa lo guardado, un SKU de otro producto (con otra
+ * mayúscula o acento incluido) frena todo, lo nuevo entra como borrador y
+ * cada precio o stock que cambia queda auditado a nombre de
+ * `cli:importar-productos` (docs/TEMPLATE-IMPROVEMENT-PLAN.md C1–C7). Quien
+ * corre este script tiene la `DATABASE_URL`: es el dueño.
  */
 
-const APLICAR = process.argv.includes("--aplicar");
-const PISAR_STOCK = process.argv.includes("--pisar-stock");
+const ARGS = process.argv.slice(2).filter((arg) => arg !== "--");
+const APLICAR = ARGS.includes("--aplicar");
+const PISAR_STOCK = ARGS.includes("--pisar-stock");
 
 async function main(): Promise<void> {
-  const archivo = process.argv.slice(2).find((arg) => !arg.startsWith("-"));
+  const archivo = ARGS.find((arg) => !arg.startsWith("-"));
   if (!archivo) {
     console.error(
       "Uso: pnpm importar:productos <planilla.csv> [--aplicar] [--pisar-stock]"
@@ -80,127 +77,40 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { productos, errores } = parseCatalogo(texto);
-  if (errores.length > 0) {
-    for (const error of errores) console.error(`✗ ${error}`);
-    console.error(`\n${errores.length} error(es). No se escribió nada.`);
+  const plan = await buildCatalogImportPlan(texto);
+  if (plan.errores.length > 0) {
+    for (const error of plan.errores) console.error(`✗ ${error}`);
+    console.error(`\n${plan.errores.length} error(es). No se escribió nada.`);
     process.exitCode = 1;
     return;
   }
 
-  const db = getDb();
-
-  // --- Categorías: cuáles existen, cuáles hay que crear -------------------
-  const categoryRows = await db
-    .select({ id: categories.id, slug: categories.slug, name: categories.name })
-    .from(categories);
-  const categoriaPorSlug = new Map<string, number>();
-  for (const row of categoryRows) {
-    categoriaPorSlug.set(row.slug, row.id);
-    categoriaPorSlug.set(slugify(row.name), row.id);
-  }
-
-  const categoriasNuevas = new Map<string, string>(); // slug → nombre como vino
-  for (const producto of productos) {
-    const slug = slugify(producto.categoryName);
-    if (!categoriaPorSlug.has(slug) && !categoriasNuevas.has(slug)) {
-      categoriasNuevas.set(slug, producto.categoryName);
-    }
-  }
-
-  // --- SKUs: uno que ya existe en OTRO producto es un error, no un update.
-  // El upsert re-colgaría la variante del producto de la planilla en
-  // silencio, y "mover una variante de producto" no es algo que una planilla
-  // tenga permitido decidir sin que nadie lo vea.
-  const skus = productos.flatMap((p) => p.variants.map((v) => v.sku));
-  const skuRows = skus.length
-    ? await db
-        .select({ sku: variants.sku, productSlug: products.slug })
-        .from(variants)
-        .innerJoin(products, eq(variants.productId, products.id))
-        .where(inArray(variants.sku, skus))
-    : [];
-  const duenoDeSku = new Map(skuRows.map((row) => [row.sku, row.productSlug]));
-
-  const conflictos: string[] = [];
-  const aliasRows = productos.length
-    ? await db
-        .select({ slug: productSlugRedirects.slug, current: products.slug })
-        .from(productSlugRedirects)
-        .innerJoin(products, eq(productSlugRedirects.productId, products.id))
-        .where(
-          inArray(
-            productSlugRedirects.slug,
-            productos.map((p) => p.slug)
-          )
-        )
-    : [];
-  for (const alias of aliasRows)
-    if (alias.slug !== alias.current)
-      conflictos.push(
-        `El slug "${alias.slug}" es histórico; usá "${alias.current}".`
-      );
-  for (const producto of productos) {
-    for (const variante of producto.variants) {
-      const dueno = duenoDeSku.get(variante.sku);
-      if (dueno !== undefined && dueno !== producto.slug) {
-        conflictos.push(
-          `✗ El SKU "${variante.sku}" ya existe en la base y es del producto "${dueno}", no de "${producto.slug}". Cambiá el SKU o el slug en la planilla.`
-        );
-      }
-    }
-  }
-  if (conflictos.length > 0) {
-    for (const conflicto of conflictos) console.error(conflicto);
-    console.error(
-      `\n${conflictos.length} conflicto(s) de SKU. No se escribió nada.`
-    );
-    process.exitCode = 1;
-    await closePool();
-    return;
-  }
-
-  // --- El plan ------------------------------------------------------------
-  const slugsProductos = productos.map((p) => p.slug);
-  const productRows = await db
-    .select({ id: products.id, slug: products.slug })
-    .from(products)
-    .where(inArray(products.slug, slugsProductos));
-  const idPorSlugExistente = new Map(
-    productRows.map((row) => [row.slug, row.id])
-  );
-  const productosExistentes = new Set(productRows.map((row) => row.slug));
-  const nuevos = productos.filter((p) => !productosExistentes.has(p.slug));
-  const variantesTotal = skus.length;
-  const variantesExistentes = duenoDeSku.size;
-  const fotosNuevas = await contarFotosNuevas(
-    productos,
-    idPorSlugExistente,
-    db
-  );
-
+  const variantesTotal = plan.variantesNuevas + plan.variantesActualizar;
   console.log(
-    `Planilla: ${productos.length} productos · ${variantesTotal} variantes`
+    `Planilla: ${plan.productos.length} productos · ${variantesTotal} variantes`
   );
   console.log(
-    `  · ${nuevos.length} productos nuevos, ${productos.length - nuevos.length} a actualizar`
+    `  · ${plan.productosNuevos} productos nuevos (entran como borrador), ${plan.productosActualizar} a actualizar`
   );
   console.log(
-    `  · ${variantesTotal - variantesExistentes} variantes nuevas, ${variantesExistentes} a actualizar` +
-      (variantesExistentes > 0
+    `  · ${plan.variantesNuevas} variantes nuevas, ${plan.variantesActualizar} a actualizar` +
+      (plan.variantesActualizar > 0
         ? PISAR_STOCK
-          ? " (¡pisando su stock!)"
+          ? ` (¡pisando su stock: ${plan.stockCambiaria} cambian!)`
           : " (su stock no se toca; --pisar-stock para pisarlo)"
         : "")
   );
-  if (categoriasNuevas.size > 0) {
+  if (plan.preciosCambian > 0) {
     console.log(
-      `  · categorías a crear: ${[...categoriasNuevas.values()].join(", ")}`
+      `  · ${plan.preciosCambian} precios cambian (quedan auditados)`
     );
   }
-  if (fotosNuevas > 0) {
+  if (plan.categoriasNuevas.length > 0) {
+    console.log(`  · categorías a crear: ${plan.categoriasNuevas.join(", ")}`);
+  }
+  if (plan.fotosNuevas > 0) {
     console.log(
-      `  · ${fotosNuevas} fotos a subir (sólo a productos que hoy no tienen ninguna)`
+      `  · ${plan.fotosNuevas} fotos a subir (sólo a productos que hoy no tienen ninguna)`
     );
   }
 
@@ -208,73 +118,26 @@ async function main(): Promise<void> {
     console.log(
       "\nEnsayo: no se escribió nada. Agregá --aplicar para escribir."
     );
-    await closePool();
     return;
   }
 
-  // --- Escribir -----------------------------------------------------------
-  if (categoriasNuevas.size > 0) {
-    const maxPosition =
-      (
-        await db
-          .select({
-            max: sql<number>`COALESCE(MAX(${categories.position}), 0)`,
-          })
-          .from(categories)
-      )[0]?.max ?? 0;
-    let position = maxPosition;
-    for (const [slug, nombre] of categoriasNuevas) {
-      position += 1;
-      await db
-        .insert(categories)
-        .values({ slug, name: nombre, position })
-        .onDuplicateKeyUpdate({ set: { name: nombre, isActive: true } });
-      const fila = (
-        await db
-          .select({ id: categories.id })
-          .from(categories)
-          .where(eq(categories.slug, slug))
-          .limit(1)
-      )[0];
-      if (!fila) throw new Error(`No pude releer la categoría ${slug}`);
-      categoriaPorSlug.set(slug, fila.id);
-    }
-    console.log(`✓ ${categoriasNuevas.size} categorías creadas`);
-  }
-
-  const items: CatalogProductUpsert[] = productos.map(
-    (producto: CatalogoProducto) => {
-      const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
-      if (!categoryId)
-        throw new Error(`Categoría sin id: ${producto.categoryName}`);
-      return {
-        specifications: producto.specifications,
-        supplierDetails: producto.supplierDetails,
-        seoTitle: producto.seoTitle,
-        seoDescription: producto.seoDescription,
-        saleMode: producto.saleMode,
-        showPrice: producto.showPrice,
-        slug: producto.slug,
-        name: producto.name,
-        description: producto.description,
-        categoryId,
-        brand: producto.brand,
-        ivaRate: producto.ivaRate,
-        variants: producto.variants,
-      };
-    }
-  );
-
-  const escritas = await upsertCatalogProducts(items, {
+  // --- Escribir: todo o nada ----------------------------------------------
+  const { variantesEscritas } = await applyCatalogImportPlan(plan, {
     resetStock: PISAR_STOCK,
+    allowPriceChanges: true,
+    actor: "cli:importar-productos",
+    actorUserId: null,
   });
+  if (plan.categoriasNuevas.length > 0) {
+    console.log(`✓ ${plan.categoriasNuevas.length} categorías creadas`);
+  }
   console.log(
-    `✓ ${productos.length} productos · ${escritas} variantes escritas`
+    `✓ ${plan.productos.length} productos · ${variantesEscritas} variantes escritas`
   );
 
   // Las fotos van después del commit del catálogo: una URL caída no puede
   // tumbar productos y precios que ya se guardaron.
-  const fotos = await applyCatalogFotos(productos);
+  const fotos = await applyCatalogFotos(plan.productos);
   if (fotos.fotosOmitidas > 0) {
     console.log(
       `⚠ ${fotos.fotosOmitidas} fotos NO se subieron: Cloudinary no está configurado (ver docs/ENV-OPCIONAL.md).`

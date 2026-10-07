@@ -17,8 +17,17 @@ import {
 } from "@/lib/cloudinary";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 
+import {
+  upsertCatalogProducts,
+  type CatalogProductUpsert,
+} from "../../scripts/seed";
+
 import { addProductImage } from "./admin-products";
-import { parseCatalogo, type CatalogoProducto } from "./catalog-import";
+import {
+  claveSku,
+  parseCatalogo,
+  type CatalogoProducto,
+} from "./catalog-import";
 import type { Executor } from "./executor";
 
 /**
@@ -39,6 +48,14 @@ export type CatalogImportPlan = {
   productosActualizar: number;
   variantesNuevas: number;
   variantesActualizar: number;
+  /**
+   * Variantes existentes cuyo precio cambia. Un cambio de precios en masa es
+   * del dueño (`precios.masivo`): la vista previa lo avisa y la escritura lo
+   * vuelve a verificar bajo lock (docs/TEMPLATE-IMPROVEMENT-PLAN.md C6).
+   */
+  preciosCambian: number;
+  /** Variantes existentes cuyo stock cambiaría si se pide "pisar stock". */
+  stockCambiaria: number;
   /** Nombre tal como vino en la planilla, para mostrarlo en la vista previa. */
   categoriasNuevas: string[];
   categoriaIdPorSlug: Map<string, number>;
@@ -71,6 +88,8 @@ export async function buildCatalogImportPlan(
       productosActualizar: 0,
       variantesNuevas: 0,
       variantesActualizar: 0,
+      preciosCambian: 0,
+      stockCambiaria: 0,
       categoriasNuevas: [],
       categoriaIdPorSlug: new Map(),
       fotosNuevas: 0,
@@ -94,17 +113,25 @@ export async function buildCatalogImportPlan(
     }
   }
 
-  // Un SKU que ya es de OTRO producto es un conflicto, no un update: ver el
-  // comentario homólogo en `scripts/importar-productos.ts`.
+  // Un SKU que ya es de OTRO producto es un conflicto, no un update: una
+  // planilla no muda una variante (con su historia de pedidos) a otro
+  // producto. La base compara con su colación (sin mayúsculas ni acentos), así
+  // que el mapa se arma con la misma clave (C4); la escritura lo vuelve a
+  // verificar bajo lock.
   const skus = productos.flatMap((p) => p.variants.map((v) => v.sku));
   const skuRows = skus.length
     ? await tx
-        .select({ sku: variants.sku, productSlug: products.slug })
+        .select({
+          sku: variants.sku,
+          productSlug: products.slug,
+          pricePyg: variants.pricePyg,
+          onHand: variants.onHand,
+        })
         .from(variants)
         .innerJoin(products, eq(variants.productId, products.id))
         .where(inArray(variants.sku, skus))
     : [];
-  const duenoDeSku = new Map(skuRows.map((row) => [row.sku, row.productSlug]));
+  const duenoDeSku = new Map(skuRows.map((row) => [claveSku(row.sku), row]));
 
   const errores: string[] = [];
   const aliasRows = productos.length
@@ -124,14 +151,23 @@ export async function buildCatalogImportPlan(
       errores.push(
         `El slug "${alias.slug}" es histórico y está reservado; usá el slug actual "${alias.current}".`
       );
+  let preciosCambian = 0;
+  let stockCambiaria = 0;
+  let variantesExistentes = 0;
   for (const producto of productos) {
     for (const variante of producto.variants) {
-      const dueno = duenoDeSku.get(variante.sku);
-      if (dueno !== undefined && dueno !== producto.slug) {
+      const dueno = duenoDeSku.get(claveSku(variante.sku));
+      if (dueno === undefined) continue;
+      if (dueno.productSlug !== producto.slug) {
         errores.push(
-          `El SKU "${variante.sku}" ya existe en la base y es del producto "${dueno}", no de "${producto.slug}". Cambiá el SKU o el slug en la planilla.`
+          `El SKU "${variante.sku}" ya existe en la base${dueno.sku === variante.sku ? "" : ` como "${dueno.sku}"`} y es del producto "${dueno.productSlug}", no de "${producto.slug}". Cambiá el SKU o el slug en la planilla.`
         );
+        continue;
       }
+      variantesExistentes += 1;
+      if (dueno.pricePyg !== variante.pricePyg) preciosCambian += 1;
+      if (variante.onHand !== undefined && dueno.onHand !== variante.onHand)
+        stockCambiaria += 1;
     }
   }
   if (errores.length > 0) {
@@ -142,6 +178,8 @@ export async function buildCatalogImportPlan(
       productosActualizar: 0,
       variantesNuevas: 0,
       variantesActualizar: 0,
+      preciosCambian: 0,
+      stockCambiaria: 0,
       categoriasNuevas: [],
       categoriaIdPorSlug: new Map(),
       fotosNuevas: 0,
@@ -161,7 +199,6 @@ export async function buildCatalogImportPlan(
     (p) => !productosExistentes.has(p.slug)
   ).length;
   const variantesTotal = skus.length;
-  const variantesExistentes = duenoDeSku.size;
   const fotosNuevas = await contarFotosNuevas(
     productos,
     idPorSlugExistente,
@@ -175,6 +212,8 @@ export async function buildCatalogImportPlan(
     productosActualizar: productos.length - productosNuevos,
     variantesNuevas: variantesTotal - variantesExistentes,
     variantesActualizar: variantesExistentes,
+    preciosCambian,
+    stockCambiaria,
     categoriasNuevas: [...categoriasNuevas.values()],
     categoriaIdPorSlug: categoriaPorSlug,
     fotosNuevas,
@@ -394,4 +433,59 @@ export async function ensureCatalogCategories(
     categoriaPorSlug.set(slug, fila.id);
   }
   return categoriaPorSlug;
+}
+
+export type CatalogImportApplyOptions = {
+  resetStock: boolean;
+  /** `can(rol, "precios.masivo")`: sin eso, cambiar un precio o pisar stock no se escribe (C6). */
+  allowPriceChanges: boolean;
+  actor: string;
+  actorUserId: number | null;
+};
+
+/**
+ * Escribe un plan **entero o nada** (C1): categorías nuevas, productos y
+ * variantes en una sola transacción. Un SKU que en este momento es de otro
+ * producto (lo cargó alguien después de la vista previa), un precio que
+ * cambia sin permiso o cualquier error de la base deshace todo, categorías
+ * incluidas.
+ *
+ * Lo nuevo entra como **borrador** y lo existente no cambia de activo ni de
+ * publicado (C5). Cada precio y stock que cambia queda en
+ * `price_adjustments` / `stock_adjustments` con quién lo hizo (C7).
+ *
+ * Las fotos no van acá: suben después del commit (`applyCatalogFotos`), para
+ * que una URL caída no tumbe el catálogo.
+ */
+export async function applyCatalogImportPlan(
+  plan: Pick<CatalogImportPlan, "productos" | "categoriaIdPorSlug">,
+  options: CatalogImportApplyOptions
+): Promise<{ variantesEscritas: number }> {
+  return getDb().transaction(async (tx) => {
+    const categoriaPorSlug = await ensureCatalogCategories(plan, tx);
+    const items: CatalogProductUpsert[] = plan.productos.map((producto) => {
+      const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
+      if (!categoryId)
+        throw new Error(`Categoría sin id: ${producto.categoryName}`);
+      const { categoryName, fotos, ...resto } = producto;
+      void categoryName;
+      void fotos;
+      return { ...resto, categoryId };
+    });
+    const variantesEscritas = await upsertCatalogProducts(items, {
+      executor: tx,
+      mode: "import",
+      publishedAt: null,
+      resetStock: options.resetStock,
+      allowPriceChanges: options.allowPriceChanges,
+      audit: {
+        actor: options.actor,
+        actorUserId: options.actorUserId,
+        reason: options.resetStock
+          ? "Importación de planilla (pisar stock)"
+          : "Importación de planilla",
+      },
+    });
+    return { variantesEscritas };
+  });
 }

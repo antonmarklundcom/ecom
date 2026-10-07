@@ -15,12 +15,11 @@ import {
 } from "@/domain/admin-products";
 import {
   applyCatalogFotos,
+  applyCatalogImportPlan,
   buildCatalogImportPlan,
-  ensureCatalogCategories,
   type CatalogFotoFallida,
   type CatalogImportPlan,
 } from "@/domain/catalog-import-plan";
-import { type CatalogoProducto } from "@/domain/catalog-import";
 import {
   BULK_MAX_IDS,
   BULK_MIN_REASON,
@@ -35,7 +34,6 @@ import {
 import { sweepBackInStock } from "@/domain/stock-alerts";
 import { validateProductImage } from "@/domain/product-images";
 import { carpetaProductos, cloudinary } from "@/lib/cloudinary";
-import { slugify } from "@/lib/slug";
 import {
   spreadsheetToCsvText,
   UnsupportedSpreadsheetError,
@@ -48,6 +46,8 @@ import {
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { t } from "@/i18n";
+import type { UserRole } from "@/db/schema";
+import { can } from "@/lib/permissions";
 import {
   ProductSpecificationsSchema,
   SupplierDetailsSchema,
@@ -58,13 +58,6 @@ import {
 function revalidarVidriera() {
   revalidatePath("/", "layout");
 }
-
-// Import directo del script de seed: mismo `upsertCatalogProducts` que usa
-// `pnpm importar:productos`, no una reimplementación para el panel.
-import {
-  upsertCatalogProducts,
-  type CatalogProductUpsert,
-} from "../../../scripts/seed";
 
 /**
  * Alta y edición del catálogo (PLAN.md 4.6).
@@ -191,7 +184,7 @@ export async function saveProductVariant(
   input: unknown
 ): Promise<AdminActionResult> {
   try {
-    await requireStaffSession();
+    const actor = await requireStaffSession();
 
     const parsed = VariantSchema.safeParse(input);
     if (!parsed.success) {
@@ -201,17 +194,22 @@ export async function saveProductVariant(
       };
     }
 
-    await saveVariant(parsed.data.productId, {
-      attributes: parsed.data.attributes,
-      identifiers: parsed.data.identifiers,
-      id: parsed.data.variantId,
-      sku: parsed.data.sku,
-      label: parsed.data.label,
-      pricePyg: parsed.data.pricePyg,
-      compareAtPyg: parsed.data.compareAtPyg ?? null,
-      isActive: parsed.data.isActive,
-      reorderPoint: parsed.data.reorderPoint ?? null,
-    });
+    await saveVariant(
+      parsed.data.productId,
+      {
+        attributes: parsed.data.attributes,
+        identifiers: parsed.data.identifiers,
+        id: parsed.data.variantId,
+        sku: parsed.data.sku,
+        label: parsed.data.label,
+        pricePyg: parsed.data.pricePyg,
+        compareAtPyg: parsed.data.compareAtPyg ?? null,
+        isActive: parsed.data.isActive,
+        reorderPoint: parsed.data.reorderPoint ?? null,
+      },
+      undefined,
+      { actor: actorLabel(actor), actorUserId: actor.userId }
+    );
 
     revalidatePath(`/admin/productos/${parsed.data.productId}`);
     revalidarVidriera();
@@ -367,6 +365,12 @@ export type CatalogImportSummary = {
   categoriasNuevas: string[];
   pisaStock: boolean;
   fotosNuevas: number;
+  /** Variantes existentes cuyo precio cambia (C6). */
+  preciosCambian: number;
+  /** Variantes existentes cuyo stock cambia con "pisar stock" (C6). */
+  stockCambiaria: number;
+  /** Quien está importando no puede aplicar estos cambios (`precios.masivo`). */
+  requiereDuenio: boolean;
 };
 
 export type CatalogImportPreviewResult =
@@ -396,8 +400,11 @@ async function readCatalogFile(
 
 function planSummary(
   plan: CatalogImportPlan,
-  pisaStock: boolean
+  pisaStock: boolean,
+  role?: UserRole
 ): CatalogImportSummary {
+  const cambiaEnMasa =
+    plan.preciosCambian > 0 || (pisaStock && plan.stockCambiaria > 0);
   return {
     productosNuevos: plan.productosNuevos,
     productosActualizar: plan.productosActualizar,
@@ -406,6 +413,11 @@ function planSummary(
     categoriasNuevas: plan.categoriasNuevas,
     pisaStock,
     fotosNuevas: plan.fotosNuevas,
+    preciosCambian: plan.preciosCambian,
+    stockCambiaria: pisaStock ? plan.stockCambiaria : 0,
+    // La vista previa avisa antes; la escritura lo vuelve a verificar.
+    requiereDuenio:
+      cambiaEnMasa && role !== undefined && !can(role, "precios.masivo"),
   };
 }
 
@@ -417,7 +429,7 @@ export async function previewCatalogImport(
   formData: FormData
 ): Promise<CatalogImportPreviewResult> {
   try {
-    await requireStaffSession();
+    const actor = await requireStaffSession();
 
     const leido = await readCatalogFile(formData);
     if (!leido.ok) return { ok: false, errores: leido.errores };
@@ -426,7 +438,7 @@ export async function previewCatalogImport(
     const plan = await buildCatalogImportPlan(leido.csvText);
     if (plan.errores.length > 0) return { ok: false, errores: plan.errores };
 
-    return { ok: true, ...planSummary(plan, pisaStock) };
+    return { ok: true, ...planSummary(plan, pisaStock, actor.role) };
   } catch (error) {
     const result = adminActionError("previewCatalogImport", error);
     return { ok: false, errores: [result.error] };
@@ -453,7 +465,7 @@ export async function applyCatalogImport(
   formData: FormData
 ): Promise<CatalogImportApplyResult> {
   try {
-    await requireStaffSession();
+    const actor = await requireStaffSession();
 
     const leido = await readCatalogFile(formData);
     if (!leido.ok) return { ok: false, errores: leido.errores };
@@ -462,33 +474,15 @@ export async function applyCatalogImport(
     const plan = await buildCatalogImportPlan(leido.csvText);
     if (plan.errores.length > 0) return { ok: false, errores: plan.errores };
 
-    const categoriaPorSlug = await ensureCatalogCategories(plan);
-
-    const items: CatalogProductUpsert[] = plan.productos.map(
-      (producto: CatalogoProducto) => {
-        const categoryId = categoriaPorSlug.get(slugify(producto.categoryName));
-        if (!categoryId)
-          throw new Error(`Categoría sin id: ${producto.categoryName}`);
-        return {
-          specifications: producto.specifications,
-          supplierDetails: producto.supplierDetails,
-          seoTitle: producto.seoTitle,
-          seoDescription: producto.seoDescription,
-          saleMode: producto.saleMode,
-          showPrice: producto.showPrice,
-          slug: producto.slug,
-          name: producto.name,
-          description: producto.description,
-          categoryId,
-          brand: producto.brand,
-          ivaRate: producto.ivaRate,
-          variants: producto.variants,
-        };
-      }
-    );
-
-    const variantesEscritas = await upsertCatalogProducts(items, {
+    // Todo o nada, con el dueño de cada SKU verificado bajo lock, y precios o
+    // stock en masa sólo con `precios.masivo` (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+    // C1, C4, C6). Lo nuevo entra como borrador (C5) y cada cambio de precio o
+    // stock queda auditado con quién lo hizo (C7).
+    const { variantesEscritas } = await applyCatalogImportPlan(plan, {
       resetStock: pisaStock,
+      allowPriceChanges: can(actor.role, "precios.masivo"),
+      actor: actorLabel(actor),
+      actorUserId: actor.userId,
     });
 
     // "Avisame cuando haya stock" (O6): una importación con `pisarStock` es la

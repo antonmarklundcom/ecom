@@ -289,6 +289,20 @@ storefront specs time out once; the isolated rerun passed.
 
 ## Batch C — supplier CSV import and export (PR 3)
 
+Reproduced on the original code with a scratch test (MariaDB 10.11, same
+result expected on MySQL): a price-only file with "pisar stock" left the
+product with description and brand `null`, IVA 10, label "Único",
+compare-at `null` and stock 0 (C2); `taz-s` moved another product's `TAZ-S`
+variant and changed its price with zero plan errors (C4); an inactive product
+was reactivated and a new one published (C5); a write failure on the third
+product left the first product, a new category and a changed price behind
+(C1); no `price_adjustments` row was written (C7). The panel and the CLI now
+share one plan (`buildCatalogImportPlan`) and one transactional writer
+(`applyCatalogImportPlan`); the CLI's duplicated planning code is gone.
+Acceptance tests: `tests/integration/catalog-import-safeguards.test.ts`
+(every C item, including an export → import no-op and a conflict inserted
+between preview and write) and `tests/unit/catalog-import.test.ts`.
+
 ### C1 · A late failure leaves a partial import — P1
 
 - **Failure.** Categories are committed outside any transaction and each
@@ -298,7 +312,7 @@ storefront specs time out once; the isolated rerun passed.
 - **Fix.** One transaction for categories and products; per-line length
   validation so these become preview errors.
 - **Acceptance.** A batch whose last row fails writes nothing.
-- **Status.** planned.
+- **Status.** fixed in PR C.
 
 ### C2 · Absent optional columns overwrite stored data — P1
 
@@ -308,7 +322,7 @@ storefront specs time out once; the isolated rerun passed.
 - **Fix.** An absent column means "keep"; defaults apply only on insert. An
   explicitly empty cell keeps its documented meaning.
 - **Acceptance.** Re-importing a price-only file changes only prices.
-- **Status.** planned.
+- **Status.** fixed in PR C.
 
 ### C3 · Export does not round-trip — P1
 
@@ -318,7 +332,7 @@ storefront specs time out once; the isolated rerun passed.
 - **Fix.** Stable export columns covering every importable field; compare-at
   0 round-trips as "none".
 - **Acceptance.** Export → import of the seeded catalogue is a no-op.
-- **Status.** planned.
+- **Status.** fixed in PR C.
 
 ### C4 · SKU ownership ignores database collation and locks — P1
 
@@ -331,7 +345,7 @@ storefront specs time out once; the isolated rerun passed.
   `product_id`. Case/accent duplicates in one file are rejected.
 - **Acceptance.** A collation-equivalent SKU of another product is rejected
   and nothing is written.
-- **Status.** planned.
+- **Status.** fixed in PR C.
 
 ### C5 · Imports publish new products and reactivate unpublished ones — P1
 
@@ -340,7 +354,7 @@ storefront specs time out once; the isolated rerun passed.
   unpublish.
 - **Fix.** New products enter as drafts; updates never change activation.
 - **Acceptance.** New rows are drafts; an inactive product stays inactive.
-- **Status.** planned.
+- **Status.** fixed in PR C.
 
 ### C6 · Staff can mass-change prices and reset stock through import — P1
 
@@ -350,7 +364,7 @@ storefront specs time out once; the isolated rerun passed.
   `precios.masivo`; the actor is recorded.
 - **Acceptance.** A staff apply that changes a price is rejected; owner
   passes.
-- **Status.** planned.
+- **Status.** fixed in PR C.
 
 ### C7 · Price and stock changes from import and variant edits are not audited — P1
 
@@ -361,7 +375,7 @@ storefront specs time out once; the isolated rerun passed.
   for every change from import and the variant editor.
 - **Acceptance.** Each changed price or stock value has one audit row with
   before/after and actor.
-- **Status.** planned.
+- **Status.** fixed in PR C.
 
 ---
 
