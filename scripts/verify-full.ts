@@ -38,13 +38,13 @@ env.NEXT_PUBLIC_SITE_URL = `http://127.0.0.1:${env.E2E_PORT?.trim() || 3000}`;
 for (const fields of Object.values(CAMPOS))
   for (const field of fields)
     if (!(field.env === "WHATSAPP_NUMBER")) env[field.env] = "";
-// Synthetic image URL namespace: browser tests intercept the requests.
-// No API credentials or live Cloudinary account are required.
+for (const args of [["typecheck"], ["lint"], ["test", "--maxWorkers=2"]]) {
+  runPnpm(args, { stdio: "inherit", env });
+}
+// Synthetic image URL namespace for browser fixtures only. Unit tests also
+// verify the default without Cloudinary; no live API credentials are needed.
 env.CLOUDINARY_CLOUD_NAME = "disposable-gallery-fixture";
 for (const args of [
-  ["typecheck"],
-  ["lint"],
-  ["test", "--maxWorkers=2"],
   ["exec", "tsx", "scripts/prepare-browser-tests.ts"],
   ["build"],
   ["exec", "playwright", "test"],
