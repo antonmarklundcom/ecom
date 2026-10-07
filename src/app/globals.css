@@ -149,9 +149,7 @@
 }
 
 /* == S9 ==
-   CSS de impresión del remito (plan-operacion §6.1). Nada inline: el CSP de
-   `src/proxy.ts` no permite `'unsafe-inline'` en `style-src` para las rutas
-   con nonce, y `/admin` es justamente una de ésas.
+   CSS compartido de impresión del remito (plan-operacion §6.1).
 
    `.s9-no-print` oculta la navegación y los controles de impresión.
    No se ocultan todos los headers: el remito conserva su propio encabezado. */
