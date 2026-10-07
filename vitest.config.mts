@@ -14,6 +14,7 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: "ui",
+          fsModuleCache: true,
           environment: "jsdom",
           setupFiles: ["./vitest.setup.ts"],
           include: ["src/**/*.test.{ts,tsx}", "src/**/__tests__/**/*.{ts,tsx}"],
@@ -25,6 +26,7 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: "unit",
+          fsModuleCache: true,
           environment: "node",
           include: ["tests/unit/**/*.test.ts"],
           testTimeout: 30_000,
@@ -35,6 +37,7 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: "integration",
+          fsModuleCache: true,
           environment: "node",
           include: ["tests/integration/**/*.test.ts"],
           globalSetup: ["tests/global-setup.ts"],

@@ -329,7 +329,7 @@ describe.skipIf(!hasTestDb)("template catalogue mechanisms", () => {
       const counts = Object.fromEntries(tables.map((table) => [table, 0]));
       const digest = rowDigest();
       for (const row of rows) {
-        counts[row.table]++;
+        counts[row.table] = (counts[row.table] ?? 0) + 1;
         digest.update(`${JSON.stringify(row)}\n`);
       }
       const end = {
