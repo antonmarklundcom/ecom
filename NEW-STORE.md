@@ -312,6 +312,27 @@ Los productos reales entran por dos caminos:
   número de línea. Idempotente: re-importar actualiza precios sin duplicar y
   **no pisa el stock** de variantes existentes (`--pisar-stock` si de verdad
   querés eso). Las categorías que no existan se crean al final del menú.
+  Reglas que protegen lo cargado (docs/TEMPLATE-IMPROVEMENT-PLAN.md C1–C7):
+  - **Ausente no es vacío.** Una columna que la planilla no trae no toca lo
+    guardado (la planilla del proveedor con SKU y precio cambia sólo
+    precios). Una celda vacía en Descripción, Marca o Precio antes lo
+    **borra**; Variante, Stock e IVA vacíos no se tocan en lo existente (en
+    un alta son "Único", 0 e IVA 10).
+  - **Todo o nada.** Si algo falla —un SKU que otra persona cargó entre la
+    vista previa y la confirmación, un valor que la base rechaza— no queda
+    nada escrito, tampoco las categorías nuevas.
+  - **Un SKU es de un solo producto**, con la misma igualdad que la base
+    (`ABC-1`, `abc-1` y `ÁBC-1` son el mismo SKU): una planilla no muda una
+    variante a otro producto.
+  - **Lo nuevo entra como borrador**; lo existente no cambia de activo ni de
+    publicado, ni de orden.
+  - **Precios y stock en masa son del dueño** (`precios.masivo`): el personal
+    puede cargar productos y textos, pero una planilla que cambia un precio o
+    pisa un stock se rechaza entera si no la aplica el dueño. Cada precio y
+    cada stock que cambia queda en el registro con quién lo hizo.
+  - **Exportar e importar el mismo archivo no cambia nada**: el export trae
+    Slug, Descripción, Marca, IVA y Precio antes (₲0 incluido), las columnas
+    que la importación necesita para encontrar y conservar cada producto.
   - **Fotos**: una o más URLs `https://` en la columna Fotos, separadas por
     `|`, espacio o salto de línea (normalmente sólo en la primera fila de cada
     producto). Cloudinary va a buscarlas solo — nada se descarga acá — y sólo

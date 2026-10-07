@@ -42,14 +42,21 @@ import {
  * una tarde perdida.
  */
 
+/**
+ * Una variante de la planilla. **`undefined` es "la planilla no lo dice"**
+ * (columna ausente, o Variante/Stock vacíos) y la escritura no lo toca en una
+ * variante que ya existe; los valores de alta ("Único", stock 0, sin precio
+ * antes) se ponen sólo al insertar (docs/TEMPLATE-IMPROVEMENT-PLAN.md C2).
+ */
 export type CatalogoVariante = {
   attributes?: VariantAttributes | null;
   identifiers?: VerifiedIdentifiers | null;
   sku: string;
-  label: string;
+  label?: string;
   pricePyg: number;
-  compareAtPyg: number | null;
-  onHand: number;
+  /** `null` = celda vacía en una columna presente: se borra. */
+  compareAtPyg?: number | null;
+  onHand?: number;
 };
 
 export type CatalogoProducto = {
@@ -62,11 +69,14 @@ export type CatalogoProducto = {
   /** De la columna Slug, o derivado del nombre. */
   slug: string;
   name: string;
-  description: string | null;
+  /** `undefined` = columna ausente (no se toca); `null` = vacía (se borra). */
+  description?: string | null;
   /** Tal como vino en la planilla; el script lo resuelve contra la base. */
   categoryName: string;
-  brand: string | null;
-  ivaRate: IvaRate;
+  /** `undefined` = columna ausente (no se toca); `null` = vacía (se borra). */
+  brand?: string | null;
+  /** `undefined` = sin columna o vacío: no se toca (10 sólo al insertar). */
+  ivaRate?: IvaRate;
   variants: CatalogoVariante[];
   /**
    * Unión sin duplicados, en orden, de las URLs de la columna Fotos de todas
@@ -181,6 +191,31 @@ export function parseGs(value: string): number | null {
   return Number.isSafeInteger(n) ? n : null;
 }
 
+/**
+ * La misma igualdad que usa la base para el índice único de `variants.sku`
+ * (`utf8mb4_*_ci`): sin distinguir mayúsculas, acentos ni espacios finales.
+ * "CAFÉ-1" y "cafe-1" son **un** SKU para MySQL, así que también lo son acá
+ * (docs/TEMPLATE-IMPROVEMENT-PLAN.md C4). La verificación que manda es la de
+ * la escritura, bajo lock y con la colación real; esto es para avisar antes.
+ */
+export function claveSku(sku: string): string {
+  return sku
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\s+$/u, "");
+}
+
+/** Lo que entra en cada columna de la base (src/db/schema.ts). */
+const LARGO_MAXIMO = {
+  sku: 64,
+  variante: 120,
+  producto: 200,
+  marca: 120,
+  slug: 160,
+  categoria: 120,
+} as const;
+
 /** Tope de fotos por producto (mismo criterio que la carga manual: sin límite no tiene sentido). */
 const MAX_FOTOS_POR_PRODUCTO = 10;
 
@@ -241,6 +276,8 @@ export function parseCatalogo(text: string): CatalogoImportado {
     const col = indice.get(campo);
     return col === undefined ? "" : (fila[col] ?? "").trim();
   };
+  /** ¿Vino la columna? Ausente no es lo mismo que vacía (C2). */
+  const trae = (campo: keyof FilaCruda): boolean => indice.has(campo);
 
   // --- Filas → variantes agrupadas por producto ---------------------------
   const porSlug = new Map<
@@ -261,14 +298,31 @@ export function parseCatalogo(text: string): CatalogoImportado {
     if (!categoria) errores.push(`Línea ${linea}: falta la categoría.`);
     if (!sku || !nombre || !categoria) continue;
 
-    const lineaAnterior = skusVistos.get(sku);
+    const lineaAnterior = skusVistos.get(claveSku(sku));
     if (lineaAnterior !== undefined) {
       errores.push(
-        `Línea ${linea}: el SKU "${sku}" ya apareció en la línea ${lineaAnterior}.`
+        `Línea ${linea}: el SKU "${sku}" ya apareció en la línea ${lineaAnterior} (sin distinguir mayúsculas ni acentos, como la base).`
       );
       continue;
     }
-    skusVistos.set(sku, linea);
+    skusVistos.set(claveSku(sku), linea);
+
+    const largos: Array<[string, string, number]> = [
+      ["el SKU", sku, LARGO_MAXIMO.sku],
+      ["la variante", celda(fila, "variante"), LARGO_MAXIMO.variante],
+      ["el nombre", nombre, LARGO_MAXIMO.producto],
+      ["la marca", celda(fila, "marca"), LARGO_MAXIMO.marca],
+      ["el slug", celda(fila, "slug"), LARGO_MAXIMO.slug],
+      ["la categoría", categoria, LARGO_MAXIMO.categoria],
+    ];
+    const largo = largos.find(([, valor, maximo]) => valor.length > maximo);
+    if (largo) {
+      const [que, valor, maximo] = largo;
+      errores.push(
+        `Línea ${linea}: ${que} tiene ${valor.length} caracteres; el máximo es ${maximo}.`
+      );
+      continue;
+    }
 
     const modeRaw = celda(fila, "saleMode").toLowerCase();
     if (modeRaw && !["stock", "enquiry", "showcase"].includes(modeRaw)) {
@@ -308,32 +362,40 @@ export function parseCatalogo(text: string): CatalogoImportado {
       continue;
     }
 
+    // Precio antes: sin columna, no se toca; vacía, se borra; 0 es un valor
+    // guardado (el export lo escribe así) y vuelve a entrar igual (C3).
     const precioAntesCrudo = celda(fila, "precioAntes");
-    let compareAtPyg: number | null = null;
+    let compareAtPyg: number | null | undefined;
     if (precioAntesCrudo !== "") {
       compareAtPyg = parseGs(precioAntesCrudo);
-      if (compareAtPyg === null || compareAtPyg <= 0) {
+      if (compareAtPyg === null) {
         errores.push(
           `Línea ${linea}: el precio antes "${precioAntesCrudo}" no es un monto válido.`
         );
         continue;
       }
+    } else if (trae("precioAntes")) {
+      compareAtPyg = null;
     }
 
+    // Stock vacío o sin columna: la planilla no dice cuánto hay. Una
+    // variante nueva entra con 0; una existente no se toca ni con "pisar
+    // stock" (C2).
     const stockCrudo = celda(fila, "stock");
-    const stock = stockCrudo === "" ? 0 : parseGs(stockCrudo);
+    const stock = stockCrudo === "" ? undefined : parseGs(stockCrudo);
     if (stock === null) {
       errores.push(
-        `Línea ${linea}: el stock "${stockCrudo}" no es un entero (vacío = 0).`
+        `Línea ${linea}: el stock "${stockCrudo}" no es un entero (vacío = no se toca).`
       );
       continue;
     }
 
     const ivaCrudo = celda(fila, "iva");
-    const iva = ivaCrudo === "" ? 10 : Number(ivaCrudo.replace("%", "").trim());
-    if (!(IVA_RATES as readonly number[]).includes(iva)) {
+    const iva =
+      ivaCrudo === "" ? undefined : Number(ivaCrudo.replace("%", "").trim());
+    if (iva !== undefined && !(IVA_RATES as readonly number[]).includes(iva)) {
       errores.push(
-        `Línea ${linea}: IVA "${ivaCrudo}" — tiene que ser 10, 5 o 0 (vacío = 10).`
+        `Línea ${linea}: IVA "${ivaCrudo}" — tiene que ser 10, 5 o 0 (vacío = no se toca; 10 en un producto nuevo).`
       );
       continue;
     }
@@ -415,14 +477,19 @@ export function parseCatalogo(text: string): CatalogoImportado {
       );
       continue;
     }
+    const etiqueta = celda(fila, "variante");
     const variante: CatalogoVariante = {
       ...variantMetadata,
       sku,
-      label: celda(fila, "variante") || "Único",
+      ...(etiqueta ? { label: etiqueta } : {}),
       pricePyg: precio,
-      compareAtPyg,
-      onHand: stock,
+      ...(compareAtPyg === undefined ? {} : { compareAtPyg }),
+      ...(stock === undefined ? {} : { onHand: stock }),
     };
+    const descripcion = trae("descripcion")
+      ? celda(fila, "descripcion") || null
+      : undefined;
+    const marca = trae("marca") ? celda(fila, "marca") || null : undefined;
 
     const existente = porSlug.get(slug);
     if (!existente) {
@@ -439,10 +506,10 @@ export function parseCatalogo(text: string): CatalogoImportado {
         ...(showPrice === undefined ? {} : { showPrice }),
         slug,
         name: nombre,
-        description: celda(fila, "descripcion") || null,
+        ...(descripcion === undefined ? {} : { description: descripcion }),
         categoryName: categoria,
-        brand: celda(fila, "marca") || null,
-        ivaRate: iva as IvaRate,
+        ...(marca === undefined ? {} : { brand: marca }),
+        ...(iva === undefined ? {} : { ivaRate: iva as IvaRate }),
         variants: [variante],
         fotos,
         primeraLinea: linea,
@@ -501,15 +568,20 @@ export function parseCatalogo(text: string): CatalogoImportado {
         `categoría ("${existente.categoryName}" vs "${categoria}")`
       );
     }
-    const marca = celda(fila, "marca") || null;
     if (
+      marca !== undefined &&
       marca !== null &&
+      existente.brand !== undefined &&
       existente.brand !== null &&
       marca !== existente.brand
     ) {
       conflictos.push(`marca ("${existente.brand}" vs "${marca}")`);
     }
-    if (ivaCrudo !== "" && existente.ivaRate !== iva) {
+    if (
+      iva !== undefined &&
+      existente.ivaRate !== undefined &&
+      existente.ivaRate !== iva
+    ) {
       conflictos.push(`IVA (${existente.ivaRate} vs ${iva})`);
     }
     if (conflictos.length > 0) {
@@ -518,9 +590,13 @@ export function parseCatalogo(text: string): CatalogoImportado {
       );
       continue;
     }
-    if (existente.description === null)
-      existente.description = celda(fila, "descripcion") || null;
-    if (existente.brand === null) existente.brand = marca;
+    // Los datos de producto suelen venir sólo en la primera fila: una fila
+    // vacía no borra lo que trajo otra del mismo producto.
+    if (existente.description === null && descripcion)
+      existente.description = descripcion;
+    if (existente.brand === null && marca) existente.brand = marca;
+    if (existente.ivaRate === undefined && iva !== undefined)
+      existente.ivaRate = iva as IvaRate;
     existente.fotos = fotosUnion;
     existente.variants.push(variante);
   }

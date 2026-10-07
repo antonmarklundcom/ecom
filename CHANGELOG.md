@@ -25,6 +25,16 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **La planilla no pisa ni muda lo que no dice** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  C1–C7). Importar es todo o nada (categorías incluidas); una columna ausente
+  no toca lo guardado (antes, una planilla de SKU y precio dejaba IVA 10,
+  descripción y marca vacías, variantes "Único" y, con "pisar stock", stock
+  0); un SKU con otra mayúscula o acento ya no muda la variante de otro
+  producto; lo nuevo entra como **borrador** y lo apagado no se prende; un
+  cambio de precios o de stock por planilla lo aplica sólo el dueño
+  (`precios.masivo`) y queda auditado, igual que un cambio de precio en el
+  editor de variantes. El export trae Slug, Descripción, Marca, IVA y Precio
+  antes: exportar e importar el mismo archivo no cambia nada. Sin migración.
 - **La historia de migraciones se cuida sola** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   B1–B7). `template:sync` (también `--dry-run` y `distribuir.yml`) y
   `template:diff --marcar` se frenan **antes de escribir** cuando la tienda

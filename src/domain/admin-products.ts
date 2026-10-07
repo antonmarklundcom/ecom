@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import {
   categories,
+  priceAdjustments,
   productImages,
   products,
   stockAdjustments,
@@ -45,6 +46,20 @@ export class AdminInputError extends DomainError {
     super(code, params);
     this.name = "AdminInputError";
   }
+}
+
+/** Un SKU de la planilla ya es de otro producto (docs/TEMPLATE-IMPROVEMENT-PLAN.md C4). */
+export function skuAjenoError(params: {
+  sku: string;
+  dueno: string;
+  producto: string;
+}): AdminInputError {
+  return new AdminInputError("adminError.importar.skuAjeno", params);
+}
+
+/** Una planilla cambia precios o stock sin `precios.masivo` (C6). */
+export function preciosSoloDuenioError(): AdminInputError {
+  return new AdminInputError("adminError.importar.preciosSoloDuenio");
 }
 
 export const PRODUCTS_PER_PAGE = 20;
@@ -198,10 +213,15 @@ export type ExportVariantRow = {
   showPrice: boolean;
   sku: string;
   productName: string;
+  slug: string;
   categoryName: string;
   label: string;
   pricePyg: number;
+  compareAtPyg: number | null;
   onHand: number;
+  description: string | null;
+  brand: string | null;
+  ivaRate: number;
 };
 
 /**
@@ -225,10 +245,15 @@ export async function listVariantsForExport(
       saleMode: products.saleMode,
       showPrice: products.showPrice,
       productName: products.name,
+      slug: products.slug,
       categoryName: categories.name,
       label: variants.label,
       pricePyg: variants.pricePyg,
+      compareAtPyg: variants.compareAtPyg,
       onHand: variants.onHand,
+      description: products.description,
+      brand: products.brand,
+      ivaRate: products.ivaRate,
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
@@ -445,7 +470,7 @@ export async function updateProduct(
  * permite es *publicar* ese 0 como mercadería — el carrito igual lo rechaza
  * (`priceCart`), pero el panel tiene que avisarle al dueño antes, con el SKU.
  */
-async function assertActiveVariantsPriced(
+export async function assertActiveVariantsPriced(
   tx: Executor,
   productId: number
 ): Promise<void> {
@@ -511,10 +536,13 @@ export type VariantWrite = {
 export async function saveVariant(
   productId: number,
   input: VariantWrite,
-  executor?: Executor
+  executor?: Executor,
+  audit?: { actor: string; actorUserId: number | null }
 ): Promise<void> {
   if (!executor)
-    return getDb().transaction((tx) => saveVariant(productId, input, tx));
+    return getDb().transaction((tx) =>
+      saveVariant(productId, input, tx, audit)
+    );
   const tx = executor;
 
   // Primero el producto, como `updateProduct`: el mismo orden de bloqueo
@@ -582,6 +610,20 @@ export async function saveVariant(
     return;
   }
 
+  // El precio de antes, bajo lock: un cambio de precio a mano queda en
+  // `price_adjustments` igual que uno masivo (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  // C7). Sin esa fila, "¿a cuánto estaba la semana pasada?" no tiene respuesta.
+  const before = (
+    await tx
+      .select({ pricePyg: variants.pricePyg })
+      .from(variants)
+      .where(and(eq(variants.id, input.id), eq(variants.productId, productId)))
+      .limit(1)
+      .for("update")
+  )[0];
+  if (!before)
+    throw new AdminInputError("adminError.producto.varianteNoExiste");
+
   await tx
     .update(variants)
     .set({
@@ -595,6 +637,17 @@ export async function saveVariant(
       reorderPoint: input.reorderPoint ?? null,
     })
     .where(and(eq(variants.id, input.id), eq(variants.productId, productId)));
+
+  if (audit && before.pricePyg !== input.pricePyg) {
+    await tx.insert(priceAdjustments).values({
+      variantId: input.id,
+      fromPyg: before.pricePyg,
+      toPyg: input.pricePyg,
+      reason: "Edición de la variante en el panel",
+      actor: audit.actor,
+      actorUserId: audit.actorUserId,
+    });
+  }
 }
 
 export type StockAdjustment = {

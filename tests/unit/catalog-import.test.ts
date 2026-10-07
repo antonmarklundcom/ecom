@@ -87,11 +87,14 @@ describe('parseCatalogo', () => {
       slug: 'auriculares-bluetooth-tws',
       name: 'Auriculares Bluetooth TWS',
       categoryName: 'Electrónica',
-      ivaRate: 10,
     });
+    // Sin columna IVA, la planilla no dice IVA: 10 se pone sólo al insertar.
+    expect(productos[0]!.ivaRate).toBeUndefined();
+    // Sin columna "Precio antes" no hay `compareAtPyg`: el import no lo toca
+    // (docs/TEMPLATE-IMPROVEMENT-PLAN.md C2).
     expect(productos[0]!.variants).toEqual([
-      { sku: 'AUR-TWS-NEG', label: 'Negro', pricePyg: 285000, compareAtPyg: null, onHand: 24 },
-      { sku: 'AUR-TWS-BLA', label: 'Blanco', pricePyg: 285000, compareAtPyg: null, onHand: 18 },
+      { sku: 'AUR-TWS-NEG', label: 'Negro', pricePyg: 285000, onHand: 24 },
+      { sku: 'AUR-TWS-BLA', label: 'Blanco', pricePyg: 285000, onHand: 18 },
     ]);
   });
 
@@ -111,14 +114,23 @@ describe('parseCatalogo', () => {
     expect(productos[0]!.variants[0]!.compareAtPyg).toBe(45000);
   });
 
-  it('los encabezados perdonan mayúsculas y acentos, y la variante vacía es "Único"', () => {
+  it('los encabezados perdonan mayúsculas y acentos; lo que no vino queda sin decir', () => {
     const { productos, errores } = parseCatalogo(
       'sku,PRODUCTO,categoria,precio\nPWB-1,Power bank,Electronica,320000\n',
     );
 
     expect(errores).toEqual([]);
-    expect(productos[0]!.variants[0]!.label).toBe('Único');
-    expect(productos[0]!.variants[0]!.onHand).toBe(0);
+    // Ni "Único" ni stock 0 ni IVA 10 ni descripción vacía: esos son los
+    // valores de un alta, y los pone la escritura sólo al insertar. En una
+    // variante que ya existe, una planilla sin esas columnas no los pisa
+    // (docs/TEMPLATE-IMPROVEMENT-PLAN.md C2).
+    const [producto] = productos;
+    expect(producto!.variants[0]!.label).toBeUndefined();
+    expect(producto!.variants[0]!.onHand).toBeUndefined();
+    expect(producto!.variants[0]!.compareAtPyg).toBeUndefined();
+    expect(producto!.ivaRate).toBeUndefined();
+    expect(producto!.description).toBeUndefined();
+    expect(producto!.brand).toBeUndefined();
   });
 
   it('sin una columna obligatoria no procesa nada y dice cuáles son', () => {
@@ -264,5 +276,50 @@ describe('parseCatalogo — columna Fotos', () => {
   it('el mensaje de columna obligatoria faltante menciona Fotos entre las opcionales', () => {
     const { errores } = parseCatalogo('SKU;Producto;Precio (₲)\nX;Y;100\n');
     expect(errores[0]!).toContain('Fotos');
+  });
+});
+
+describe('parseCatalogo · ausente no es vacío (docs/TEMPLATE-IMPROVEMENT-PLAN.md C2–C4)', () => {
+  const COMPLETO =
+    'SKU;Producto;Categoría;Variante;Precio (₲);Stock;Descripción;Marca;IVA;Precio antes (₲)\n';
+
+  it('una celda vacía en una columna presente borra descripción, marca y precio antes', () => {
+    const { productos, errores } = parseCatalogo(`${COMPLETO}A-1;Producto A;Hogar;S;100000;;;;;\n`);
+    expect(errores).toEqual([]);
+    expect(productos[0]).toMatchObject({ description: null, brand: null });
+    expect(productos[0]!.variants[0]!.compareAtPyg).toBeNull();
+  });
+
+  it('variante, stock e IVA vacíos no inventan "Único", 0 ni 10', () => {
+    const { productos, errores } = parseCatalogo(`${COMPLETO}A-1;Producto A;Hogar;;100000;;Algo;Marca;;\n`);
+    expect(errores).toEqual([]);
+    expect(productos[0]!.variants[0]!.label).toBeUndefined();
+    expect(productos[0]!.variants[0]!.onHand).toBeUndefined();
+    expect(productos[0]!.ivaRate).toBeUndefined();
+  });
+
+  it('un precio antes de ₲0 guardado en la base vuelve a entrar como 0', () => {
+    const { productos, errores } = parseCatalogo(`${COMPLETO}A-1;Producto A;Hogar;S;100000;3;;;10;0\n`);
+    expect(errores).toEqual([]);
+    expect(productos[0]!.variants[0]!.compareAtPyg).toBe(0);
+  });
+
+  it('el mismo SKU con otra mayúscula o acento es un duplicado, como lo ve MySQL', () => {
+    const { errores } = parseCatalogo(
+      `${ENCABEZADO}\n` +
+        'CAFÉ-1;Café;Almacén;250 g;30000;5\n' +
+        'cafe-1;Café;Almacén;500 g;50000;5\n',
+    );
+    expect(errores).toEqual([expect.stringContaining('Línea 3')]);
+    expect(errores[0]).toContain('ya apareció en la línea 2');
+  });
+
+  it('lo que no entra en la columna es un error con línea, no un fallo a mitad de la escritura', () => {
+    const largo = 'X'.repeat(65);
+    const { productos, errores } = parseCatalogo(
+      `${ENCABEZADO}\nOK-1;Producto bien;Hogar;Único;1000;1\n${largo};Producto;Hogar;Único;1000;1\n`,
+    );
+    expect(productos).toEqual(expect.any(Array));
+    expect(errores).toEqual([expect.stringMatching(/Línea 3: el SKU tiene 65 caracteres/)]);
   });
 });

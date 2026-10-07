@@ -172,11 +172,24 @@ export function CatalogImportForm() {
               {tPlural("panel.productos.importar.fotosNuevas", summary.fotosNuevas)}
             </p>
           ) : null}
+          {summary.productosNuevos > 0 ? (
+            <p className="mt-1">{t("panel.productos.importar.nuevosBorrador")}</p>
+          ) : null}
+          {summary.preciosCambian > 0 ? (
+            <p className="mt-1">
+              {tPlural("panel.productos.importar.preciosCambian", summary.preciosCambian)}
+            </p>
+          ) : null}
+          {summary.requiereDuenio ? (
+            <p role="alert" className="text-destructive mt-1 font-medium">
+              {t("panel.productos.importar.requiereDuenio")}
+            </p>
+          ) : null}
 
           <button
             type="button"
             onClick={confirmar}
-            disabled={isPending}
+            disabled={isPending || summary.requiereDuenio}
             className="bg-primary text-primary-foreground mt-3 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60"
           >
             {isPending ? t("panel.productos.importar.aplicando") : t("panel.productos.importar.confirmar")}
