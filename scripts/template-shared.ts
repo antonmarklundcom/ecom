@@ -145,6 +145,7 @@ export const DOCS_DEL_TEMPLATE = [
   "NEW-STORE.md",
   "CHANGELOG.md",
   "docs/TEMPLATE-INHERITANCE.md",
+  "docs/PASSWORD-RECOVERY-EMAIL-PROPOSAL.md",
   // La referencia de las variables opcionales (lo que salió de `.env.example`).
   // Describe la maquinaria, no la tienda: una tienda no tiene nada suyo ahí.
   "docs/ENV-OPCIONAL.md",

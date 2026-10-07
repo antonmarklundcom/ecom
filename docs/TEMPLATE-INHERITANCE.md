@@ -22,6 +22,8 @@ No deployment, production migration, registry distribution or individual-store e
 
 ## Resulting contracts
 
+Password recovery and transactional email have a separate [proposal](PASSWORD-RECOVERY-EMAIL-PROPOSAL.md), with no enabled sender or operational delivery claim.
+
 The missing mechanisms are implemented in this branch; existing visibility, role, import-preview, inventory, payment/order and backup guarantees remain the foundation. Validation is recorded below before merge. Password recovery and transactional email are deferred proposals, with no operational claim.
 
 - Nullable product `specifications` and private `supplierDetails`; nullable variant `attributes` and verified `identifiers`; product/category SEO overrides. Old rows remain valid. Public projections require valid, non-future verification dates and reject private fields. Supplier references and source URLs never enter storefront props, comparison, feeds or JSON-LD. A private image-provenance flag can label illustrative assets; illustrative images are omitted from merchant feeds and structured product photos.

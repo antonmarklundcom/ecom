@@ -145,6 +145,59 @@ function armarEscenario() {
 }
 
 describe("template:sync contra git de verdad", () => {
+  it("adds optional catalogue machinery without replacing store facts, branding, assets or customized product pages", () => {
+    const { template, tienda } = armarEscenario();
+    const ownCatalogue =
+      'export const CATALOGUE = { attributes: [{ key: "capacity", label: "Capacity", scope: "product" }], products: {}, categories: {} };\n';
+    const ownBrand = 'export const TIENDA = { nombre: "Fixture store" };\n';
+    const ownPage =
+      "export default function Product() { return 'custom layout'; }\n";
+    escribir(tienda, "src/config/catalogue.ts", ownCatalogue);
+    escribir(tienda, "src/config/tienda.ts", ownBrand);
+    escribir(tienda, "public/store-logo.svg", "<svg>store asset</svg>\n");
+    escribir(tienda, "src/app/producto/[slug]/page.tsx", ownPage);
+    commit(tienda, "Store-owned catalogue and presentation");
+    escribir(
+      template,
+      "src/config/catalogue.ts",
+      "export const CATALOGUE = { attributes: [] };\n"
+    );
+    escribir(
+      template,
+      "src/config/checkout.ts",
+      "export const PAYMENT_METHODS = ['transferencia'];\n"
+    );
+    escribir(
+      template,
+      "src/domain/product-slugs.ts",
+      "export const machinery = 'history';\n"
+    );
+    escribir(
+      template,
+      "drizzle/0023_fixture.sql",
+      "ALTER TABLE products ADD specifications JSON NULL;\n"
+    );
+    escribir(
+      template,
+      "src/app/producto/[slug]/page.tsx",
+      "export default function Product() { return 'template layout'; }\n"
+    );
+    commit(template, "Generic catalogue upgrade");
+    const result = ejecutarSync(tienda, OPCIONES);
+    expect(result.estado).toBe("completado");
+    expect(leer(tienda, "src/config/catalogue.ts")).toBe(ownCatalogue);
+    expect(leer(tienda, "src/config/tienda.ts")).toBe(ownBrand);
+    expect(leer(tienda, "public/store-logo.svg")).toBe(
+      "<svg>store asset</svg>\n"
+    );
+    expect(leer(tienda, "src/app/producto/[slug]/page.tsx")).toBe(ownPage);
+    expect(leer(tienda, "src/config/checkout.ts")).toContain("PAYMENT_METHODS");
+    expect(leer(tienda, "src/domain/product-slugs.ts")).toContain("history");
+    expect(leer(tienda, "drizzle/0023_fixture.sql")).toContain(
+      "specifications"
+    );
+  });
+
   it("trae lo que corresponde archivo por archivo, en un solo commit, y avanza el baseline", () => {
     const { tienda, c1 } = armarEscenario();
     const antes = gitEn(tienda, ["rev-parse", "HEAD"]).trim();
