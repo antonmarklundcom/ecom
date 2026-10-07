@@ -1,6 +1,68 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+.product-gallery-stage {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--muted);
+}
+.product-gallery-zoom-trigger {
+  display: block;
+  width: 100%;
+  cursor: zoom-in;
+}
+.product-gallery-image {
+  object-fit: contain;
+}
+.product-gallery-counter {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1;
+  padding: 0.25rem 0.5rem;
+  background: var(--background);
+  border-radius: 0.25rem;
+}
+.product-gallery-zoom-label {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  background: var(--background);
+  padding: 0.25rem 0.5rem;
+}
+.product-gallery-thumbnails {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding: 0.75rem 0;
+}
+.product-gallery-thumbnail {
+  position: relative;
+  width: 88px;
+  min-width: 60px;
+  height: 88px;
+  border: 2px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.product-gallery-thumbnail[aria-pressed="true"] {
+  border-color: var(--foreground);
+}
+.product-gallery-caption {
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+.product-gallery-zoom {
+  width: min(95vw, 960px);
+  max-width: 960px;
+}
+.product-gallery-zoom-image {
+  position: relative;
+  height: min(65vh, 700px);
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -87,22 +149,17 @@
 }
 
 /* == S9 ==
-   CSS de impresión del remito (plan-operacion §6.1). Nada inline: el CSP de
-   `src/proxy.ts` no permite `'unsafe-inline'` en `style-src` para las rutas
-   con nonce, y `/admin` es justamente una de ésas.
+   CSS compartido de impresión del remito (plan-operacion §6.1).
 
-   `header` es el único <header> que existe bajo `/admin` — el del layout del
-   panel (`src/app/admin/(panel)/layout.tsx`) — así que ocultarlo acá alcanza
-   para sacar el nav de cualquier página del panel que se imprima, sin tocar
-   ese layout (fuera de los Owns de esta fase). `.s9-no-print` es para lo que
-   la fase sí dibuja: el botón "Imprimir" y el link "Volver al pedido" del
-   remito. */
+   `.s9-no-print` oculta la navegación y los controles de impresión.
+   No se ocultan todos los headers: el remito conserva su propio encabezado. */
 @media print {
-  header {
-    display: none !important;
-  }
   .s9-no-print {
     display: none !important;
+  }
+  .admin-workspace-content {
+    max-width: none !important;
+    padding: 0 !important;
   }
   .s9-print-page {
     max-width: none !important;
@@ -113,4 +170,12 @@
     size: A4;
     margin: 12mm;
   }
+}
+
+/* Shared admin layout marker hides only public shopping chrome. */
+body:has([data-admin-panel]) [data-site-header],
+body:has([data-admin-panel]) [data-site-footer],
+body:has([data-admin-panel]) [data-whatsapp-fab],
+body:has([data-admin-panel]) [data-announcement-bar] {
+  display: none;
 }

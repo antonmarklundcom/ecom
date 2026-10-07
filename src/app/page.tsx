@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import HomeLoading from "@/components/home-loading";
 
 import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
@@ -10,6 +12,8 @@ import { t } from "@/i18n";
 import { contactoPublico } from "@/lib/comercio";
 import { jsonLdScript, organizationJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
+import { log } from "@/lib/log";
+import { safeError } from "@/lib/safe-error";
 import { nombreTienda } from "@/lib/marca";
 
 /**
@@ -18,7 +22,15 @@ import { nombreTienda } from "@/lib/marca";
  */
 export const revalidate = 300;
 
-export default async function HomePage() {
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HomeLoading />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+async function HomeContent() {
   let categories: Awaited<ReturnType<typeof getCategories>> = [];
   let featured: CatalogProduct[] = [];
   let isChosen = false;
@@ -39,7 +51,11 @@ export default async function HomePage() {
     isChosen = destacados.length > 0;
     featured = isChosen ? destacados : await getCatalog({ limit: 8 });
   } catch (cause) {
-    error = cause instanceof Error ? cause.message : String(cause);
+    log.error("catalogue: home unavailable", {
+      error: safeError(cause).message,
+    });
+    error =
+      "El catálogo no está disponible temporalmente. Probá de nuevo en unos minutos.";
   }
 
   // Los ajustes del panel (`/admin/ajustes`) pisan campo por campo la portada
@@ -49,7 +65,10 @@ export default async function HomePage() {
     contactoPublico(),
     nombreTienda(),
   ]);
-  const hero = heroEfectivo(ajustes.marca, TIENDA.hero ?? heroPorDefecto(categories[0]?.slug));
+  const hero = heroEfectivo(
+    ajustes.marca,
+    TIENDA.hero ?? heroPorDefecto(categories[0]?.slug)
+  );
 
   // Quién es la tienda, para Google. Sin dominio configurado no sale (ver
   // `organizationJsonLd`).
@@ -91,7 +110,9 @@ export default async function HomePage() {
         <div className="border-border border-l-primary mt-8 rounded-lg border border-l-2 p-4">
           <p className="text-sm">{t("home.errorCatalogo")}</p>
           <p className="mt-1 font-mono text-xs break-all">{error}</p>
-          <p className="text-muted-foreground mt-2 text-sm">{t("home.errorCatalogo.ayuda")}</p>
+          <p className="text-muted-foreground mt-2 text-sm">
+            {t("home.errorCatalogo.ayuda")}
+          </p>
         </div>
       ) : (
         <>
@@ -106,7 +127,9 @@ export default async function HomePage() {
                     className="border-border hover:border-foreground/30 rounded-xl border p-4 transition-colors"
                   >
                     <p className="font-medium">{category.name}</p>
-                    <p className="text-muted-foreground mt-1 text-sm">{t("home.categorias.verTodo")}</p>
+                    <p className="text-muted-foreground mt-1 text-sm">
+                      {t("home.categorias.verTodo")}
+                    </p>
                   </Link>
                 ))}
               </div>
@@ -132,7 +155,9 @@ export default async function HomePage() {
               </div>
             </section>
           ) : (
-            <p className="text-muted-foreground mt-10 text-sm">{t("home.sinProductos")}</p>
+            <p className="text-muted-foreground mt-10 text-sm">
+              {t("home.sinProductos")}
+            </p>
           )}
         </>
       )}

@@ -32,7 +32,10 @@ export async function SiteFooter() {
   const tagline = ajustes.marca.tagline ?? TIENDA.tagline;
 
   return (
-    <footer className="border-border mt-16 border-t">
+    <footer
+      data-site-footer=""
+      className="s9-no-print border-border mt-16 border-t"
+    >
       <div className="text-muted-foreground mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-foreground font-semibold">{marca.nombre}</p>

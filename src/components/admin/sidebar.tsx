@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   Activity,
+  BookOpen,
   ArrowDown,
   ArrowUp,
   Banknote,
@@ -66,6 +67,7 @@ const icons = {
   settings: Settings,
   integrations: Plug,
   users: Users,
+  guide: BookOpen,
 };
 const storageEvent = "ecom-admin-menu-change";
 function subscribe(callback: () => void) {
@@ -79,6 +81,22 @@ function subscribe(callback: () => void) {
 const serverSnapshot = () => null;
 
 export function AdminWorkspace({
+  userId,
+  items,
+  children,
+}: {
+  userId: number;
+  items: AdminMenuItem[];
+  children: ReactNode;
+}) {
+  return (
+    <WorkspaceContent key={userId} userId={userId} items={items}>
+      {children}
+    </WorkspaceContent>
+  );
+}
+
+function WorkspaceContent({
   userId,
   items,
   children,
@@ -133,6 +151,7 @@ export function AdminWorkspace({
       <div className="flex items-center justify-between gap-2">
         <Link
           href={items[0]?.href ?? "/admin/pedidos"}
+          prefetch={false}
           className="flex items-center gap-2 font-semibold"
           onClick={() => setDrawerOpen(false)}
         >
@@ -226,6 +245,7 @@ export function AdminWorkspace({
                 ) : (
                   <Link
                     href={item.href}
+                    prefetch={false}
                     data-testid={item.testId}
                     aria-current={active ? "page" : undefined}
                     onClick={() => setDrawerOpen(false)}

@@ -1,6 +1,17 @@
 import { IVA_RATES, type IvaRate } from "@/db/enums";
 import { parseCsv } from "@/lib/csv";
 import { slugify } from "@/lib/slug";
+import { z } from "zod";
+import {
+  ProductSpecificationsSchema,
+  SupplierDetailsSchema,
+  VariantAttributesSchema,
+  VerifiedIdentifiersSchema,
+  type ProductSpecifications,
+  type SupplierDetails,
+  type VariantAttributes,
+  type VerifiedIdentifiers,
+} from "@/lib/product-attributes";
 
 /**
  * La planilla de productos → un catálogo validado (`pnpm importar:productos`).
@@ -32,6 +43,8 @@ import { slugify } from "@/lib/slug";
  */
 
 export type CatalogoVariante = {
+  attributes?: VariantAttributes | null;
+  identifiers?: VerifiedIdentifiers | null;
   sku: string;
   label: string;
   pricePyg: number;
@@ -40,6 +53,10 @@ export type CatalogoVariante = {
 };
 
 export type CatalogoProducto = {
+  specifications?: ProductSpecifications | null;
+  supplierDetails?: SupplierDetails | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   /** De la columna Slug, o derivado del nombre. */
@@ -72,6 +89,18 @@ export type CatalogoImportado = {
  * `exportProductsCsv` (i18n `csv.producto.*`).
  */
 const COLUMNAS: Record<string, keyof FilaCruda> = {
+  "ficha tecnica json": "specifications",
+  specifications: "specifications",
+  "proveedor json": "supplierDetails",
+  supplier_details: "supplierDetails",
+  "atributos variante json": "attributes",
+  attributes: "attributes",
+  "identificadores json": "identifiers",
+  identifiers: "identifiers",
+  "titulo seo": "seoTitle",
+  seo_title: "seoTitle",
+  "descripcion seo": "seoDescription",
+  seo_description: "seoDescription",
   "modo de venta": "saleMode",
   sale_mode: "saleMode",
   "mostrar precio": "showPrice",
@@ -95,6 +124,12 @@ const COLUMNAS: Record<string, keyof FilaCruda> = {
 };
 
 type FilaCruda = {
+  specifications: string;
+  supplierDetails: string;
+  attributes: string;
+  identifiers: string;
+  seoTitle: string;
+  seoDescription: string;
   saleMode: string;
   showPrice: string;
   sku: string;
@@ -325,7 +360,63 @@ export function parseCatalogo(text: string): CatalogoImportado {
       fotosFila = urls;
     }
 
+    let metadata: Pick<
+      CatalogoProducto,
+      "specifications" | "supplierDetails" | "seoTitle" | "seoDescription"
+    >;
+    let variantMetadata: Pick<CatalogoVariante, "attributes" | "identifiers">;
+    try {
+      const readJson = <T>(key: keyof FilaCruda, schema: z.ZodType<T>) => {
+        const raw = celda(fila, key);
+        if (!raw) return undefined;
+        try {
+          return schema.nullable().parse(JSON.parse(raw));
+        } catch {
+          throw new Error(
+            `${key}: JSON inválido, identificador inválido o fecha de verificación inválida/futura`
+          );
+        }
+      };
+      const seoTitle = celda(fila, "seoTitle");
+      const seoDescription = celda(fila, "seoDescription");
+      metadata = {
+        ...(celda(fila, "specifications")
+          ? {
+              specifications: readJson(
+                "specifications",
+                ProductSpecificationsSchema
+              ),
+            }
+          : {}),
+        ...(celda(fila, "supplierDetails")
+          ? {
+              supplierDetails: readJson(
+                "supplierDetails",
+                SupplierDetailsSchema
+              ),
+            }
+          : {}),
+        ...(seoTitle ? { seoTitle: z.string().max(200).parse(seoTitle) } : {}),
+        ...(seoDescription
+          ? { seoDescription: z.string().max(500).parse(seoDescription) }
+          : {}),
+      };
+      variantMetadata = {
+        ...(celda(fila, "attributes")
+          ? { attributes: readJson("attributes", VariantAttributesSchema) }
+          : {}),
+        ...(celda(fila, "identifiers")
+          ? { identifiers: readJson("identifiers", VerifiedIdentifiersSchema) }
+          : {}),
+      };
+    } catch (error) {
+      errores.push(
+        `Línea ${linea}: ${error instanceof Error ? error.message : "metadatos inválidos"}. Revisá los campos SEO y JSON.`
+      );
+      continue;
+    }
     const variante: CatalogoVariante = {
+      ...variantMetadata,
       sku,
       label: celda(fila, "variante") || "Único",
       pricePyg: precio,
@@ -343,6 +434,7 @@ export function parseCatalogo(text: string): CatalogoImportado {
         continue;
       }
       porSlug.set(slug, {
+        ...metadata,
         ...(saleMode === undefined ? {} : { saleMode }),
         ...(showPrice === undefined ? {} : { showPrice }),
         slug,
@@ -373,6 +465,21 @@ export function parseCatalogo(text: string): CatalogoImportado {
     // lo mismo. Dos filas del mismo slug con categorías distintas no es una
     // preferencia a resolver en silencio — alguien se equivocó de fila.
     const conflictos: string[] = [];
+    for (const key of [
+      "specifications",
+      "supplierDetails",
+      "seoTitle",
+      "seoDescription",
+    ] as const) {
+      if (
+        metadata[key] !== undefined &&
+        existente[key] !== undefined &&
+        JSON.stringify(metadata[key]) !== JSON.stringify(existente[key])
+      )
+        conflictos.push(key);
+      if (existente[key] === undefined && metadata[key] !== undefined)
+        Object.assign(existente, { [key]: metadata[key] });
+    }
     if (
       saleMode !== undefined &&
       existente.saleMode !== undefined &&

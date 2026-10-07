@@ -9,6 +9,12 @@
  */
 
 import { formatDatePY } from "./py";
+import { CATALOGUE } from "@/config/catalogue";
+import {
+  publicVariantAttributes,
+  publicIdentifiers,
+} from "./public-product-facts";
+import { variantUrl } from "./variant-url";
 
 /**
  * Lo que ningún buscador debería recorrer.
@@ -29,6 +35,7 @@ export const RUTAS_PRIVADAS = [
   "/cuenta",
   "/dev",
   "/favoritos",
+  "/comparar",
   // La configuración inicial (sólo existe con SETUP_SECRET puesto).
   "/setup",
 ] as const;
@@ -172,7 +179,10 @@ export function productJsonLd(input: {
     label: string;
     pricePyg: number;
     available: number;
+    attributes?: unknown;
+    identifiers?: unknown;
   }[];
+  selectedSku?: string | null;
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   /**
@@ -198,7 +208,11 @@ export function productJsonLd(input: {
     ? offerShippingLd(input.merchant)
     : null;
   const returnPolicy = input.merchant ? returnPolicyLd(input.merchant) : null;
-  return {
+  const selected =
+    input.variants.find((v) => v.sku === input.selectedSku) ??
+    input.variants.find((v) => v.available > 0) ??
+    input.variants[0];
+  const result: JsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: input.name,
@@ -206,25 +220,30 @@ export function productJsonLd(input: {
     image: input.images.length > 0 ? input.images : undefined,
     url,
     brand: input.brand ? { "@type": "Brand", name: input.brand } : undefined,
-    sku: input.variants[0]?.sku,
+    sku: selected?.sku,
+    ...publicIdentifierLd(selected?.identifiers),
     offers:
       (input.saleMode === undefined || input.saleMode === "stock") &&
       input.showPrice !== false
-        ? input.variants.map((variant) => ({
-            "@type": "Offer",
-            sku: variant.sku,
-            name: variant.label,
-            price: variant.pricePyg,
-            priceCurrency: "PYG",
-            itemCondition: "https://schema.org/NewCondition",
-            url,
-            availability:
-              variant.available > 0
-                ? "https://schema.org/InStock"
-                : "https://schema.org/OutOfStock",
-            ...(shippingDetails ? { shippingDetails } : {}),
-            ...(returnPolicy ? { hasMerchantReturnPolicy: returnPolicy } : {}),
-          }))
+        ? input.variants
+            .filter((v) => Number.isSafeInteger(v.pricePyg) && v.pricePyg > 0)
+            .map((variant) => ({
+              "@type": "Offer",
+              sku: variant.sku,
+              name: variant.label,
+              price: variant.pricePyg,
+              priceCurrency: "PYG",
+              itemCondition: "https://schema.org/NewCondition",
+              url: url ? variantUrl(url, variant.sku) : undefined,
+              availability:
+                variant.available > 0
+                  ? "https://schema.org/InStock"
+                  : "https://schema.org/OutOfStock",
+              ...(shippingDetails ? { shippingDetails } : {}),
+              ...(returnPolicy
+                ? { hasMerchantReturnPolicy: returnPolicy }
+                : {}),
+            }))
         : undefined,
     ...(conResenas && input.rating
       ? {
@@ -241,6 +260,54 @@ export function productJsonLd(input: {
         }
       : {}),
   };
+  const dimensions = CATALOGUE.attributes.filter(
+    (d) => d.scope === "variant" && d.schemaProperty
+  );
+  const facts = input.variants.map(
+    (v) => publicVariantAttributes(v.attributes)?.values
+  );
+  const usable = dimensions.filter(
+    (d) =>
+      facts.every((f) => f && f[d.key] !== undefined) &&
+      new Set(facts.map((f) => String(f?.[d.key]))).size > 1
+  );
+  if (input.variants.length < 2 || usable.length === 0) return result;
+  // A group needs a published dimension on every member. Labels alone do not establish one.
+  return {
+    ...result,
+    "@type": "ProductGroup",
+    sku: undefined,
+    gtin: undefined,
+    mpn: undefined,
+    productGroupID: input.slug,
+    variesBy: usable.map((d) => `https://schema.org/${d.schemaProperty}`),
+    offers: undefined,
+    hasVariant: input.variants.map((v, i) => ({
+      "@type": "Product",
+      name: `${input.name} — ${v.label}`,
+      sku: v.sku,
+      url: url ? variantUrl(url, v.sku) : undefined,
+      image: result.image,
+      brand: result.brand,
+      ...Object.fromEntries(
+        usable.map((d) => [d.schemaProperty, facts[i]?.[d.key]])
+      ),
+      ...publicIdentifierLd(v.identifiers),
+      offers: (result.offers as JsonLd[] | undefined)?.find(
+        (offer) => offer.sku === v.sku
+      ),
+    })),
+  };
+}
+
+function publicIdentifierLd(value: unknown): JsonLd {
+  const identifiers = publicIdentifiers(value);
+  return identifiers
+    ? {
+        ...(identifiers.gtin ? { gtin: identifiers.gtin } : {}),
+        ...(identifiers.mpn ? { mpn: identifiers.mpn } : {}),
+      }
+    : {};
 }
 
 /** Una reseña aprobada, como la necesita el JSON-LD. */

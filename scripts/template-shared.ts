@@ -104,6 +104,7 @@ export const MIXTOS = [
   "src/app/pedido",
   "src/app/producto",
   "src/app/categoria",
+  "src/app/comparar",
   "src/app/page.tsx",
   "src/app/layout.tsx",
 ] as const;
@@ -143,6 +144,8 @@ export const DOCS_DEL_TEMPLATE = [
   "ARCH.md",
   "NEW-STORE.md",
   "CHANGELOG.md",
+  "docs/TEMPLATE-INHERITANCE.md",
+  "docs/PASSWORD-RECOVERY-EMAIL-PROPOSAL.md",
   // La referencia de las variables opcionales (lo que salió de `.env.example`).
   // Describe la maquinaria, no la tienda: una tienda no tiene nada suyo ahí.
   "docs/ENV-OPCIONAL.md",

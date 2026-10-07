@@ -1,4 +1,10 @@
 import { sql } from "drizzle-orm";
+import type {
+  ProductSpecifications,
+  SupplierDetails,
+  VariantAttributes,
+  VerifiedIdentifiers,
+} from "@/lib/product-attributes";
 import {
   bigint,
   boolean,
@@ -148,6 +154,8 @@ export const categories = mysqlTable(
      * obligaría a reescribirlo cada vez que alguien lo mejora.
      */
     description: text("description"),
+    seoTitle: varchar("seo_title", { length: 200 }),
+    seoDescription: varchar("seo_description", { length: 500 }),
     /**
      * `public_id` de la foto de portada en Cloudinary, carpeta `categorias/`.
      * NULL = sin foto, y la página cae al encabezado de texto de siempre.
@@ -178,6 +186,10 @@ export const products = mysqlTable(
       .default("stock"),
     showPrice: boolean("show_price").notNull().default(true),
     description: text("description"),
+    specifications: json("specifications").$type<ProductSpecifications>(),
+    supplierDetails: json("supplier_details").$type<SupplierDetails>(),
+    seoTitle: varchar("seo_title", { length: 200 }),
+    seoDescription: varchar("seo_description", { length: 500 }),
     categoryId: int("category_id")
       .notNull()
       .references(() => categories.id, {
@@ -214,6 +226,22 @@ export const products = mysqlTable(
   ]
 );
 
+/** Permanent slug namespace: current and historical names point straight to a product. */
+export const productSlugRedirects = mysqlTable(
+  "product_slug_redirects",
+  {
+    slug: varchar("slug", { length: 160 }).primaryKey(),
+    productId: int("product_id")
+      .notNull()
+      .references(() => products.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("product_slug_redirects_product_idx").on(t.productId)]
+);
+
 export const productImages = mysqlTable(
   "product_images",
   {
@@ -244,6 +272,8 @@ export const variants = mysqlTable(
       }),
     sku: varchar("sku", { length: 64 }).notNull(),
     label: varchar("label", { length: 120 }).notNull(),
+    attributes: json("attributes").$type<VariantAttributes>(),
+    identifiers: json("identifiers").$type<VerifiedIdentifiers>(),
     pricePyg: pyg("price_pyg").notNull(),
     compareAtPyg: pyg("compare_at_pyg"),
     /** Physical count. Only changes when money confirms (see transitionOrder). */
@@ -1523,6 +1553,7 @@ export const BACKUP_TABLES = [
   "login_tokens",
   "products",
   "product_images",
+  "product_slug_redirects",
   "variants",
   "stock_alerts",
   "price_adjustments",

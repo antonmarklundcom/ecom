@@ -146,7 +146,17 @@ export async function saveStoreSettingsSection(
             ...actual.paginas,
             ...definidos(parsed.data as Record<string, unknown>),
           }
-        : parsed.data;
+        : section === "checkout"
+          ? {
+              ...parsed.data,
+              metodosPago: Object.hasOwn(
+                (values as object) ?? {},
+                "metodosPago"
+              )
+                ? (parsed.data as { metodosPago?: unknown }).metodosPago
+                : actual.checkout.metodosPago,
+            }
+          : parsed.data;
 
     // Se vuelve a pasar por el schema de lectura: lo que queda en la base es
     // siempre algo que la vidriera sabe leer.
@@ -161,13 +171,11 @@ export async function saveStoreSettingsSection(
         .set({ data: siguiente, updatedByUserId: actor.userId })
         .where(eq(storeSettings.id, SINGLETON_ID));
     } else {
-      await tx
-        .insert(storeSettings)
-        .values({
-          id: SINGLETON_ID,
-          data: siguiente,
-          updatedByUserId: actor.userId,
-        });
+      await tx.insert(storeSettings).values({
+        id: SINGLETON_ID,
+        data: siguiente,
+        updatedByUserId: actor.userId,
+      });
     }
     return siguiente;
   });

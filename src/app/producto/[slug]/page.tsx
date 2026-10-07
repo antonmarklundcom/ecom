@@ -1,13 +1,18 @@
 import { productInquiryLinks } from "@/domain/product-inquiries";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
 
 import { AddToCart } from "@/components/add-to-cart";
 import { FunnelEvent } from "@/components/funnel-event";
 import { ProductDescription } from "@/components/product-description";
 import { ProductImage } from "@/components/product-image";
+import { ProductGallery } from "@/components/product-gallery";
+import { CatalogueEditorial } from "@/components/catalogue-editorial";
+import { CATALOGUE } from "@/config/catalogue";
+import { getProductSlugRedirect } from "@/domain/product-slugs";
+import { variantFromSku, variantUrl } from "@/lib/variant-url";
 import { ProductCard } from "@/components/product-card";
 import { RatingStars, formatRating } from "@/components/rating-stars";
 import { RecentlyViewed } from "@/components/recently-viewed";
@@ -38,6 +43,7 @@ import { TESTIDS } from "@/lib/testids";
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ slug: string }>;
+type Search = Promise<Record<string, string | string[] | undefined>>;
 
 /** El bloque de agregar al carrito: a donde vuelve la barra de compra móvil. */
 const BLOQUE_COMPRA_ID = "comprar";
@@ -47,11 +53,13 @@ const loadProduct = cache(async (slug: string) => getProductBySlug(slug));
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Params;
+  searchParams: Search;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = await loadProduct(slug).catch(() => null);
+  const product = await loadProduct(slug);
   if (!product) return { title: t("producto.noEncontrado") };
 
   const cheapest = product.variants.reduce<number | undefined>(
@@ -65,6 +73,7 @@ export async function generateMetadata({
   // asteriscos en el resultado de Google. Es el único lugar de la vidriera que
   // O7 toca — el render de la descripción en la página es de S11.
   const description =
+    product.seoDescription ||
     markdownToText(product.description).slice(0, 160) ||
     t("producto.metaDescripcion", {
       nombre: product.name,
@@ -84,15 +93,19 @@ export async function generateMetadata({
   // parámetro de tracking para dejar de indexarse como página aparte.
   const origin = siteOrigin();
   const canonical = origin
-    ? new URL(`/producto/${slug}`, origin).toString()
+    ? new URL(`/producto/${product.slug}`, origin).toString()
     : undefined;
 
+  const query = await searchParams;
   return {
-    title: product.name,
+    robots: Object.keys(query).length
+      ? { index: false, follow: true }
+      : undefined,
+    title: product.seoTitle || product.name,
     description,
     ...(canonical ? { alternates: { canonical } } : {}),
     openGraph: {
-      title: product.name,
+      title: product.seoTitle || product.name,
       description,
       type: "website",
       ...(ogImage
@@ -111,14 +124,46 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProductPage({ params }: { params: Params }) {
+export default async function ProductPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: Search;
+}) {
   const { slug } = await params;
+  const query = await searchParams;
   const product = await loadProduct(slug);
   // El notFound() va acá y no en generateMetadata: lanzado desde el metadata,
   // Next dibuja el 404 pero responde 200. Por lo mismo esta ruta no tiene
   // loading.tsx — ese Suspense manda el shell, y con él el status, antes de
   // que sepamos si el producto existe.
-  if (!product) notFound();
+  if (!product) {
+    const redirect = await getProductSlugRedirect(slug);
+    if (redirect)
+      permanentRedirect(
+        typeof query.variante === "string" && query.variante.length <= 64
+          ? variantUrl(`/producto/${redirect}`, query.variante)
+          : `/producto/${redirect}`
+      );
+    notFound();
+  }
+  const initialVariantSku =
+    typeof query.variante === "string" &&
+    query.variante.length > 0 &&
+    query.variante.length <= 64
+      ? query.variante
+      : query.variante === undefined
+        ? null
+        : "__invalid_variant_link__";
+  const selected =
+    variantFromSku(
+      product.variants,
+      initialVariantSku,
+      product.saleMode === "stock"
+    ) ??
+    product.variants.find((v) => v.available > 0) ??
+    product.variants[0];
 
   const cheapest = product.variants.reduce<number | undefined>(
     (min, variant) =>
@@ -178,11 +223,12 @@ export default async function ProductPage({ params }: { params: Params }) {
     // Mismo motivo que arriba: el JSON-LD que lee Google es texto, no markdown.
     description: markdownToText(product.description),
     brand: product.brand,
-    images: product.images
+    images: (product.illustrativeImages ? [] : product.images)
       .slice(0, 5)
       .map((image) => productImageUrl(image.cloudinaryId, "detail"))
       .filter((src): src is string => src !== null),
     variants: product.variants,
+    selectedSku: selected?.sku,
     saleMode: product.saleMode,
     showPrice: product.showPrice,
     rating,
@@ -219,28 +265,34 @@ export default async function ProductPage({ params }: { params: Params }) {
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">
         <div>
-          <ProductImage
-            image={product.images[0] ?? null}
-            alt={product.name}
-            categorySlug={product.categorySlug}
-            size="detail"
-            priority
-            sizes="(max-width: 1024px) 100vw, 550px"
-          />
-          {product.images.length > 1 ? (
-            <div className="mt-3 grid grid-cols-4 gap-3">
-              {product.images.slice(1, 5).map((image) => (
-                <ProductImage
-                  key={image.cloudinaryId}
-                  image={image}
-                  alt={product.name}
-                  categorySlug={product.categorySlug}
-                  size="thumb"
-                  sizes="120px"
-                />
-              ))}
-            </div>
-          ) : null}
+          {product.images.length ? (
+            <ProductGallery
+              images={product.images
+                .map((image) => ({
+                  src: productImageUrl(image.cloudinaryId, "detail"),
+                  alt: image.alt || product.name,
+                  illustrative: product.illustrativeImages,
+                }))
+                .filter(
+                  (
+                    image
+                  ): image is {
+                    src: string;
+                    alt: string;
+                    illustrative: boolean | undefined;
+                  } => image.src !== null
+                )}
+            />
+          ) : (
+            <ProductImage
+              image={null}
+              alt={product.name}
+              categorySlug={product.categorySlug}
+              size="detail"
+              priority
+              sizes="(max-width: 1024px) 100vw, 550px"
+            />
+          )}
         </div>
 
         <div>
@@ -277,6 +329,7 @@ export default async function ProductPage({ params }: { params: Params }) {
               stockAlertsEnabled={stockAlertsEnabled()}
               whatsappPhone={whatsappPhone}
               productUrl={productUrl}
+              initialVariantSku={initialVariantSku}
             />
             <WishlistButton
               slug={product.slug}
@@ -346,6 +399,40 @@ export default async function ProductPage({ params }: { params: Params }) {
         </div>
       </div>
 
+      {product.verifiedSpecifications ? (
+        <section className="mt-8 rounded border p-4">
+          <h2 className="font-semibold">Ficha técnica verificada</h2>
+          <dl className="mt-3 grid grid-cols-2 gap-2">
+            {product.verifiedSpecifications.unit ? (
+              <>
+                <dt>Unidad</dt>
+                <dd>{product.verifiedSpecifications.unit}</dd>
+              </>
+            ) : null}
+            {CATALOGUE.attributes
+              .filter(
+                (d) =>
+                  d.scope === "product" &&
+                  product.verifiedSpecifications?.values?.[d.key] !== undefined
+              )
+              .map((d) => (
+                <div key={d.key}>
+                  <dt>{d.label}</dt>
+                  <dd>
+                    {String(product.verifiedSpecifications?.values?.[d.key])}
+                  </dd>
+                </div>
+              ))}
+          </dl>
+        </section>
+      ) : null}
+      <CatalogueEditorial content={CATALOGUE.products[product.slug]} />
+      <Link
+        href={`/comparar?p=${encodeURIComponent(product.slug)}`}
+        className="mt-6 inline-block underline"
+      >
+        Comparar productos
+      </Link>
       {reviews.length > 0 ? (
         <section
           id="resenas"

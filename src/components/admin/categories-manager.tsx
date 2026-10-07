@@ -34,11 +34,17 @@ export type AdminCategoryCard = {
   // lo que faltaba para que el formulario de edición los prellene en vez de
   // pedirlos a ciegas por encima (KNOWN-ISSUES.md, entrada ya borrada por O14).
   description: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   imageCloudinaryId: string | null;
   imageAlt: string | null;
 };
 
-export function CategoriesManager({ categories }: { categories: AdminCategoryCard[] }) {
+export function CategoriesManager({
+  categories,
+}: {
+  categories: AdminCategoryCard[];
+}) {
   const [editing, setEditing] = useState<number | "nueva" | null>(null);
 
   return (
@@ -62,7 +68,10 @@ export function CategoriesManager({ categories }: { categories: AdminCategoryCar
           {categories.map((category) =>
             editing === category.id ? (
               <li key={category.id}>
-                <CategoryForm category={category} onDone={() => setEditing(null)} />
+                <CategoryForm
+                  category={category}
+                  onDone={() => setEditing(null)}
+                />
               </li>
             ) : (
               <CategoryRow
@@ -70,7 +79,7 @@ export function CategoriesManager({ categories }: { categories: AdminCategoryCar
                 category={category}
                 onEdit={() => setEditing(category.id)}
               />
-            ),
+            )
           )}
         </ul>
       )}
@@ -92,7 +101,7 @@ function CategoryRow({
 
   const run = (
     action: () => Promise<{ ok: boolean; error?: string }>,
-    done: string,
+    done: string
   ): void => {
     setError(null);
     startTransition(async () => {
@@ -148,11 +157,18 @@ function CategoryRow({
           sorpresa que se descubre por las ventas que no llegan.
         */
         <div className="border-border mt-3 grid gap-2 rounded-lg border p-3 text-sm">
-          <p className="font-medium">{t("panel.categoria.confirmar", { nombre: category.name })}</p>
+          <p className="font-medium">
+            {t("panel.categoria.confirmar", { nombre: category.name })}
+          </p>
           <p className="text-muted-foreground text-xs">
             {category.publicados === 0
-              ? t("panel.categoria.confirmar.sinPublicados", { slug: category.slug })
-              : tPlural("panel.categoria.confirmar.conPublicados", category.publicados)}
+              ? t("panel.categoria.confirmar.sinPublicados", {
+                  slug: category.slug,
+                })
+              : tPlural(
+                  "panel.categoria.confirmar.conPublicados",
+                  category.publicados
+                )}
           </p>
           <div className="flex gap-2">
             <Button
@@ -161,12 +177,18 @@ function CategoryRow({
               disabled={isPending}
               onClick={() =>
                 run(
-                  () => cambiarEstadoCategoria({ categoryId: category.id, isActive: false }),
-                  t("panel.categoria.desactivadaOk"),
+                  () =>
+                    cambiarEstadoCategoria({
+                      categoryId: category.id,
+                      isActive: false,
+                    }),
+                  t("panel.categoria.desactivadaOk")
                 )
               }
             >
-              {isPending ? t("panel.categoria.desactivando") : t("panel.categoria.siDesactivar")}
+              {isPending
+                ? t("panel.categoria.desactivando")
+                : t("panel.categoria.siDesactivar")}
             </Button>
             <Button
               type="button"
@@ -181,7 +203,13 @@ function CategoryRow({
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onEdit} disabled={isPending}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onEdit}
+            disabled={isPending}
+          >
             {t("panel.abm.editar")}
           </Button>
 
@@ -196,12 +224,18 @@ function CategoryRow({
                 return;
               }
               run(
-                () => cambiarEstadoCategoria({ categoryId: category.id, isActive: true }),
-                t("panel.categoria.reactivadaOk"),
+                () =>
+                  cambiarEstadoCategoria({
+                    categoryId: category.id,
+                    isActive: true,
+                  }),
+                t("panel.categoria.reactivadaOk")
               );
             }}
           >
-            {category.isActive ? t("panel.abm.desactivar") : t("panel.abm.reactivar")}
+            {category.isActive
+              ? t("panel.abm.desactivar")
+              : t("panel.abm.reactivar")}
           </Button>
 
           <Button
@@ -212,8 +246,9 @@ function CategoryRow({
             disabled={isPending || category.esPrimera}
             onClick={() =>
               run(
-                () => moverCategoria({ categoryId: category.id, direction: "up" }),
-                t("panel.abm.ordenActualizado"),
+                () =>
+                  moverCategoria({ categoryId: category.id, direction: "up" }),
+                t("panel.abm.ordenActualizado")
               )
             }
           >
@@ -227,8 +262,12 @@ function CategoryRow({
             disabled={isPending || category.esUltima}
             onClick={() =>
               run(
-                () => moverCategoria({ categoryId: category.id, direction: "down" }),
-                t("panel.abm.ordenActualizado"),
+                () =>
+                  moverCategoria({
+                    categoryId: category.id,
+                    direction: "down",
+                  }),
+                t("panel.abm.ordenActualizado")
               )
             }
           >
@@ -265,6 +304,10 @@ function CategoryForm({
   // no hace falta — desde acá "guardar" siempre manda la descripción tal
   // como quedó en pantalla.
   const [description, setDescription] = useState(category?.description ?? "");
+  const [seoTitle, setSeoTitle] = useState(category?.seoTitle ?? "");
+  const [seoDescription, setSeoDescription] = useState(
+    category?.seoDescription ?? ""
+  );
 
   const slugFinal = slugify(slug || name);
   const cambiaLaUrl = category !== undefined && slugFinal !== category.slug;
@@ -277,6 +320,8 @@ function CategoryForm({
         setError(null);
 
         const payload = {
+          seoTitle: seoTitle.trim() || null,
+          seoDescription: seoDescription.trim() || null,
           name,
           slug,
           description: description.trim() === "" ? null : description.trim(),
@@ -291,7 +336,11 @@ function CategoryForm({
             setError(result.error);
             return;
           }
-          toast.success(category ? t("panel.categoria.actualizada") : t("panel.categoria.creada"));
+          toast.success(
+            category
+              ? t("panel.categoria.actualizada")
+              : t("panel.categoria.creada")
+          );
           onDone();
           router.refresh();
         });
@@ -351,7 +400,31 @@ function CategoryForm({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="categoria-description">{t("panel.categoria.descripcion")}</Label>
+        <Label htmlFor="categoria-seo-title">Título SEO (opcional)</Label>
+        <Input
+          id="categoria-seo-title"
+          value={seoTitle}
+          maxLength={200}
+          onChange={(event) => setSeoTitle(event.target.value)}
+        />
+        <Label htmlFor="categoria-seo-description">
+          Descripción SEO (opcional)
+        </Label>
+        <textarea
+          id="categoria-seo-description"
+          value={seoDescription}
+          maxLength={500}
+          rows={3}
+          onChange={(event) => setSeoDescription(event.target.value)}
+          className="rounded border p-2"
+        />
+        <p className="text-muted-foreground text-sm">
+          Sin estos campos se usan el título y la descripción editorial de la
+          categoría.
+        </p>
+        <Label htmlFor="categoria-description">
+          {t("panel.categoria.descripcion")}
+        </Label>
         <textarea
           id="categoria-description"
           value={description}
@@ -394,7 +467,12 @@ function CategoryForm({
               ? t("panel.abm.guardarCambios")
               : t("panel.categoria.crear")}
         </Button>
-        <Button type="button" variant="outline" disabled={isPending} onClick={onDone}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending}
+          onClick={onDone}
+        >
           {t("panel.abm.cancelar")}
         </Button>
       </div>
@@ -432,14 +510,26 @@ function CategoryImageUpload({
 
       {previewUrl ? (
         <div className="bg-muted relative aspect-[3/1] w-full max-w-xs overflow-hidden rounded-lg">
-          <Image src={previewUrl} alt={imageAlt ?? ""} fill unoptimized sizes="320px" className="object-cover" />
+          <Image
+            src={previewUrl}
+            alt={imageAlt ?? ""}
+            fill
+            unoptimized
+            sizes="320px"
+            className="object-cover"
+          />
         </div>
       ) : (
-        <p className="text-muted-foreground text-xs">{t("panel.categoria.foto.vacia")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.categoria.foto.vacia")}
+        </p>
       )}
 
       {error ? (
-        <p role="alert" className="border-destructive/40 text-destructive rounded-lg border p-2 text-xs">
+        <p
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-lg border p-2 text-xs"
+        >
           {error}
         </p>
       ) : null}

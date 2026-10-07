@@ -19,8 +19,8 @@ import { t, tPlural } from "@/i18n";
 /**
  * Login del panel (PLAN.md 4.1).
  *
- * No hay ruta pública de registro: el usuario se crea con
- * `pnpm create-owner`. Esta acción sólo verifica credenciales existentes.
+ * No hay registro público: el dueño se crea con el setup protegido o
+ * `pnpm create-owner`. Estas acciones sólo verifican credenciales existentes.
  */
 
 /** Un único mensaje para "no existe", "contraseña incorrecta" y "usuario inactivo". */
@@ -37,7 +37,10 @@ const LoginSchema = z.object({
 /** Sólo se devuelve en el fallo: si entra, la acción redirige y no vuelve. */
 export type LoginResult = { ok: false; error: string };
 
-export async function loginAdmin(formData: FormData): Promise<LoginResult> {
+/** Both entry points share credential, rate-limit and session checks. */
+async function startAdminSession(
+  formData: FormData
+): Promise<LoginResult | { ok: true; next: string }> {
   const parsed = LoginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -83,7 +86,25 @@ export async function loginAdmin(formData: FormData): Promise<LoginResult> {
   session.sessionVersion = user.sessionVersion;
   await session.save();
 
-  redirect(safeNextPath(parsed.data.next));
+  return { ok: true, next: safeNextPath(parsed.data.next) };
+}
+
+export async function loginAdmin(formData: FormData): Promise<LoginResult> {
+  const result = await startAdminSession(formData);
+  if (!result.ok) return result;
+  redirect(result.next);
+}
+
+/**
+ * Setup authenticates the saved credentials through normal login checks.
+ * Returning success lets its client preserve account creation if sign-in fails,
+ * without catching Next's redirect exceptions. This grants no setup privilege.
+ */
+export async function loginAdminAfterSetup(
+  formData: FormData
+): Promise<LoginResult | { ok: true }> {
+  const result = await startAdminSession(formData);
+  return result.ok ? { ok: true } : result;
 }
 
 export async function logoutAdmin(): Promise<void> {

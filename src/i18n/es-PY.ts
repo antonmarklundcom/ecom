@@ -993,27 +993,6 @@ export const esPY = {
   // Panel (PR R)
   // -------------------------------------------------------------------------
   "panel.titulo": "Panel",
-  "panel.menu.label": "Menú del panel",
-  "panel.menu.edit": "Editar menú",
-  "panel.menu.editHelp":
-    "Arrastrá las secciones o usá las flechas para cambiar el orden. Guardá para aplicarlo.",
-  "panel.menu.up": "Subir {nombre}",
-  "panel.menu.down": "Bajar {nombre}",
-  "panel.menu.save": "Guardar",
-  "panel.menu.cancel": "Cancelar",
-  "panel.menu.restore": "Restaurar orden original",
-  "panel.menu.restoreHelp":
-    "Orden original preparado. Guardá para aplicarlo o cancelá para mantener tu orden.",
-  "panel.menu.saved": "Orden del menú guardado.",
-  "panel.menu.saveError":
-    "Este navegador no permite guardar el orden. Habilitá el almacenamiento local o cancelá para mantener el menú actual.",
-  "panel.menu.moved": "{nombre} ahora está en la posición {n}.",
-  "panel.menu.storage":
-    "El orden se guarda para tu cuenta en este navegador. No se sincroniza con otros dispositivos; borrar los datos del sitio restaura el orden original.",
-  "panel.menu.store": "Ver tienda",
-  "panel.menu.skip": "Ir al contenido del panel",
-  "panel.menu.open": "Abrir menú del panel",
-  "panel.menu.mobileHelp": "Elegí una sección o editá el orden del menú.",
   "panel.salir": "Salir",
   "panel.saliendo": "Saliendo…",
   "panel.nav.resumen": "Resumen",
@@ -2006,7 +1985,6 @@ export const esPY = {
 
   // `/admin/resenas`.
   "panel.nav.resenas": "Reseñas",
-  "panel.nav.resenasPendientes": "Reseñas ({n})",
   "panel.resenas.meta": "Reseñas",
   "panel.resenas.titulo": "Reseñas",
   "panel.resenas.bajada":
@@ -2413,11 +2391,59 @@ export const esPY = {
   "setup.nombre": "Nombre (opcional)",
   "setup.duenioAyuda":
     "Vacío = no se crea ni se cambia ninguna cuenta (sólo se aplican las migraciones).",
+  "setup.force": "La tienda ya estaba inicializada y quiero repetirlo igual",
+  "setup.correr": "Inicializar",
+  "setup.corriendo": "Inicializando…",
+  "setup.listo": "Listo. La tienda quedó inicializada.",
+  "setup.error.secreto": "El SETUP_SECRET no coincide.",
+  "setup.error.limite": "Demasiados intentos. Esperá unos minutos.",
+  "setup.error.https": "Hace falta entrar por https://.",
+  "setup.error.yaInicializada":
+    'La tienda ya estaba inicializada: las migraciones corrieron, pero no se tocaron datos. Marcá "quiero repetirlo igual" si de verdad hace falta.',
+  "setup.error.sinSecreto": "SETUP_SECRET no está configurado en el hosting.",
+  "setup.error.generico": "No se pudo inicializar. Mirá el log del hPanel.",
+
+  "panel.nav.guia": "Guía",
+  "panel.nav.seo": "Plan editorial y SEO",
+  "password.confirmar": "Repetí la contraseña",
+  "password.mostrar": "Mostrar contraseña",
+  "password.noCoinciden": "Las contraseñas no coinciden. Volvé a escribirlas.",
+  "password.ocultar": "Ocultar contraseña",
+  "setup.error.cuentaSinConfirmar":
+    "El sistema respondió, pero no confirmó la creación de la cuenta. Entrá al panel si ya tenés acceso o revisá el resultado antes de repetir el setup.",
+  "setup.forceAyuda":
+    "Permite volver a cargar datos y puede cambiar la contraseña de un dueño existente. Si es la primera vez, dejá esta opción desmarcada.",
+  "setup.loginManual":
+    "La cuenta quedó guardada, pero el ingreso automático no se completó. Entrá con el email y la contraseña que elegiste; no repitas la creación de la cuenta.",
+  "adminError.producto.atributosInvalidos":
+    "Revisá los atributos, las fuentes y los identificadores verificados.",
+  "adminError.producto.slugHistorico":
+    "La URL {slug} ya está reservada por el catálogo o su historial. Elegí otra URL.",
+  "panel.menu.label": "Menú del panel",
+  "panel.menu.edit": "Editar menú",
+  "panel.menu.editHelp":
+    "Arrastrá las secciones o usá las flechas para cambiar el orden. Guardá para aplicarlo.",
+  "panel.menu.up": "Subir {nombre}",
+  "panel.menu.down": "Bajar {nombre}",
+  "panel.menu.save": "Guardar",
+  "panel.menu.cancel": "Cancelar",
+  "panel.menu.restore": "Restaurar orden original",
+  "panel.menu.restoreHelp":
+    "Orden original preparado. Guardá para aplicarlo o cancelá para mantener tu orden.",
+  "panel.menu.saved": "Orden del menú guardado.",
+  "panel.menu.saveError":
+    "Este navegador no permite guardar el orden. Habilitá el almacenamiento local o cancelá para mantener el menú actual.",
+  "panel.menu.moved": "{nombre} ahora está en la posición {n}.",
+  "panel.menu.storage":
+    "El orden se guarda para tu cuenta en este navegador. No se sincroniza con otros dispositivos; borrar los datos del sitio restaura el orden original.",
+  "panel.menu.store": "Ver tienda",
+  "panel.menu.skip": "Ir al contenido del panel",
+  "panel.menu.open": "Abrir menú del panel",
+  "panel.menu.mobileHelp": "Elegí una sección o editá el orden del menú.",
+  "panel.nav.resenasPendientes": "Reseñas ({n})",
   "setup.seed": "Cargar productos de ejemplo para probar",
   "setup.seedAyuda":
     "Agrega productos ficticios. Importar tus productos reales no borra estos ejemplos automáticamente: eliminá o despublicá los ejemplos desde Productos antes de abrir la tienda.",
-  "setup.forceAyuda":
-    "Permite volver a cargar datos y puede cambiar la contraseña de un dueño existente. Si es la primera vez, dejá esta opción desmarcada.",
   "setup.repeatPassword": "Repetir contraseña",
   "setup.showPassword": "Mostrar: {campo}",
   "setup.hidePassword": "Ocultar: {campo}",
@@ -2439,16 +2465,5 @@ export const esPY = {
     "Configurá envíos y los medios de pago que vas a ofrecer. Si aceptás transferencias, completá Banco; si ofrecés tarjeta, configurá Pagopar y comprobá su webhook.",
   "setup.nextLaunch":
     "Revisá identidad, contacto e integraciones, comprobá el cron del hosting y hacé una compra de prueba antes de abrir al público.",
-  "setup.force": "La tienda ya estaba inicializada y quiero repetirlo igual",
-  "setup.correr": "Inicializar",
-  "setup.corriendo": "Inicializando…",
-  "setup.listo": "Listo. La tienda quedó inicializada.",
   "setup.preflight": "Lo que falta para cobrar de verdad:",
-  "setup.error.secreto": "El SETUP_SECRET no coincide.",
-  "setup.error.limite": "Demasiados intentos. Esperá unos minutos.",
-  "setup.error.https": "Hace falta entrar por https://.",
-  "setup.error.yaInicializada":
-    'La tienda ya estaba inicializada: las migraciones corrieron, pero no se tocaron datos. Marcá "quiero repetirlo igual" si de verdad hace falta.',
-  "setup.error.sinSecreto": "SETUP_SECRET no está configurado en el hosting.",
-  "setup.error.generico": "No se pudo inicializar. Mirá el log del hPanel.",
 } as const satisfies Record<string, string>;

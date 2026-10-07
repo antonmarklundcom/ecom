@@ -21,7 +21,10 @@ export async function SiteHeader() {
   const marca = await marcaEfectiva();
 
   return (
-    <header className="border-border bg-background/95 sticky top-0 z-30 border-b backdrop-blur">
+    <header
+      data-site-header=""
+      className="s9-no-print border-border bg-background/95 sticky top-0 z-30 border-b backdrop-blur"
+    >
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
         <Link href="/" className="text-lg font-semibold tracking-tight">
           {marca.logoUrl ? (

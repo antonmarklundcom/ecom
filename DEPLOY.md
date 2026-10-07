@@ -15,29 +15,17 @@ En el hPanel, dentro del sitio:
 
 1. **Websites → tu sitio → Advanced → GIT**: pegá la URL del repo y la rama
    (`main`). Si el repo es privado, copiá la clave pública que muestra
-   Hostinger y cargala como *deploy key* en GitHub (Settings → Deploy keys).
-2. **Node.js**: versión **22** (la misma de `.nvmrc` y del CI), y los comandos:
+   Hostinger y cargala como _deploy key_ en GitHub (Settings → Deploy keys).
+2. **Node.js**: elegí la versión compatible con `engines`, `.nvmrc` y CI (actualmente Node 22). En los controles reales de hPanel elegí framework **Next.js**, gestor **pnpm**, build **pnpm run build** y salida **.next**. El script `start` del repositorio arranca el servidor. No es una exportación estática.
 
-   | Campo | Valor |
-   |---|---|
-   | Install command | `pnpm install --frozen-lockfile` |
-   | Build command | `pnpm build` |
-   | Start command | `pnpm start` |
-
-   **Los tres hay que escribirlos a mano.** Hostinger detecta el proyecto y
-   propone `npm install` / `npm run build` / `npm start`, y con eso el deploy
-   *parece* andar: npm ignora `pnpm-lock.yaml`, resuelve el árbol de nuevo por
-   su cuenta y te deja en producción versiones que nadie testeó — o directamente
-   se cae contra `pnpm-workspace.yaml`. Pisá los tres campos antes del primer
-   deploy y verificá que quedaron guardados: el panel a veces los vuelve a su
-   valor detectado si guardás la sección dos veces.
+   Usá la opción disponible en el dropdown, sin asumir campos libres para los tres comandos. Contrastá `packageManager` y los logs completos de instalación **y** build: el pnpm usado por Corepack en `prebuild` también debe coincidir. Un install exitoso no demuestra un build compatible. El repositorio mantiene su pin actual; no copies un pin antiguo de otra tienda ni desactives la verificación de versiones. La validación local no verifica un despliegue en Hostinger.
 
 3. **Environment variables**: Hostinger lee `.env.example` y precarga un campo
    por variable. Son **sólo las cinco imprescindibles** —`DATABASE_URL`,
    `SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET` y `SETUP_SECRET`—
    más `NODE_ENV=production`, que lo pone el hosting (si no, agregalo). Los
-    `pnpm nueva-tienda` lista las claves y guarda los secretos en `.env.local`:
-    copiá sus valores desde ese archivo al panel, sin comillas. `DATABASE_URL`
+   `pnpm nueva-tienda` lista las claves y guarda los secretos en `.env.local`:
+   copiá sus valores desde ese archivo al panel, sin comillas. `DATABASE_URL`
    sale de la base del §2.
 
    Todo lo demás es **opcional** y está documentado, con sus trampas, en
@@ -243,11 +231,42 @@ automatizarlo).
 
    ```json
    {
-     "owner": { "email": "...", "password": "..." },
+     "owner": {
+       "email": "...",
+       "password": "...",
+       "passwordConfirmation": "..."
+     },
      "zonas": [
-       { "slug": "asuncion", "name": "Asunción", "cities": ["Asunción"], "pricePyg": 25000, "freeThresholdPyg": 500000 },
-       { "slug": "gran-asuncion", "name": "Gran Asunción", "cities": ["San Lorenzo", "Fernando de la Mora", "Luque", "Lambaré", "Capiatá", "Ñemby", "Mariano Roque Alonso", "Villa Elisa", "Limpio"], "pricePyg": 35000, "freeThresholdPyg": 700000 },
-       { "slug": "interior", "name": "Interior", "cities": [], "pricePyg": 60000 }
+       {
+         "slug": "asuncion",
+         "name": "Asunción",
+         "cities": ["Asunción"],
+         "pricePyg": 25000,
+         "freeThresholdPyg": 500000
+       },
+       {
+         "slug": "gran-asuncion",
+         "name": "Gran Asunción",
+         "cities": [
+           "San Lorenzo",
+           "Fernando de la Mora",
+           "Luque",
+           "Lambaré",
+           "Capiatá",
+           "Ñemby",
+           "Mariano Roque Alonso",
+           "Villa Elisa",
+           "Limpio"
+         ],
+         "pricePyg": 35000,
+         "freeThresholdPyg": 700000
+       },
+       {
+         "slug": "interior",
+         "name": "Interior",
+         "cities": [],
+         "pricePyg": 60000
+       }
      ]
    }
    ```
@@ -265,7 +284,7 @@ automatizarlo).
    por `/admin/productos` → Importar planilla.
 
    Responde con el resultado de cada paso **y con el reporte completo de `pnpm
-   preflight`**, medido contra el entorno de este servidor — que es el único
+preflight`**, medido contra el entorno de este servidor — que es el único
    que importa.
 
    Las zonas son upsert por `slug`, así que repetir la llamada actualiza en vez de duplicar.
@@ -334,11 +353,11 @@ interpreta la hora del cron en **UTC**, y Paraguay está en **UTC−3 todo el
 año** (sin horario de verano desde 2024) — la columna de la derecha ya trae
 la resta hecha:
 
-| Ruta | Frecuencia | Hora Asunción | Hora UTC (expresión cron) | Qué hace si falta la variable |
-|---|---|---|---|---|
-| `/api/cron/vencer-pedidos` | cada 15 min | — | `*/15 * * * *` | Sin `CRON_SECRET` (≥16 caracteres), 503: nunca vence nada sin secreto. Desde O15 manda además los recordatorios de pago; sin su plantilla, no manda ninguno y vence igual |
-| `/api/cron/resumen-diario` | diaria | 08:00 | `0 11 * * *` | Sin `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO`, corre igual y no manda nada (`sent: false`) |
-| `/api/cron/backup` | diaria | 03:00 | `0 6 * * *` | Sin credenciales de Cloudinary, se saltea sola (`skipped: "sin_cloudinary"`) |
+| Ruta                       | Frecuencia  | Hora Asunción | Hora UTC (expresión cron) | Qué hace si falta la variable                                                                                                                                             |
+| -------------------------- | ----------- | ------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/cron/vencer-pedidos` | cada 15 min | —             | `*/15 * * * *`            | Sin `CRON_SECRET` (≥16 caracteres), 503: nunca vence nada sin secreto. Desde O15 manda además los recordatorios de pago; sin su plantilla, no manda ninguno y vence igual |
+| `/api/cron/resumen-diario` | diaria      | 08:00         | `0 11 * * *`              | Sin `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO`, corre igual y no manda nada (`sent: false`)                                                                                 |
+| `/api/cron/backup`         | diaria      | 03:00         | `0 6 * * *`               | Sin credenciales de Cloudinary, se saltea sola (`skipped: "sin_cloudinary"`)                                                                                              |
 
 Las tres comparten el mismo `CRON_SECRET` (`src/lib/cron-auth.ts`): 503 sin
 secreto configurado, comparación en tiempo constante, rate-limited, header

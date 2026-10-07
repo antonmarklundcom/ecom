@@ -409,3 +409,11 @@ REQUIRE_DATABASE_TESTS=""
 ```
 
 Set `REQUIRE_DATABASE_TESTS=1` to refuse integration skips. `pnpm test:full` requires a disposable TEST_DATABASE_URL, then runs typecheck, lint, all tests, build and browser tests. CI also refuses missing test database configuration.
+
+## Política de pago opcional
+
+```dotenv
+STORE_PAYMENT_METHODS=""
+```
+
+`STORE_PAYMENT_METHODS`: lista separada por comas de `transferencia`, `contra_entrega`, `tarjeta`. Prioridad: selección explícita del dueño en Ajustes > variable > `src/config/checkout.ts`. Una selección vacía o inválida cierra esos métodos. Los requisitos de banco y proveedor se aplican siempre en servidor. La plantilla mantiene los tres métodos como política por defecto, sin inventar datos bancarios.

@@ -11,9 +11,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SetupForm } from "@/components/setup-form";
 import { t } from "@/i18n";
 
+const handoff = vi.hoisted(() => ({ replace: vi.fn(), login: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: handoff.replace }),
+}));
+vi.mock("@/app/actions/admin-auth", () => ({
+  loginAdminAfterSetup: handoff.login,
+}));
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  handoff.replace.mockReset();
+  handoff.login.mockReset();
 });
 
 function fillOwner() {
@@ -72,9 +82,13 @@ describe("initial setup feedback", () => {
   });
 
   it("puts focused success above the cleared form and offers admin login", async () => {
+    handoff.login.mockResolvedValue({ ok: false });
     const fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ pasos: { migraciones: "ok" } }),
+      json: async () => ({
+        ok: true,
+        pasos: { migraciones: "ok", duenio: "creado" },
+      }),
     });
     vi.stubGlobal("fetch", fetch);
     const { container } = render(<SetupForm />);
@@ -89,7 +103,7 @@ describe("initial setup feedback", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("link", { name: t("setup.adminLogin") })
-    ).toHaveAttribute("href", "/admin/login");
+    ).toHaveAttribute("href", "/admin/login?next=%2Fadmin%2Fbienvenida");
     expect(screen.getByLabelText(t("setup.secreto"))).toHaveValue("");
     expect(screen.getByLabelText(t("setup.password"))).toHaveValue("");
     expect(screen.getByLabelText(t("setup.repeatPassword"))).toHaveValue("");
@@ -98,6 +112,7 @@ describe("initial setup feedback", () => {
     expect(url).toBe("/api/setup/init");
     const body = JSON.parse(request.body);
     expect(body.owner.email).toBe("owner@example.test");
+    expect(body.owner.passwordConfirmation).toBe(body.owner.password);
     expect(body).not.toHaveProperty("repeatPassword");
     expect(body.seed).toBe(false);
     expect(body.force).toBe(false);
@@ -106,7 +121,7 @@ describe("initial setup feedback", () => {
   it("keeps owner fields optional for migration-only setup and explains risky options", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({}) });
+      .mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
     vi.stubGlobal("fetch", fetch);
     render(<SetupForm />);
     expect(screen.getByLabelText(t("setup.password"))).not.toBeRequired();
@@ -150,5 +165,45 @@ describe("initial setup feedback", () => {
     expect(
       screen.queryByRole("link", { name: t("setup.adminLogin") })
     ).not.toBeInTheDocument();
+  });
+
+  it("hands a confirmed owner to welcome through normal authentication", async () => {
+    handoff.login.mockResolvedValue({ ok: true });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          ok: true,
+          json: async () => ({ ok: true, pasos: { duenio: "actualizado" } }),
+        })
+    );
+    render(<SetupForm />);
+    fillOwner();
+    fireEvent.click(screen.getByRole("button", { name: t("setup.correr") }));
+    await waitFor(() =>
+      expect(handoff.replace).toHaveBeenCalledWith("/admin/bienvenida")
+    );
+    expect(handoff.login).toHaveBeenCalledOnce();
+  });
+
+  it("does not claim owner success or authenticate when the server did not confirm it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          ok: true,
+          json: async () => ({ ok: true, pasos: { migraciones: "ok" } }),
+        })
+    );
+    render(<SetupForm />);
+    fillOwner();
+    fireEvent.click(screen.getByRole("button", { name: t("setup.correr") }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("setup.error.cuentaSinConfirmar")
+    );
+    expect(handoff.login).not.toHaveBeenCalled();
+    expect(handoff.replace).not.toHaveBeenCalled();
   });
 });

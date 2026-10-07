@@ -17,7 +17,18 @@ describe("reusable admin navigation", () => {
     expect(
       staff.find((item) => item.href === "/admin/resenas")?.label
     ).toContain("3");
-    expect(adminMenuFor("owner")).toHaveLength(14);
+    expect(adminMenuFor("owner")).toHaveLength(15);
+    expect(
+      adminMenuFor("owner").some((item) => item.href === "/admin/guia")
+    ).toBe(true);
+    expect(staff.some((item) => item.href === "/admin/guia")).toBe(false);
+    expect(
+      adminMenuFor("owner").some((item) => item.href === "/admin/seo")
+    ).toBe(false);
+    expect(
+      adminMenuFor("owner", -3).find((item) => item.href === "/admin/resenas")
+        ?.label
+    ).not.toContain("-3");
   });
   it("highlights nested detail pages with a complete path boundary", () => {
     expect(
@@ -31,6 +42,7 @@ describe("reusable admin navigation", () => {
     ).toBe(false);
     expect(isActiveAdminSection("/admin/pedidos", "/admin")).toBe(false);
     expect(isActiveAdminSection("/admin", "/admin")).toBe(true);
+    expect(isActiveAdminSection("/admin/bienvenida", "/admin")).toBe(true);
   });
   it("restores valid saved entries and appends new sections", () => {
     const items = adminMenuFor("owner");

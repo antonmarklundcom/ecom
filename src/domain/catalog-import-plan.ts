@@ -1,7 +1,13 @@
 import { safeError } from "@/lib/safe-error";
 import { count, eq, inArray, sql } from "drizzle-orm";
 
-import { categories, productImages, products, variants } from "@/db/schema";
+import {
+  categories,
+  productImages,
+  products,
+  productSlugRedirects,
+  variants,
+} from "@/db/schema";
 import { getDb } from "@/db";
 import { slugify } from "@/lib/slug";
 import {
@@ -101,6 +107,23 @@ export async function buildCatalogImportPlan(
   const duenoDeSku = new Map(skuRows.map((row) => [row.sku, row.productSlug]));
 
   const errores: string[] = [];
+  const aliasRows = productos.length
+    ? await tx
+        .select({ slug: productSlugRedirects.slug, current: products.slug })
+        .from(productSlugRedirects)
+        .innerJoin(products, eq(productSlugRedirects.productId, products.id))
+        .where(
+          inArray(
+            productSlugRedirects.slug,
+            productos.map((p) => p.slug)
+          )
+        )
+    : [];
+  for (const alias of aliasRows)
+    if (alias.slug !== alias.current)
+      errores.push(
+        `El slug "${alias.slug}" es histórico y está reservado; usá el slug actual "${alias.current}".`
+      );
   for (const producto of productos) {
     for (const variante of producto.variants) {
       const dueno = duenoDeSku.get(variante.sku);

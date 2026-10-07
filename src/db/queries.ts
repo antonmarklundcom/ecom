@@ -15,6 +15,20 @@ import {
 } from "drizzle-orm";
 
 import { getDb } from "@/db";
+import type {
+  ProductSpecifications,
+  VariantAttributes,
+  VerifiedIdentifiers,
+} from "@/lib/product-attributes";
+import {
+  publicSpecifications,
+  publicVariantAttributes,
+  publicIdentifiers,
+} from "@/lib/public-product-facts";
+import {
+  catalogueAttributePredicate,
+  type CatalogueAttributeFilters,
+} from "@/domain/catalogue-facets";
 import {
   categories,
   orderItems,
@@ -29,6 +43,8 @@ import { getRatingSummaries, type RatingSummary } from "@/domain/reviews";
 import { heldQtyMap } from "@/domain/stock";
 
 export type CatalogVariant = {
+  attributes?: VariantAttributes;
+  identifiers?: VerifiedIdentifiers;
   id: number;
   sku: string;
   label: string;
@@ -44,6 +60,10 @@ export type CatalogImage = {
 };
 
 export type CatalogProduct = {
+  verifiedSpecifications?: ProductSpecifications;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  illustrativeImages?: boolean;
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   id: number;
@@ -108,6 +128,10 @@ export function isCatalogSort(value: string | undefined): value is CatalogSort {
 const minPriceSql = sql<number>`MIN(CASE WHEN ${products.showPrice} THEN ${variants.pricePyg} ELSE NULL END)`;
 
 type ProductRow = {
+  specifications?: unknown;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  illustrativeImages?: number;
   saleMode: "stock" | "enquiry" | "showcase";
   showPrice: boolean;
   id: number;
@@ -141,6 +165,8 @@ async function hydrate(
       pricePyg: variants.pricePyg,
       compareAtPyg: variants.compareAtPyg,
       onHand: variants.onHand,
+      attributes: variants.attributes,
+      identifiers: variants.identifiers,
     })
     .from(variants)
     .where(
@@ -177,6 +203,8 @@ async function hydrate(
       pricePyg: row.pricePyg,
       compareAtPyg: row.compareAtPyg,
       available: Math.max(0, row.onHand - (held.get(row.id) ?? 0)),
+      attributes: publicVariantAttributes(row.attributes),
+      identifiers: publicIdentifiers(row.identifiers),
     });
     variantsByProduct.set(row.productId, list);
   }
@@ -193,6 +221,10 @@ async function hydrate(
   }
 
   return rows.map((row) => ({
+    verifiedSpecifications: publicSpecifications(row.specifications),
+    seoTitle: row.seoTitle,
+    seoDescription: row.seoDescription,
+    illustrativeImages: Boolean(row.illustrativeImages),
     saleMode: row.saleMode,
     showPrice: row.showPrice,
     id: row.id,
@@ -211,6 +243,10 @@ async function hydrate(
 }
 
 const PRODUCT_COLUMNS = {
+  specifications: products.specifications,
+  seoTitle: products.seoTitle,
+  seoDescription: products.seoDescription,
+  illustrativeImages: sql<number>`JSON_UNQUOTE(JSON_EXTRACT(${products.supplierDetails}, '$.imageProvenance')) = 'illustrative'`,
   saleMode: products.saleMode,
   showPrice: products.showPrice,
   id: products.id,
@@ -280,7 +316,7 @@ export async function getFeaturedProducts(
   return getCatalog({ limit }, executor);
 }
 
-export type CategoryQuery = {
+export type CategoryQuery = CatalogueAttributeFilters & {
   categorySlug: string;
   brand?: string;
   minPricePyg?: number;
@@ -314,7 +350,8 @@ export async function getCategoryProducts(
   const filters = and(
     PUBLISHED(),
     eq(categories.slug, query.categorySlug),
-    query.brand ? eq(products.brand, query.brand) : undefined
+    query.brand ? eq(products.brand, query.brand) : undefined,
+    catalogueAttributePredicate(query)
   );
 
   const havingParts = [
@@ -450,7 +487,11 @@ export async function searchProducts(
         sql`MATCH(${products.name}, ${products.description}) AGAINST (${booleanTerm} IN BOOLEAN MODE)`
       )
     )
-    .limit(limit);
+    .limit(limit)
+    .catch((error: unknown) => {
+      if (missingFullTextIndex(error)) return [];
+      throw error;
+    });
 
   if (matched.length > 0) return hydrate(tx, matched);
 
@@ -520,7 +561,11 @@ export async function suggestProducts(
         sql`MATCH(${products.name}, ${products.description}) AGAINST (${booleanTerm} IN BOOLEAN MODE)`
       )
     )
-    .limit(limit);
+    .limit(limit)
+    .catch((error: unknown) => {
+      if (missingFullTextIndex(error)) return [];
+      throw error;
+    });
 
   if (matched.length > 0) return matched;
 
@@ -536,6 +581,22 @@ export async function suggestProducts(
       )
     )
     .limit(limit);
+}
+
+/** An absent FULLTEXT index can use LIKE; other schema/connection failures must surface. */
+function missingFullTextIndex(error: unknown): boolean {
+  let cause = error;
+  for (
+    let depth = 0;
+    depth < 5 && cause && typeof cause === "object";
+    depth++
+  ) {
+    const item = cause as { code?: string; errno?: number; cause?: unknown };
+    if (item.code === "ER_FT_MATCHING_KEY_NOT_FOUND" || item.errno === 1191)
+      return true;
+    cause = item.cause;
+  }
+  return false;
 }
 
 export async function getCategories(executor?: Executor) {

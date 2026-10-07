@@ -138,6 +138,12 @@ export const StoreSettingsSchema = z.object({
     barraCompraMovil: interruptor(true),
   }),
   checkout: seccion({
+    metodosPago: z
+      .array(z.enum(["transferencia", "contra_entrega", "tarjeta"]))
+      .max(3)
+      .nullable()
+      .default(null)
+      .catch([]),
     confianzaActiva: interruptor(true),
     confianzaTitulo: texto,
     confianzaLineas: z.array(z.string()).max(4).nullable().catch(null),
@@ -440,6 +446,11 @@ export const SECTION_INPUT = {
     .strict(),
   checkout: z
     .object({
+      metodosPago: z
+        .array(z.enum(["transferencia", "contra_entrega", "tarjeta"]))
+        .max(3)
+        .nullable()
+        .optional(),
       confianzaActiva: booleano(true),
       confianzaTitulo: textoHasta(60, t("panel.ajustes.checkout.titulo")),
       confianzaLineas: z

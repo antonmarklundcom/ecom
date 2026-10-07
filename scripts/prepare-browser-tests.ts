@@ -6,6 +6,8 @@ import {
   bankDetails,
   categories,
   products,
+  productImages,
+  productSlugRedirects,
   variants,
 } from "@/db/schema";
 import { createUser } from "@/lib/auth";
@@ -52,46 +54,74 @@ async function main(): Promise<void> {
       password: ownerPassword,
       role: "owner",
     });
-    await db
-      .insert(bankDetails)
-      .values({
-        id: 1,
-        banco: "Banco de prueba",
-        titular: "Comercio de prueba",
-        ruc: "80000000-0",
-        cuenta: "12345",
-        tipoCuenta: "corriente",
-      });
-    const [category] = await db
-      .insert(categories)
-      .values({
-        slug: "browser-fixtures",
-        name: "Browser fixtures",
-        position: 999,
-      });
+    await createUser({
+      email: "staff@browser.example.test",
+      password: ownerPassword,
+      role: "staff",
+    });
+    await db.insert(bankDetails).values({
+      id: 1,
+      banco: "Banco de prueba",
+      titular: "Comercio de prueba",
+      ruc: "80000000-0",
+      cuenta: "12345",
+      tipoCuenta: "corriente",
+    });
+    const [category] = await db.insert(categories).values({
+      slug: "browser-fixtures",
+      name: "Browser fixtures",
+      position: 999,
+    });
     for (const saleMode of ["enquiry", "showcase", "stock"] as const) {
       const slug = `browser-${saleMode}`;
-      const [product] = await db
-        .insert(products)
+      const [product] = await db.insert(products).values({
+        slug,
+        name: `Browser ${saleMode}`,
+        categoryId: Number(category.insertId),
+        saleMode,
+        showPrice: saleMode === "stock",
+        specifications: {
+          verifiedAt: "2026-01-01T00:00:00.000Z",
+          unit: "unidad",
+          values: { capacity: 500 },
+        },
+        supplierDetails: {
+          verifiedAt: "2026-01-01T00:00:00.000Z",
+          imageProvenance: "illustrative",
+          reference: "disposable-fixture",
+        },
+        publishedAt: new Date(),
+      });
+      await db
+        .insert(productSlugRedirects)
         .values({
-          slug,
-          name: `Browser ${saleMode}`,
-          categoryId: Number(category.insertId),
-          saleMode,
-          showPrice: saleMode === "stock",
-          publishedAt: new Date(),
+          slug: `${slug}-original`,
+          productId: Number(product.insertId),
         });
-      for (const [index, label] of ["Small", "Large"].entries()) {
-        await db
-          .insert(variants)
-          .values({
+      if (saleMode === "stock")
+        await db.insert(productImages).values([
+          {
             productId: Number(product.insertId),
-            sku: `${slug}-${label}`,
-            label,
-            pricePyg: 123456,
-            onHand: saleMode === "stock" ? 50 : 0,
-            position: index,
-          });
+            cloudinaryId: "fixture-front",
+            alt: "Vista frontal de la botella de prueba",
+            position: 0,
+          },
+          {
+            productId: Number(product.insertId),
+            cloudinaryId: "fixture-back",
+            alt: "Vista posterior de la botella de prueba",
+            position: 1,
+          },
+        ]);
+      for (const [index, label] of ["Small", "Large"].entries()) {
+        await db.insert(variants).values({
+          productId: Number(product.insertId),
+          sku: `${slug}-${label}`,
+          label,
+          pricePyg: 123456,
+          onHand: saleMode === "stock" ? 50 : 0,
+          position: index,
+        });
       }
       // Assert the fixture is actually published before the build reads it.
       const [row] = await db

@@ -71,6 +71,9 @@ test.describe("capturas por PR", () => {
     });
 
     test(`ficha de pedido @ ${width}`, async ({ page }) => {
+      // This case buys, logs in, searches, and opens a detail page before capture.
+      // Keep the individual UI assertions bounded, allowing time for all flows.
+      test.setTimeout(90_000);
       // Un pedido propio del test: no depende de que otro spec haya corrido
       // antes ni de datos del seed (mismo criterio que `panel.spec.ts`).
       const { orderNumber } = await realizarCompra(page);

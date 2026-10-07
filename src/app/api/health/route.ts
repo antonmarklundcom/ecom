@@ -1,5 +1,6 @@
-import { getPool } from '@/db';
-import { cronAtrasado, getJobRun } from '@/domain/job-runs';
+import { getPool } from "@/db";
+import { getCatalog } from "@/db/queries";
+import { cronAtrasado, getJobRun } from "@/domain/job-runs";
 
 /**
  * Prueba de humo post-deploy (DEPLOY.md §6).
@@ -19,7 +20,7 @@ import { cronAtrasado, getJobRun } from '@/domain/job-runs';
  */
 
 // Chequea la base en cada llamada: nunca se prerenderiza ni se cachea.
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 /**
  * Corto a propósito. Un health check que tarda 30 segundos en decir que la
@@ -36,11 +37,16 @@ const DB_TIMEOUT_MS = 3_000;
  */
 export async function GET(): Promise<Response> {
   const db = await dbResponde();
-  const cron = db ? await cronAlDia() : false;
+  const [cron, catalog] = db
+    ? await Promise.all([cronAlDia(), catalogResponde()])
+    : [false, false];
 
-  return new Response(JSON.stringify({ ok: true, db, cron }), {
+  return new Response(JSON.stringify({ ok: true, db, catalog, cron }), {
     status: 200,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+    },
   });
 }
 
@@ -48,7 +54,7 @@ async function dbResponde(): Promise<boolean> {
   try {
     // `getPool()` tira si falta DATABASE_URL: eso también es `db:false`, que es
     // justo lo que hay que reportar.
-    const query = getPool().query('SELECT 1');
+    const query = getPool().query("SELECT 1");
     await Promise.race([query, rechazarAlVencer()]);
     return true;
   } catch {
@@ -61,7 +67,9 @@ async function dbResponde(): Promise<boolean> {
 
 async function cronAlDia(): Promise<boolean> {
   try {
-    return !cronAtrasado(await getJobRun('vencer_pedidos'));
+    return !cronAtrasado(
+      await Promise.race([getJobRun("vencer_pedidos"), rechazarAlVencer()])
+    );
   } catch {
     return false;
   }
@@ -69,8 +77,25 @@ async function cronAlDia(): Promise<boolean> {
 
 function rechazarAlVencer(): Promise<never> {
   return new Promise((_resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout')), DB_TIMEOUT_MS);
+    const timer = setTimeout(() => reject(new Error("timeout")), DB_TIMEOUT_MS);
     // El proceso no se queda vivo por este timer si la query ya volvió.
     timer.unref?.();
   });
+}
+
+async function catalogResponde(): Promise<boolean> {
+  try {
+    await Promise.race([getCatalog({ limit: 1 }), rechazarAlVencer()]);
+    // Include dependent catalogue tables/columns even on a genuinely empty store.
+    await Promise.race([
+      getPool()
+        .query(`SELECT v.attributes, v.identifiers, i.cloudinary_id, r.qty
+      FROM variants v LEFT JOIN product_images i ON i.product_id=v.product_id
+      LEFT JOIN stock_reservations r ON r.variant_id=v.id LIMIT 1`),
+      rechazarAlVencer(),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
 }

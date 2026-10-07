@@ -24,6 +24,10 @@ describe("admin workspace isolation", () => {
     state.pathname = "/admin/pedidos/1";
     rerender(element());
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    state.pathname = "/setup";
+    rerender(element());
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
     state.pathname = "/producto/item";
     rerender(element());
     expect(screen.getByRole("banner")).toBeVisible();

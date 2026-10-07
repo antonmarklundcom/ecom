@@ -2,6 +2,7 @@ import { t, type MessageKey } from "@/i18n";
 import { can, type Capability } from "@/lib/permissions";
 import type { UserRole } from "@/lib/roles";
 import { TESTIDS } from "@/lib/testids";
+import { EDITORIAL_TOOLS } from "@/config/editorial-tools";
 
 const sections = [
   ["/admin", "dashboard", "panel.nav.resumen", "dashboard"],
@@ -23,6 +24,8 @@ const sections = [
     "integrations",
   ],
   ["/admin/usuarios", "usuarios", "panel.nav.usuarios", "users"],
+  ["/admin/guia", "usuarios", "panel.nav.guia", "guide"],
+  ["/admin/seo", "usuarios", "panel.nav.seo", "guide"],
 ] as const satisfies readonly (readonly [
   string,
   Capability,
@@ -43,11 +46,17 @@ export function adminMenuFor(
   pendingReviews = 0
 ): AdminMenuItem[] {
   return sections
-    .filter(([, capability]) => can(role, capability))
+    .filter(
+      ([href, capability]) =>
+        can(role, capability) &&
+        (href !== "/admin/seo" || EDITORIAL_TOOLS.enabled)
+    )
     .map(([href, , label, icon]) => ({
       href,
       label:
-        href === "/admin/resenas" && pendingReviews > 0
+        href === "/admin/resenas" &&
+        Number.isSafeInteger(pendingReviews) &&
+        pendingReviews > 0
           ? t("panel.nav.resenasPendientes", { n: pendingReviews })
           : t(label),
       icon,
@@ -61,6 +70,7 @@ export function isActiveAdminSection(
 ): boolean {
   return (
     pathname === href ||
+    (href === "/admin" && pathname === "/admin/bienvenida") ||
     (href !== "/admin" && Boolean(pathname?.startsWith(`${href}/`)))
   );
 }

@@ -14,7 +14,10 @@ export function StorefrontShell({
   storefrontAfter: ReactNode;
 }) {
   const pathname = usePathname();
-  const admin = pathname === "/admin" || pathname?.startsWith("/admin/");
+  const admin =
+    pathname === "/admin" ||
+    pathname?.startsWith("/admin/") ||
+    pathname === "/setup";
   return (
     <>
       {!admin ? storefrontBefore : null}

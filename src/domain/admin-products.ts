@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { z } from "zod";
 
 import { getDb } from "@/db";
 import {
@@ -19,6 +20,17 @@ import type { Executor } from "./executor";
 import { getAvailability, heldQtyMap } from "./stock";
 import { notifyBackInStock } from "./stock-alerts";
 import { log, mensajeDe } from "@/lib/log";
+import {
+  ProductSpecificationsSchema,
+  SupplierDetailsSchema,
+  VariantAttributesSchema,
+  VerifiedIdentifiersSchema,
+  type ProductSpecifications,
+  type SupplierDetails,
+  type VariantAttributes,
+  type VerifiedIdentifiers,
+} from "@/lib/product-attributes";
+import { assertProductSlugAvailable, claimProductSlug } from "./product-slugs";
 
 /**
  * Catálogo desde el panel (PLAN.md 4.6).
@@ -277,7 +289,40 @@ export async function listCategories(executor?: Executor) {
 // Escrituras
 // ---------------------------------------------------------------------------
 
+function validateOptional<T>(
+  schema: z.ZodType<T>,
+  value: T | null | undefined
+): T | null | undefined {
+  if (value === undefined || value === null) return value;
+  const result = schema.safeParse(value);
+  if (!result.success)
+    throw new AdminInputError("adminError.producto.atributosInvalidos");
+  return result.data;
+}
+
+function validateProductAttributes(input: ProductWrite) {
+  return {
+    specifications: validateOptional(
+      ProductSpecificationsSchema,
+      input.specifications
+    ),
+    supplierDetails: validateOptional(
+      SupplierDetailsSchema,
+      input.supplierDetails
+    ),
+    seoTitle: validateOptional(z.string().trim().max(200), input.seoTitle),
+    seoDescription: validateOptional(
+      z.string().trim().max(500),
+      input.seoDescription
+    ),
+  };
+}
+
 export type ProductWrite = {
+  specifications?: ProductSpecifications | null;
+  supplierDetails?: SupplierDetails | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   slug: string;
@@ -300,10 +345,14 @@ export async function createProduct(
   input: ProductWrite,
   executor?: Executor
 ): Promise<number> {
+  if (!executor) return getDb().transaction((tx) => createProduct(input, tx));
   const tx = executor ?? getDb();
   await assertSlugFree(tx, input.slug, null);
+  await assertProductSlugAvailable(tx, input.slug, null);
+  const attributes = validateProductAttributes(input);
 
   await tx.insert(products).values({
+    ...attributes,
     saleMode: input.saleMode,
     showPrice: (input.saleMode ?? "stock") === "stock" ? true : input.showPrice,
     slug: input.slug,
@@ -324,6 +373,7 @@ export async function createProduct(
     .limit(1);
   const created = rows[0];
   if (!created) throw new AdminInputError("adminError.producto.noPude");
+  await claimProductSlug(tx, input.slug, created.id);
   return created.id;
 }
 
@@ -332,20 +382,32 @@ export async function updateProduct(
   input: ProductWrite,
   executor?: Executor
 ): Promise<void> {
+  if (!executor)
+    return getDb().transaction((tx) => updateProduct(productId, input, tx));
   const tx = executor ?? getDb();
-  await assertSlugFree(tx, input.slug, productId);
 
   const existing = await tx
-    .select({ publishedAt: products.publishedAt, saleMode: products.saleMode })
+    .select({
+      slug: products.slug,
+      publishedAt: products.publishedAt,
+      saleMode: products.saleMode,
+    })
     .from(products)
     .where(eq(products.id, productId))
-    .limit(1);
+    .limit(1)
+    .for("update");
   const current = existing[0];
   if (!current) throw new AdminInputError("adminError.producto.noExiste");
+  await assertSlugFree(tx, input.slug, productId);
+  await assertProductSlugAvailable(tx, input.slug, productId, current.slug);
+  const attributes = validateProductAttributes(input);
+  await claimProductSlug(tx, current.slug, productId);
+  await claimProductSlug(tx, input.slug, productId);
 
   await tx
     .update(products)
     .set({
+      ...attributes,
       saleMode: input.saleMode,
       showPrice:
         (input.saleMode ?? current.saleMode) === "stock"
@@ -388,6 +450,8 @@ async function assertSlugFree(
 }
 
 export type VariantWrite = {
+  attributes?: VariantAttributes | null;
+  identifiers?: VerifiedIdentifiers | null;
   id?: number;
   sku: string;
   label: string;
@@ -414,6 +478,14 @@ export async function saveVariant(
   executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
+  const attributes = validateOptional(
+    VariantAttributesSchema,
+    input.attributes
+  );
+  const identifiers = validateOptional(
+    VerifiedIdentifiersSchema,
+    input.identifiers
+  );
 
   const clash = await tx
     .select({ id: variants.id })
@@ -429,6 +501,8 @@ export async function saveVariant(
 
   if (input.id === undefined) {
     await tx.insert(variants).values({
+      attributes,
+      identifiers,
       productId,
       sku: input.sku,
       label: input.label,
@@ -444,6 +518,8 @@ export async function saveVariant(
   await tx
     .update(variants)
     .set({
+      ...(attributes === undefined ? {} : { attributes }),
+      ...(identifiers === undefined ? {} : { identifiers }),
       sku: input.sku,
       label: input.label,
       pricePyg: input.pricePyg,

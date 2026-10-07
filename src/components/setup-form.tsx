@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { loginAdminAfterSetup } from "@/app/actions/admin-auth";
+import { PasswordInput } from "@/components/ui/password-input";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
+
+export const SETUP_WELCOME_PATH = "/admin/bienvenida";
+export const SETUP_LOGIN_PATH = "/admin/login?next=%2Fadmin%2Fbienvenida";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +29,7 @@ type Respuesta = {
   detalle?: string;
   pasos?: Record<string, string>;
   preflight?: { checks: Chequeo[]; blocking: number; warnings: number };
+  loginError?: boolean;
 };
 
 /**
@@ -31,6 +39,7 @@ type Respuesta = {
  * reporte de preflight —, nunca lo que se tipeó.
  */
 export function SetupForm() {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [respuesta, setRespuesta] = useState<Respuesta | null>(null);
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -56,7 +65,7 @@ export function SetupForm() {
           const email = String(data.get("email") ?? "").trim();
           const password = String(data.get("password") ?? "");
           const repeatPassword = String(data.get("repeatPassword") ?? "");
-          if (password !== repeatPassword) {
+          if (email && password !== repeatPassword) {
             setRespuesta({ ok: false, error: "passwords_do_not_match" });
             return;
           }
@@ -69,6 +78,7 @@ export function SetupForm() {
                   owner: {
                     email,
                     password,
+                    passwordConfirmation: repeatPassword,
                     ...(nombre ? { name: nombre } : {}),
                   },
                 }
@@ -87,13 +97,33 @@ export function SetupForm() {
                 body: JSON.stringify(cuerpo),
               });
               const json = (await res.json().catch(() => ({}))) as Respuesta;
-              setRespuesta(
-                res.ok ? { ...json, ok: true } : { ...json, ok: false }
-              );
+              const success = res.ok && json.ok === true;
+              const ownerReady =
+                json.pasos?.duenio === "creado" ||
+                json.pasos?.duenio === "actualizado";
+              if (success && email && !ownerReady) {
+                setRespuesta({ ok: false, error: "cuenta_sin_confirmar" });
+                return;
+              }
+              setRespuesta({ ...json, ok: success });
               // La contraseña y el secreto no se quedan en pantalla.
-              if (res.ok) {
+              if (success) {
                 form.reset();
                 setOwnerEmail("");
+                if (email && ownerReady) {
+                  const credentials = new FormData();
+                  credentials.set("email", email);
+                  credentials.set("password", password);
+                  let authenticated = false;
+                  try {
+                    authenticated = (await loginAdminAfterSetup(credentials))
+                      .ok;
+                  } catch {
+                    /* Account already created; preserve success and offer login. */
+                  }
+                  if (authenticated) router.replace(SETUP_WELCOME_PATH);
+                  else setRespuesta({ ...json, ok: true, loginError: true });
+                }
               }
             } catch {
               setRespuesta({ ok: false, error: "red" });
@@ -211,34 +241,19 @@ function PasswordField({
   label: string;
   required: boolean;
 }) {
-  const [visible, setVisible] = useState(false);
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <div className="relative">
-        <Input
-          id={id}
-          name={name}
-          type={visible ? "text" : "password"}
-          autoComplete="new-password"
-          required={required}
-          className="pr-12"
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="absolute top-0 right-0"
-          aria-controls={id}
-          aria-pressed={visible}
-          aria-label={t(visible ? "setup.hidePassword" : "setup.showPassword", {
-            campo: label,
-          })}
-          onClick={() => setVisible(!visible)}
-        >
-          {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-        </Button>
-      </div>
+      <PasswordInput
+        id={id}
+        name={name}
+        autoComplete="new-password"
+        required={required}
+        minLength={MIN_PASSWORD_LENGTH}
+        maxLength={200}
+        showLabel={t("setup.showPassword", { campo: label })}
+        hideLabel={t("setup.hidePassword", { campo: label })}
+      />
     </div>
   );
 }
@@ -247,6 +262,10 @@ function mensajeDeError(respuesta: Respuesta): string {
   switch (respuesta.error) {
     case "passwords_do_not_match":
       return t("setup.error.passwords");
+    case "password_no_coincide":
+      return t("setup.error.passwords");
+    case "cuenta_sin_confirmar":
+      return t("setup.error.cuentaSinConfirmar");
     case "unauthorized":
       return t("setup.error.secreto");
     case "rate_limited":
@@ -292,8 +311,9 @@ function Resultado({
       {respuesta.ok ? (
         <>
           <p>{t("setup.successNext")}</p>
+          {respuesta.loginError ? <p>{t("setup.loginManual")}</p> : null}
           <Button asChild className="w-fit">
-            <Link href="/admin/login">{t("setup.adminLogin")}</Link>
+            <Link href={SETUP_LOGIN_PATH}>{t("setup.adminLogin")}</Link>
           </Button>
         </>
       ) : null}

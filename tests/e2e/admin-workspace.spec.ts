@@ -23,7 +23,9 @@ test("every admin section loads, has an active icon link, and excludes shopping 
 }) => {
   test.setTimeout(90_000);
   const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) =>
+    errors.push(`${page.url()}: ${error.message}`)
+  );
   await loginAsOwner(page);
   const menu = page.getByRole("navigation", {
     name: "Menú del panel",
@@ -32,7 +34,7 @@ test("every admin section loads, has an active icon link, and excludes shopping 
   const routes = await menu
     .getByRole("link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href")!));
-  expect(routes).toHaveLength(14);
+  expect(routes).toHaveLength(15);
   for (const route of routes) {
     const response = await page.goto(route);
     expect(response?.status(), route).toBe(200);
@@ -45,6 +47,7 @@ test("every admin section loads, has an active icon link, and excludes shopping 
     await expect(page.getByTestId(TESTIDS.headerCategoryLink)).toHaveCount(0);
     await expect(page.getByRole("contentinfo")).toHaveCount(0);
     await expect(page.locator("[data-whatsapp-fab]")).toHaveCount(0);
+    expect(errors, route).toEqual([]);
   }
   expect(errors).toEqual([]);
   await page.getByRole("button", { name: "Salir", exact: true }).click();
@@ -174,10 +177,11 @@ test("setup validates repeated passwords, focuses success above the form, and li
     submissions++;
     const body = route.request().postDataJSON();
     expect(body).not.toHaveProperty("repeatPassword");
+    expect(body.owner.passwordConfirmation).toBe(body.owner.password);
     expect(body.seed).toBe(false);
     expect(body.force).toBe(false);
     await route.fulfill({
-      json: { ok: true, pasos: { migraciones: "ok", owner: "creado" } },
+      json: { ok: true, pasos: { migraciones: "ok", duenio: "creado" } },
     });
   });
   await page.goto("/setup");

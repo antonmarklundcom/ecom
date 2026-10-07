@@ -35,7 +35,7 @@ describe("account menu preferences", () => {
       })
     );
     fireEvent.click(screen.getByRole("button", { name: t("panel.menu.save") }));
-    const nav = screen.getByRole("navigation", { name: t("panel.menu.label") });
+    let nav = screen.getByRole("navigation", { name: t("panel.menu.label") });
     await waitFor(() =>
       expect(nav.querySelector("a")).toHaveAttribute("href", "/admin/pedidos")
     );
@@ -45,6 +45,7 @@ describe("account menu preferences", () => {
         Content
       </AdminWorkspace>
     );
+    nav = screen.getByRole("navigation", { name: t("panel.menu.label") });
     expect(nav.querySelector("a")).toHaveAttribute("href", "/admin");
     expect(localStorage.getItem("ecom:admin-menu:v1:202")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: t("panel.menu.edit") }));
