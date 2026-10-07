@@ -34,6 +34,10 @@ onlyBuiltDependencies:
 # actualizar). Sólo usa `v4()`, API estable entre 8 y 11 — forzar el parche
 # acá hasta que exceljs suba su propio pin.
 overrides:
+  # GHSA-68fv-2mgg-jv7q: patched source-map section-offset validation.
+  source-map-js: "^1.2.2"
+  # GHSA-wq5f-xc86-pv6w: patched librsvg in sharp's prebuilt binaries.
+  sharp: "^0.35.5"
   nanoid: "^3.3.18"
   uuid: "^11.1.1"
   "brace-expansion@1": "1.1.21"
