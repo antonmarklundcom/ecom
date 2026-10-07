@@ -1465,6 +1465,12 @@ export const esPY = {
   "panel.resumen.cron.ayuda":
     "Sin él, los pedidos sin pagar no vencen, el stock queda reservado para siempre y no sale ningún recordatorio de pago. Se configura en el hPanel → Avanzado → Cron Jobs, cada 15 minutos (DEPLOY.md §5).",
 
+  "panel.resumen.backupNunca":
+    "El backup automático está configurado y nunca terminó bien",
+  "panel.resumen.backupParado":
+    "El último backup automático que terminó bien es del {cuando}",
+  "panel.resumen.backup.ayuda":
+    "Corre una vez por día desde el cron del hPanel (DEPLOY.md §5, tercera entrada). Sin una corrida buena en 26 horas, revisá que la entrada exista y el motivo del último fallo; ver docs/BACKUP-RECOVERY.md.",
   "panel.resumen.ventasHoy": "Ventas de hoy",
   "panel.resumen.ventasMes": "Ventas del mes",
   "panel.resumen.cobrados.uno": "{n} pedido cobrado",

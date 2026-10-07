@@ -106,3 +106,21 @@ Chromium midió 235,1 KB en home, 246,4 KB en producto y 240,4 KB en checkout
 con el catálogo poblado. Los límites anteriores no se aumentaron. Esto
 resuelve la importación del diccionario completo; los bundles de Next y las
 otras funciones del cliente siguen formando parte del presupuesto.
+
+## MariaDB 10.11 puede rechazar `RENAME COLUMN` de una columna JSON — 2026-10-07
+
+MariaDB guarda una columna `json` como `longtext` con un `CHECK
+(json_valid(...))` automático. Con la suite de integración se reprodujo que,
+después de ciertas consultas previas en el servidor (sólo SELECT y DML, sin
+DDL), `ALTER TABLE variants RENAME COLUMN identifiers TO …` falla con
+`Unknown column 'identifiers' in 'CHECK'`, también desde una sesión nueva del
+cliente. `ALTER TABLE … CHANGE identifiers otro_nombre JSON NULL` (con la
+definición explícita) sí funciona, en MariaDB y en MySQL 8.
+
+Hoy ninguna migración del template renombra una columna JSON; el test que
+simulaba una columna faltante con `RENAME COLUMN` pasó a usar `CHANGE`
+(docs/TEMPLATE-IMPROVEMENT-PLAN.md, batch B). Si algún día `pnpm db:generate`
+produce un `RENAME COLUMN` sobre una columna JSON, reescribir esa sentencia
+como `CHANGE … JSON NULL` antes de commitear la migración y probarla contra
+MariaDB (`.github/workflows/mariadb.yml`). La causa exacta en MariaDB no se
+investigó más allá de reproducirla.

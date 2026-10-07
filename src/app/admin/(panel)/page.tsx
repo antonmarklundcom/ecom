@@ -7,7 +7,8 @@ import { getDashboardSummary, salesTrend, topProducts } from "@/domain/admin-das
 import { DEFAULT_REORDER_POINT, lowStockVariants } from "@/domain/admin-products";
 import { getStoreSettings } from "@/domain/store-settings";
 import { umbralStockBajo } from "@/domain/store-settings-schema";
-import { cronAtrasado, getJobRun } from "@/domain/job-runs";
+import { backupAtrasado, cronAtrasado, getJobRun } from "@/domain/job-runs";
+import { backupsEnabled } from "@/domain/backup";
 import {
   countActiveDemoProducts,
   countActiveShippingZones,
@@ -31,7 +32,7 @@ export default async function AdminDashboardPage() {
   // variante igual gana.
   const { stock } = await getStoreSettings();
 
-  const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas, cron, sinPrecio] =
+  const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas, cron, sinPrecio, backup] =
     await Promise.all([
     getDashboardSummary(),
     listOrders({ status: "esperando_verificacion", perPage: 5 }),
@@ -44,6 +45,7 @@ export default async function AdminDashboardPage() {
     countActiveShippingZones(),
     getJobRun("vencer_pedidos"),
     countUnpricedSellableVariants(),
+    getJobRun("backup"),
   ]);
 
   return (
@@ -122,6 +124,23 @@ export default async function AdminDashboardPage() {
               : t("panel.resumen.cronNunca")}
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">{t("panel.resumen.cron.ayuda")}</p>
+        </section>
+      ) : null}
+
+      {/*
+        El backup automático (DEPLOY.md §5) tampoco se ve fallar si el cron
+        desapareció: el aviso por WhatsApp sólo sale cuando corre y falla.
+        Sólo si hay almacenamiento configurado — sin eso no hay backup
+        automático que vigilar (docs/TEMPLATE-IMPROVEMENT-PLAN.md B5).
+      */}
+      {backupsEnabled() && backupAtrasado(backup) && can(actor.role, "usuarios") ? (
+        <section className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
+          <h2 className="font-medium">
+            {backup?.lastOkAt
+              ? t("panel.resumen.backupParado", { cuando: formatDateTimePY(backup.lastOkAt) })
+              : t("panel.resumen.backupNunca")}
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">{t("panel.resumen.backup.ayuda")}</p>
         </section>
       ) : null}
 

@@ -1,3 +1,4 @@
+import { migrationStatus } from "@/db/migration-status";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
 
 /**
@@ -27,5 +28,30 @@ export async function GET(request: Request): Promise<Response> {
     sha: process.env.BUILD_SHA ?? "desconocido",
     builtAt: process.env.BUILD_AT ?? "desconocido",
     node: process.version,
+    // ¿Tomó el redeploy *y* la migración? (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+    // B2). `null` si la base no contesta a tiempo: eso lo dice `/api/health`.
+    migrations: await estadoDeMigraciones(),
   });
+}
+
+async function estadoDeMigraciones() {
+  try {
+    const status = await Promise.race([
+      migrationStatus(),
+      new Promise<never>((_resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("timeout")), 3_000);
+        timer.unref?.();
+      }),
+    ]);
+    return {
+      current: status.current,
+      applied: status.applied,
+      expected: status.expected,
+      pending: status.pending,
+      skipped: status.skipped,
+      foreign: status.foreign,
+    };
+  } catch {
+    return null;
+  }
 }

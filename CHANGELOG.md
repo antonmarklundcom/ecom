@@ -25,6 +25,23 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **La historia de migraciones se cuida sola** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+  B1–B7). `template:sync` (también `--dry-run` y `distribuir.yml`) y
+  `template:diff --marcar` se frenan **antes de escribir** cuando la tienda
+  tiene migraciones propias y el template trae otras, o cuando alguien
+  reescribió una migración publicada: drizzle saltea sin avisar una migración
+  más vieja que la última aplicada. Cómo salir: NEW-STORE.md § "Migraciones
+  propias de una tienda". `pnpm db:check`, `/api/version` y el nuevo
+  `migrations` de `/api/health` dicen qué migraciones faltan o se saltearían;
+  `db:migrate` y el setup se niegan a migrar sobre una historia cruzada y no
+  esperan más de 30 s un lock. El backup vuelca las tablas de la migración que
+  la base tiene aplicada (antes, entre deploy y migración, fallaba). `/api/health`
+  suma `backup` (el backup automático no corrió bien en 26 h) y el resumen del
+  panel lo avisa al dueño. Los scripts aceptan el `--` que pasa pnpm 11.
+  **Monitores de uptime:** la palabra clave documentada
+  (`"db":true,"cron":true`) dejó de coincidir cuando se agregó `catalog`;
+  usar `"db":true,"catalog":true,"cron":true,"migrations":true` (DEPLOY.md §8).
+  Sin migración.
 - **₲0 no se vende ni se muestra** (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1–A3).
   El carrito rechaza una variante sin precio cobrable aunque esté publicada
   (filas viejas incluidas), el panel no deja publicar con stock una variante

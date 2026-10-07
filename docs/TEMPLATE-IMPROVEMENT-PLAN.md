@@ -175,11 +175,17 @@ storefront specs time out once; the isolated rerun passed.
   migration (NEW-STORE.md): take the template update first, then regenerate
   the store's unapplied migration; an already-applied store migration that
   collides is a manual, reviewed operation, never an automated rewrite.
-- **Acceptance.** `tests/integration/template-sync.test.ts`: index
-  collision, older incoming `when`, rewritten released migration and snapshot
-  collision are rejected before writes with a clean `git status`; a store
-  without its own migrations still syncs.
-- **Status.** planned.
+- **Acceptance.** `tests/integration/template-sync.test.ts` (real git
+  repositories): an index collision is rejected in both dry run and real run,
+  also with `--commitear-conflictos`, leaving `HEAD` and the working tree
+  untouched (not even non-migration machinery is written); a rewritten
+  released migration is rejected; a store without its own migrations
+  receives the template's, and a store with its own migrations still syncs
+  when the template brings none. The three rejection cases failed on the
+  original script. `tests/unit/template-migrations.test.ts` covers the pure
+  rules, including conflict markers in the journal, and checks that this
+  repository's own journal is contiguous, strictly increasing and complete.
+- **Status.** fixed in PR B.
 
 ### B2 · No diagnostic for pending or skipped migrations — P1
 
@@ -190,9 +196,14 @@ storefront specs time out once; the isolated rerun passed.
   journal by position (hash and `created_at`). `db:check` exits non-zero on
   pending/skipped/unknown migrations; `/api/version` lists pending tags; health
   adds a `schema` boolean; `db:migrate` reports before applying.
-- **Acceptance.** Deleting the last applied row makes health report
-  `schema:false` and version list it as pending; a foreign hash is reported.
-- **Status.** planned.
+- **Acceptance.** `migration-safety.test.ts`: deleting the last applied row
+  makes health report `migrations:false` and `/api/version` list the tag as
+  pending; a foreign row newer than a pending migration is reported as
+  `foreign` and the pending one as `skipped`. `tests/unit/migration-status.test.ts`
+  covers the pure comparison and the `db:check` wording. The health key is
+  `migrations` (not `schema`): the existing test forbids the word "schema" in
+  the public response.
+- **Status.** fixed in PR B.
 
 ### B3 · Migrations can wait a year for a metadata lock — P1
 
@@ -202,9 +213,14 @@ storefront specs time out once; the isolated rerun passed.
   and every storefront query on that table queues behind it.
 - **Fix.** A bounded `lock_wait_timeout` on the migration connection (a
   dedicated connection, not a pooled one).
-- **Acceptance.** Integration test: with a concurrent open transaction the
-  migration fails fast with a lock-wait error instead of hanging.
-- **Status.** planned.
+- **Acceptance.** `tests/integration/migration-safety.test.ts`: with a
+  concurrent open transaction on `products`, a pending `ALTER` fails with
+  `ER_LOCK_WAIT_TIMEOUT` in about two seconds and leaves no column and no
+  migration row behind. The same scenario with plain `migrate()` was still
+  waiting after 15 s (scratch reproduction; not committed as a test because
+  it would hang). `db:migrate` and `/api/setup/init` also refuse to migrate
+  over a history with skipped or foreign rows.
+- **Status.** fixed in PR B.
 
 ### B4 · Backup inventory follows the code, not the database — P1
 
@@ -216,9 +232,12 @@ storefront specs time out once; the isolated rerun passed.
   manifest by hand and never exercises the real producer.
 - **Fix.** Derive the table list from the applied migration's snapshot and
   use it for the dump and the counts.
-- **Acceptance.** A database migrated through `0022` dumps successfully with
-  the `0022` table list, and `inspectBackup` accepts it.
-- **Status.** planned.
+- **Acceptance.** `migration-safety.test.ts`: a database migrated through
+  `0022` dumps with exactly the `0022` table list (no
+  `product_slug_redirects`) and `inspectBackup` accepts the file. On the
+  original code the same test failed with `ER_NO_SUCH_TABLE …
+  product_slug_redirects`.
+- **Status.** fixed in PR B.
 
 ### B5 · Backup and digest jobs can stop silently — P2
 
@@ -231,7 +250,7 @@ storefront specs time out once; the isolated rerun passed.
 - **Acceptance.** A 30-hour-old successful backup with storage configured
   reports `backup:false`; with backups disabled the flag is `true` and the
   banner is hidden.
-- **Status.** planned.
+- **Status.** fixed in PR B.
 
 ### B6 · pnpm 11 passes a literal `--` to CLI scripts — P2
 
@@ -240,8 +259,25 @@ storefront specs time out once; the isolated rerun passed.
   fails with "no conozco la opción --". `restore` and the importer already
   ignore it.
 - **Fix.** Ignore a leading `--` in each argument parser.
-- **Acceptance.** Parser unit tests accept both forms.
-- **Status.** planned.
+- **Acceptance.** `tests/unit/cli-separator.test.ts`: all six parsers give
+  the same result with and without a leading `--` (all six failed before);
+  unknown options still fail.
+- **Status.** fixed in PR B.
+
+### B7 · The documented uptime keyword never matches — P2
+
+- **Failure.** DEPLOY.md §8 told monitors to alert unless the body contains
+  `"db":true,"cron":true`; since #147 the response is
+  `{"ok":true,"db":true,"catalog":true,"cron":true}`, so that substring never
+  appears and a monitor configured as documented alerts permanently (or, set
+  to "contains", never).
+- **Fix.** Keep the existing keys in their order, append `migrations` and
+  `backup`, and document the keyword
+  `"db":true,"catalog":true,"cron":true,"migrations":true` plus a separate
+  `"backup":true` monitor.
+- **Acceptance.** `tests/integration/health-route.test.ts` keeps asserting the
+  documented substring order.
+- **Status.** fixed in PR B.
 
 ### Checked in batch B and not present
 

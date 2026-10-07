@@ -507,3 +507,186 @@ describe("template:sync contra git de verdad", () => {
     expect(resultado.estado).toBe("precondicion");
   });
 });
+
+/**
+ * docs/TEMPLATE-IMPROVEMENT-PLAN.md B1: la historia de migraciones se decide
+ * antes de escribir. Un journal real (`drizzle/meta/_journal.json`) en el
+ * template y en la tienda, y cada caso agrega lo suyo.
+ */
+describe("template:sync y la historia de migraciones", () => {
+  type Entrada = { idx: number; tag: string; when: number };
+
+  function journal(entradas: Entrada[]): string {
+    return `${JSON.stringify(
+      {
+        version: "7",
+        dialect: "mysql",
+        entries: entradas.map((e) => ({
+          idx: e.idx,
+          version: "5",
+          when: e.when,
+          tag: e.tag,
+          breakpoints: true,
+        })),
+      },
+      null,
+      2
+    )}\n`;
+  }
+
+  function migracion(repo: string, entrada: Entrada, sql: string): void {
+    escribir(repo, `drizzle/${entrada.tag}.sql`, sql);
+    escribir(
+      repo,
+      `drizzle/meta/${String(entrada.idx).padStart(4, "0")}_snapshot.json`,
+      `{"id":"${entrada.tag}"}\n`
+    );
+  }
+
+  const PUBLICADA: Entrada = { idx: 0, tag: "0000_inicio", when: 1_000 };
+
+  function escenarioConMigraciones() {
+    const template = repoTemporal("template-migraciones-template");
+    identidadGit(template);
+    migracion(template, PUBLICADA, "CREATE TABLE a (id int);\n");
+    escribir(template, "drizzle/meta/_journal.json", journal([PUBLICADA]));
+    escribir(template, "src/domain/stock.ts", "v1\n");
+    const c0 = commit(template, "C0");
+    gitEn(template, ["branch", "-M", "main"]);
+
+    const tienda = repoTemporal("template-migraciones-tienda");
+    identidadGit(tienda);
+    migracion(tienda, PUBLICADA, "CREATE TABLE a (id int);\n");
+    escribir(tienda, "drizzle/meta/_journal.json", journal([PUBLICADA]));
+    escribir(tienda, "src/domain/stock.ts", "v1\n");
+    writeFileSync(join(tienda, ".template-baseline"), `# baseline\n${c0}\n`);
+    commit(tienda, "C0 tienda");
+    gitEn(tienda, ["checkout", "-b", "sync"]);
+    gitEn(tienda, ["remote", "add", "template", template]);
+    return { template, tienda };
+  }
+
+  function estadoLimpio(repo: string): void {
+    expect(gitEn(repo, ["status", "--porcelain"]).trim()).toBe("");
+  }
+
+  it("una tienda sin migraciones propias recibe la nueva del template", () => {
+    const { template, tienda } = escenarioConMigraciones();
+    const nueva = { idx: 1, tag: "0001_tpl", when: 2_000 };
+    migracion(template, nueva, "ALTER TABLE a ADD b int;\n");
+    escribir(
+      template,
+      "drizzle/meta/_journal.json",
+      journal([PUBLICADA, nueva])
+    );
+    commit(template, "C1 migración");
+
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe("completado");
+    expect(leer(tienda, "drizzle/0001_tpl.sql")).toContain("ADD b");
+    expect(leer(tienda, "drizzle/meta/_journal.json")).toContain("0001_tpl");
+  });
+
+  it("mismo índice en la tienda y en el template: no escribe nada, ni en --dry-run", () => {
+    const { template, tienda } = escenarioConMigraciones();
+    const propia = { idx: 1, tag: "0001_tienda", when: 3_000 };
+    migracion(tienda, propia, "ALTER TABLE a ADD tienda int;\n");
+    escribir(
+      tienda,
+      "drizzle/meta/_journal.json",
+      journal([PUBLICADA, propia])
+    );
+    const antes = commit(tienda, "migración propia");
+
+    const nueva = { idx: 1, tag: "0001_tpl", when: 2_000 };
+    migracion(template, nueva, "ALTER TABLE a ADD b int;\n");
+    escribir(
+      template,
+      "drizzle/meta/_journal.json",
+      journal([PUBLICADA, nueva])
+    );
+    escribir(template, "src/domain/stock.ts", "v2\n");
+    commit(template, "C1 migración");
+
+    for (const dryRun of [true, false]) {
+      const resultado = ejecutarSync(tienda, { ...OPCIONES, dryRun });
+      expect(resultado.estado).toBe("precondicion");
+      if (resultado.estado !== "precondicion")
+        throw new Error("no debería pasar");
+      expect(resultado.mensaje).toContain("0001_tienda");
+      expect(resultado.mensaje).toContain("0001_tpl");
+      expect(resultado.mensaje).toMatch(/saltearía/);
+    }
+
+    estadoLimpio(tienda);
+    expect(gitEn(tienda, ["rev-parse", "HEAD"]).trim()).toBe(antes);
+    expect(existe(tienda, "drizzle/0001_tpl.sql")).toBe(false);
+    // Ni siquiera la maquinaria que no es de drizzle: o entra todo, o nada.
+    expect(leer(tienda, "src/domain/stock.ts")).toBe("v1\n");
+  });
+
+  it("con --commitear-conflictos tampoco commitea un journal chocado", () => {
+    const { template, tienda } = escenarioConMigraciones();
+    const propia = { idx: 1, tag: "0001_tienda", when: 3_000 };
+    migracion(tienda, propia, "ALTER TABLE a ADD tienda int;\n");
+    escribir(
+      tienda,
+      "drizzle/meta/_journal.json",
+      journal([PUBLICADA, propia])
+    );
+    const antes = commit(tienda, "migración propia");
+    const nueva = { idx: 1, tag: "0001_tpl", when: 4_000 };
+    migracion(template, nueva, "ALTER TABLE a ADD b int;\n");
+    escribir(
+      template,
+      "drizzle/meta/_journal.json",
+      journal([PUBLICADA, nueva])
+    );
+    commit(template, "C1 migración");
+
+    const resultado = ejecutarSync(tienda, {
+      ...OPCIONES,
+      commitearConflictos: true,
+    });
+
+    expect(resultado.estado).toBe("precondicion");
+    expect(gitEn(tienda, ["rev-parse", "HEAD"]).trim()).toBe(antes);
+    estadoLimpio(tienda);
+  });
+
+  it("el template reescribió una migración publicada: no la trae", () => {
+    const { template, tienda } = escenarioConMigraciones();
+    migracion(template, PUBLICADA, "CREATE TABLE a (id bigint);\n");
+    commit(template, "C1 reescribe 0000");
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+
+    expect(resultado.estado).toBe("precondicion");
+    if (resultado.estado !== "precondicion")
+      throw new Error("no debería pasar");
+    expect(resultado.mensaje).toMatch(
+      /reescribió la migración publicada 0000 0000_inicio/
+    );
+    expect(leer(tienda, "drizzle/0000_inicio.sql")).toBe(
+      "CREATE TABLE a (id int);\n"
+    );
+    estadoLimpio(tienda);
+  });
+
+  it("una tienda con migraciones propias sincroniza mientras el template no traiga otras", () => {
+    const { template, tienda } = escenarioConMigraciones();
+    const propia = { idx: 1, tag: "0001_tienda", when: 3_000 };
+    migracion(tienda, propia, "ALTER TABLE a ADD tienda int;\n");
+    escribir(
+      tienda,
+      "drizzle/meta/_journal.json",
+      journal([PUBLICADA, propia])
+    );
+    commit(tienda, "migración propia");
+    escribir(template, "src/domain/stock.ts", "v2\n");
+    commit(template, "C1 sin migraciones");
+
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe("completado");
+    expect(leer(tienda, "src/domain/stock.ts")).toBe("v2\n");
+    expect(leer(tienda, "drizzle/meta/_journal.json")).toContain("0001_tienda");
+  });
+});

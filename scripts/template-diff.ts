@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
+import { mensajeProblemasMigraciones, problemasEntreRefs } from './template-migrations';
+
 import {
   BASELINE_FILE,
   clasificar,
@@ -63,7 +65,9 @@ export type Opciones = {
   forzar: boolean;
 };
 
-export function parseArgs(argv: string[]): Opciones {
+export function parseArgs(entrada: string[]): Opciones {
+  // pnpm 11 pasa el `--` de `pnpm <script> -- --flag` tal cual (B6).
+  const argv = entrada.filter((arg) => arg !== '--');
   const opciones: Opciones = {
     remoto: 'template',
     rama: 'main',
@@ -147,6 +151,19 @@ function main(): void {
       process.exitCode = 1;
       return;
     }
+    // Marcar "al día" con la historia de migraciones chocada haría que la del
+    // template no volviera a aparecer nunca (docs/TEMPLATE-IMPROVEMENT-PLAN.md B1).
+    const baselineActual = existsSync(BASELINE_FILE)
+      ? parseBaseline(readFileSync(BASELINE_FILE, 'utf8'))
+      : null;
+    const problemasAlMarcar = baselineActual
+      ? problemasEntreRefs(process.cwd(), { base: baselineActual, tienda: 'HEAD', template: marca })
+      : [];
+    if (problemasAlMarcar.length > 0 && !opciones.forzar) {
+      console.error(`\n✗ No marco. ${mensajeProblemasMigraciones(problemasAlMarcar)}`);
+      process.exitCode = 1;
+      return;
+    }
     const faltanAlMarcar = faltantesContra(marca);
     if (faltanAlMarcar.length > 0 && !opciones.forzar) {
       console.error(
@@ -179,6 +196,16 @@ function main(): void {
   }
 
   const commits = commitsClasificados(process.cwd(), baseline, ref);
+
+  const problemasMigraciones = problemasEntreRefs(process.cwd(), {
+    base: baseline,
+    tienda: 'HEAD',
+    template: cabezaTemplate,
+  });
+  if (problemasMigraciones.length > 0) {
+    console.log(`\n! ${mensajeProblemasMigraciones(problemasMigraciones)}`);
+    process.exitCode = 1;
+  }
 
   const faltan = faltantesContra(cabezaTemplate);
   if (faltan.length > 0) {

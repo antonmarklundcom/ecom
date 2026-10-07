@@ -69,7 +69,8 @@ export type DumpStats = { tables: number; rows: number };
  * que son de una o dos filas y se traen enteras.
  */
 export async function* dumpRows(
-  executor?: Executor
+  executor?: Executor,
+  tables: readonly BackupTable[] = BACKUP_TABLES
 ): AsyncGenerator<{ table: BackupTable; row: Record<string, unknown> }> {
   if (!executor) {
     const connection = await getPool().getConnection();
@@ -81,7 +82,7 @@ export async function* dumpRows(
       await connection.query(
         "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY"
       );
-      yield* dumpRows(drizzle(connection, { schema, mode: "default" }));
+      yield* dumpRows(drizzle(connection, { schema, mode: "default" }), tables);
       await connection.commit();
       completed = true;
     } catch (error) {
@@ -95,7 +96,7 @@ export async function* dumpRows(
   }
   const tx = executor;
 
-  for (const table of BACKUP_TABLES) {
+  for (const table of tables) {
     const pk = PRIMARY_KEY[table];
 
     if (pk === null) {
@@ -179,12 +180,13 @@ export function dumpDatabase(executor?: Executor): {
         const manifest = await backupManifest(tx);
         yield `${JSON.stringify(manifest)}\n`;
         const tablas = new Set<string>();
-        const counts = Object.fromEntries(
-          BACKUP_TABLES.map((table) => [table, 0])
-        );
+        // Las tablas del manifiesto, no las del código: ver
+        // `backupTablesForMigration` (B4).
+        const tables = manifest.tables as readonly BackupTable[];
+        const counts = Object.fromEntries(tables.map((table) => [table, 0]));
         const digest = rowDigest();
         let filas = 0;
-        for await (const { table, row } of dumpRows(tx)) {
+        for await (const { table, row } of dumpRows(tx, tables)) {
           tablas.add(table);
           filas += 1;
           counts[table]! += 1;

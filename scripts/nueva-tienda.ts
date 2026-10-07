@@ -293,7 +293,9 @@ export type Respuestas = Partial<DatosTienda> & { tema?: string };
  * (así el mensaje de error, si el nombre está mal, sale de `escribirTema`,
  * que es quien conoce la lista completa y no la duplica).
  */
-export function parseFlags(argv: readonly string[]): Respuestas {
+export function parseFlags(entrada: readonly string[]): Respuestas {
+  // pnpm 11 pasa el `--` de `pnpm <script> -- --flag` tal cual (B6).
+  const argv = entrada.filter((arg) => arg !== '--');
   const conocidas: Record<string, keyof DatosTienda | 'tema'> = {
     '--nombre': 'nombre',
     '--titulo': 'titulo',

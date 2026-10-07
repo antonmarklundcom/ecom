@@ -1,6 +1,9 @@
 import { getPool } from "@/db";
 import { getCatalog } from "@/db/queries";
-import { cronAtrasado, getJobRun } from "@/domain/job-runs";
+import { migrationStatus } from "@/db/migration-status";
+import { backupsEnabled } from "@/domain/backup";
+import { backupAtrasado, cronAtrasado, getJobRun } from "@/domain/job-runs";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * Prueba de humo post-deploy (DEPLOY.md §6).
@@ -34,20 +37,40 @@ const DB_TIMEOUT_MS = 3_000;
  * un monitor tiene que ver: sin ese cron no vence ningún pedido sin pagar, el
  * stock queda reservado y no sale ningún recordatorio (DEPLOY.md §5). Con la
  * base caída no se puede saber, y se contesta `false`.
+ *
+ * `migrations`: ¿la base tiene exactamente las migraciones de este código?
+ * (docs/TEMPLATE-IMPROVEMENT-PLAN.md B2). `false` entre un deploy y su
+ * migración, o con una historia de migraciones cruzada; el detalle (qué tags)
+ * está en `/api/version` y `pnpm db:check`, que piden secreto o acceso.
+ *
+ * `backup`: ¿el backup automático corrió bien en las últimas 26 h? (B5). Sólo
+ * se exige si la tienda tiene backups configurados; sin eso es `true`, que
+ * no dice que haya una copia — dice que no hay un cron de backup que vigilar.
+ *
+ * Un monitor tiene que pedir `db`, `catalog` y `migrations` en `true`, y
+ * mirar `cron` y `backup` aparte (DEPLOY.md §6).
  */
 export async function GET(): Promise<Response> {
   const db = await dbResponde();
-  const [cron, catalog] = db
-    ? await Promise.all([cronAlDia(), catalogResponde()])
-    : [false, false];
+  const [cron, catalog, migrations, backup] = db
+    ? await Promise.all([
+        cronAlDia(),
+        catalogResponde(),
+        migracionesAlDia(),
+        backupAlDia(),
+      ])
+    : [false, false, false, false];
 
-  return new Response(JSON.stringify({ ok: true, db, catalog, cron }), {
-    status: 200,
-    headers: {
-      "content-type": "application/json",
-      "cache-control": "no-store",
-    },
-  });
+  return new Response(
+    JSON.stringify({ ok: true, db, catalog, cron, migrations, backup }),
+    {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      },
+    }
+  );
 }
 
 async function dbResponde(): Promise<boolean> {
@@ -69,6 +92,28 @@ async function cronAlDia(): Promise<boolean> {
   try {
     return !cronAtrasado(
       await Promise.race([getJobRun("vencer_pedidos"), rechazarAlVencer()])
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function migracionesAlDia(): Promise<boolean> {
+  try {
+    const status = await Promise.race([migrationStatus(), rechazarAlVencer()]);
+    return status.current;
+  } catch {
+    return false;
+  }
+}
+
+async function backupAlDia(): Promise<boolean> {
+  try {
+    // Las credenciales pueden venir del panel (`/admin/integraciones`).
+    await Promise.race([cargarIntegraciones(), rechazarAlVencer()]);
+    if (!backupsEnabled()) return true;
+    return !backupAtrasado(
+      await Promise.race([getJobRun("backup"), rechazarAlVencer()])
     );
   } catch {
     return false;
