@@ -14,6 +14,7 @@ import {
   publicVariantAttributes,
   publicIdentifiers,
 } from "./public-product-facts";
+import { isChargeablePrice } from "./money";
 import { variantUrl } from "./variant-url";
 
 /**
@@ -212,6 +213,11 @@ export function productJsonLd(input: {
     input.variants.find((v) => v.sku === input.selectedSku) ??
     input.variants.find((v) => v.available > 0) ??
     input.variants[0];
+  const priced =
+    (input.saleMode === undefined || input.saleMode === "stock") &&
+    input.showPrice !== false
+      ? input.variants.filter((v) => isChargeablePrice(v.pricePyg))
+      : [];
   const result: JsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -222,29 +228,27 @@ export function productJsonLd(input: {
     brand: input.brand ? { "@type": "Brand", name: input.brand } : undefined,
     sku: selected?.sku,
     ...publicIdentifierLd(selected?.identifiers),
-    offers:
-      (input.saleMode === undefined || input.saleMode === "stock") &&
-      input.showPrice !== false
-        ? input.variants
-            .filter((v) => Number.isSafeInteger(v.pricePyg) && v.pricePyg > 0)
-            .map((variant) => ({
-              "@type": "Offer",
-              sku: variant.sku,
-              name: variant.label,
-              price: variant.pricePyg,
-              priceCurrency: "PYG",
-              itemCondition: "https://schema.org/NewCondition",
-              url: url ? variantUrl(url, variant.sku) : undefined,
-              availability:
-                variant.available > 0
-                  ? "https://schema.org/InStock"
-                  : "https://schema.org/OutOfStock",
-              ...(shippingDetails ? { shippingDetails } : {}),
-              ...(returnPolicy
-                ? { hasMerchantReturnPolicy: returnPolicy }
-                : {}),
-            }))
-        : undefined,
+    // Sin ningún precio cobrable no hay `offers`: una lista vacía es un dato
+    // estructurado inválido, no "sin ofertas".
+    ...(priced.length > 0
+      ? {
+          offers: priced.map((variant) => ({
+            "@type": "Offer",
+            sku: variant.sku,
+            name: variant.label,
+            price: variant.pricePyg,
+            priceCurrency: "PYG",
+            itemCondition: "https://schema.org/NewCondition",
+            url: url ? variantUrl(url, variant.sku) : undefined,
+            availability:
+              variant.available > 0
+                ? "https://schema.org/InStock"
+                : "https://schema.org/OutOfStock",
+            ...(shippingDetails ? { shippingDetails } : {}),
+            ...(returnPolicy ? { hasMerchantReturnPolicy: returnPolicy } : {}),
+          })),
+        }
+      : {}),
     ...(conResenas && input.rating
       ? {
           aggregateRating: {

@@ -24,6 +24,31 @@ export function assertGs(value: number, label = 'monto'): number {
   return value;
 }
 
+/**
+ * ¿Es un precio que se puede cobrar? Entero seguro y mayor que cero.
+ *
+ * `price_pyg` acepta 0 a propósito —un borrador o un producto de consulta
+ * todavía no tiene precio—, así que "hay un número" no alcanza: ₲0 no se
+ * cobra, no se ofrece y no se muestra (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1).
+ * Carrito, catálogo, tarjetas, JSON-LD y feed preguntan acá.
+ */
+export function isChargeablePrice(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+/** El "desde" de un producto: el menor precio cobrable, o `undefined` si no hay ninguno. */
+export function lowestChargeablePrice(
+  variants: readonly { pricePyg: number }[]
+): number | undefined {
+  let lowest: number | undefined;
+  for (const { pricePyg } of variants) {
+    if (isChargeablePrice(pricePyg) && (lowest === undefined || pricePyg < lowest)) {
+      lowest = pricePyg;
+    }
+  }
+  return lowest;
+}
+
 const GROUPER = new Intl.NumberFormat('es-PY', {
   maximumFractionDigits: 0,
   useGrouping: true,

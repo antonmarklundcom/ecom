@@ -7,6 +7,7 @@ import { StockBadge } from "@/components/stock-badge";
 import { WishlistButton } from "@/components/wishlist-button";
 import type { CatalogProduct } from "@/db/queries";
 import { t, tPlural } from "@/i18n/client";
+import { isChargeablePrice } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
 
 export function ProductCard({
@@ -26,8 +27,12 @@ export function ProductCard({
 }) {
   // El precio "desde" es el de la variante más barata disponible; si no hay
   // ninguna con stock, igual mostramos el más barato para no dejar el card mudo.
-  const inStock = product.variants.filter((variant) => variant.available > 0);
-  const shown = (inStock.length > 0 ? inStock : product.variants).reduce<
+  // Sólo entre precios que se cobran: un ₲0 no es "desde ₲0".
+  const priced = product.variants.filter((variant) =>
+    isChargeablePrice(variant.pricePyg)
+  );
+  const inStock = priced.filter((variant) => variant.available > 0);
+  const shown = (inStock.length > 0 ? inStock : priced).reduce<
     CatalogProduct["variants"][number] | undefined
   >(
     (cheapest, variant) =>
@@ -58,7 +63,7 @@ export function ProductCard({
         <WishlistButton
           slug={product.slug}
           name={product.name}
-          sku={shown?.sku}
+          sku={shown?.sku ?? product.variants[0]?.sku}
           pricePyg={product.showPrice === false ? undefined : shown?.pricePyg}
         />
       </div>

@@ -1,5 +1,5 @@
 import { t } from "@/i18n/client";
-import { formatGs } from "@/lib/money";
+import { formatGs, isChargeablePrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,6 +20,10 @@ export function PriceTag({
   showIvaNote?: boolean;
   className?: string;
 }) {
+  // ₲0 no es un precio: una fila vieja o un producto de consulta todavía sin
+  // precio no se dibuja como mercadería gratis (ni con "−100 %" si tiene un
+  // precio de antes). docs/TEMPLATE-IMPROVEMENT-PLAN.md A1.
+  if (!isChargeablePrice(pricePyg)) return null;
   const hasDiscount = compareAtPyg != null && compareAtPyg > pricePyg;
   const discount = hasDiscount
     ? Math.round(((compareAtPyg - pricePyg) / compareAtPyg) * 100)

@@ -4,7 +4,7 @@ import { CATALOGUE } from "@/config/catalogue";
 import { getCatalog, getProductBySlug } from "@/db/queries";
 import { ComparisonPicker } from "@/components/comparison-picker";
 import { comparisonLimit, comparisonSlugs } from "@/lib/comparison";
-import { formatGs } from "@/lib/money";
+import { formatGs, lowestChargeablePrice } from "@/lib/money";
 import { siteOrigin } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
@@ -77,15 +77,18 @@ export default async function ComparePage({
                 <th scope="row" className="p-3">
                   Precio desde
                 </th>
-                {products.map((p) => (
-                  <td className="p-3" key={p.id}>
-                    {p.saleMode === "stock" &&
-                    p.showPrice !== false &&
-                    p.variants.length
-                      ? formatGs(Math.min(...p.variants.map((v) => v.pricePyg)))
-                      : "Consultar"}
-                  </td>
-                ))}
+                {products.map((p) => {
+                  // Sólo precios cobrables: un ₲0 no es "desde ₲0".
+                  const desde =
+                    p.saleMode === "stock" && p.showPrice !== false
+                      ? lowestChargeablePrice(p.variants)
+                      : undefined;
+                  return (
+                    <td className="p-3" key={p.id}>
+                      {desde !== undefined ? formatGs(desde) : "Consultar"}
+                    </td>
+                  );
+                })}
               </tr>
               {facts.map((d) => (
                 <tr key={d.key}>

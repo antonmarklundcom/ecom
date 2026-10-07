@@ -1,7 +1,7 @@
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, lte } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { products, shippingZones } from "@/db/schema";
+import { categories, products, shippingZones, variants } from "@/db/schema";
 
 import { SEED_PRODUCTS } from "../../scripts/seed-data";
 import type { Executor } from "./executor";
@@ -46,5 +46,35 @@ export async function countActiveShippingZones(executor?: Executor): Promise<num
     .select({ n: count() })
     .from(shippingZones)
     .where(eq(shippingZones.isActive, true));
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * ¿Hay variantes a la venta con stock y sin precio cobrable?
+ *
+ * `price_pyg` acepta 0 para borradores y consultas, y el panel ya no deja
+ * publicar así (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1). Pero una tienda que
+ * viene de antes puede tener filas viejas: el carrito y la vidriera las
+ * esconden, y sin este aviso el dueño no se entera de que tiene productos
+ * publicados que nadie puede comprar. Mismo criterio de "a la venta" que
+ * `PUBLISHED()` del catálogo, más modo stock y variante activa.
+ */
+export async function countUnpricedSellableVariants(executor?: Executor): Promise<number> {
+  const tx = executor ?? getDb();
+  const rows = await tx
+    .select({ n: count() })
+    .from(variants)
+    .innerJoin(products, eq(variants.productId, products.id))
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(
+      and(
+        eq(variants.isActive, true),
+        lte(variants.pricePyg, 0),
+        eq(products.isActive, true),
+        isNotNull(products.publishedAt),
+        eq(products.saleMode, "stock"),
+        eq(categories.isActive, true)
+      )
+    );
   return Number(rows[0]?.n ?? 0);
 }

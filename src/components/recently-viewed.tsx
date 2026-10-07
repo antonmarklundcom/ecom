@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
 import { t } from "@/i18n/client";
 import { categoryPlaceholderSrc, productImageUrl } from "@/lib/images";
-import { formatGs } from "@/lib/money";
+import { formatGs, isChargeablePrice } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
 
 /**
@@ -31,7 +31,12 @@ import { TESTIDS } from "@/lib/testids";
 export type RecentlyViewedItem = {
   slug: string;
   name: string;
-  pricePyg: number;
+  /**
+   * `null` cuando la ficha no tiene un precio que mostrar (oculto, consulta
+   * sin precio). Una entrada vieja guardada con 0 se trata igual: ₲0 no se
+   * dibuja (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1).
+   */
+  pricePyg: number | null;
   imageCloudinaryId: string | null;
   imageAlt: string | null;
 };
@@ -46,7 +51,7 @@ function isItem(value: unknown): value is RecentlyViewedItem {
     typeof item.slug === "string" &&
     item.slug !== "" &&
     typeof item.name === "string" &&
-    Number.isInteger(item.pricePyg) &&
+    (item.pricePyg === null || Number.isInteger(item.pricePyg)) &&
     (item.imageCloudinaryId === null ||
       typeof item.imageCloudinaryId === "string") &&
     (item.imageAlt === null || typeof item.imageAlt === "string")
@@ -132,9 +137,11 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
                 <h3 className="group-hover:text-foreground line-clamp-2 text-sm font-medium">
                   {item.name}
                 </h3>
-                <p className="text-muted-foreground mt-auto pt-2 text-sm tabular-nums">
-                  {formatGs(item.pricePyg)}
-                </p>
+                {isChargeablePrice(item.pricePyg) ? (
+                  <p className="text-muted-foreground mt-auto pt-2 text-sm tabular-nums">
+                    {formatGs(item.pricePyg)}
+                  </p>
+                ) : null}
               </div>
             </Link>
           );

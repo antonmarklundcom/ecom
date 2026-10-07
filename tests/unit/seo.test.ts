@@ -232,6 +232,17 @@ describe("productJsonLd", () => {
     expect(jsonLd.image).toBeUndefined();
     expect(jsonLd.url).toBeUndefined();
   });
+
+  it("sin ningún precio cobrable no publica una lista de ofertas vacía", () => {
+    const jsonLd = productJsonLd({
+      ...base,
+      origin: null,
+      images: [],
+      variants: base.variants.map((variant) => ({ ...variant, pricePyg: 0 })),
+    });
+    expect(jsonLd).not.toHaveProperty("offers");
+    expect(JSON.stringify(jsonLd)).not.toContain('"offers"');
+  });
 });
 
 describe("productJsonLd · reseñas verificadas", () => {

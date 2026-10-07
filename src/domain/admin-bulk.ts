@@ -174,6 +174,11 @@ export function precioAjustado(
   percent: number,
   roundTo: RoundTo
 ): number {
+  // Sin precio no hay nada que ajustar: un borrador o una consulta en ₲0 no
+  // sale del ajuste masivo con un precio inventado de ₲100
+  // (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1). El piso de abajo es para precios
+  // reales que el porcentaje dejaría en cero.
+  if (fromPyg <= 0) return fromPyg;
   const bruto = Math.round((fromPyg * (100 + percent)) / 100);
   const redondeado = Math.round(bruto / roundTo) * roundTo;
   return Math.max(roundTo, redondeado);

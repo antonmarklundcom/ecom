@@ -34,6 +34,13 @@ describe('precioAjustado — la cuenta, sin base', () => {
     expect(precioAjustado(990, -90, 100)).toBe(100);
   });
 
+  it('una variante sin precio sigue sin precio: un porcentaje de nada no es ₲100', () => {
+    // docs/TEMPLATE-IMPROVEMENT-PLAN.md A1: un borrador o un producto de
+    // consulta con ₲0 no puede salir del ajuste masivo con un precio inventado.
+    expect(precioAjustado(0, 10, 100)).toBe(0);
+    expect(precioAjustado(0, -50, 1000)).toBe(0);
+  });
+
   it('nunca devuelve ₲0: el piso es el redondeo', () => {
     // Un producto gratis en la vidriera es lo peor que puede salir de acá.
     expect(precioAjustado(50, -90, 100)).toBe(100);
