@@ -2,28 +2,10 @@ import type { PaymentMethod } from "@/db/schema";
 import { getDatosBancarios } from "@/lib/comercio";
 import { isPagoparConfigured } from "./pagopar/config";
 import type { Executor } from "./executor";
-import { CHECKOUT } from "@/config/checkout";
+import { paymentPolicy } from "./payment-policy";
 import { readStoreSettings } from "./store-settings";
 
-export function paymentPolicy(
-  owner: PaymentMethod[] | null,
-  environment: string | undefined
-): PaymentMethod[] {
-  const allowed = new Set<PaymentMethod>([
-    "transferencia",
-    "contra_entrega",
-    "tarjeta",
-  ]);
-  const requested =
-    owner ??
-    (environment === undefined
-      ? CHECKOUT.paymentMethods
-      : environment.split(",").map((s) => s.trim()));
-  // Invalid policy fails closed; an explicit empty list intentionally closes checkout.
-  if (requested.some((method) => !allowed.has(method as PaymentMethod)))
-    return [];
-  return [...new Set(requested)] as PaymentMethod[];
-}
+export { paymentPolicy } from "./payment-policy";
 
 export async function readyPaymentMethods(
   executor?: Executor

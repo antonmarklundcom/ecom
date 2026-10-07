@@ -381,6 +381,18 @@ between preview and write) and `tests/unit/catalog-import.test.ts`.
 
 ## Batch D — payment readiness and receipts (PR 4)
 
+Reproduced on the original code before fixing: `paymentPolicy(null, "")`
+returned `[]` (every method closed) and a `checkout` section stored as a
+string parsed to `metodosPago: null` (inherit, reopening a paused checkout)
+(D2); the original receipt sequence (unlocked checks → upload → record →
+transition) stored **4** receipts against a limit of 3 under two parallel
+uploads, and an order cancelled mid-upload kept a `pending` receipt while the
+buyer saw `InvalidTransitionError` (D4); the stock hold still expired 59 s
+after the receipt arrived (D5). Acceptance tests:
+`tests/unit/preflight.test.ts` (D1), `tests/unit/payment-policy.test.ts`
+(D2), `src/components/__tests__/receipt-section.test.tsx` (D3),
+`tests/integration/receipt-finalization.test.ts` (D4, D5, lock order).
+
 ### D1 · Preflight reports "ready" when checkout cannot take payment — P1
 
 - **Failure.** `pnpm preflight` checks bank details from `BANCO_*` only, as
@@ -389,7 +401,7 @@ between preview and write) and `tests/unit/catalog-import.test.ts`.
   prints "Nada bloquea el cobro".
 - **Fix.** Preflight evaluates the effective policy (panel > environment >
   config) and blocks when no method is ready or a selected method is not.
-- **Status.** planned.
+- **Status.** fixed in PR D.
 
 ### D2 · Empty or corrupted payment policy fails open or closes everything — P1
 
@@ -399,15 +411,19 @@ between preview and write) and `tests/unit/catalog-import.test.ts`.
   checkout the owner had paused.
 - **Fix.** Empty environment value = unset; a corrupted stored section =
   no methods (closed) until saved again.
-- **Status.** planned.
+- **Status.** fixed in PR D.
 
 ### D3 · Receipt upload offered without storage — P2
 
 - **Failure.** The order page always renders the upload form; without image
   storage the buyer picks a file, waits and gets a generic error.
 - **Fix.** Hide the form when storage is not configured and show the
-  existing WhatsApp fallback (or a plain "send it to the store" message).
-- **Status.** planned.
+  existing WhatsApp fallback (or a plain "send it to the store" message);
+  the action refuses early with a clear message. The browser test server
+  gets clearly-labelled disposable Cloudinary values (only when none are
+  set) so the "2 MB receipt reaches the action" spec keeps exercising the
+  form; its invalid file is rejected by validation before any upload.
+- **Status.** fixed in PR D.
 
 ### D4 · Receipt quota and order state are checked outside the lock — P1
 
@@ -418,18 +434,23 @@ between preview and write) and `tests/unit/catalog-import.test.ts`.
 - **Fix.** One locked transaction (order → receipts) re-checks state and
   quota, records the receipt and transitions; the uploaded asset is removed
   if it was not recorded. `reviewReceipt` takes the same lock order.
-- **Status.** planned.
+- **Status.** fixed in PR D.
 
 ### D5 · The stock hold can lapse while a receipt waits for review — P1
 
 - **Failure.** A transfer order's hold expires at `reservedUntil` even after
   the buyer uploaded a receipt; another buyer can take the last unit and the
   owner's approval then fails.
-- **Fix.** Entering `esperando_verificacion` re-secures the hold for a
-  bounded review window anchored to the first receipt (repeated uploads do
-  not extend it). The window is a store setting in `src/config/checkout.ts`.
-- **Hook.** `CHECKOUT.receiptReviewHoldHours`.
-- **Status.** planned.
+- **Fix.** Registering a receipt extends the order's **live** holds to the
+  first receipt + a bounded review window (repeated uploads do not extend
+  it; a hold that already lapsed is not revived without checking stock —
+  approval re-secures it if the unit is still there). The window lives in a
+  new store-owned file rather than `src/config/checkout.ts`, whose inline
+  type stores may have customised (a new required field would break their
+  typecheck on sync).
+- **Hook.** `src/config/receipt-review.ts` → `RECEIPT_REVIEW.holdHours`
+  (default 48 — an operational default each store can change).
+- **Status.** fixed in PR D.
 
 ### Checked in batch D and not present
 

@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { receipts, type OrderStatus } from "@/db/schema";
+import { orders, receipts, type OrderStatus } from "@/db/schema";
+import { withLockRetry } from "@/db/retry";
 import { signedReceiptUrl } from "@/lib/cloudinary";
 
 import { ReceiptError } from "./receipts";
@@ -49,7 +50,29 @@ export async function reviewReceipt(input: {
     throw new ReceiptError("error.comprobante.sinMotivo");
   }
 
-  return getDb().transaction(async (tx) => {
+  // De qué pedido es, sin lock: el orden de los locks es siempre pedido →
+  // comprobantes (el mismo de `finalizeUploadedReceipt`, `transitionOrder` y
+  // el cron). Tomar el comprobante primero y el pedido después se cruzaba con
+  // una subida en curso y terminaba en deadlock
+  // (docs/TEMPLATE-IMPROVEMENT-PLAN.md D4).
+  const owner = (
+    await getDb()
+      .select({ orderId: receipts.orderId })
+      .from(receipts)
+      .where(eq(receipts.id, input.receiptId))
+      .limit(1)
+  )[0];
+  if (!owner) {
+    throw new ReceiptError("error.comprobante.noExiste");
+  }
+
+  return withLockRetry(() => getDb().transaction(async (tx) => {
+    await tx
+      .select({ id: orders.id })
+      .from(orders)
+      .where(eq(orders.id, owner.orderId))
+      .for("update");
+
     // FOR UPDATE: dos pestañas abiertas en el mismo comprobante no pueden
     // aprobarlo y rechazarlo a la vez.
     const locked = await tx
@@ -59,7 +82,7 @@ export async function reviewReceipt(input: {
       .for("update");
 
     const receipt = locked[0];
-    if (!receipt) {
+    if (!receipt || receipt.orderId !== owner.orderId) {
       throw new ReceiptError("error.comprobante.noExiste");
     }
     if (receipt.review !== "pending") {
@@ -92,7 +115,7 @@ export async function reviewReceipt(input: {
     );
 
     return { orderId: receipt.orderId, status: target, changed: transition.changed };
-  });
+  }));
 }
 
 /**

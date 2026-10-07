@@ -1,10 +1,19 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, lt, sql } from "drizzle-orm";
 import type { MessageKey, Params } from "@/i18n";
 
 import { DomainError } from "./errors";
 
 import { getDb } from "@/db";
-import { receipts } from "@/db/schema";
+import {
+  orders,
+  receipts,
+  stockReservations,
+  type OrderStatus,
+} from "@/db/schema";
+import { withLockRetry } from "@/db/retry";
+import { RECEIPT_REVIEW } from "@/config/receipt-review";
+
+import { transitionOrder } from "./orders";
 
 import type { Executor } from "./executor";
 import { RECEIPT_MAX_BYTES } from "@/lib/upload-limits";
@@ -112,4 +121,106 @@ export async function pendingReceipts(executor?: Executor) {
     .select()
     .from(receipts)
     .where(and(eq(receipts.review, "pending")));
+}
+
+/**
+ * Registra un comprobante **ya subido** y mueve el pedido, todo bajo el lock
+ * del pedido (docs/TEMPLATE-IMPROVEMENT-PLAN.md D4).
+ *
+ * La acción mira estado y cupo antes de subir (es lo barato, y evita subir de
+ * más), pero la subida tarda: entre ese vistazo y el final, otra pestaña pudo
+ * subir el tercero, o el dueño pudo cancelar o cobrar el pedido. Por eso acá
+ * se vuelve a decidir todo con los locks tomados, en este orden —el mismo de
+ * `reviewReceipt`, `transitionOrder` y el cron—: **pedido → comprobantes →
+ * reservas**. Si algo no da, no queda nada escrito y quien llama borra el
+ * archivo que subió.
+ *
+ * Además sostiene la reserva de stock durante la revisión (D5): hasta el
+ * primer comprobante + `RECEIPT_REVIEW.holdHours`, sin renovarla con cada
+ * subida y sin revivir una reserva que ya venció (eso lo decide la
+ * aprobación, que vuelve a pedir stock si hace falta).
+ */
+export async function finalizeUploadedReceipt(input: {
+  orderId: number;
+  cloudinaryId: string;
+  mime: string;
+  bytes: number;
+}): Promise<void> {
+  await withLockRetry(() =>
+    getDb().transaction(async (tx) => {
+      const order = (
+        await tx
+          .select({ status: orders.status, paymentMethod: orders.paymentMethod })
+          .from(orders)
+          .where(eq(orders.id, input.orderId))
+          .for("update")
+      )[0];
+      if (!order) throw new ReceiptError("error.comprobante.pedidoNoEncontrado");
+      if (order.paymentMethod !== "transferencia") {
+        throw new ReceiptError("error.comprobante.noEsTransferencia");
+      }
+      if (!ACCEPTS_RECEIPT.includes(order.status)) {
+        throw new ReceiptError("error.comprobante.noEsperaComprobante");
+      }
+
+      const existing = await tx
+        .select({ id: receipts.id })
+        .from(receipts)
+        .where(eq(receipts.orderId, input.orderId))
+        .for("update");
+      if (existing.length >= RECEIPT_MAX_PER_ORDER) {
+        throw new ReceiptError("error.comprobante.demasiados", {
+          maximo: RECEIPT_MAX_PER_ORDER,
+        });
+      }
+
+      await recordReceipt(input, tx);
+      // Si ya estaba esperando verificación (segundo comprobante),
+      // transitionOrder lo trata como no-op.
+      await transitionOrder(
+        input.orderId,
+        "esperando_verificacion",
+        "buyer",
+        "comprobante subido",
+        { executor: tx }
+      );
+      await holdStockForReview(tx, input.orderId);
+    })
+  );
+}
+
+/** Los estados en que un pedido por transferencia espera (otro) comprobante. */
+export const ACCEPTS_RECEIPT: readonly OrderStatus[] = [
+  "pendiente_pago",
+  "rechazado",
+  "esperando_verificacion",
+];
+
+/**
+ * Lleva las reservas **vivas** del pedido hasta el primer comprobante + la
+ * ventana de revisión. Nunca las acorta, nunca revive una vencida.
+ */
+async function holdStockForReview(tx: Executor, orderId: number): Promise<void> {
+  const first = (
+    await tx
+      .select({ at: sql<Date>`MIN(${receipts.uploadedAt})` })
+      .from(receipts)
+      .where(eq(receipts.orderId, orderId))
+  )[0]?.at;
+  if (!first) return;
+  const until = new Date(
+    new Date(first).getTime() + RECEIPT_REVIEW.holdHours * 3_600_000
+  );
+  const now = new Date();
+  await tx
+    .update(stockReservations)
+    .set({ expiresAt: until })
+    .where(
+      and(
+        eq(stockReservations.orderId, orderId),
+        eq(stockReservations.state, "held"),
+        gt(stockReservations.expiresAt, now),
+        lt(stockReservations.expiresAt, until)
+      )
+    );
 }

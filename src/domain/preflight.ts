@@ -10,6 +10,9 @@ import {
   type Integracion,
 } from "@/lib/integraciones";
 
+import type { PaymentMethod } from "@/db/schema";
+
+import { paymentPolicy } from "./payment-policy";
 import { WEBHOOK_ENVELOPE_CONFIRMED } from "./pagopar/protocol";
 import { PAGOPAR_MOCK_MODE } from "./pagopar/mode";
 
@@ -200,6 +203,18 @@ function checkLecturaPanel(panel: PreflightPanel): PreflightCheck {
 export type PreflightAjustes = {
   nombreTienda?: string | null;
   cuentasClientes?: boolean | null;
+  /**
+   * La política de medios de pago guardada en `/admin/ajustes` y si
+   * `/admin/banco` tiene la cuenta cargada (docs/TEMPLATE-IMPROVEMENT-PLAN.md
+   * D1). `fallo` = la base no contestó: se evalúa con el entorno y se dice.
+   */
+  pagos?:
+    | {
+        lectura: "ok";
+        metodosPago: readonly PaymentMethod[] | null;
+        bancoEnPanel: boolean;
+      }
+    | { lectura: "fallo" };
 };
 
 export function preflight(
@@ -213,7 +228,11 @@ export function preflight(
     checkMarca(ajustes.nombreTienda),
     checkWebhookEnvelope(env),
     checkPagoparMode(env),
-    checkBancoVars(env),
+    checkMediosDePago(envCrudo, env, ajustes.pagos),
+    checkBancoVars(
+      env,
+      ajustes.pagos?.lectura === "ok" && ajustes.pagos.bancoEnPanel
+    ),
     checkCronSecret(env),
     checkSetupSecret(env),
     checkSessionSecret(env),
@@ -415,7 +434,18 @@ function checkPagoparMode(env: PreflightEnv): PreflightCheck {
  * donde pueden estar. El aviso que sí sabe es el del panel, que lee la base y
  * aparece en `/admin` cuando no hay datos en **ninguna** de las dos fuentes.
  */
-function checkBancoVars(env: PreflightEnv): PreflightCheck {
+function checkBancoVars(
+  env: PreflightEnv,
+  bancoEnPanel = false
+): PreflightCheck {
+  if (bancoEnPanel) {
+    return {
+      id: "banco",
+      severity: "ok",
+      title: "Datos bancarios (SPI/QR)",
+      detail: "cargados en /admin/banco (mandan sobre el entorno)",
+    };
+  }
   const missing = BANCO_VARS.filter((name) => value(env, name) === "");
 
   if (missing.length === 0) {
@@ -437,6 +467,105 @@ function checkBancoVars(env: PreflightEnv): PreflightCheck {
       "Si tampoco están cargados en el panel, la página del pedido muestra un aviso en vez de " +
       "la cuenta y la transferencia —el método principal del MVP— no se puede completar: " +
       "el resumen de /admin lo dice con la base a la vista",
+  };
+}
+
+const NOMBRE_MEDIO: Record<PaymentMethod, string> = {
+  transferencia: "transferencia",
+  contra_entrega: "contra entrega",
+  tarjeta: "tarjeta (Pagopar)",
+};
+
+/**
+ * ¿Con qué puede pagar una compradora **hoy**? (docs/TEMPLATE-IMPROVEMENT-PLAN.md D1)
+ *
+ * La misma cuenta que hace el checkout (`readyPaymentMethods`): la política
+ * elegida (Ajustes > `STORE_PAYMENT_METHODS` > `src/config/checkout.ts`)
+ * menos lo que no está configurado — transferencia sin cuenta bancaria en
+ * `/admin/banco` ni en el entorno, tarjeta sin las credenciales de Pagopar.
+ * Contra entrega no necesita nada.
+ *
+ * **Bloquea** si no queda ninguno: el checkout está cerrado, y "Nada bloquea
+ * el cobro" sería mentira. **Advierte** si un medio elegido no está listo (la
+ * tienda vende igual con los otros). Sin base para leer, se evalúa con el
+ * entorno y advierte en vez de bloquear: puede faltar algo que sólo está en
+ * el panel, y este reporte no frena un deploy por lo que no puede ver.
+ */
+function checkMediosDePago(
+  envCrudo: PreflightEnv,
+  env: PreflightEnv,
+  pagos: PreflightAjustes["pagos"]
+): PreflightCheck {
+  const leido = pagos?.lectura === "ok" ? pagos : null;
+  const politica = paymentPolicy(
+    leido?.metodosPago ?? null,
+    envCrudo.STORE_PAYMENT_METHODS
+  );
+  const bancoListo =
+    Boolean(leido?.bancoEnPanel) ||
+    BANCO_VARS.every((name) => value(env, name) !== "");
+  const tarjetaLista = [
+    "PAGOPAR_PUBLIC_KEY",
+    "PAGOPAR_PRIVATE_KEY",
+    "PAGOPAR_BASE_URL",
+  ].every((name) => value(env, name) !== "");
+  const listo = (metodo: PaymentMethod): boolean =>
+    metodo === "contra_entrega" ||
+    (metodo === "transferencia" && bancoListo) ||
+    (metodo === "tarjeta" && tarjetaLista);
+  const listos = politica.filter(listo);
+  const faltan = politica.filter((metodo) => !listo(metodo));
+  const origen = leido?.metodosPago
+    ? "elegidos en /admin/ajustes"
+    : envCrudo.STORE_PAYMENT_METHODS?.trim()
+      ? "STORE_PAYMENT_METHODS"
+      : "src/config/checkout.ts";
+  const porQue = faltan
+    .map((metodo) =>
+      metodo === "transferencia"
+        ? "transferencia sin cuenta bancaria (/admin/banco o BANCO_*)"
+        : "tarjeta sin credenciales de Pagopar"
+    )
+    .join("; ");
+  // `undefined`: quien llama no leyó la base (tests, el setup); se evalúa con
+  // el entorno sin bloquear por lo que no puede ver. `fallo`: la base no
+  // contestó, y se dice.
+  const sinBase = pagos?.lectura !== "ok";
+  const avisoSinBase =
+    pagos?.lectura === "fallo"
+      ? " No se pudo leer la base: se evaluó sólo con el entorno, y lo cargado en el panel puede cambiar esto."
+      : "";
+
+  if (listos.length === 0) {
+    return {
+      id: "medios_pago",
+      severity: sinBase ? "advierte" : "bloquea",
+      title: "Medios de pago",
+      detail:
+        (politica.length === 0
+          ? `ninguno elegido (${origen}): el checkout está cerrado`
+          : `ninguno listo de los elegidos (${origen}): ${porQue}. El checkout está cerrado`) +
+        avisoSinBase,
+    };
+  }
+  if (faltan.length > 0) {
+    return {
+      id: "medios_pago",
+      severity: "advierte",
+      title: "Medios de pago",
+      detail:
+        `se cobra con ${listos.map((m) => NOMBRE_MEDIO[m]).join(", ")}; ` +
+        `elegidos pero sin configurar (no se ofrecen): ${porQue}` +
+        avisoSinBase,
+    };
+  }
+  return {
+    id: "medios_pago",
+    severity: pagos?.lectura === "fallo" ? "advierte" : "ok",
+    title: "Medios de pago",
+    detail:
+      `se cobra con ${listos.map((m) => NOMBRE_MEDIO[m]).join(", ")} (${origen})` +
+      avisoSinBase,
   };
 }
 
