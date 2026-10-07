@@ -12,7 +12,7 @@ import { ProductGallery } from "@/components/product-gallery";
 import { CatalogueEditorial } from "@/components/catalogue-editorial";
 import { CATALOGUE } from "@/config/catalogue";
 import { getProductSlugRedirect } from "@/domain/product-slugs";
-import { variantFromSku, variantUrl } from "@/lib/variant-url";
+import { variantUrl } from "@/lib/variant-url";
 import { ProductCard } from "@/components/product-card";
 import { RatingStars, formatRating } from "@/components/rating-stars";
 import { RecentlyViewed } from "@/components/recently-viewed";
@@ -26,6 +26,9 @@ import { t, tPlural } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
 import { waLinkPublico, whatsappPublico } from "@/lib/comercio";
 import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
+import { outsideImages } from "@/lib/image-provenance";
+import { nombreTienda } from "@/lib/marca";
+import { TIENDA } from "@/config/tienda";
 import { markdownToText } from "@/lib/markdown";
 import { formatGs, lowestChargeablePrice } from "@/lib/money";
 import { formatDatePY } from "@/lib/py";
@@ -78,11 +81,11 @@ export async function generateMetadata({
         })
       : product.name);
 
-  // La foto principal, recortada a la caja que espera WhatsApp. Si el
-  // producto todavía no tiene fotos (o falta el cloud de Cloudinary), se
-  // omite `images` y Next hereda la del sitio (`app/opengraph-image.tsx`):
-  // el link se comparte con la marca en vez de con un rectángulo gris.
-  const ogImage = productImageUrl(product.images[0]?.cloudinaryId, "og");
+  // La primera foto que puede salir afuera (ni ilustrativa ni, si la tienda
+  // lo pide, sin procedencia: docs/TEMPLATE-IMPROVEMENT-PLAN.md E2),
+  // recortada a la caja que espera WhatsApp.
+  const sharePhoto = outsideImages(product.images)[0];
+  const ogImage = productImageUrl(sharePhoto?.cloudinaryId, "og");
 
   // == S17 == Mismo criterio que `categoria/[slug]`: canonical a la URL
   // limpia del producto, y sólo si hay origen configurado (`siteOrigin()`,
@@ -102,22 +105,31 @@ export async function generateMetadata({
     title: product.seoTitle || product.name,
     description,
     ...(canonical ? { alternates: { canonical } } : {}),
+    // El `openGraph` de una página **reemplaza** el del layout, no se fusiona
+    // (E3): sin repetir acá el nombre del sitio, el idioma y una imagen, el
+    // link se compartía sin ninguno de los tres. Sin foto publicable, la
+    // imagen es la del sitio (`app/opengraph-image.tsx`).
     openGraph: {
       title: product.seoTitle || product.name,
       description,
       type: "website",
-      ...(ogImage
-        ? {
-            images: [
-              {
-                url: ogImage,
-                width: OG_IMAGE_SIZE.width,
-                height: OG_IMAGE_SIZE.height,
-                alt: product.images[0]?.alt ?? product.name,
-              },
-            ],
-          }
-        : {}),
+      siteName: await nombreTienda(),
+      locale: TIENDA.ogLocale,
+      images: [
+        ogImage
+          ? {
+              url: ogImage,
+              width: OG_IMAGE_SIZE.width,
+              height: OG_IMAGE_SIZE.height,
+              alt: sharePhoto?.alt ?? product.name,
+            }
+          : {
+              url: "/opengraph-image",
+              width: OG_IMAGE_SIZE.width,
+              height: OG_IMAGE_SIZE.height,
+              alt: product.name,
+            },
+      ],
     },
   };
 }
@@ -154,15 +166,6 @@ export default async function ProductPage({
       : query.variante === undefined
         ? null
         : "__invalid_variant_link__";
-  const selected =
-    variantFromSku(
-      product.variants,
-      initialVariantSku,
-      product.saleMode === "stock"
-    ) ??
-    product.variants.find((v) => v.available > 0) ??
-    product.variants[0];
-
   // Sólo precios que se cobran: con el precio oculto `hydrate` los deja en 0,
   // y una fila vieja en ₲0 tampoco es "desde ₲0". Sin ninguno, `undefined`:
   // no hay "desde", ni precio en la barra fija, ni en vistos recientemente.
@@ -220,12 +223,11 @@ export default async function ProductPage({
     // Mismo motivo que arriba: el JSON-LD que lee Google es texto, no markdown.
     description: markdownToText(product.description),
     brand: product.brand,
-    images: (product.illustrativeImages ? [] : product.images)
+    images: outsideImages(product.images)
       .slice(0, 5)
       .map((image) => productImageUrl(image.cloudinaryId, "detail"))
       .filter((src): src is string => src !== null),
     variants: product.variants,
-    selectedSku: selected?.sku,
     saleMode: product.saleMode,
     showPrice: product.showPrice,
     rating,
@@ -268,7 +270,7 @@ export default async function ProductPage({
                 .map((image) => ({
                   src: productImageUrl(image.cloudinaryId, "detail"),
                   alt: image.alt || product.name,
-                  illustrative: product.illustrativeImages,
+                  illustrative: image.provenance === "illustrative",
                 }))
                 .filter(
                   (
@@ -276,7 +278,7 @@ export default async function ProductPage({
                   ): image is {
                     src: string;
                     alt: string;
-                    illustrative: boolean | undefined;
+                    illustrative: boolean;
                   } => image.src !== null
                 )}
             />

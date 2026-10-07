@@ -3,6 +3,7 @@ import { safeError } from "@/lib/safe-error";
 import { TIENDA } from "@/config/tienda";
 import { getFeedProducts } from "@/db/queries";
 import { productImageUrl } from "@/lib/images";
+import { outsideImages } from "@/lib/image-provenance";
 import { markdownToText } from "@/lib/markdown";
 import { buildProductFeed } from "@/lib/product-feed";
 import { siteOrigin } from "@/lib/site-url";
@@ -54,7 +55,8 @@ export async function GET(): Promise<Response> {
       description: markdownToText(product.description),
       brand: product.brand,
       categoryName: product.categoryName,
-      images: (product.illustrativeImages ? [] : product.images)
+      // Ni ilustrativas ni, si la tienda lo pide, sin procedencia (E2).
+      images: outsideImages(product.images)
         .map((image) => productImageUrl(image.cloudinaryId, "detail"))
         .filter((src): src is string => src !== null),
       variants: product.variants,

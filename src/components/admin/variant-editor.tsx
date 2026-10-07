@@ -1,6 +1,10 @@
 "use client";
 
-import { MetadataField, metadataFormValue } from "./metadata-field";
+import {
+  MetadataField,
+  metadataConfirmed,
+  metadataFormValue,
+} from "./metadata-field";
 import type {
   VariantAttributes,
   VerifiedIdentifiers,
@@ -180,6 +184,10 @@ function VariantFields({
           const result = await saveProductVariant({
             attributes,
             identifiers,
+            verify: {
+              attributes: metadataConfirmed(data, "attributes"),
+              identifiers: metadataConfirmed(data, "identifiers"),
+            },
             productId,
             variantId: variant?.id,
             sku: String(data.get("sku") ?? ""),

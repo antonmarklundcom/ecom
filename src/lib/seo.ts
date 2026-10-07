@@ -9,11 +9,8 @@
  */
 
 import { formatDatePY } from "./py";
-import { CATALOGUE } from "@/config/catalogue";
-import {
-  publicVariantAttributes,
-  publicIdentifiers,
-} from "./public-product-facts";
+import { publicIdentifiers } from "./public-product-facts";
+import { variantGrouping } from "./variant-grouping";
 import { isChargeablePrice } from "./money";
 import { variantUrl } from "./variant-url";
 
@@ -183,7 +180,6 @@ export function productJsonLd(input: {
     attributes?: unknown;
     identifiers?: unknown;
   }[];
-  selectedSku?: string | null;
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   /**
@@ -209,10 +205,11 @@ export function productJsonLd(input: {
     ? offerShippingLd(input.merchant)
     : null;
   const returnPolicy = input.merchant ? returnPolicyLd(input.merchant) : null;
-  const selected =
-    input.variants.find((v) => v.sku === input.selectedSku) ??
-    input.variants.find((v) => v.available > 0) ??
-    input.variants[0];
+  // Los identificadores de arriba describen **el** producto: sólo si tiene
+  // una variante. Con varias, cada `Offer` lleva su SKU; tomar los de la
+  // "primera con stock" cambiaba el GTIN publicado cada vez que una variante
+  // se agotaba (docs/TEMPLATE-IMPROVEMENT-PLAN.md E6).
+  const only = input.variants.length === 1 ? input.variants[0] : undefined;
   const priced =
     (input.saleMode === undefined || input.saleMode === "stock") &&
     input.showPrice !== false
@@ -226,8 +223,8 @@ export function productJsonLd(input: {
     image: input.images.length > 0 ? input.images : undefined,
     url,
     brand: input.brand ? { "@type": "Brand", name: input.brand } : undefined,
-    sku: selected?.sku,
-    ...publicIdentifierLd(selected?.identifiers),
+    sku: only?.sku,
+    ...publicIdentifierLd(only?.identifiers),
     // Sin ningún precio cobrable no hay `offers`: una lista vacía es un dato
     // estructurado inválido, no "sin ofertas".
     ...(priced.length > 0
@@ -264,19 +261,10 @@ export function productJsonLd(input: {
         }
       : {}),
   };
-  const dimensions = CATALOGUE.attributes.filter(
-    (d) => d.scope === "variant" && d.schemaProperty
-  );
-  const facts = input.variants.map(
-    (v) => publicVariantAttributes(v.attributes)?.values
-  );
-  const usable = dimensions.filter(
-    (d) =>
-      facts.every((f) => f && f[d.key] !== undefined) &&
-      new Set(facts.map((f) => String(f?.[d.key]))).size > 1
-  );
-  if (input.variants.length < 2 || usable.length === 0) return result;
   // A group needs a published dimension on every member. Labels alone do not establish one.
+  const grouping = variantGrouping(input.variants);
+  if (!grouping) return result;
+  const { dimensions: usable, facts } = grouping;
   return {
     ...result,
     "@type": "ProductGroup",

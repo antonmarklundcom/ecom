@@ -25,6 +25,23 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Lo verificado lo sella el servidor; las fotos dicen de dónde salen**
+  (docs/TEMPLATE-IMPROVEMENT-PLAN.md E1–E6). **Migración: sí** (`0024`:
+  `product_images.provenance` y `verified_at`; redeploy + setup).
+  - La fecha de verificación ya no se tipea en el JSON: la casilla
+    "Verifiqué estos datos" la sella con la hora del servidor y tu usuario
+    (privado).
+  - Guardar sin cambios conserva el sello; cambiar sin confirmar deja los
+    datos sin verificar.
+  - Una planilla nunca verifica, y un duplicado empieza sin verificar.
+  - Cada foto se marca como propia, autorizada o ilustrativa. Una
+    ilustrativa no sale en la imagen para compartir, el JSON-LD ni el feed.
+  - La ficha comparte con el nombre del sitio y una imagen siempre.
+  - Un producto puede volver a un slug suyo anterior.
+  - El JSON-LD ya no publica el GTIN de "la primera variante con stock".
+  - El feed no afirma `identifier_exists=no` ni agrupa variantes sin una
+    dimensión declarada.
+  - Archivo nuevo de la tienda: `src/config/public-facts.ts`.
 - **Cobrar lo que el checkout de verdad ofrece** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   D1–D5). `pnpm preflight` evalúa los medios de pago efectivos (Ajustes >
   `STORE_PAYMENT_METHODS` > `checkout.ts`, con el banco de `/admin/banco`) y

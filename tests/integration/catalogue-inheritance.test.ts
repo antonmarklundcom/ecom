@@ -69,18 +69,27 @@ describe.skipIf(!hasTestDb)("template catalogue mechanisms", () => {
     const variantId = await createVariant({ productId, onHand: 5 });
     return { input, productId, variantId };
   }
-  it("redirects every historical slug directly, rejects cycles/collisions and hides inactive/deleted targets", async () => {
+  it("redirects every historical slug directly, rejects collisions and hides inactive/deleted targets", async () => {
     const { input, productId } = await fixture();
     await updateProduct(productId, { ...input, slug: "bottle-new" });
     await updateProduct(productId, { ...input, slug: "bottle-current" });
     expect(await getProductSlugRedirect("bottle")).toBe("bottle-current");
     expect(await getProductSlugRedirect("bottle-new")).toBe("bottle-current");
     await expect(
-      updateProduct(productId, { ...input, slug: "bottle" })
-    ).rejects.toThrow();
-    await expect(
       createProduct({ ...input, slug: "bottle-new" })
     ).rejects.toThrow();
+    // Otro producto no puede tomar un slug histórico ajeno…
+    const other = await createProduct({ ...input, slug: "other-bottle" });
+    await expect(
+      updateProduct(other, { ...input, slug: "bottle" })
+    ).rejects.toThrow();
+    // …pero el mismo producto sí recupera el suyo (A→B→A, E5): la
+    // resolución va directo al slug actual, así que no hay cadena ni ciclo.
+    await updateProduct(productId, { ...input, slug: "bottle" });
+    expect(await getProductSlugRedirect("bottle")).toBeNull();
+    expect(await getProductSlugRedirect("bottle-new")).toBe("bottle");
+    expect(await getProductSlugRedirect("bottle-current")).toBe("bottle");
+    await getDb().delete(products).where(eq(products.id, other));
     await getDb()
       .update(products)
       .set({ isActive: false })

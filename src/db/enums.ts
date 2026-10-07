@@ -42,6 +42,14 @@ export const DOC_TYPES = ['RUC', 'CI', 'NINGUNO'] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 
 /**
+ * De dónde sale una foto (docs/TEMPLATE-IMPROVEMENT-PLAN.md E2): foto propia,
+ * autorizada por el proveedor, o ilustrativa (no es este producto). Una foto
+ * sin marcar (`null`) es "no se sabe".
+ */
+export const IMAGE_PROVENANCES = ['supplier-authorized', 'owned-photo', 'illustrative'] as const;
+export type ImageProvenance = (typeof IMAGE_PROVENANCES)[number];
+
+/**
  * Las tasas de IVA. Están acá y no en el schema por el mismo camino que las
  * demás, sólo que más largo: `src/lib/money.ts` las importa para validar una
  * tasa, y `money.ts` (el `formatGs` de toda la vidriera) lo importa media

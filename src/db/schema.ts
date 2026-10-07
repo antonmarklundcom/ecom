@@ -40,10 +40,12 @@ import {
 export {
   COUPON_TYPES,
   DOC_TYPES,
+  IMAGE_PROVENANCES,
   ORDER_STATUSES,
   PAYMENT_METHODS,
   type CouponType,
   type DocType,
+  type ImageProvenance,
   type OrderStatus,
   type PaymentMethod,
 } from "./enums";
@@ -52,6 +54,7 @@ export {
 import {
   COUPON_TYPES,
   DOC_TYPES,
+  IMAGE_PROVENANCES,
   ORDER_STATUSES,
   PAYMENT_METHODS,
   type PaymentMethod,
@@ -256,6 +259,14 @@ export const productImages = mysqlTable(
     blurDataUrl: text("blur_data_url"),
     alt: varchar("alt", { length: 255 }),
     position: int("position").notNull().default(0),
+    /**
+     * De dónde sale esta foto (docs/TEMPLATE-IMPROVEMENT-PLAN.md E2). `null`
+     * = sin marcar: vale la del producto (`supplierDetails.imageProvenance`)
+     * y, si tampoco hay, "no se sabe". Lo marca el panel.
+     */
+    provenance: mysqlEnum("provenance", IMAGE_PROVENANCES),
+    /** Cuándo se marcó la procedencia; lo sella el servidor. */
+    verifiedAt: timestamp("verified_at", { fsp: 3 }),
   },
   (t) => [index("product_images_product_idx").on(t.productId, t.position)]
 );

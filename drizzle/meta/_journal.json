@@ -169,6 +169,13 @@
       "when": 1791345127190,
       "tag": "0023_lucky_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1791388939148,
+      "tag": "0024_condemned_franklin_storm",
+      "breakpoints": true
     }
   ]
 }

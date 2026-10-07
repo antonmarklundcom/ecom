@@ -11,6 +11,7 @@ import {
   createProduct,
   deleteProductImage,
   saveVariant,
+  setProductImageProvenance,
   updateProduct,
 } from "@/domain/admin-products";
 import {
@@ -46,14 +47,24 @@ import {
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { t } from "@/i18n";
-import type { UserRole } from "@/db/schema";
+import { IMAGE_PROVENANCES, type UserRole } from "@/db/schema";
 import { can } from "@/lib/permissions";
 import {
+  IdentifiersInputSchema,
   ProductSpecificationsSchema,
   SupplierDetailsSchema,
   VariantAttributesSchema,
-  VerifiedIdentifiersSchema,
 } from "@/lib/product-attributes";
+import { stripStamps } from "@/lib/verification-stamps";
+
+/**
+ * Un hecho verificable tal como lo manda el formulario: sin sellos. La fecha y
+ * quién verificó los pone el dominio con la sesión (docs/TEMPLATE-IMPROVEMENT-PLAN.md E1);
+ * una fecha tipeada (o futura) se descarta en vez de validarse.
+ */
+function sinSellos<T extends z.ZodType>(schema: T) {
+  return z.preprocess(stripStamps, schema.nullable().optional());
+}
 
 function revalidarVidriera() {
   revalidatePath("/", "layout");
@@ -67,8 +78,14 @@ function revalidarVidriera() {
  */
 
 const ProductSchema = z.object({
-  specifications: ProductSpecificationsSchema.nullable().optional(),
-  supplierDetails: SupplierDetailsSchema.nullable().optional(),
+  specifications: sinSellos(ProductSpecificationsSchema),
+  supplierDetails: sinSellos(SupplierDetailsSchema),
+  verify: z
+    .object({
+      specifications: z.boolean().optional(),
+      supplierDetails: z.boolean().optional(),
+    })
+    .optional(),
   seoTitle: z.string().trim().max(200).nullable().optional(),
   seoDescription: z.string().trim().max(500).nullable().optional(),
   saleMode: z.enum(["stock", "enquiry", "showcase"]).optional(),
@@ -107,7 +124,7 @@ export async function saveProduct(
   input: unknown
 ): Promise<AdminActionResult<{ productId: number }>> {
   try {
-    await requireStaffSession();
+    const actor = await requireStaffSession();
 
     const parsed = ProductSchema.safeParse(input);
     if (!parsed.success) {
@@ -120,6 +137,8 @@ export async function saveProduct(
     const write = {
       specifications: parsed.data.specifications,
       supplierDetails: parsed.data.supplierDetails,
+      verify: parsed.data.verify,
+      actor: { userId: actor.userId, label: actorLabel(actor) },
       seoTitle: parsed.data.seoTitle,
       seoDescription: parsed.data.seoDescription,
       saleMode: parsed.data.saleMode,
@@ -154,8 +173,14 @@ export async function saveProduct(
 }
 
 const VariantSchema = z.object({
-  attributes: VariantAttributesSchema.nullable().optional(),
-  identifiers: VerifiedIdentifiersSchema.nullable().optional(),
+  attributes: sinSellos(VariantAttributesSchema),
+  identifiers: sinSellos(IdentifiersInputSchema),
+  verify: z
+    .object({
+      attributes: z.boolean().optional(),
+      identifiers: z.boolean().optional(),
+    })
+    .optional(),
   productId: z.number().int().positive(),
   variantId: z.number().int().positive().optional(),
   sku: z.string().trim().min(1, t("adminForm.sku")).max(64),
@@ -199,6 +224,7 @@ export async function saveProductVariant(
       {
         attributes: parsed.data.attributes,
         identifiers: parsed.data.identifiers,
+        verify: parsed.data.verify,
         id: parsed.data.variantId,
         sku: parsed.data.sku,
         label: parsed.data.label,
@@ -311,6 +337,34 @@ export async function uploadProductImage(
     return { ok: true };
   } catch (error) {
     return adminActionError("uploadProductImage", error);
+  }
+}
+
+const ImageProvenanceSchema = z.object({
+  imageId: z.number().int().positive(),
+  productId: z.number().int().positive(),
+  provenance: z.enum(IMAGE_PROVENANCES).nullable(),
+});
+
+/** Marca de dónde sale una foto (E2). La fecha la sella el dominio. */
+export async function markProductImageProvenance(
+  input: unknown
+): Promise<AdminActionResult> {
+  try {
+    await requireStaffSession();
+
+    const parsed = ImageProvenanceSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: t("adminError.imagenInvalida") };
+    }
+
+    await setProductImageProvenance(parsed.data);
+
+    revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    revalidarVidriera();
+    return { ok: true };
+  } catch (error) {
+    return adminActionError("markProductImageProvenance", error);
   }
 }
 

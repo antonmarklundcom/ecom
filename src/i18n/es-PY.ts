@@ -1128,6 +1128,15 @@ export const esPY = {
   "panel.fotos.descripcion.placeholder": "Remera azul de frente",
   "panel.fotos.subir": "Subir foto",
   "panel.fotos.subiendo": "Subiendo…",
+  "panel.fotos.procedencia": "Procedencia",
+  "panel.fotos.procedencia.sinMarcar": "Sin marcar (vale la del producto)",
+  "panel.fotos.procedencia.propia": "Foto propia",
+  "panel.fotos.procedencia.proveedor": "Autorizada por el proveedor",
+  "panel.fotos.procedencia.ilustrativa": "Ilustrativa (no es este producto)",
+  "panel.fotos.procedencia.guardada": "Procedencia guardada.",
+  "panel.fotos.procedencia.marcada": "Marcada el {fecha}.",
+  "panel.fotos.procedencia.ayuda":
+    "Una foto ilustrativa se muestra con una leyenda y nunca sale en la imagen para compartir, los datos estructurados ni el feed de Google/Meta.",
 
   "panel.variante.agregar": "Agregar variante",
   "panel.variante.vacio":
@@ -2453,6 +2462,8 @@ export const esPY = {
     "La cuenta quedó guardada, pero el ingreso automático no se completó. Entrá con el email y la contraseña que elegiste; no repitas la creación de la cuenta.",
   "adminError.producto.atributosInvalidos":
     "Revisá los atributos, las fuentes y los identificadores verificados.",
+  "adminError.producto.identificadoresSinVerificar":
+    'El GTIN/MPN de {sku} cambió: marcá "Confirmo que lo verifiqué" para guardarlo. Un identificador sólo se publica verificado.',
   "adminError.producto.slugHistorico":
     "La URL {slug} ya está reservada por el catálogo o su historial. Elegí otra URL.",
   "panel.menu.label": "Menú del panel",

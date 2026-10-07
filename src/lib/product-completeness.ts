@@ -4,6 +4,7 @@ import {
   publicVariantAttributes,
 } from "./public-product-facts";
 import { decoded, SupplierDetailsSchema } from "./product-attributes";
+import { effectiveProvenance } from "./image-provenance";
 
 type Input = {
   name: string;
@@ -12,7 +13,12 @@ type Input = {
   supplierDetails?: unknown;
   saleMode?: string;
   showPrice?: boolean;
-  images: readonly { cloudinaryId: string; alt?: string | null }[];
+  images: readonly {
+    cloudinaryId: string;
+    alt?: string | null;
+    /** La de cada foto (E2); sin marcar vale la del producto. */
+    provenance?: string | null;
+  }[];
   variants: readonly {
     pricePyg: number;
     available: number;
@@ -52,12 +58,19 @@ export function productCompleteness(
     {
       id: "images",
       label: "Fotografías propias o autorizadas",
+      // Cada foto, con la suya o con la del producto (ésta sólo si los datos
+      // del proveedor están verificados): docs/TEMPLATE-IMPROVEMENT-PLAN.md E2.
       complete:
         input.images.length > 0 &&
-        sourcing.success &&
-        Boolean(sourcing.data.verifiedAt) &&
-        ["owned-photo", "supplier-authorized"].includes(
-          sourcing.data.imageProvenance ?? ""
+        input.images.every((image) =>
+          ["owned-photo", "supplier-authorized"].includes(
+            effectiveProvenance(
+              image.provenance,
+              sourcing.success && sourcing.data.verifiedAt
+                ? sourcing.data.imageProvenance
+                : undefined
+            ) ?? ""
+          )
         ),
     },
     {

@@ -166,6 +166,8 @@ export default async function AdminProductPage({ params }: { params: Params }) {
               id: image.id,
               cloudinaryId: image.cloudinaryId,
               alt: image.alt,
+              provenance: image.provenance,
+              verifiedAt: image.verifiedAt?.toISOString() ?? null,
             }))}
           />
         </div>

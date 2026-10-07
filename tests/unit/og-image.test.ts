@@ -66,12 +66,23 @@ describe('metadataBase', () => {
 });
 
 describe('la ficha de producto comparte con foto', () => {
-  it('pone la imagen principal en openGraph, con su tamaño', async () => {
+  it('pone la primera foto publicable en openGraph, con su tamaño', async () => {
     const page = await readCode(path.join('src', 'app', 'producto', '[slug]', 'page.tsx'));
 
-    expect(page).toMatch(/productImageUrl\(\s*product\.images\[0\]\?\.cloudinaryId,\s*"og"\s*\)/);
+    // Ni ilustrativa ni sin procedencia si la tienda lo pide
+    // (docs/TEMPLATE-IMPROVEMENT-PLAN.md E2; la regla, en image-provenance.test.ts).
+    expect(page).toMatch(/sharePhoto = outsideImages\(product\.images\)\[0\]/);
+    expect(page).toMatch(/productImageUrl\(\s*sharePhoto\?\.cloudinaryId,\s*"og"\s*\)/);
     expect(page).toContain('OG_IMAGE_SIZE.width');
     expect(page).toContain('OG_IMAGE_SIZE.height');
+  });
+
+  it('repite el nombre del sitio y el idioma: el openGraph de la página reemplaza el del layout', async () => {
+    // E3. Lo que ve el crawler lo prueba tests/e2e/sharing-metadata.spec.ts.
+    const page = await readCode(path.join('src', 'app', 'producto', '[slug]', 'page.tsx'));
+    expect(page).toMatch(/siteName:\s*await nombreTienda\(\)/);
+    expect(page).toMatch(/locale:\s*TIENDA\.ogLocale/);
+    expect(page).toContain('url: "/opengraph-image"');
   });
 
   it('el respaldo del sitio existe y sale del nombre efectivo, no de un nombre escrito a mano', async () => {

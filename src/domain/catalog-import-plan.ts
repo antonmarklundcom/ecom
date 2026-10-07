@@ -10,6 +10,8 @@ import {
 } from "@/db/schema";
 import { getDb } from "@/db";
 import { slugify } from "@/lib/slug";
+import { decoded } from "@/lib/product-attributes";
+import { sameContent } from "@/lib/verification-stamps";
 import {
   carpetaProductos,
   cloudinary,
@@ -126,6 +128,7 @@ export async function buildCatalogImportPlan(
           productSlug: products.slug,
           pricePyg: variants.pricePyg,
           onHand: variants.onHand,
+          identifiers: variants.identifiers,
         })
         .from(variants)
         .innerJoin(products, eq(variants.productId, products.id))
@@ -157,6 +160,18 @@ export async function buildCatalogImportPlan(
   for (const producto of productos) {
     for (const variante of producto.variants) {
       const dueno = duenoDeSku.get(claveSku(variante.sku));
+      // Un GTIN/MPN sólo existe verificado, y una planilla no verifica (E1):
+      // el mismo que ya está pasa; uno nuevo o distinto se confirma en el
+      // panel, variante por variante.
+      if (
+        variante.identifiers &&
+        !sameContent(decoded(dueno?.identifiers), variante.identifiers)
+      ) {
+        errores.push(
+          `El SKU "${variante.sku}" trae un GTIN/MPN nuevo o distinto. Una planilla no verifica identificadores: sacá la columna o dejá el que ya tiene, y confirmalo en el panel.`
+        );
+        continue;
+      }
       if (dueno === undefined) continue;
       if (dueno.productSlug !== producto.slug) {
         errores.push(

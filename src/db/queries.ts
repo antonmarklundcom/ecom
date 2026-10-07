@@ -42,6 +42,8 @@ import type { Executor } from "@/domain/executor";
 import { getRatingSummaries, type RatingSummary } from "@/domain/reviews";
 import { heldQtyMap } from "@/domain/stock";
 import { isChargeablePrice } from "@/lib/money";
+import { effectiveProvenance } from "@/lib/image-provenance";
+import type { ImageProvenance } from "@/db/enums";
 
 export type CatalogVariant = {
   attributes?: VariantAttributes;
@@ -58,6 +60,12 @@ export type CatalogImage = {
   cloudinaryId: string;
   blurDataUrl: string | null;
   alt: string | null;
+  /**
+   * La procedencia efectiva: la de la foto o, si no tiene, la del producto
+   * (docs/TEMPLATE-IMPROVEMENT-PLAN.md E2). `null`/ausente = no se sabe. Qué
+   * sale afuera lo decide `outsideImages()` (`src/lib/image-provenance.ts`).
+   */
+  provenance?: ImageProvenance | null;
 };
 
 export type CatalogProduct = {
@@ -135,6 +143,7 @@ type ProductRow = {
   seoTitle?: string | null;
   seoDescription?: string | null;
   illustrativeImages?: number;
+  imageProvenance?: string | null;
   saleMode: "stock" | "enquiry" | "showcase";
   showPrice: boolean;
   id: number;
@@ -184,10 +193,14 @@ async function hydrate(
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
       position: productImages.position,
+      provenance: productImages.provenance,
     })
     .from(productImages)
     .where(inArray(productImages.productId, productIds))
     .orderBy(asc(productImages.productId), asc(productImages.position));
+  const productLevel = new Map(
+    rows.map((row) => [row.id, row.imageProvenance])
+  );
 
   const held = await heldQtyMap(
     variantRows.map((row) => row.id),
@@ -219,6 +232,10 @@ async function hydrate(
       cloudinaryId: row.cloudinaryId,
       blurDataUrl: row.blurDataUrl,
       alt: row.alt,
+      provenance: effectiveProvenance(
+        row.provenance,
+        productLevel.get(row.productId)
+      ),
     });
     imagesByProduct.set(row.productId, list);
   }
@@ -261,6 +278,11 @@ const PRODUCT_COLUMNS = {
   seoTitle: products.seoTitle,
   seoDescription: products.seoDescription,
   illustrativeImages: sql<number>`JSON_UNQUOTE(JSON_EXTRACT(${products.supplierDetails}, '$.imageProvenance')) = 'illustrative'`,
+  // Sólo la procedencia de las fotos sale de los datos del proveedor: el
+  // resto de `supplierDetails` es privado y no viaja a la vidriera.
+  imageProvenance: sql<
+    string | null
+  >`JSON_UNQUOTE(JSON_EXTRACT(${products.supplierDetails}, '$.imageProvenance'))`,
   saleMode: products.saleMode,
   showPrice: products.showPrice,
   id: products.id,
@@ -451,15 +473,20 @@ export async function getProductBySlug(
   const [hydrated] = await hydrate(tx, [row]);
   if (!hydrated) return null;
 
-  const images = await tx
+  const imageRows = await tx
     .select({
       cloudinaryId: productImages.cloudinaryId,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
+      provenance: productImages.provenance,
     })
     .from(productImages)
     .where(eq(productImages.productId, row.id))
     .orderBy(asc(productImages.position));
+  const images = imageRows.map((image) => ({
+    ...image,
+    provenance: effectiveProvenance(image.provenance, row.imageProvenance),
+  }));
 
   return { ...hydrated, description: row.description, images };
 }
@@ -984,6 +1011,7 @@ export async function getFeedProducts(
       cloudinaryId: productImages.cloudinaryId,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
+      provenance: productImages.provenance,
     })
     .from(productImages)
     .where(
@@ -993,11 +1021,20 @@ export async function getFeedProducts(
       )
     )
     .orderBy(asc(productImages.productId), asc(productImages.position));
+  const productLevel = new Map(
+    rows.map((row) => [row.id, row.imageProvenance])
+  );
 
   const imagesByProduct = new Map<number, CatalogImage[]>();
   for (const { productId, ...image } of imageRows) {
     const list = imagesByProduct.get(productId) ?? [];
-    list.push(image);
+    list.push({
+      ...image,
+      provenance: effectiveProvenance(
+        image.provenance,
+        productLevel.get(productId)
+      ),
+    });
     imagesByProduct.set(productId, list);
   }
   const descriptions = new Map(rows.map((row) => [row.id, row.description]));
