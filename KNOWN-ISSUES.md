@@ -27,23 +27,6 @@ no lo va a ver. Al escribir una resta así, castear los operandos sin signo a
 (`tests/global-setup.ts` mira `SELECT VERSION()`): con ese aviso, el verde local
 no dice nada sobre estas restas.
 
-## El backup se sube como un solo archivo — fase O8
-
-`/api/cron/backup` sube el dump entero como **un** `.jsonl.gz`. Cloudinary
-limita el tamaño por archivo según el plan (10 MB en el free), así que una
-tienda con muchísimos pedidos podría llegar a un punto en que la subida falle
-—y ahí sí se entera, porque el aviso de backup fallido le llega al dueño por
-WhatsApp y queda el motivo en `job_runs.last_error`.
-
-No se arregló partiendo el dump en un archivo por tabla, que es lo que sugiere
-plan-operacion §5.4 A como alternativa: hoy ninguna tienda está cerca de ese
-tamaño, y partirlo agrega una forma nueva de fallar a medias (tres tablas
-subidas y dos no, sin nada que diga que ese backup está incompleto). Arreglo,
-cuando alguna tienda se acerque: un archivo por tabla **más** un manifiesto con
-la lista y el conteo de filas de cada uno, y que `restore` se niegue a correr
-si falta alguno. Mientras tanto, el dump comprimido de una tienda con miles de
-pedidos entra cómodo en 10 MB.
-
 ## `eslint` 10 no anda con `eslint-plugin-react` — fase S19
 
 `eslint-config-next@16.3.4` declara el peer como `eslint: ">=9.0.0"` (acepta
@@ -107,6 +90,20 @@ con el catálogo poblado. Los límites anteriores no se aumentaron. Esto
 resuelve la importación del diccionario completo; los bundles de Next y las
 otras funciones del cliente siguen formando parte del presupuesto.
 
+## Presupuesto de JS: producto subió el techo con las fotos de R2 — 2026-11-04
+
+El cambio a R2 pasó el techo de la ficha de producto por 0,7 KB: 252.7 KB >
+252 (home 239.7 KB y checkout 244.9 KB siguen adentro; las dos crecieron ~4,5
+KB desde la medición del 2026-10-05 sin tocar fotos, así que la ficha ya venía
+justa). Lo nuevo en el cliente de la ficha es la galería con `<picture>` y
+`srcset` (`src/components/imagen-r2.tsx`), que convive con `next/image` para
+las fotos locales. Antes de subir el techo se sacó de la ficha el código que
+arma URLs de R2 (vistos recientemente guarda las URLs que arma el servidor) y
+una clave de texto del panel que viajaba en el catálogo público. Según la
+regla del spec, el techo pasó al valor medido + 10% (278). Candidato para
+recuperar el margen, en una fase aparte: que la galería no importe
+`next/image` cuando todas sus fotos son de R2.
+
 ## MariaDB 10.11 puede rechazar `RENAME COLUMN` de una columna JSON — 2026-10-07
 
 MariaDB guarda una columna `json` como `longtext` con un `CHECK
@@ -124,3 +121,15 @@ produce un `RENAME COLUMN` sobre una columna JSON, reescribir esa sentencia
 como `CHANGE … JSON NULL` antes de commitear la migración y probarla contra
 MariaDB (`.github/workflows/mariadb.yml`). La causa exacta en MariaDB no se
 investigó más allá de reproducirla.
+
+## La planilla sin "Modo de venta" valida el precio como venta con stock — foundation C
+
+`parseCatalogo` es puro y no sabe qué modo de venta tiene guardado cada
+producto. Si el archivo no trae la columna `Modo de venta`, una fila con ₲0 se
+valida como si el producto se vendiera con stock y es un error, aunque en la
+base esté en consulta (`enquiry`) o vidriera (`showcase`). El export siempre
+trae la columna, así que la ida y vuelta no lo sufre; lo sufre una planilla de
+sólo precios armada a mano que incluya esos productos. Arreglo: mover esa
+validación al plan (`buildCatalogImportPlan`), que sí mira la base, y aplicar
+el modo guardado cuando la columna falta. Ver docs/CATALOGO-CSV.md § "Una
+limitación".

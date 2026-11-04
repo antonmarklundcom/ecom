@@ -12,8 +12,15 @@ import {
   listCategories,
   listStockAdjustments,
 } from "@/domain/admin-products";
-import { formatDateTimePY } from "@/lib/py";
+import {
+  SupplierOffersEditor,
+  type SupplierVariantView,
+} from "@/components/admin/supplier-offers-editor";
+import { listSupplierOffers } from "@/domain/supplier-offers";
+import { formatDateTimePY, pyDateInputValue } from "@/lib/py";
 import { requireCapabilityPage } from "@/lib/admin-guard";
+import { can } from "@/lib/permissions";
+import { proveedoresHabilitados } from "@/lib/proveedores";
 import { t } from "@/i18n";
 
 export const metadata: Metadata = { title: t("panel.producto.meta") };
@@ -23,7 +30,7 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ id: string }>;
 
 export default async function AdminProductPage({ params }: { params: Params }) {
-  await requireCapabilityPage("productos");
+  const actor = await requireCapabilityPage("productos");
 
   const { id } = await params;
   const productId = Number(id);
@@ -34,6 +41,40 @@ export default async function AdminProductPage({ params }: { params: Params }) {
 
   const { product, variants, images } = found;
   const categories = await listCategories();
+
+  // Proveedores: sólo con el flag de `tienda.ts` y para quien ve precios (un
+  // costo de compra es plata). Sin eso, ni se consultan: nada de estos datos
+  // entra al payload de la página.
+  const proveedores = proveedoresHabilitados() && can(actor.role, "precios");
+  const supplierVariants: SupplierVariantView[] = [];
+  if (proveedores) {
+    const offers = await listSupplierOffers(variants.map((v) => v.id));
+    for (const variant of variants)
+      supplierVariants.push({
+        id: variant.id,
+        sku: variant.sku,
+        label: variant.label,
+        pricePyg: variant.pricePyg,
+        offers: offers
+          .filter((offer) => offer.variantId === variant.id)
+          .map((offer) => ({
+            id: offer.id,
+            source: offer.source,
+            sourceType: offer.sourceType,
+            unitCostPyg: offer.unitCostPyg,
+            productUrl: offer.productUrl,
+            supplierUrl: offer.supplierUrl,
+            supplierStock: offer.supplierStock,
+            notes: offer.notes,
+            isConfirmed: offer.isConfirmed,
+            isActive: offer.isActive,
+            isPreferred: offer.isPreferred,
+            checkedOn: offer.checkedAt
+              ? pyDateInputValue(offer.checkedAt)
+              : null,
+          })),
+      });
+  }
 
   // Historial de ajustes de todas las variantes, en una sola lista.
   const adjustments = (
@@ -74,6 +115,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
         <h2 className="font-medium">{t("panel.producto.datos")}</h2>
         <div className="mt-2">
           <ProductForm
+            proveedores={proveedores}
             categories={categories.map((category) => ({
               id: category.id,
               name: category.name,
@@ -95,6 +137,8 @@ export default async function AdminProductPage({ params }: { params: Params }) {
               isActive: product.isActive,
               published: product.publishedAt !== null,
               isFeatured: product.isFeatured,
+              featuredPosition: product.featuredPosition,
+              ...(proveedores ? { supplierUrl: product.supplierUrl } : {}),
             }}
           />
         </div>
@@ -122,6 +166,18 @@ export default async function AdminProductPage({ params }: { params: Params }) {
           />
         </div>
       </section>
+
+      {proveedores && supplierVariants.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="font-medium">{t("panel.producto.proveedores")}</h2>
+          <div className="mt-2">
+            <SupplierOffersEditor
+              productId={product.id}
+              variants={supplierVariants}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {adjustments.length > 0 ? (
         <section className="mt-8">
@@ -164,7 +220,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
             productId={product.id}
             images={images.map((image) => ({
               id: image.id,
-              cloudinaryId: image.cloudinaryId,
+              imageRef: image.imageRef,
               alt: image.alt,
               provenance: image.provenance,
               verifiedAt: image.verifiedAt?.toISOString() ?? null,

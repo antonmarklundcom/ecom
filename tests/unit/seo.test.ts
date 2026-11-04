@@ -205,7 +205,7 @@ describe("productJsonLd", () => {
     const jsonLd = productJsonLd({
       ...base,
       origin: new URL("https://tienda.com.py"),
-      images: ["https://res.cloudinary.com/x/image/upload/a.jpg"],
+      images: ["https://img.tienda.test/p1/a-0123456789.jpg"],
     }) as {
       image: string[];
       url: string;
@@ -213,7 +213,7 @@ describe("productJsonLd", () => {
     };
 
     expect(jsonLd.image).toEqual([
-      "https://res.cloudinary.com/x/image/upload/a.jpg",
+      "https://img.tienda.test/p1/a-0123456789.jpg",
     ]);
     expect(jsonLd.url).toBe("https://tienda.com.py/producto/conjunto-encaje");
     expect(jsonLd.offers[0]).toMatchObject({

@@ -376,14 +376,13 @@ describe.skipIf(!hasTestDb)('duplicateProduct', () => {
   });
 
   it('no copia las imágenes', async () => {
-    // No es una simplificación: `deleteProductImage` borra el asset en
-    // Cloudinary, así que dos productos con el mismo `public_id` significan
-    // que borrar la foto del duplicado deja al original roto en la vidriera.
+    // El duplicado es casi siempre otro color u otro modelo: una foto
+    // heredada que no es la suya es peor que ninguna (ver `duplicateProduct`).
     const productId = await createProduct();
     await createVariant({ onHand: 1, pricePyg: 100_000, productId });
     await getTestDb()
       .insert(productImages)
-      .values({ productId, cloudinaryId: 'productos/foto' });
+      .values({ productId, imageRef: 'productos/foto' });
 
     const copiaId = await duplicateProduct(productId);
 

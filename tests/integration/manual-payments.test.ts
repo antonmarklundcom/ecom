@@ -92,12 +92,12 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
 
   async function uploadReceipt(orderId: number): Promise<number> {
     const db = getTestDb();
-    const cloudinaryId = `comprobantes/${randomBytes(6).toString("hex")}`;
+    const storageKey = `comprobantes/${randomBytes(6).toString("hex")}`;
     await db
       .insert(receipts)
       .values({
         orderId,
-        cloudinaryId,
+        storageKey,
         mime: "image/jpeg",
         bytes: 12_345,
         review: "pending",
@@ -106,7 +106,7 @@ describe.skipIf(!hasTestDb)("pago manual registrado al cobrar", () => {
       await db
         .select()
         .from(receipts)
-        .where(eq(receipts.cloudinaryId, cloudinaryId))
+        .where(eq(receipts.storageKey, storageKey))
     )[0];
     if (!row) throw new Error("no pude crear el comprobante");
     return row.id;

@@ -49,8 +49,9 @@ describe("secretos", () => {
       { name: "AWS access key", pattern: /\bAKIA[0-9A-Z]{16}\b/ },
       { name: "token de GitHub", pattern: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/ },
       {
-        name: "api_secret de Cloudinary en una URL",
-        pattern: /cloudinary:\/\/\d+:[A-Za-z0-9_-]+@/,
+        // El Secret Access Key de un token de R2 son 64 hex.
+        name: "secret de R2 asignado",
+        pattern: /R2_SECRET_ACCESS_KEY\s*[=:]\s*["']?[0-9a-f]{64}/,
       },
       {
         name: "password en una URL de MySQL apuntando afuera de localhost",
@@ -85,7 +86,7 @@ describe("secretos", () => {
     // Los secretos del ejemplo tienen que ser placeholders evidentes.
     const filled = [
       ...example.matchAll(
-        /^(CLOUDINARY_API_SECRET|PAGOPAR_PRIVATE_KEY|WHATSAPP_CLOUD_ACCESS_TOKEN|CUSTOMER_SESSION_SECRET|CRON_SECRET|SESSION_SECRET|SETUP_SECRET)="?([^"\n]*)"?$/gm
+        /^(R2_SECRET_ACCESS_KEY|PAGOPAR_PRIVATE_KEY|WHATSAPP_CLOUD_ACCESS_TOKEN|CUSTOMER_SESSION_SECRET|CRON_SECRET|SESSION_SECRET|SETUP_SECRET)="?([^"\n]*)"?$/gm
       ),
     ]
       .filter(([, , value]) => {

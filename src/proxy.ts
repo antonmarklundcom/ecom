@@ -2,6 +2,8 @@ import { getIronSession } from "iron-session";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { analyticsConfig } from "@/lib/analytics";
+import { basePublicaImagenes } from "@/lib/images";
+import { integracion } from "@/lib/integraciones";
 import { USER_ROLES } from "@/lib/roles";
 import { sessionOptions, type AdminSession } from "@/lib/session";
 
@@ -140,6 +142,25 @@ export function idDeRequest(recibido: string | null): string {
   return crypto.randomUUID();
 }
 
+/** ` https://imagenes.tienda.com.py`, o nada si no hay base pública válida. */
+function origenImagenes(): string[] {
+  const base = basePublicaImagenes();
+  if (!base) return [];
+  try {
+    return [` ${new URL(base).origin}`];
+  } catch {
+    return [];
+  }
+}
+
+/** ` https://<account>.r2.cloudflarestorage.com`, o nada sin un Account ID válido. */
+function endpointPrivadoR2(): string[] {
+  const cuenta = integracion("r2").valores.accountId;
+  return cuenta && /^[a-f0-9]{32}$/.test(cuenta)
+    ? [` https://${cuenta}.r2.cloudflarestorage.com`]
+    : [];
+}
+
 /**
  * CSP + el resto de las cabeceras (PLAN.md 4.9).
  *
@@ -173,6 +194,11 @@ function withSecurityHeaders(
       ? [" https://www.googletagmanager.com https://www.google-analytics.com"]
       : []),
     ...(metaPixelId ? [" https://www.facebook.com"] : []),
+    // El dominio público del bucket de R2 sirve las fotos (panel > entorno).
+    ...origenImagenes(),
+    // El comprobante se muestra en el panel con una URL prefirmada contra el
+    // endpoint S3 de la cuenta: sólo ahí, nunca en la vidriera.
+    ...(isAdmin ? endpointPrivadoR2() : []),
   ].join("");
   const connectHosts = [
     ...(ga4Id
@@ -223,13 +249,14 @@ function withSecurityHeaders(
     // ejecuta código; el riesgo real es la exfiltración por selectores, muy
     // por debajo de romper el estilo del sitio entero.
     "style-src 'self' 'unsafe-inline'",
-    // Cloudinary sirve las fotos de producto; data: es para los blur
-    // placeholders que guardamos en product_images.
-    `img-src 'self' data: blob: https://res.cloudinary.com${imgHosts}`,
+    // R2 (el dominio público del bucket) sirve las fotos; data: es para los
+    // blur placeholders que guardamos en product_images, y blob: para la
+    // vista previa de una foto que el panel está preparando para subir.
+    `img-src 'self' data: blob:${imgHosts}`,
     "font-src 'self' data:",
     // El navegador sólo habla con este origen (más los medidores de arriba,
-    // si están). Cloudinary se llama desde el servidor, nunca desde el
-    // cliente.
+    // si están). R2 se escribe desde el servidor, nunca desde el
+    // navegador.
     `connect-src 'self'${dev ? " ws: http://localhost:*" : ""}${connectHosts}`,
     "form-action 'self'",
     // Redundante con X-Frame-Options, pero es el que respetan los navegadores

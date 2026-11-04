@@ -343,13 +343,14 @@ export async function previewPriceAdjustment(
  * es un borrador para editar, no un producto que aparece en la vidriera con el
  * stock de otro.
  *
- * **No copia las imágenes, y no es una simplificación.** `deleteProductImage`
- * borra el asset en Cloudinary, no sólo la fila: dos productos apuntando al
- * mismo `public_id` significan que borrar una foto del duplicado deja al
- * original con una imagen rota, en la vidriera, sin ningún aviso. Copiar los
- * bytes en Cloudinary sería la alternativa correcta y cuesta una llamada por
- * imagen a una API que puede fallar a mitad; hasta que alguien lo necesite de
- * verdad, la copia se sube las fotos de nuevo.
+ * Copia el enlace privado de compra (`supplier_url`) pero no las ofertas de
+ * proveedores de las variantes (ver el comentario en el insert).
+ *
+ * **No copia las imágenes.** Compartirlas ya no rompería nada —las claves de
+ * R2 salen del contenido y quitar una foto de la galería nunca borra los
+ * bytes—, pero el duplicado es casi siempre otro color u otro modelo, y una
+ * foto heredada que no es la de ese producto es peor que ninguna: se le
+ * suben las suyas.
  */
 export async function duplicateProduct(productId: number): Promise<number> {
   return getDb().transaction(async (tx) => {
@@ -379,6 +380,12 @@ export async function duplicateProduct(productId: number): Promise<number> {
       ivaRate: original.ivaRate,
       isActive: false,
       isFeatured: false,
+      // El enlace de compra del producto sí viaja: la copia suele ser el mismo
+      // artículo en otra presentación y se repone en el mismo lugar. Las
+      // ofertas por variante (`supplier_offers`) **no**: cada una dice "este
+      // producto es el mismo que vende el proveedor", y eso hay que volver a
+      // confirmarlo para la copia, igual que sus hechos verificados.
+      supplierUrl: original.supplierUrl,
       publishedAt: null,
     });
 

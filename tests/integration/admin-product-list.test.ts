@@ -54,10 +54,10 @@ describe.skipIf(!hasTestDb)('listAdminProducts', () => {
     return row.id;
   }
 
-  async function addImage(productId: number, cloudinaryId: string, position: number): Promise<void> {
+  async function addImage(productId: number, imageRef: string, position: number): Promise<void> {
     await getTestDb()
       .insert(productImages)
-      .values({ productId, cloudinaryId, alt: `alt de ${cloudinaryId}`, position });
+      .values({ productId, imageRef, alt: `alt de ${imageRef}`, position });
   }
 
   it('trae la primera foto del producto, no una cualquiera', async () => {
@@ -73,7 +73,7 @@ describe.skipIf(!hasTestDb)('listAdminProducts', () => {
 
     const [row] = (await listAdminProducts()).rows;
 
-    expect(row?.imageCloudinaryId).toBe('productos/primera');
+    expect(row?.imageRef).toBe('productos/primera');
     expect(row?.imageAlt).toBe('alt de productos/primera');
   });
 
@@ -84,7 +84,7 @@ describe.skipIf(!hasTestDb)('listAdminProducts', () => {
 
     const [row] = (await listAdminProducts()).rows;
 
-    expect(row?.imageCloudinaryId).toBeNull();
+    expect(row?.imageRef).toBeNull();
     expect(row?.categorySlug).toBe('corpinos');
   });
 

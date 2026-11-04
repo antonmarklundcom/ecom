@@ -9,7 +9,7 @@ import { closeTestDb, hasTestDb, resetTables } from '../helpers/db';
  * La ruta del backup (O8, plan-operacion §5.4 A).
  *
  * Lo que se fija acá es la puerta y el lock. El dump en sí lo cubre
- * `backup.test.ts`; subir a Cloudinary de verdad no se testea —haría falta una
+ * `backup.test.ts` y el set en R2 `backup-set.test.ts` (con un R2 de mentira); subir a R2 de verdad no se testea —haría falta una
  * cuenta y subiría basura en cada corrida de CI.
  */
 const SECRET = 'secreto-de-cron-para-los-tests-1234567890';
@@ -53,10 +53,10 @@ describe.skipIf(!hasTestDb)('GET/POST /api/cron/backup', () => {
     expect((await GET(request('lo-que-sea'))).status).toBe(503);
   });
 
-  it('sin Cloudinary se saltea con 200, no con un error', async () => {
+  it('sin R2 se saltea con 200, no con un error', async () => {
     // No es una falla de esta corrida: es una tienda que no configuró la
     // feature. Un status de error haría que Hostinger reintente para siempre.
-    for (const name of ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET']) {
+    for (const name of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_URL']) {
       vi.stubEnv(name, '');
     }
 
@@ -65,7 +65,7 @@ describe.skipIf(!hasTestDb)('GET/POST /api/cron/backup', () => {
     const cuerpo = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(200);
-    expect(cuerpo.skipped).toBe('sin_cloudinary');
+    expect(cuerpo.skipped).toBe('sin_almacenamiento');
     expect(cuerpo.uploaded).toBe(false);
     // Y no tomó el lock: la corrida de mañana tiene que poder entrar.
     expect(await getJobRun('backup')).toBeNull();
@@ -74,18 +74,18 @@ describe.skipIf(!hasTestDb)('GET/POST /api/cron/backup', () => {
   it('la respuesta no incluye el nombre del archivo', async () => {
     // El `public_id` es media pista para encontrar el backup, y esta respuesta
     // la ve cualquiera con acceso a los logs del hPanel.
-    for (const name of ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET']) {
+    for (const name of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_URL']) {
       vi.stubEnv(name, '');
     }
 
     const { GET } = await route();
     const cuerpo = await (await GET(request(SECRET))).text();
-    expect(cuerpo).not.toContain('publicId');
+    expect(cuerpo).not.toContain('setId');
     expect(cuerpo).not.toContain('backup-20');
   });
 
   it('acepta POST además de GET', async () => {
-    for (const name of ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET']) {
+    for (const name of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_URL']) {
       vi.stubEnv(name, '');
     }
 

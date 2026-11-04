@@ -25,6 +25,73 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Importación del catálogo como función del panel, y una sola planilla
+  para export, panel y CLI** (docs/CATALOGO-CSV.md). Columnas canónicas en
+  orden fijo (SKU, Producto, Categoría, Variante, Precio (₲), Stock,
+  Descripción, Marca, IVA, Precio antes (₲), Slug, Fotos, [Proveedor, URL
+  proveedor, Costo proveedor, Stock proveedor], Modo de venta, Mostrar
+  precio); los encabezados viejos siguen entrando como alias. El **export del
+  panel cambia de formato**: antes bajaba 8 columnas, ahora la planilla
+  completa (con Slug, Descripción, Fotos, etc.), que vuelve a entrar sin
+  cambios en esta tienda o en otra. Vista previa con avisos y **posibles
+  productos repetidos** que hay que marcar como revisados (`--revisado` en la
+  CLI); la escritura va **por lotes de 25 productos**, cada uno atómico (antes
+  era todo el archivo en una transacción), con el avance a la vista y aviso
+  claro si se corta la conexión. Columnas de proveedor sólo con
+  `proveedores` prendido (si no, se ignoran con aviso). La CLI acepta `.xlsx`.
+  Datos de ejemplo: `scripts/fixtures/catalogo-demo.csv`. Migración: no. A
+  mano: nada; quien tenga macros o fórmulas sobre el CSV de productos del
+  panel tiene que revisar las columnas nuevas.
+- **Proveedores (dropshipping) en el panel, opcional y apagado**, y orden
+  manual de destacados. **Migración: sí** (`0025`: tabla `supplier_offers`,
+  `products.supplier_url` y `products.featured_position`, todas aditivas).
+  - `proveedores: true` en `src/config/tienda.ts` suma a la ficha del panel el
+    enlace privado de compra y las ofertas de proveedores por variante (costo,
+    stock declarado, enlaces https, preferida y margen bruto). Owner y staff.
+    Nunca llega a la vidriera, el feed, el sitemap ni el JSON-LD. Ver
+    NEW-STORE.md §4b-bis y ARCH.md § "Proveedores".
+  - Con el flag apagado —el default— el panel y la tienda quedan iguales. No
+    toca los modos de venta (`enquiry`/`showcase`) ni el stock, las reservas o
+    los pedidos.
+  - "Orden en destacados" en la ficha del panel, para todas las tiendas: la
+    home ordena los destacados por ese número y después por fecha de
+    publicación. En 0 (el default) el orden es el de antes.
+  - `/api/health` ahora prueba la consulta de destacados de la home.
+  - Una tienda existente: después del deploy, correr el setup para aplicar la
+    `0025` (como toda migración). Su `tienda.ts` no necesita cambios; el campo
+    `proveedores` es opcional.
+- **R2 reemplaza a Cloudinary para fotos, comprobantes y backups.** Migración:
+  no (las columnas `cloudinary_id` quedan con su nombre; cambian sólo las
+  propiedades de TypeScript: `imageRef`, `storageKey`, `qrImageRef`). **Cada
+  tienda tiene que hacer algo a mano** antes de subir fotos o recibir
+  comprobantes: crear su bucket de R2 con dominio público, la regla de WAF que
+  bloquea `/comprobantes/*` y `/backups/*`, y un token del bucket, y cargarlo en
+  `/admin/integraciones` → R2 (DEPLOY.md §3b). Las que ya tenían fotos en
+  Cloudinary corren una vez `pnpm fotos:migrar-cloudinary -- --cloud <nombre>
+  --aplicar` (NEW-STORE.md § "Migrar las fotos a R2"); hasta entonces cada foto
+  vieja se ve como el placeholder, nunca rota. `TIENDA.hero.imagen.cloudinaryId`
+  pasa a ser `imageRef` en `src/config/tienda.ts`.
+  - Integración R2 (Account ID, access key, secret cifrado, bucket, dominio
+    público; panel > entorno > apagado) y "Probar conexión" que escribe, lee
+    y borra un archivo privado y avisa si el dominio público lo sirve.
+  - Fotos del panel (producto, categoría, portada, logo, favicon, QR):
+    preparadas en el navegador (WebP 240/480/800/1200 + JPEG, ≤ 1200 px),
+    verificadas en el servidor por los bytes, claves inmutables con el hash
+    del contenido, y la fila se inserta recién después de escribir en R2.
+    Se dibujan con `<picture>` y `srcset`.
+  - La importación por planilla baja las fotos en el servidor (https, topes de
+    tiempo, tamaño y redirecciones, contenido mirado por los bytes); nuevos
+    `pnpm fotos:preparar`, `fotos:subir` y `fotos:reparar` para cargas grandes.
+  - Comprobantes privados en `comprobantes/` con URL prefirmada de 2 minutos.
+  - Backup en un set por tabla con un manifiesto escrito al final; `pnpm
+    restore -- --r2 ultimo` y `pnpm restore` rechaza un set incompleto o con un
+    conteo o hash que no coincide (el `.jsonl.gz` de formato 2 sigue andando).
+  - `pnpm preflight` bloquea sin R2, sale con 1 si el dominio público sirve un
+    canario privado, y avisa cuántas referencias de fotos no son de R2.
+  - CSP: `img-src` con el dominio público del bucket (y, en el panel, el
+    endpoint S3 de la cuenta para ver comprobantes). Sale la dependencia
+    `cloudinary`; entran `aws4fetch` y `sharp`.
+
 - **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   F1–F6). Sin migración.
   - Errores del panel: los formularios de producto, variante, categoría y

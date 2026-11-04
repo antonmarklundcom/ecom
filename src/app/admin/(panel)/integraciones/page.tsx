@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * `/admin/integraciones` — owner-only.
  *
  * Lo que antes eran variables del hPanel (y un Redeploy por cada dígito mal
- * tipeado): Cloudinary, WhatsApp, Pagopar, la medición y el reporte de
+ * tipeado): R2, WhatsApp, Pagopar, la medición y el reporte de
  * errores. Mismo criterio que `/admin/banco`: la pantalla muestra **de dónde
  * sale** cada valor hoy —el panel o el entorno— para que nadie mire un
  * formulario vacío mientras la tienda usa valores que salen de otro lado.

@@ -109,9 +109,9 @@ export const CAPABILITIES = [
   "ajustes",
   /**
    * Las integraciones (`/admin/integraciones`): las credenciales de
-   * Cloudinary, WhatsApp Cloud y Pagopar, la medición y el reporte de
-   * errores. Quien las cambia puede redirigir los comprobantes a otra cuenta
-   * de Cloudinary, mandar los avisos desde otro número o cambiar la clave con
+   * R2, WhatsApp Cloud y Pagopar, la medición y el reporte de
+   * errores. Quien las cambia puede redirigir los comprobantes a otro
+   * bucket, mandar los avisos desde otro número o cambiar la clave con
    * la que se firman los pagos con tarjeta. Owner, sin discusión.
    */
   "integraciones",

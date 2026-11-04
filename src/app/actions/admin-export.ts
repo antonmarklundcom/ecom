@@ -3,10 +3,12 @@
 import { z } from "zod";
 
 import { cuentasClientesHabilitadas } from "@/lib/cuentas";
+import { can } from "@/lib/permissions";
+import { proveedoresHabilitados } from "@/lib/proveedores";
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/db/schema";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/order-labels";
 import { listOrdersForExport } from "@/domain/admin-orders";
-import { listVariantsForExport } from "@/domain/admin-products";
+import { catalogExportCsv, listCatalogExportRows } from "@/domain/catalog-export";
 import { listMarketingOptIns } from "@/domain/customers";
 import {
   adminActionError,
@@ -117,40 +119,23 @@ export async function exportProductsCsv(
   input: unknown
 ): Promise<AdminActionResult<CsvExport>> {
   try {
-    await requireOwnerSession();
+    const actor = await requireOwnerSession();
 
     const parsed = ProductsFiltersSchema.safeParse(input ?? {});
     if (!parsed.success) {
       return { ok: false, error: t("adminError.filtros") };
     }
 
-    const rows = await listVariantsForExport({
-      search: parsed.data.q,
-      categoryId: parsed.data.categoria,
-    });
-
-    const csv = toCsv(
-      [
-        t("csv.producto.sku"),
-        t("csv.producto.nombre"),
-        t("csv.producto.categoria"),
-        t("csv.producto.variante"),
-        t("csv.producto.precio"),
-        t("csv.producto.stock"),
-        t("csv.producto.modo"),
-        t("csv.producto.mostrarPrecio"),
-      ],
-      rows.map((row) => [
-        row.sku,
-        row.productName,
-        row.categoryName,
-        row.label,
-        row.pricePyg,
-        row.onHand,
-        row.saleMode,
-        row.showPrice ? "true" : "false",
-      ])
+    // La planilla canónica del catálogo (docs/CATALOGO-CSV.md): la misma
+    // que entiende la importación del panel y `pnpm importar:productos`, en
+    // esta tienda o en otra. Las columnas de proveedor van sólo con el flag
+    // prendido —son datos privados de compras—.
+    const proveedores = proveedoresHabilitados() && can(actor.role, "precios");
+    const rows = await listCatalogExportRows(
+      { search: parsed.data.q, categoryId: parsed.data.categoria },
+      { proveedores }
     );
+    const csv = catalogExportCsv(rows, { proveedores });
 
     return {
       ok: true,

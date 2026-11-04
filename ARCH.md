@@ -1,6 +1,6 @@
 # ARCH.md — Tienda PY: Technical Architecture
 
-**Stack:** Next.js 16 (App Router, TS) · **Hostinger Node.js** · **Hostinger MySQL + Drizzle ORM** · Cloudinary (images + receipts) · Tailwind + shadcn/ui · Zustand · Zod
+**Stack:** Next.js 16 (App Router, TS) · **Hostinger Node.js** · **Hostinger MySQL + Drizzle ORM** · Cloudflare R2 over its S3 API (images, receipts, backups) · Tailwind + shadcn/ui · Zustand · Zod
 **Currency:** PYG only, stored as `BIGINT` integers. No decimals anywhere in the money path.
 **Timezone:** all business logic in `America/Asuncion`; all timestamps stored UTC (`timezone: "Z"` on the pool).
 **Language:** Spanish (Paraguayan voseo) UI, `dd/mm/yyyy`.
@@ -188,7 +188,7 @@ MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaran�
 │────────────────────│◄───────│───────────────────│───────►│──────────────────────│
 │ id PK              │        │ id PK             │        │ id PK                │
 │ product_id FK      │        │ slug UQ           │        │ product_id FK        │
-│ cloudinary_id      │        │ name              │        │ sku UQ               │
+│ cloudinary_id *    │        │ name              │        │ sku UQ               │
 │ blur_data_url      │        │ description TEXT  │        │ label ("Talle M")    │
 │ alt                │        │ category_id FK    │        │ price_pyg BIGINT     │
 │ position           │        │ brand             │        │ compare_at_pyg NULL  │
@@ -246,7 +246,7 @@ MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaran�
 │────────────────────────────│           │      payment_events        │
 │ id PK                      │           │────────────────────────────│
 │ order_id FK                │           │ id PK                      │
-│ cloudinary_id (private)    │           │ provider                   │
+│ cloudinary_id * (private)  │           │ provider                   │
 │ mime / bytes               │           │ event_key                  │
 │ uploaded_at                │           │ payload JSON               │
 │ review: pending|approved|  │           │ received_at                │
@@ -443,14 +443,17 @@ relaciones nuevas:
 
 - **`products.is_featured`** (bool, default `false`, índice
   `(is_featured, published_at)`): lo elige el dueño a mano desde el panel.
-  `getFeaturedProducts(limit)` los devuelve; si no hay ninguno, cae al mismo
+  `getFeaturedProducts(limit)` los devuelve ordenados por
+  **`products.featured_position`** (int, default `0`, "Orden en destacados"
+  en la ficha del panel; más chico, más adelante) y después por
+  `published_at DESC`. Con todos en 0 —una tienda que nunca lo tocó— el
+  orden es el de antes de la columna (migración `0025`). Si no hay ninguno, cae al mismo
   criterio que la home de siempre (`getCatalog({ limit })`, orden por
   posición de categoría y nombre) — **no** "los más nuevos" a secas, para que
   una tienda que recién trae la migración no vea moverse su portada.
 - **`categories.description` / `image_cloudinary_id` / `image_alt`**: texto y
-  foto opcionales de la página de categoría (`f_auto,q_auto`, folder
-  `categorias/` bajo el prefijo de Cloudinary de la tienda). Sin ninguno de
-  los tres, la página es bit a bit la de antes.
+  foto opcionales de la página de categoría (una referencia `r2:p1/…`, ver §6).
+  Sin ninguno de los tres, la página es bit a bit la de antes.
 - **`variants.reorder_point`** (`int unsigned` NULL): umbral de "stock bajo"
   por variante; `NULL` usa el default global (3). `lowStockVariants` lo
   respeta con `COALESCE` en el SQL — y con `CAST(... AS SIGNED)` en la
@@ -468,6 +471,86 @@ relaciones nuevas:
   (`adjustStock`, importación de catálogo) y además lo barre el cron del
   resumen diario, para el caso de una reserva vencida que liberó stock sin
   ningún ajuste manual detrás. Purga a los 90 días desde `runMaintenance`.
+
+### Proveedores: datos privados de compras, no de pedido ni de stock
+
+Opcional y apagado de fábrica (`proveedores` en `src/config/tienda.ts`, leído
+sólo por `proveedoresHabilitados()` de `src/lib/proveedores.ts`). Sirve para
+dropshipping, mayoristas o importación: a quién se le compra cada variante y a
+cuánto. Dos piezas (migración `0025`):
+
+- **`supplier_offers`** (`variant_id` FK cascade, `unit_cost_pyg` BIGINT
+  UNSIGNED NULL, `source`, `source_type` `dropi|local|import|other`,
+  `product_url`, `supplier_url`, `supplier_stock` INT UNSIGNED NULL, `notes`,
+  `is_confirmed`, `is_active`, `is_preferred`, `checked_at`, `updated_at`):
+  varias ofertas por variante, a lo sumo una preferida (la que se usa para el
+  margen bruto del panel, `src/lib/supplier-margin.ts`), que tiene que estar
+  activa, confirmada y con costo. La escribe sólo `src/domain/supplier-offers.ts`
+  (zod: enlaces `https://` sin credenciales, guaraníes enteros, largos
+  acotados), por las acciones `saveVariantSupplierOffer` /
+  `deleteVariantSupplierOffer`: guard de staff, capacidad `precios` y el flag,
+  en ese orden. Cada escritura deja una línea de log con actor, variante y
+  oferta (sin costos ni enlaces).
+- **`products.supplier_url`** (varchar 2048 NULL): el enlace privado de compra
+  del producto. `saveProduct` lo acepta sólo con el flag prendido; ausente no
+  se toca, así que apagar el flag no borra lo cargado.
+
+Reglas que no cambian con el flag:
+
+1. **No es parte del pedido ni del stock.** `supplier_stock` es lo que el
+   proveedor declaró al mirarlo, nunca stock vendible; `on_hand`, reservas,
+   `createOrder` y `transitionOrder` no leen esta tabla. Con la tabla vacía la
+   tienda se comporta exactamente como antes.
+2. **Nunca sale del panel.** Ninguna consulta de `src/db/queries.ts`, el feed,
+   el sitemap, el JSON-LD ni un componente de la vidriera los nombra
+   (`tests/unit/proveedores-privados.test.ts` lo fija sobre el código, con una
+   lista explícita de archivos permitidos, y
+   `tests/integration/supplier-offers.test.ts` sobre lo que devuelve cada
+   consulta pública con datos cargados). No confundir con
+   `products.supplier_details`, que es la fuente de un hecho verificado de la
+   ficha (docs/TEMPLATE-INHERITANCE.md).
+3. **Duplicar un producto** copia `supplier_url` pero no las ofertas: cada una
+   afirma "es el mismo producto que vende el proveedor", y eso se vuelve a
+   confirmar para la copia.
+4. **El backup las incluye** (`BACKUP_TABLES`, después de `variants`).
+5. **El flag no toca los modos de venta** (`sale_mode` `stock|enquiry|showcase`
+   y `show_price`), que valen para todas las tiendas.
+
+### La planilla del catálogo: un formato, tres puntas, por lotes
+
+El export del panel, la importación del panel y `pnpm importar:productos`
+usan **una** definición de columnas (`src/domain/catalog-csv.ts`, nombres de
+`csv.producto.*`), documentada en docs/CATALOGO-CSV.md: un archivo de una
+tienda entra en otra sin tocarlo, y exportar → importar no cambia nada.
+
+- **Plan** (`buildCatalogImportPlan`, `src/domain/catalog-import-plan.ts`):
+  parseo puro (`parseCatalogo`, todos los errores con línea), conflictos de
+  SKU con la colación de la base, cuentas, y **posibles repetidos**
+  (`src/domain/catalog-duplicates.ts`: mismo nombre con otro slug, nombres
+  casi iguales en la categoría, slug existente sin SKU en común, foto o URL
+  de proveedor compartida). Los repetidos no frenan, pero el panel no deja
+  confirmar sin marcarlos y la CLI pide `--revisado`.
+- **Escritura por lotes** (`applyCatalogImportLote`): `CATALOG_IMPORT_LOTE`
+  (25) productos por transacción, en el orden del archivo. Cada lote se
+  vuelve a planificar contra la base de ese momento y entra entero o no
+  entra; uno que falla no deshace los anteriores. Es idempotente por slug y
+  SKU, así que reimportar el archivo completo termina un trabajo cortado. El
+  panel pide los lotes de a uno desde el navegador: si la conexión se corta a
+  mitad de un lote, dice que de ése no se sabe y pide volver a Revisar.
+- **Firma de la vista previa** (`firmaRevision`): HMAC con `SESSION_SECRET`
+  sobre la huella del archivo, la lista de repetidos, el modo de proveedores y
+  quien importa. Cada lote la verifica; el lote 0 además vuelve a revisar el
+  archivo entero. Así nadie escribe un archivo que no pasó por la vista
+  previa ni saltea la revisión de repetidos.
+- **Proveedores**: con el flag (y `precios` en el panel), URL proveedor va a
+  `products.supplier_url` y Proveedor/Costo/Stock proveedor a la oferta de la
+  variante con ese nombre (`upsertImportedSupplierOffer`, idempotente por
+  variante y nombre); con costo queda como la preferida. Sin el flag, esas
+  columnas no se exportan y al importar se ignoran con un aviso.
+- Lo de siempre (docs/TEMPLATE-IMPROVEMENT-PLAN.md C2–C7): ausente no es
+  vacío, el stock existente no se pisa sin pedirlo, lo nuevo entra como
+  borrador, precios y stock en masa son del dueño y quedan auditados. Las
+  fotos suben después del commit de cada lote.
 
 ### Zonas de envío: quién las escribe (FASE 2, PR K)
 
@@ -585,8 +668,8 @@ cuenta a medias es peor que ninguna**:
   tipeado no rompe nada de este lado: rompe la transferencia de otra persona, en
   el banco.
 
-El QR del SPI se sube a un folder **público** de Cloudinary (`banco/`), nunca a
-`comprobantes/`, que es `authenticated` y sólo se sirve firmado. El tipo de
+El QR del SPI se sube a R2 como una foto **pública** más (`p1/`), nunca a
+`comprobantes/`, que es privado y sólo se sirve con URL prefirmada. Cada
 archivo se valida por los bytes, igual que las fotos de producto.
 
 `pnpm preflight` sigue siendo env-only y **no toca la base a propósito** (se
@@ -868,7 +951,7 @@ refund, and pretending the order is alive would be worse than saying nothing.
 
 1. Order created → `pendiente_pago`, `reserved_until = NOW() + 24h`.
 2. Confirmation page shows: Banco, Titular, RUC, nro. de cuenta, **the exact ₲ total with a copy button**, and the SPI QR image. Copy buttons on every field — typing an account number on a phone is where orders die.
-3. Buyer uploads the comprobante → server validates MIME + size → uploads to a **private Cloudinary folder** (signed delivery URLs only) → `receipts` row → `esperando_verificacion`.
+3. Buyer uploads the comprobante → server validates MIME + size → uploads to R2 under `comprobantes/<128-bit random>/` (private: the public domain blocks that prefix; the admin views it through a 2-minute presigned GET) → `receipts` row → `esperando_verificacion`.
 4. One-tap WhatsApp button: `https://wa.me/595XXXXXXXXX?text=` + `encodeURIComponent(message)`. Message contains order number, total, and the tokenized order URL. Keep under ~1500 chars — long deeplinks truncate on iOS.
 5. Owner checks the receipt against the bank statement in `/admin`, clicks **Aprobar** → `transitionOrder(→ pagado)`, which also writes the `payments` row (below).
 
@@ -1050,10 +1133,14 @@ ordenada por dependencia: restaurar en ese orden nunca choca contra una FK, y
 una tabla nueva que nadie decidió incluir hace fallar un test en vez de quedar
 afuera en silencio.
 
-Sube a Cloudinary como `raw` + **`authenticated`**: un backup en una carpeta
-pública es la base de datos entera del comercio servida por CDN a quien adivine
-la URL. Retención de 14 días, porque una cuenta llena deja de aceptar la copia
-de hoy. Si falla, el dueño recibe un WhatsApp — un backup que falla en silencio
+Sube a R2 bajo `backups/backup-<fecha>-<128 bits aleatorios>/`, **privado**
+(el dominio público bloquea `/backups/*`; `pnpm preflight` lo prueba): un
+backup público es la base de datos entera del comercio servida a quien adivine
+la URL. **Un objeto por tabla** (`orders.jsonl.gz`, …) y un `manifest.json`
+con filas y hashes de cada uno, escrito **último**: un set sin manifiesto es
+una corrida que no terminó, y `pnpm restore` rechaza cualquier set con un
+objeto de menos o un conteo/hash que no coincide (formato 3; el archivo único
+de formato 2 se sigue aceptando). Retención de 14 días. Si falla, el dueño recibe un WhatsApp — un backup que falla en silencio
 da la tranquilidad sin dar la copia.
 
 `scripts/restore-backup.ts` **sólo corre contra una base cuyo nombre contenga
@@ -1072,9 +1159,13 @@ sigue siendo el endpoint abierto y sigue sin decir ni una versión.
 
 ## 6. Images & performance on PY mobile networks
 
-- **Cloudinary** for everything. Product images public with `f_auto,q_auto` transformations; receipts in a **private/authenticated** folder, admin views them via signed URLs.
+- **Cloudflare R2** for everything, through its S3-compatible HTTPS API from Node (`aws4fetch`; `src/lib/r2.ts`). One bucket per store with a public custom domain. Credentials only through `src/lib/integraciones.ts` (panel > env > off); the secret is encrypted and never reaches the browser.
+- **Public photos, format `p1`** (`src/lib/imagenes-r2.ts`): the DB stores a reference `r2:p1/<slug>-<hash10>@WxH`; objects are one WebP per box (240/480/800/1200, never upscaled, never cropped) plus a JPEG fallback (`p1/<base>.jpg`, also used for Open Graph). The hash is of the content, so keys are immutable (`Cache-Control: immutable`, written with `If-None-Match: *`). Rendered as `<picture>` with a WebP `srcset` and the caller's `sizes` (`src/components/imagen-r2.tsx`). Anything that is not a valid `r2:` reference renders as the placeholder, never as a broken URL.
+- **Uploads**: the panel prepares the set in the browser (`src/lib/preparar-imagen.ts`, ≤ 1200 px, ≤ 900 KB in total); the server action verifies every file **by its bytes** (format + header dimensions + the exact set of boxes, `verificarSetPreparado`), writes the objects, and only **then** inserts the row. The CSV import and the bulk/migration scripts download originals server-side (https only, timeouts, byte cap, counted redirects, content sniffing; `src/lib/descarga-segura.ts`) and derive the same set with `sharp`. Removing a photo never deletes bytes.
+- **Private objects**: receipts (`comprobantes/`) and backups (`backups/`) live in the same bucket under keys with a 128-bit random component; the public domain must block both prefixes with a WAF rule (DEPLOY.md), and `pnpm preflight` writes a canary and fails if the public domain serves it.
+- SQL column names (`cloudinary_id`, `image_cloudinary_id`, `qr_cloudinary_id`, marked `*` above) are historical and were not renamed; the TypeScript properties are `imageRef` / `storageKey` / `qrImageRef`.
 - Do **not** store uploads on the Hostinger filesystem — a git-based redeploy can wipe them.
-- Blur placeholders stored in `product_images.blur_data_url`; `next/image` with `unoptimized` (Cloudinary already does the work) and long cache headers.
+- `next/image` stays `unoptimized` (the files are already sized; the optimizer would only burn the slot's CPU); placeholders are committed SVGs.
 - Catalog pages use ISR (`revalidate`); only live availability is fetched client-side.
 - Budget: LCP < 2.5 s on Slow-4G.
 - **Client JS, measured (S12, 2026-09-06 — Next 16.3.4/Turbopack, `next build && next start`, real gz bytes of same-origin `<script>` responses, no fallback):**

@@ -11,7 +11,7 @@ comercio. La sección **"Bloqueado por terceros"** de abajo los junta todos en
 un solo lugar con quién tiene que resolver cada uno — antes había que
 peinar los cinco PRs para armar esa lista.
 
-Stack: Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudinary.
+Stack: Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js** + Cloudflare R2.
 Marcá `[x]` al terminar. Cada bloque es un commit.
 
 ---
@@ -32,7 +32,7 @@ marcados como pendientes en varias secciones más abajo.
 | Credenciales de Pagopar (`PAGOPAR_PUBLIC_KEY` / `PAGOPAR_PRIVATE_KEY`) + `PAGOPAR_BASE_URL` de la API 2.0 | Pagopar (alta de comercio) | §0 |
 | Confirmar el sobre exacto de la respuesta del webhook contra la doc v2 vigente | Pagopar (acceso a la doc actualizada) | §21 |
 | Túnel HTTPS + registrar la "URL de respuesta" en el panel de Pagopar, para probar de punta a punta | Pagopar (panel del comercio) — depende de las credenciales de arriba | §21 |
-| Cuenta de Cloudinary (o folders separados en una existente) | Dueño del proyecto | §0 |
+| Bucket de R2 por tienda, con dominio público y la regla que bloquea `/comprobantes/*` y `/backups/*` (DEPLOY.md §3b) | Dueño del proyecto (cuenta de Cloudflare) | §0 |
 | Fotos reales de cada producto | Dueño del comercio (catálogo fotográfico real) — los placeholders sólo evitan la caja gris en la demo, no reemplazan esto | §8 |
 | Lighthouse mobile ≥ 90 medido de verdad | Depende del deploy a Hostinger (primer bloqueo de esta tabla) | §8 |
 
@@ -46,7 +46,7 @@ marcados como pendientes en varias secciones más abajo.
 - [ ] Datos bancarios reales (Banco, titular, RUC, nro. de cuenta) + imagen del QR SPI — necesarios recién en el PR #3
 - [ ] Número de WhatsApp del comercio en formato `+5959XXXXXXXX`
 - [ ] **Credenciales de sandbox de Pagopar** (`PAGOPAR_PUBLIC_KEY` / `PAGOPAR_PRIVATE_KEY`) + la URL base de la API 2.0 — ahora sí bloquean: son lo único que falta para confirmar el formato de la respuesta del webhook (§21)
-- [ ] Cuenta de Cloudinary (o reusar la de inmobiliaria con folders separados)
+- [ ] Bucket de R2 de esta tienda (DEPLOY.md §3b)
 
 ---
 
@@ -92,12 +92,12 @@ marcados como pendientes en varias secciones más abajo.
 - [x] `waLink(phone, text)` con `encodeURIComponent` + límite de longitud
 - [x] Fechas: `dd/mm/yyyy`, zona `America/Asuncion` en toda la UI
 
-## 6. Auth + Cloudinary
+## 6. Auth + almacenamiento de archivos
 - [x] `users` (email UQ, `password_hash` bcrypt, `role`), `iron-session`, `requireAdmin(session)`
 - [x] Script `create-owner.ts` — **sin ruta pública de registro**
-- [x] Cloudinary: folder `productos/` público, folder `comprobantes/` privado/authenticated (config + `signedReceiptUrl()` — sin flow de upload todavía)
+- [x] Almacenamiento: fotos públicas, comprobantes privados (hoy R2: `p1/` público, `comprobantes/` privado con URL prefirmada)
 - [x] `uploadReceipt()` con validación MIME (`jpeg|png|pdf`), ≤ 5 MB, ≤ 3 por pedido (`src/app/actions/receipt.ts`, usado por `src/components/receipt-upload.tsx`; validación en `src/domain/receipts.ts`)
-- [x] `signedReceiptUrl()` con TTL corto para el admin
+- [x] URL firmada con TTL corto para el admin (hoy `receiptPreview()`, prefirmada contra R2)
 
 ## 7. Zod + seed
 - [x] `lib/schemas.ts`: `CartItemSchema`, `CheckoutInputSchema` (refine `doc_number` según `doc_type`), `AdminProductInput`
@@ -127,10 +127,10 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Slide-over del carrito: editar, quitar, subtotal, "Seguí comprando" / "Ir al checkout"
 - [x] **Revalidación del carrito** — re-precia y re-chequea stock en el servidor; avisa "cambió el precio / se quedó sin stock"
 - [x] Búsqueda con `FULLTEXT` (+ fallback a `LIKE` para términos cortos)
-- [x] Pipeline de imágenes de Cloudinary con placeholders
+- [x] Pipeline de imágenes con placeholders (hoy formato `p1` de R2, `<picture>` con WebP por caja + JPEG)
 - [x] Estados vacíos / loading / error, `not-found.tsx`
 - [ ] Lighthouse mobile ≥ 90 perf/a11y en la ficha de producto *(medir con el sitio desplegado)*
-- [ ] Fotos reales de producto en Cloudinary *(el seed no trae fotos: se ve una ilustración placeholder por categoría — `public/placeholders/` — en vez de la caja de color de antes)*
+- [ ] Fotos reales de producto en R2 *(el seed no trae fotos: se ve una ilustración placeholder por categoría — `public/placeholders/` — en vez de la caja de color de antes)*
 
 ---
 
@@ -139,7 +139,7 @@ marcados como pendientes en varias secciones más abajo.
 ## 9. Núcleo del checkout *(Opus 5)*
 - [x] **`createOrder`** — re-precia todo desde la DB, inserta pedido + ítems + reservas en UNA transacción, acuña `access_token`, `reserved_until` según el método
 - [x] Envío por zona desde `shipping_zones` + umbral de envío gratis
-- [x] **Subida de comprobante** — MIME por bytes (no por el `type` del navegador), ≤ 5 MB, ≤ 3 por pedido, Cloudinary privado, fila en `receipts`, → `esperando_verificacion`
+- [x] **Subida de comprobante** — MIME por bytes (no por el `type` del navegador), ≤ 5 MB, ≤ 3 por pedido, almacenamiento privado (hoy R2), fila en `receipts`, → `esperando_verificacion`
 - [x] **Guard de `/pedido/[order_number]?t=`** — comparación de token en tiempo constante; token inválido y pedido inexistente devuelven el mismo 404
 - [x] **`/pedido/buscar`** — nro. + teléfono, 5 intentos / 15 min / IP, mensaje de error genérico, redirige a la URL tokenizada
 - [x] `/checkout` con formulario (nombre, WhatsApp, RUC/CI con DV, ciudad/barrio/dirección, método de pago)
@@ -175,7 +175,7 @@ marcados como pendientes en varias secciones más abajo.
 ## 13. Productos
 - [x] `/admin/productos`: ABM con búsqueda y paginación; alta en `/admin/productos/nuevo`
 - [x] Variantes con precio en ₲ **entero** (`step=1`, sin decimales) y SKU único
-- [x] Subida de fotos a Cloudinary público, con MIME validado **por los bytes** (SVG excluido a propósito)
+- [x] Subida de fotos públicas, con formato validado **por los bytes** (SVG excluido a propósito; hoy a R2, preparadas en el navegador y verificadas en el servidor)
 - [x] Ajuste de stock con motivo obligatorio, auditado en la tabla nueva `stock_adjustments` (delta con signo + antes/después + actor)
 - [x] El ajuste va por delta y no por total absoluto: dos conteos simultáneos se acumulan en vez de pisarse
 
@@ -197,7 +197,7 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Rate limits: login (IP + email), búsqueda de pedidos (ya del PR #3), cron
 - [x] Cabeceras: CSP con nonce por request (sin `unsafe-inline` en scripts), HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, `poweredByHeader: false`
 - [x] Panel servido con `no-store` + `noindex`
-- [x] Scan de secretos commiteados (PEM, AWS, GitHub, Cloudinary, URLs de MySQL con contraseña) y de `NEXT_PUBLIC_` mal usado
+- [x] Scan de secretos commiteados (PEM, AWS, GitHub, secret de R2, URLs de MySQL con contraseña) y de `NEXT_PUBLIC_` mal usado
 - [x] Logs sin secretos: el cron loguea cantidades, nunca el valor probado ni ids de pedido
 - [x] `?next=` del login sólo acepta rutas internas de `/admin` (redirect abierto cerrado)
 - [x] Verificado en un navegador real: el CSP con nonce no rompe la hidratación y el panel no scrollea horizontal en 390 px
@@ -377,7 +377,7 @@ marcados como pendientes en varias secciones más abajo.
 
 ## 31. `pnpm preflight`
 - [x] Un comando que contesta "¿se pierde algo si mañana alguien compra acá?" y sale con código 1 si sí
-- [x] Bloquea: sobre del webhook sin confirmar, `BANCO_*` incompletos, `CRON_SECRET` / `SESSION_SECRET` vacíos o cortos, Cloudinary sin configurar, `NEXT_PUBLIC_SITE_URL` sin https en producción, `PAGOPAR_MODE=mock` con `NODE_ENV=production`
+- [x] Bloquea: sobre del webhook sin confirmar, `BANCO_*` incompletos, `CRON_SECRET` / `SESSION_SECRET` vacíos o cortos, R2 sin configurar (y el canario privado de R2 servido por el dominio público), `NEXT_PUBLIC_SITE_URL` sin https en producción, `PAGOPAR_MODE=mock` con `NODE_ENV=production`
 - [x] Advierte sin frenar: credenciales de Pagopar faltantes (la tienda cobra igual por transferencia), base local en producción, formato raro del WhatsApp
 - [x] `WEBHOOK_ENVELOPE_CONFIRMED` es una **constante del código**, no una variable de entorno: confirmarlo es un hecho sobre el repo, no sobre el servidor
 - [x] No toca la base ni la red: se puede correr en producción sin efectos
@@ -459,3 +459,12 @@ marcados como pendientes en varias secciones más abajo.
 - [x] `localStorage` por producto, sólo preselecciona entre las variantes ya dibujadas y con stock
 - [x] `useSyncExternalStore` en vez de un efecto: sin desajuste de hidratación
 - [x] Falla blandito (JSON roto, Safari privado, variante que ya no existe) y se queda con los últimos 30 productos
+
+## 42. R2 como único almacenamiento (fotos, comprobantes, backups)
+- [x] Integración R2 en `/admin/integraciones` (Account ID, access key, **secret cifrado**, bucket, dominio público), panel > entorno > apagado, "Probar conexión" que escribe/lee/borra un archivo privado y avisa si el dominio público lo sirve
+- [x] Subidas del panel preparadas en el navegador (WebP por caja + JPEG, ≤ 1200 px) y verificadas en el servidor por los bytes; la fila se inserta **después** de escribir los objetos; quitar una foto nunca borra bytes
+- [x] Formato `r2:p1/<slug>-<hash>@WxH` y `<picture>` con `srcset`; una referencia que no es de R2 es el placeholder
+- [x] Comprobantes privados con URL prefirmada de 2 minutos; backup en un set por tabla con manifiesto escrito último; `pnpm restore` rechaza sets incompletos
+- [x] Importación que baja las fotos en el servidor (https, topes, redirecciones, contenido); `pnpm fotos:preparar` / `fotos:subir` / `fotos:reparar`
+- [x] `pnpm preflight`: canario privado contra el dominio público y conteo de referencias viejas
+- [ ] Por tienda: bucket, dominio, regla de WAF y token (DEPLOY.md §3b); `pnpm fotos:migrar-cloudinary` en las que ya tenían fotos (NEW-STORE.md)

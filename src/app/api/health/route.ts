@@ -1,5 +1,5 @@
 import { getPool } from "@/db";
-import { getCatalog } from "@/db/queries";
+import { getFeaturedProducts } from "@/db/queries";
 import { migrationStatus } from "@/db/migration-status";
 import { backupsEnabled } from "@/domain/backup";
 import { backupAtrasado, cronAtrasado, getJobRun } from "@/domain/job-runs";
@@ -130,7 +130,9 @@ function rechazarAlVencer(): Promise<never> {
 
 async function catalogResponde(): Promise<boolean> {
   try {
-    await Promise.race([getCatalog({ limit: 1 }), rechazarAlVencer()]);
+    // La consulta de la portada: la de destacados (ordena por
+    // `featured_position`) y, sin destacados, la del catálogo de siempre.
+    await Promise.race([getFeaturedProducts(1), rechazarAlVencer()]);
     // Include dependent catalogue tables/columns even on a genuinely empty store.
     await Promise.race([
       getPool()

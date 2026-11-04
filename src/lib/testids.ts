@@ -203,6 +203,15 @@ export const TESTIDS = {
   integracionGuardar: "integracion-guardar",
   /** "Probar conexión" de una integración. */
   integracionProbar: "integracion-probar",
+  /** El orden entre destacados en la ficha del panel (`product-form.tsx`). */
+  adminProductFeaturedPosition: "admin-product-featured-position",
+  /**
+   * El enlace privado de compra (`product-form.tsx`). Sólo existe con
+   * `proveedores` prendido en `tienda.ts`.
+   */
+  adminProductSupplierUrl: "admin-product-supplier-url",
+  /** El editor de ofertas de proveedores (`supplier-offers-editor.tsx`). Ídem. */
+  adminSupplierOffers: "admin-supplier-offers",
 } as const;
 
 export type TestId = (typeof TESTIDS)[keyof typeof TESTIDS];

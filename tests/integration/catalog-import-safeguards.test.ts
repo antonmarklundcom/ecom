@@ -8,8 +8,8 @@ import {
   stockAdjustments,
   variants,
 } from "@/db/schema";
-import { listVariantsForExport, saveVariant } from "@/domain/admin-products";
-import { catalogExportCsv } from "@/domain/catalog-export";
+import { saveVariant } from "@/domain/admin-products";
+import { catalogExportCsv, listCatalogExportRows } from "@/domain/catalog-export";
 import {
   applyCatalogImportPlan,
   buildCatalogImportPlan,
@@ -134,7 +134,10 @@ describe.skipIf(!hasTestDb)("importación de catálogo", () => {
     const antes = await getTestDb().select().from(variants);
     const productoAntes = await producto("taza-ceramica");
 
-    const csv = catalogExportCsv(await listVariantsForExport());
+    const csv = catalogExportCsv(
+      await listCatalogExportRows({}, { proveedores: false }),
+      { proveedores: false }
+    );
     const plan = await buildCatalogImportPlan(csv);
     expect(plan.errores).toEqual([]);
     expect(plan).toMatchObject({

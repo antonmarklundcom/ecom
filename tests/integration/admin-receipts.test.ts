@@ -43,7 +43,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
 
     await db.insert(receipts).values({
       orderId,
-      cloudinaryId: `comprobantes/test-${orderId}`,
+      storageKey: `comprobantes/test-${orderId}`,
       mime: 'image/jpeg',
       bytes: 1234,
       review: 'pending',
@@ -148,7 +148,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
 
     await db.insert(receipts).values({
       orderId,
-      cloudinaryId: `comprobantes/test-${orderId}-reintento`,
+      storageKey: `comprobantes/test-${orderId}-reintento`,
       mime: 'image/jpeg',
       bytes: 999,
       review: 'pending',
@@ -212,7 +212,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
     // fotos de la misma transferencia.
     await db.insert(receipts).values({
       orderId,
-      cloudinaryId: `comprobantes/test-${orderId}-b`,
+      storageKey: `comprobantes/test-${orderId}-b`,
       mime: 'image/jpeg',
       bytes: 999,
       review: 'pending',
@@ -246,7 +246,7 @@ describe.skipIf(!hasTestDb)('reviewReceipt', () => {
 
     await db.insert(receipts).values({
       orderId,
-      cloudinaryId: `comprobantes/tarde-${orderId}`,
+      storageKey: `comprobantes/tarde-${orderId}`,
       mime: 'image/jpeg',
       bytes: 100,
       review: 'pending',

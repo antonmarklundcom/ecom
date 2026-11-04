@@ -2,6 +2,9 @@
 
 import Image from "next/image";
 import { useState } from "react";
+
+import { ImagenR2 } from "@/components/imagen-r2";
+import type { FuentesR2 } from "@/lib/imagenes-r2";
 import {
   Dialog,
   DialogClose,
@@ -11,7 +14,54 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-export type GalleryImage = { src: string; alt: string; illustrative?: boolean };
+/**
+ * `src` identifica la foto (y es la URL si no hay `fuentes`); con `fuentes`
+ * (una foto de R2) se dibuja un `<picture>` con el `srcset` de sus cajas.
+ */
+export type GalleryImage = {
+  src: string;
+  alt: string;
+  illustrative?: boolean;
+  fuentes?: FuentesR2;
+};
+
+/** Una foto de la galería: `<picture>` si es de R2, `next/image` si es local. */
+function Foto({
+  image,
+  alt,
+  sizes,
+  className,
+  priority = false,
+}: {
+  image: GalleryImage;
+  alt: string;
+  sizes: string;
+  className: string;
+  priority?: boolean;
+}) {
+  if (image.fuentes) {
+    return (
+      <ImagenR2
+        fuentes={image.fuentes}
+        alt={alt}
+        sizes={sizes}
+        fill
+        priority={priority}
+        className={className}
+      />
+    );
+  }
+  return (
+    <Image
+      src={image.src}
+      alt={alt}
+      fill
+      priority={priority}
+      sizes={sizes}
+      className={className}
+    />
+  );
+}
 
 export function ProductGallery({
   images,
@@ -43,13 +93,11 @@ export function ProductGallery({
                 {String(selected + 1).padStart(2, "0")} /{" "}
                 {String(images.length).padStart(2, "0")}
               </span>
-              <Image
+              <Foto
                 key={current.src}
-                src={current.src}
+                image={current}
                 alt={current.alt}
-                fill
                 priority={selected === 0}
-                unoptimized={current.src.startsWith("https://")}
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 55vw, 720px"
                 className="product-gallery-image"
               />
@@ -82,12 +130,10 @@ export function ProductGallery({
               : current.alt}
           </DialogDescription>
           <div className="product-gallery-zoom-image">
-            <Image
-              src={current.src}
+            <Foto
+              image={current}
               alt={current.alt}
-              fill
               sizes="95vw"
-              unoptimized={current.src.startsWith("https://")}
               className="object-contain"
             />
           </div>
@@ -122,12 +168,10 @@ export function ProductGallery({
               aria-label={`Ver imagen ${index + 1}: ${item.alt}`}
               className="product-gallery-thumbnail"
             >
-              <Image
-                src={item.src}
+              <Foto
+                image={item}
                 alt=""
-                fill
                 sizes="(max-width: 640px) 20vw, 110px"
-                unoptimized={item.src.startsWith("https://")}
                 className="product-gallery-image"
               />
             </button>

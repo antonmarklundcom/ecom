@@ -60,7 +60,7 @@ export type CatalogVariant = {
 };
 
 export type CatalogImage = {
-  cloudinaryId: string;
+  imageRef: string;
   blurDataUrl: string | null;
   alt: string | null;
   /**
@@ -192,7 +192,7 @@ async function hydrate(
   const imageRows = await tx
     .select({
       productId: productImages.productId,
-      cloudinaryId: productImages.cloudinaryId,
+      imageRef: productImages.imageRef,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
       position: productImages.position,
@@ -232,7 +232,7 @@ async function hydrate(
   for (const row of imageRows) {
     const list = imagesByProduct.get(row.productId) ?? [];
     list.push({
-      cloudinaryId: row.cloudinaryId,
+      imageRef: row.imageRef,
       blurDataUrl: row.blurDataUrl,
       alt: row.alt,
       provenance: effectiveProvenance(
@@ -337,12 +337,14 @@ export async function getCatalog(
         options.featured ? eq(products.isFeatured, true) : undefined
       )
     )
-    // Los destacados se ordenan por fecha de publicación, no por categoría y
-    // nombre: en una vitrina de ocho productos elegidos a mano, el orden
-    // alfabético no significa nada y lo nuevo sí.
+    // Los destacados se ordenan por el orden que eligió el dueño
+    // (`featured_position`, más chico primero) y, a igual posición, por fecha
+    // de publicación: en una vitrina de ocho productos elegidos a mano, el
+    // orden alfabético no significa nada y lo nuevo sí. Una tienda que nunca
+    // tocó la posición los tiene a todos en 0 y ve el orden de siempre.
     .orderBy(
       ...(options.featured
-        ? [desc(products.publishedAt)]
+        ? [asc(products.featuredPosition), desc(products.publishedAt)]
         : [asc(categories.position), asc(products.name)])
     )
     .limit(options.limit ?? 100);
@@ -498,7 +500,7 @@ export async function getProductBySlug(
 
   const imageRows = await tx
     .select({
-      cloudinaryId: productImages.cloudinaryId,
+      imageRef: productImages.imageRef,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
       provenance: productImages.provenance,
@@ -1068,7 +1070,7 @@ export async function getFeedProducts(
   const imageRows = await tx
     .select({
       productId: productImages.productId,
-      cloudinaryId: productImages.cloudinaryId,
+      imageRef: productImages.imageRef,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
       provenance: productImages.provenance,

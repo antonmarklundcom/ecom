@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -20,7 +19,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { productImageUrl } from "@/lib/images";
+import { ImagenR2 } from "@/components/imagen-r2";
+import { productImageSources } from "@/lib/images";
+
+import { prepararFoto } from "./preparar-foto";
 import { slugify } from "@/lib/slug";
 import { TESTIDS } from "@/lib/testids";
 import { t, tPlural } from "@/i18n";
@@ -42,7 +44,7 @@ export type AdminCategoryCard = {
   description: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
-  imageCloudinaryId: string | null;
+  imageRef: string | null;
   imageAlt: string | null;
 };
 
@@ -489,7 +491,7 @@ function CategoryForm({
       {category ? (
         <CategoryImageUpload
           categoryId={category.id}
-          imageCloudinaryId={category.imageCloudinaryId}
+          imageRef={category.imageRef}
           imageAlt={category.imageAlt}
         />
       ) : null}
@@ -532,15 +534,16 @@ function CategoryForm({
  * validación de bytes del lado del servidor. A diferencia de las fotos de
  * producto, una categoría tiene una sola —es la portada de la sección
  * entera—, así que no hay lista ni botón de "quitar": subir una nueva
- * reemplaza (y borra) la anterior (ver `admin-categories.ts`).
+ * reemplaza la anterior (el archivo viejo queda en R2, ver
+ * `admin-categories.ts`).
  */
 function CategoryImageUpload({
   categoryId,
-  imageCloudinaryId,
+  imageRef,
   imageAlt,
 }: {
   categoryId: number;
-  imageCloudinaryId: string | null;
+  imageRef: string | null;
   imageAlt: string | null;
 }) {
   const router = useRouter();
@@ -548,19 +551,18 @@ function CategoryImageUpload({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const previewUrl = productImageUrl(imageCloudinaryId, "card");
+  const preview = productImageSources(imageRef, "card");
 
   return (
     <div className="grid gap-2">
       <Label>{t("panel.categoria.foto")}</Label>
 
-      {previewUrl ? (
+      {preview ? (
         <div className="bg-muted relative aspect-[3/1] w-full max-w-xs overflow-hidden rounded-lg">
-          <Image
-            src={previewUrl}
+          <ImagenR2
+            fuentes={preview}
             alt={imageAlt ?? ""}
             fill
-            unoptimized
             sizes="320px"
             className="object-cover"
           />
@@ -590,6 +592,11 @@ function CategoryImageUpload({
           data.set("categoryId", String(categoryId));
 
           startTransition(async () => {
+            const preparada = await prepararFoto(data);
+            if (preparada) {
+              setError(preparada);
+              return;
+            }
             const result = await uploadCategoryImage(data);
             if (!result.ok) {
               setError(result.error);

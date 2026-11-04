@@ -176,10 +176,10 @@ describe('completar el .env sin pisar lo que ya está', () => {
   });
 
   it('trata el placeholder de .env.example como vacío', () => {
-    const { contenido } = completarEnv('CLOUDINARY_CLOUD_NAME="changeme"\n', {
-      CLOUDINARY_CLOUD_NAME: 'tienda-py',
+    const { contenido } = completarEnv('R2_BUCKET="changeme"\n', {
+      R2_BUCKET: 'tienda-py',
     });
-    expect(leerValorEnv(contenido, 'CLOUDINARY_CLOUD_NAME')).toBe('tienda-py');
+    expect(leerValorEnv(contenido, 'R2_BUCKET')).toBe('tienda-py');
   });
 
   it('agrega la clave que no existe, al final', () => {
@@ -219,7 +219,7 @@ describe('los secretos', () => {
 describe('lo que se pega en el hPanel', () => {
   it('nunca imprime secretos ni URLs de conexión en el bloque de consola', () => {
     const marker = 'private-fixture-value-never-for-console';
-    const keys = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'DATABASE_URL', 'WHATSAPP_CLOUD_ACCESS_TOKEN', 'CLOUDINARY_API_KEY', 'PAGOPAR_PUBLIC_KEY', 'PAGOPAR_PRIVATE_KEY'];
+    const keys = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'DATABASE_URL', 'WHATSAPP_CLOUD_ACCESS_TOKEN', 'R2_SECRET_ACCESS_KEY', 'PAGOPAR_PUBLIC_KEY', 'PAGOPAR_PRIVATE_KEY'];
     const block = bloqueHPanel(Object.fromEntries(keys.map((key) => [key, marker])));
     expect(block).not.toContain(marker);
     for (const key of keys) expect(block).toContain(`${key}=<copiá el valor de .env.local>`);

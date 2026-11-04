@@ -175,7 +175,7 @@ describe.skipIf(!hasTestDb)('el QR del SPI', () => {
     const ownerId = await createAdminUser();
 
     await expect(
-      setBankQr({ qrCloudinaryId: 'banco/qr-spi', actorUserId: ownerId }),
+      setBankQr({ qrImageRef: 'banco/qr-spi', actorUserId: ownerId }),
     ).rejects.toBeInstanceOf(AdminBankError);
   });
 
@@ -184,9 +184,9 @@ describe.skipIf(!hasTestDb)('el QR del SPI', () => {
     const ownerId = await createAdminUser();
 
     await saveBankDetails({ data: DATOS, actorUserId: ownerId });
-    await setBankQr({ qrCloudinaryId: 'banco/qr-spi', actorUserId: ownerId });
+    await setBankQr({ qrImageRef: 'banco/qr-spi', actorUserId: ownerId });
 
-    expect((await readBankDetails())?.qrCloudinaryId).toBe('banco/qr-spi');
+    expect((await readBankDetails())?.qrImageRef).toBe('banco/qr-spi');
     // De ese id sale la URL pública con `bankQrUrl` (armada en
     // `src/lib/images.ts`, probada sin base en `tests/unit/bank-qr.test.ts`).
     // Acá lo que importa es que el id quedó guardado y que la precedencia es
@@ -207,9 +207,9 @@ describe.skipIf(!hasTestDb)('el QR del SPI', () => {
     const ownerId = await createAdminUser();
 
     await saveBankDetails({ data: DATOS, actorUserId: ownerId });
-    await setBankQr({ qrCloudinaryId: 'banco/qr-spi', actorUserId: ownerId });
+    await setBankQr({ qrImageRef: 'banco/qr-spi', actorUserId: ownerId });
     await clearBankQr({ actorUserId: ownerId });
 
-    expect(await readBankDetails()).toMatchObject({ ...DATOS, qrCloudinaryId: null });
+    expect(await readBankDetails()).toMatchObject({ ...DATOS, qrImageRef: null });
   });
 });

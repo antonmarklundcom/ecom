@@ -170,7 +170,7 @@ export function productJsonLd(input: {
   name: string;
   description?: string | null;
   brand?: string | null;
-  /** URLs absolutas de las fotos (Cloudinary), en orden. */
+  /** URLs absolutas de las fotos (R2), en orden. */
   images: string[];
   variants: {
     sku: string;
