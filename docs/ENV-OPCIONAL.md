@@ -23,8 +23,8 @@ Reglas que siguen valiendo para todas:
   después hay que apretar **Redeploy**: cambiar una variable no rebuildea.
 - Ningún secreto lleva el prefijo `NEXT_PUBLIC_`.
 
-**La mayoría ni siquiera hace falta en el hPanel.** Cloudinary
-(`CLOUDINARY_*`), WhatsApp (`WHATSAPP_NUMBER`, `WHATSAPP_CLOUD_*`), Pagopar
+**La mayoría ni siquiera hace falta en el hPanel.** R2
+(`R2_*`), WhatsApp (`WHATSAPP_NUMBER`, `WHATSAPP_CLOUD_*`), Pagopar
 (`PAGOPAR_PUBLIC_KEY`, `PAGOPAR_PRIVATE_KEY`, `PAGOPAR_BASE_URL`), la medición
 (`NEXT_PUBLIC_GA4_ID`, `NEXT_PUBLIC_META_PIXEL_ID`) y `ERROR_REPORT_URL` se
 cargan desde **`/admin/integraciones`**, sin redeploy, con los secretos
@@ -32,7 +32,7 @@ cifrados en la base (NEW-STORE.md §4a-ter). Precedencia: **lo del panel > la
 variable de este archivo > apagado**. Las variables siguen andando como
 fallback — una tienda que ya las tiene cargadas no cambia en nada — y los
 comentarios de abajo valen igual para los dos lugares (las trampas de Meta, de
-Pagopar y de Cloudinary son las mismas).
+Pagopar y de R2 son las mismas).
 
 Se quedan sólo en el entorno: `CUSTOMER_SESSION_SECRET`, `PAGOPAR_MODE`, las
 `PAGOPAR_SANDBOX_*` (tests), `FACTURAPY_*` (sin uso todavía), los `OWNER_*` y
@@ -205,30 +205,44 @@ OWNER_PASSWORD=""
 OWNER_NAME=""
 ```
 
-## Cloudinary
+## R2 (Cloudflare): fotos, comprobantes y copias de seguridad
+
+Un bucket de R2 **por tienda**, con un dominio público propio (`Settings →
+Custom Domains` del bucket, por ejemplo `imagenes.tienda.com.py`). El template
+habla con R2 por su API compatible con S3, sobre HTTPS, desde Node: no hay
+Workers ni bindings. Lo normal es cargarlo desde `/admin/integraciones` → R2
+(el secret queda cifrado y nunca vuelve al navegador); estas variables son el
+fallback. Vacías y sin nada en el panel, **no se puede subir ninguna foto**
+(el panel lo dice), la compradora no puede subir el comprobante y el backup
+automático se saltea; `pnpm preflight` bloquea.
 
 ```dotenv
-# cloud_name puede ser público (aparece en cualquier URL de imagen), pero
-# api_key + api_secret NUNCA — son los que firman las URLs de comprobantes.
-CLOUDINARY_CLOUD_NAME=""
-CLOUDINARY_API_KEY=""
-CLOUDINARY_API_SECRET=""
-
-# Prefijo de las carpetas de esta tienda dentro de la cuenta de Cloudinary.
-# Vacío (el default) = `productos/`, `comprobantes/` y `banco/` en la raíz, que
-# es lo correcto cuando la cuenta es de esta tienda y de nadie más.
-#
-# Ponelo cuando **varias tiendas comparten una cuenta**: el `public_id` de un
-# comprobante sale del número de pedido, y los números se repiten entre tiendas
-# —todas acuñan PY-000123, a propósito—, así que sin prefijo los comprobantes
-# de las dos terminan mezclados en la misma carpeta y quien administra la
-# cuenta no puede distinguirlos.
-#
-# Elegilo al crear la tienda y no lo toques más: el public_id se guarda entero
-# en la base, así que cambiarlo con fotos ya subidas no rompe nada pero te
-# deja el archivo repartido en dos árboles para siempre.
-CLOUDINARY_FOLDER_PREFIX=""
+# El Account ID de Cloudflare (32 hex, arriba a la derecha del dashboard de
+# R2). Es el subdominio del endpoint S3: https://<id>.r2.cloudflarestorage.com
+R2_ACCOUNT_ID=""
+# Un token de API de R2 con permiso "Object Read & Write" **sólo sobre este
+# bucket** (R2 → Manage API tokens). El secret NUNCA va a un archivo
+# commiteado ni a un NEXT_PUBLIC_: con él se leen los comprobantes.
+R2_ACCESS_KEY_ID=""
+R2_SECRET_ACCESS_KEY=""
+# El nombre del bucket (minúsculas, números y guiones).
+R2_BUCKET=""
+# El dominio público del bucket, https y sin barra final. Es lo único que ve el
+# navegador: las fotos se arman como <R2_PUBLIC_URL>/p1/<slug>-<hash>-480.webp.
+# Ese dominio tiene que BLOQUEAR /comprobantes/* y /backups/* (regla de WAF,
+# DEPLOY.md): `pnpm preflight` lo prueba con un canario y bloquea si no.
+R2_PUBLIC_URL=""
 ```
+
+Lo que hay en el bucket:
+
+- `p1/…` — fotos **públicas** (producto, categoría, portada, logo, favicon, QR
+  del banco). Nombre con el hash del contenido: nunca se pisan, se cachean un
+  año (`immutable`), y quitar una foto de la galería **no** borra el archivo.
+- `comprobantes/<aleatorio>/…` — **privados**. El panel los muestra con una URL
+  prefirmada de dos minutos.
+- `backups/backup-<fecha>-<aleatorio>/…` — **privados**. Un objeto por tabla y
+  un `manifest.json`; 14 días de retención.
 
 ## WhatsApp
 
@@ -274,12 +288,11 @@ BANCO_CUENTA=""
 BANCO_TIPO_CUENTA=""
 
 # URL pública de la imagen del QR SPI — también legacy. Lo normal ahora es
-# subir el QR desde /admin/banco (va a un folder público de Cloudinary,
-# separado del de comprobantes, que es authenticated). Esta variable se sigue
-# usando cuando la fila no tiene QR propio. Dos formas de completarla:
+# subir el QR desde /admin/banco (va a R2, público bajo `p1/`, nunca con los
+# comprobantes, que son privados). Esta variable se sigue usando cuando la
+# fila no tiene QR propio. Dos formas de completarla:
 #   1) Subí el archivo a `public/banco-qr.png` y dejá "/banco-qr.png".
-#   2) Subí el QR a Cloudinary (folder público, no el de comprobantes) y
-#      pegá la URL https:// que te da.
+#   2) Pegá cualquier URL https:// pública de la imagen.
 # Vacía y sin QR en el panel, la sección muestra sólo los datos con botón de
 # copiar, sin QR.
 BANCO_QR_URL=""

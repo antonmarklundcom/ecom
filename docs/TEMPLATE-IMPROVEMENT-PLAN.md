@@ -312,7 +312,12 @@ between preview and write) and `tests/unit/catalog-import.test.ts`.
 - **Fix.** One transaction for categories and products; per-line length
   validation so these become preview errors.
 - **Acceptance.** A batch whose last row fails writes nothing.
-- **Status.** fixed in PR C.
+- **Status.** fixed in PR C. Later (foundation C, docs/CATALOGO-CSV.md) the
+  unit of atomicity became the **batch** of `CATALOG_IMPORT_LOTE` products
+  instead of the whole file: each batch is one transaction, a failing batch
+  writes nothing and leaves earlier batches committed, and re-importing the
+  file (idempotent by slug and SKU) finishes the job. Long single
+  transactions held hundreds of `variants` locks on shared MySQL.
 
 ### C2 · Absent optional columns overwrite stored data — P1
 

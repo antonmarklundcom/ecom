@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
 
+import { prepararFoto } from "./preparar-foto";
+
 export type BankDetailsCard = {
   banco: string;
   titular: string;
@@ -266,6 +268,11 @@ function QrPanel({ qrUrl }: { qrUrl: string | null }) {
           const data = new FormData(event.currentTarget);
 
           startTransition(async () => {
+            const preparada = await prepararFoto(data);
+            if (preparada) {
+              setError(preparada);
+              return;
+            }
             const result = await subirQrBancario(data);
             if (!result.ok) {
               setError(result.error);

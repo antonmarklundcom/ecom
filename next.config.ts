@@ -82,9 +82,10 @@ const nextConfig: NextConfig = {
   // `X-Powered-By: Next.js` regala la versión exacta del framework.
   poweredByHeader: false,
   images: {
-    // Cloudinary ya optimiza con f_auto,q_auto; ver ARCH.md §6.
+    // Las fotos llegan a R2 ya achicadas (WebP por caja + JPEG, formato p1 de
+    // `src/lib/imagenes-r2.ts`) y se dibujan con `<picture>`: el optimizador
+    // de Next sólo gastaría CPU del slot de Hostinger. Ver ARCH.md §6.
     unoptimized: true,
-    remotePatterns: [{ protocol: "https", hostname: "res.cloudinary.com" }],
   },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];

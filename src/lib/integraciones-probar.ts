@@ -9,14 +9,24 @@ import {
   type CampoDef,
   type Integracion,
 } from "./integraciones";
+import {
+  PREFIJO_COMPROBANTES,
+  clavePrivada,
+  crearClienteR2,
+  leerConfigR2,
+  mensajeR2,
+} from "./r2";
 
 /**
  * "Probar conexión" de `/admin/integraciones`: una llamada real, de sólo
  * lectura, con la config **efectiva** (la que la tienda está usando: panel >
  * entorno).
  *
- * - **Cloudinary**: `GET /v1_1/<cloud>/ping` de la Admin API, con Basic auth.
- *   No sube ni borra nada.
+ * - **R2**: escribe un archivo de prueba chiquito bajo `comprobantes/` (una
+ *   clave privada con 128 bits aleatorios), lo vuelve a leer, prueba que el
+ *   dominio público **no** lo sirva y lo borra. Es la única prueba que
+ *   escribe: un bucket que se lee pero no deja escribir no sirve para nada,
+ *   y no hay forma de saberlo sin intentarlo.
  * - **WhatsApp**: `GET /<version>/<phone_number_id>` de la Graph API con el
  *   token. Devuelve el número y el nombre verificado; no manda ningún mensaje.
  * - **Pagopar**: sólo que el host configurado conteste por https. La API de
@@ -83,7 +93,7 @@ async function llamar(
   }
 }
 
-/** El mensaje de error de un JSON de Cloudinary o de Meta, si lo hay. */
+/** El mensaje de error de un JSON de Meta, si lo hay. */
 function mensajeDelCuerpo(cuerpo: string, status: number): string {
   try {
     const json = JSON.parse(cuerpo) as {
@@ -117,7 +127,7 @@ async function probar(
   nombre: Integracion,
   fetchImpl: Fetch
 ): Promise<ResultadoPrueba> {
-  if (nombre === "cloudinary") return probarCloudinary(fetchImpl);
+  if (nombre === "r2") return probarR2(fetchImpl);
   if (nombre === "whatsapp") return probarWhatsApp(fetchImpl);
   if (nombre === "pagopar") return probarPagopar(fetchImpl);
   return { ok: false, mensaje: t("panel.integraciones.prueba.noAplica") };
@@ -132,53 +142,92 @@ function incompleta(faltan: string[]): ResultadoPrueba {
   };
 }
 
-async function probarCloudinary(fetchImpl: Fetch): Promise<ResultadoPrueba> {
-  const { valores } = integracion("cloudinary");
-  const faltan = [
-    ...(valores.cloudName ? [] : ["cloud name"]),
-    ...(valores.apiKey ? [] : ["API key"]),
-    ...(valores.apiSecret ? [] : ["API secret"]),
-  ];
-  if (
-    faltan.length > 0 ||
-    !valores.cloudName ||
-    !valores.apiKey ||
-    !valores.apiSecret
-  ) {
-    return incompleta(faltan);
+/**
+ * ¿El dominio público sirve una clave privada? Un 2xx con los mismos bytes es
+ * que sí (falta la regla que bloquea `/comprobantes/*`); cualquier otra cosa
+ * —403 de la regla, 404, error de red— es que no. Exportada para
+ * `pnpm preflight`, que hace la misma pregunta.
+ */
+export async function clavePrivadaEsPublica(
+  fetchImpl: Fetch,
+  base: string,
+  key: string,
+  esperado: Uint8Array
+): Promise<boolean> {
+  try {
+    const respuesta = await fetchImpl(`${base}/${key}`, {
+      method: "GET",
+      cache: "no-store",
+      redirect: "manual",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (respuesta.status < 200 || respuesta.status >= 300) {
+      await respuesta.body?.cancel().catch(() => {});
+      return false;
+    }
+    const cuerpo = new Uint8Array(await respuesta.arrayBuffer());
+    return (
+      cuerpo.byteLength === esperado.byteLength &&
+      cuerpo.every((byte, index) => byte === esperado[index])
+    );
+  } catch {
+    return false;
   }
+}
 
-  const auth = Buffer.from(`${valores.apiKey}:${valores.apiSecret}`).toString(
-    "base64"
-  );
-  const respuesta = await llamar(
-    fetchImpl,
-    `https://api.cloudinary.com/v1_1/${encodeURIComponent(valores.cloudName)}/ping`,
-    { method: "GET", headers: { authorization: `Basic ${auth}` } }
-  );
-  const secretos = [valores.apiSecret];
+async function probarR2(fetchImpl: Fetch): Promise<ResultadoPrueba> {
+  const { config, faltan } = leerConfigR2();
+  if (!config || faltan.length > 0) return incompleta(faltan);
 
-  if ("error" in respuesta) {
+  const cliente = crearClienteR2(config, { fetchImpl, timeoutMs: TIMEOUT_MS });
+  const key = clavePrivada(PREFIJO_COMPROBANTES, ".prueba-conexion.txt");
+  const contenido = new TextEncoder().encode(`prueba ${new Date().toISOString()}\n`);
+  const secretos = [config.secretAccessKey];
+  let escrito = false;
+  try {
+    await cliente.put(key, contenido, {
+      contentType: "text/plain",
+      cacheControl: "private, no-store",
+    });
+    escrito = true;
+    const leido = await cliente.get(key, { maxBytes: 1024 });
+    if (
+      !leido ||
+      leido.byteLength !== contenido.byteLength ||
+      !leido.every((byte, index) => byte === contenido[index])
+    ) {
+      return {
+        ok: false,
+        mensaje: t("panel.integraciones.prueba.r2Error", {
+          detalle: "el archivo de prueba no volvió igual",
+        }),
+      };
+    }
+    if (
+      config.publicUrl &&
+      (await clavePrivadaEsPublica(fetchImpl, config.publicUrl, key, contenido))
+    ) {
+      return {
+        ok: false,
+        mensaje: t("panel.integraciones.prueba.r2Publico", {
+          host: new URL(config.publicUrl).host,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      mensaje: t("panel.integraciones.prueba.r2Ok", { bucket: config.bucket }),
+    };
+  } catch (error) {
     return {
       ok: false,
-      mensaje: t("panel.integraciones.prueba.cloudinaryError", {
-        detalle: t("panel.integraciones.prueba.red", {
-          detalle: sanearDetalle(respuesta.error, secretos),
-        }),
+      mensaje: t("panel.integraciones.prueba.r2Error", {
+        detalle: sanearDetalle(mensajeR2(error), secretos),
       }),
     };
+  } finally {
+    if (escrito) await cliente.delete(key).catch(() => {});
   }
-  if (respuesta.status === 200)
-    return { ok: true, mensaje: t("panel.integraciones.prueba.cloudinaryOk") };
-  return {
-    ok: false,
-    mensaje: t("panel.integraciones.prueba.cloudinaryError", {
-      detalle: sanearDetalle(
-        mensajeDelCuerpo(respuesta.cuerpo, respuesta.status),
-        secretos
-      ),
-    }),
-  };
 }
 
 async function probarWhatsApp(fetchImpl: Fetch): Promise<ResultadoPrueba> {

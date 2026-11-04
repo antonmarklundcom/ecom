@@ -1,9 +1,10 @@
 import Image from "next/image";
 
 import { t } from "@/i18n/client";
+import { ImagenR2 } from "@/components/imagen-r2";
 import {
   categoryPlaceholderSrc,
-  productImageUrl,
+  productImageSources,
   type ImageSize,
 } from "@/lib/images";
 import { cn } from "@/lib/utils";
@@ -40,9 +41,10 @@ function nombreLegible(categorySlug: string): string {
 /**
  * Imagen de producto con placeholder.
  *
- * `unoptimized`: Cloudinary ya entrega `f_auto,q_auto` en el tamaño pedido,
- * así que pasarlo otra vez por el optimizador de Next sólo gasta CPU del slot
- * de Hostinger (ARCH.md §6).
+ * Con una referencia de R2 y la base pública configurada, un `<picture>` con
+ * los WebP de cada caja y el JPEG de respaldo (`ImagenR2`). Sin eso —sin
+ * foto, sin base pública, o una referencia vieja que no es de R2— el
+ * placeholder de la categoría: nunca una URL rota.
  */
 export function ProductImage({
   image,
@@ -52,7 +54,6 @@ export function ProductImage({
   className,
   priority = false,
   sizes,
-  resolvedUrl,
 }: {
   image: CatalogImage | null;
   alt: string;
@@ -61,18 +62,14 @@ export function ProductImage({
   className?: string;
   priority?: boolean;
   sizes?: string;
-  /** Pass the server's public URL when rendering inside a client component. */
-  resolvedUrl?: string | null;
 }) {
-  const url = resolvedUrl === undefined
-    ? productImageUrl(image?.cloudinaryId, size)
-    : resolvedUrl;
+  const fuentes = productImageSources(image?.imageRef, size);
   const wrapper = cn(
     "bg-muted relative aspect-square overflow-hidden rounded-lg",
     className
   );
 
-  if (!url) {
+  if (!fuentes) {
     // == S18 == Una categoría fuera de las cuatro del seed (una tienda que
     // agregó las suyas) no cae en `categoryPlaceholderSrc`, que sin
     // conocerla mostraría el mismo dibujo genérico de "producto" sin decir
@@ -114,16 +111,13 @@ export function ProductImage({
 
   return (
     <div className={wrapper}>
-      <Image
-        src={url}
+      <ImagenR2
+        fuentes={fuentes}
         alt={image?.alt ?? alt}
         fill
-        unoptimized
         priority={priority}
         sizes={sizes ?? "(max-width: 640px) 50vw, 300px"}
         className="object-cover"
-        placeholder={image?.blurDataUrl ? "blur" : "empty"}
-        blurDataURL={image?.blurDataUrl ?? undefined}
       />
       {/* Una foto ilustrativa no es este producto: lo dice donde se vea
           (docs/TEMPLATE-IMPROVEMENT-PLAN.md F6), como la galería de la ficha. */}

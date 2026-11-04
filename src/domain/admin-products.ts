@@ -39,6 +39,7 @@ import {
   type VerificationActor,
 } from "@/lib/verification-stamps";
 import { assertProductSlugAvailable, claimProductSlug } from "./product-slugs";
+import { enlaceProveedor } from "./supplier-offers";
 
 /**
  * Catálogo desde el panel (PLAN.md 4.6).
@@ -96,7 +97,7 @@ export type AdminProductRow = {
   minPricePyg: number | null;
   onHand: number;
   /** La primera foto del producto, o `null` si no cargó ninguna. */
-  imageCloudinaryId: string | null;
+  imageRef: string | null;
   imageAlt: string | null;
 };
 
@@ -169,7 +170,7 @@ export async function listAdminProducts(
       // paginación. Las columnas van calificadas a mano — interpolar
       // `${productImages.productId}` acá adentro las emite sin el alias y la
       // correlación se compara consigo misma.
-      imageCloudinaryId: sql<string | null>`(
+      imageRef: sql<string | null>`(
         SELECT pi.\`cloudinary_id\` FROM \`product_images\` AS pi
         WHERE pi.\`product_id\` = \`products\`.\`id\`
         ORDER BY pi.\`position\` ASC, pi.\`id\` ASC LIMIT 1
@@ -225,6 +226,8 @@ function productWhere(options: AdminProductFilters) {
 }
 
 export type ExportVariantRow = {
+  productId: number;
+  variantId: number;
   saleMode: "stock" | "enquiry" | "showcase";
   showPrice: boolean;
   sku: string;
@@ -238,6 +241,11 @@ export type ExportVariantRow = {
   description: string | null;
   brand: string | null;
   ivaRate: number;
+  /**
+   * El enlace privado de compra. Lo baja sólo el export del catálogo con los
+   * proveedores prendidos (`listCatalogExportRows` lo vacía si no).
+   */
+  supplierUrl: string | null;
 };
 
 /**
@@ -257,6 +265,8 @@ export async function listVariantsForExport(
 
   return tx
     .select({
+      productId: products.id,
+      variantId: variants.id,
       sku: variants.sku,
       saleMode: products.saleMode,
       showPrice: products.showPrice,
@@ -270,12 +280,21 @@ export async function listVariantsForExport(
       description: products.description,
       brand: products.brand,
       ivaRate: products.ivaRate,
+      supplierUrl: products.supplierUrl,
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(productWhere(options))
-    .orderBy(asc(products.name), asc(variants.position), asc(variants.id))
+    // Por nombre y, a igual nombre, por slug: las filas de un producto quedan
+    // juntas (las Fotos van en la primera) y el orden no depende de ids, que
+    // cambian de una tienda a otra.
+    .orderBy(
+      asc(products.name),
+      asc(products.slug),
+      asc(variants.position),
+      asc(variants.id)
+    )
     .limit(limit);
 }
 
@@ -415,7 +434,30 @@ export type ProductWrite = {
    * que necesita todo formulario que no dibuje la casilla — S10 la agrega.
    */
   isFeatured?: boolean;
+  /**
+   * El orden entre los destacados de la home: más chico, más adelante.
+   * Ausente = no se toca (un formulario que no lo dibuja no lo resetea).
+   */
+  featuredPosition?: number;
+  /**
+   * El enlace privado de compra (proveedor). Ausente = no se toca: es lo que
+   * manda el formulario con `proveedores` apagado, y lo que hace que apagar el
+   * flag no borre los enlaces que ya se cargaron. `null` lo borra.
+   */
+  supplierUrl?: string | null;
 };
+
+/** `featuredPosition` y `supplierUrl` listos para `set()`: ausente = no se toca. */
+function productExtras(input: ProductWrite) {
+  return {
+    ...(input.featuredPosition === undefined
+      ? {}
+      : { featuredPosition: input.featuredPosition }),
+    ...(input.supplierUrl === undefined
+      ? {}
+      : { supplierUrl: enlaceProveedor(input.supplierUrl) }),
+  };
+}
 
 export async function createProduct(
   input: ProductWrite,
@@ -439,6 +481,7 @@ export async function createProduct(
     ivaRate: input.ivaRate,
     isActive: input.isActive,
     isFeatured: input.isFeatured ?? false,
+    ...productExtras(input),
     publishedAt: input.published ? new Date() : null,
   });
 
@@ -506,6 +549,7 @@ export async function updateProduct(
       ...(input.isFeatured === undefined
         ? {}
         : { isFeatured: input.isFeatured }),
+      ...productExtras(input),
       // Se conserva la fecha original de publicación: republicar no debería
       // mandar el producto al tope de "nuevos" otra vez.
       publishedAt: input.published ? (current.publishedAt ?? new Date()) : null,
@@ -877,7 +921,7 @@ export async function listStockAdjustments(
 }
 
 export async function addProductImage(
-  input: { productId: number; cloudinaryId: string; alt: string | null },
+  input: { productId: number; imageRef: string; alt: string | null },
   executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
@@ -888,7 +932,7 @@ export async function addProductImage(
 
   await tx.insert(productImages).values({
     productId: input.productId,
-    cloudinaryId: input.cloudinaryId,
+    imageRef: input.imageRef,
     alt: input.alt,
     position: row?.total ?? 0,
   });

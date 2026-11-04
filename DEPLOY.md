@@ -30,11 +30,11 @@ En el hPanel, dentro del sitio:
 
    Todo lo demás es **opcional** y está documentado, con sus trampas, en
    [docs/ENV-OPCIONAL.md](./docs/ENV-OPCIONAL.md): `WHATSAPP_NUMBER`,
-   `CLOUDINARY_*`, `PAGOPAR_*` si va con tarjeta, `WHATSAPP_CLOUD_*`, GA4/Pixel,
+   `R2_*` (§3b), `PAGOPAR_*` si va con tarjeta, `WHATSAPP_CLOUD_*`, GA4/Pixel,
    `ERROR_REPORT_URL`. Agregá a mano (botón "Add") sólo las que esta tienda
    usa; vacía o ausente, cada una apaga su feature y no rompe nada.
 
-   Mejor todavía: **no las cargues en el hPanel**. Cloudinary, WhatsApp
+   Mejor todavía: **no las cargues en el hPanel**. R2, WhatsApp
    (número y Cloud API), Pagopar, GA4/Pixel y `ERROR_REPORT_URL` se cargan
    desde `/admin/integraciones` con la tienda arriba, cifrados en la base y sin
    Redeploy (NEW-STORE.md §4a-ter). Las variables siguen funcionando como
@@ -202,6 +202,48 @@ símbolos raros.
 
 ---
 
+## 3b. Imágenes y archivos: el bucket de R2
+
+Fotos, comprobantes y copias de seguridad van a **un bucket de Cloudflare R2
+por tienda**. La app habla con R2 por su API compatible con S3, sobre HTTPS,
+desde el slot de Node: no hay Workers, ni bindings, ni nada de Cloudflare que
+deployar. Una vez por tienda:
+
+1. **Crear el bucket** (R2 → Create bucket), por ejemplo `tienda-ejemplo`.
+2. **Dominio público**: en el bucket, Settings → Custom Domains → conectar
+   `imagenes.TU-DOMINIO` (la zona tiene que estar en Cloudflare). Es lo que
+   va en `R2_PUBLIC_URL` y lo que el CSP agrega a `img-src`. No uses la URL
+   `r2.dev` en producción: no admite reglas de WAF.
+3. **Bloquear los prefijos privados en ese dominio.** Un bucket con dominio
+   público sirve **cualquier** clave, y en el mismo bucket viven
+   `comprobantes/` y `backups/`. Las claves llevan 128 bits aleatorios, pero
+   la defensa de verdad es una regla: Security → WAF → Custom rules → Create
+   rule, con la expresión
+
+   ```
+   (http.host eq "imagenes.TU-DOMINIO" and (starts_with(http.request.uri.path, "/comprobantes/") or starts_with(http.request.uri.path, "/backups/")))
+   ```
+
+   y la acción **Block**. El panel sigue viendo los comprobantes: los abre con
+   una URL prefirmada contra el endpoint S3 de la cuenta, que no pasa por ese
+   dominio.
+4. **Token de API**: R2 → Manage API tokens → Create API token, permiso
+   *Object Read & Write* **sólo sobre ese bucket**. Anotá el Access Key ID y el
+   Secret Access Key (el secret se ve una sola vez) y el Account ID.
+5. **Cargarlo** en `/admin/integraciones` → R2 (o, si no, `R2_*` en el hPanel,
+   docs/ENV-OPCIONAL.md) y tocar **Probar conexión**: escribe, lee y borra un
+   archivo privado de prueba y avisa si el dominio público lo sirve.
+6. `pnpm preflight` repite esa prueba con un canario en `comprobantes/` y en
+   `backups/`, y **sale con 1** si el dominio público los sirve.
+
+No hace falta CORS: el navegador nunca escribe en R2 (las fotos suben por una
+acción del servidor) y lee las públicas como `<img>`.
+
+Una tienda que venía de otro almacenamiento de fotos: NEW-STORE.md
+§ "Migrar las fotos a R2" (`pnpm fotos:migrar-cloudinary`).
+
+---
+
 ## 4. Primer deploy de una tienda nueva
 
 Sin SSH y sin Node instalado en el servidor: la app que ya está corriendo se
@@ -357,7 +399,7 @@ la resta hecha:
 | -------------------------- | ----------- | ------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/api/cron/vencer-pedidos` | cada 15 min | —             | `*/15 * * * *`            | Sin `CRON_SECRET` (≥16 caracteres), 503: nunca vence nada sin secreto. Desde O15 manda además los recordatorios de pago; sin su plantilla, no manda ninguno y vence igual |
 | `/api/cron/resumen-diario` | diaria      | 08:00         | `0 11 * * *`              | Sin `WHATSAPP_CLOUD_TEMPLATE_RESUMEN_DIARIO`, corre igual y no manda nada (`sent: false`)                                                                                 |
-| `/api/cron/backup`         | diaria      | 03:00         | `0 6 * * *`               | Sin credenciales de Cloudinary, se saltea sola (`skipped: "sin_cloudinary"`)                                                                                              |
+| `/api/cron/backup`         | diaria      | 03:00         | `0 6 * * *`               | Sin R2 configurado, se saltea sola (`skipped: "sin_almacenamiento"`)                                                                                                       |
 
 Las tres comparten el mismo `CRON_SECRET` (`src/lib/cron-auth.ts`): 503 sin
 secreto configurado, comparación en tiempo constante, rate-limited, header
@@ -423,7 +465,7 @@ manda nada (`sent: false`). `pnpm preflight` avisa si falta.
 
 ### La tercera entrada: la copia de seguridad (O8)
 
-`/api/cron/backup` vuelca la base entera a Cloudinary, comprimida y privada.
+`/api/cron/backup` vuelca la base entera a R2, comprimida y privada.
 De madrugada, cuando no hay nadie comprando — **03:00 de Asunción = 06:00 UTC**:
 
 ```bash
@@ -431,8 +473,8 @@ De madrugada, cuando no hay nadie comprando — **03:00 de Asunción = 06:00 UTC
 0 6 * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://TU-DOMINIO/api/cron/backup
 ```
 
-Sin credenciales de Cloudinary la ruta se saltea sola y contesta `200` con
-`skipped: "sin_cloudinary"`: no hay dónde guardar la copia. `pnpm preflight`
+Sin R2 configurado la ruta se saltea sola y contesta `200` con
+`skipped: "sin_almacenamiento"`: no hay dónde guardar la copia. `pnpm preflight`
 lo avisa.
 
 **Dos corridas nunca se pisan**: el lock de `job_runs` tiene expiración (30
@@ -442,9 +484,11 @@ le llega un WhatsApp** (reusa la plantilla del resumen diario): un backup que
 falla en silencio es peor que no tener backup, porque da la tranquilidad sin
 dar la copia.
 
-Las copias viven en `<prefijo>backups/` como `raw` + `authenticated` —sin firma
-no se descargan— y se borran solas a los 14 días. La retención no es prolijidad:
-sin ella la cuenta de Cloudinary se llena y deja de aceptar **la copia de hoy**.
+Cada copia es un **set** en `backups/backup-<fecha de Asunción>-<aleatorio>/`:
+un `<tabla>.jsonl.gz` por tabla y un `manifest.json` con las filas y los hashes
+de cada uno, que se escribe **último** (un set sin manifiesto es una corrida que
+no terminó). Privado: el dominio público bloquea `/backups/*` (§3b). Los sets
+de más de 14 días se borran solos.
 
 `pnpm backup` (mysqldump desde tu máquina) sigue existiendo y sigue siendo el
 camino "grande". Éste es el que corre solo.
@@ -452,14 +496,21 @@ camino "grande". Éste es el que corre solo.
 ### Restaurar una copia
 
 ```bash
-# 1. Bajá el archivo de Cloudinary (Media Library → backups/, "Download").
-# 2. Creá una base NUEVA para restaurar. El nombre TIENE que contener
+# 1. Creá una base NUEVA para restaurar. El nombre TIENE que contener
 #    "restore" o "test" — el script se niega a correr contra cualquier otra.
-# 3. Apuntá DATABASE_URL a esa base y restaurá:
-pnpm restore -- backup-2026-08-12T0300.jsonl.gz
+# 2. Apuntá DATABASE_URL a esa base y poné R2_* en el entorno de tu máquina
+#    (la base nueva está vacía: no hay panel del que leerlas).
+# 3. Restaurá el último set completo de R2 (o uno por nombre):
+pnpm restore -- --r2 ultimo
+#    pnpm restore -- --r2 backup-2026-08-12T0300-<aleatorio>
 # 4. Mirá que esté todo (pnpm reconcile, entrá al panel).
 # 5. Recién entonces decidí qué hacer con la base de producción.
 ```
+
+El set se baja a una carpeta temporal y se verifica **entero antes de tocar la
+base**: un objeto que falta, o un conteo o un hash que no coincide con el
+manifiesto, y no se carga nada. Un archivo único `.jsonl.gz` de formato 2 (los
+de antes) se sigue aceptando: `pnpm restore -- copia.jsonl.gz`.
 
 El candado del paso 2 es a propósito y no tiene flag para saltearlo: un
 `pnpm restore` corrido con el `.env` de producción cargado por accidente
@@ -502,7 +553,7 @@ código: entre el redeploy y el setup es normal —corré el `POST
 todavía no corrió (o no corre desde hace 2 h): revisá el punto 5 — recién
 configurado, esperá 15 minutos. `backup:false`, que el backup automático está
 configurado y no terminó bien en las últimas 26 h (§5, tercera entrada); sin
-Cloudinary no hay backup automático que vigilar y el campo queda en `true`
+R2 no hay backup automático que vigilar y el campo queda en `true`
 —eso no prueba que exista una copia, ver §7.
 
 Y desde tu máquina, apuntando al entorno real:
@@ -512,8 +563,10 @@ pnpm preflight
 ```
 
 Lista qué falta para cobrar plata de verdad (datos bancarios, `CRON_SECRET`,
-modo de la pasarela, Cloudinary) y sale con código 1 si algo bloquea. No toca la
-base ni la red, así que se puede correr todas las veces que quieras.
+modo de la pasarela, R2) y sale con código 1 si algo bloquea. El reporte de
+arriba no toca la base ni la red; después, aparte, prueba el canario privado
+de R2 (que también puede dar código 1, §3b), cuenta las referencias de fotos
+que no son de R2 y revisa las formas de entrega.
 
 Después, a mano: entrar a la tienda, agregar algo al carrito, llegar al
 checkout, y entrar a `/admin` con la cuenta del dueño.

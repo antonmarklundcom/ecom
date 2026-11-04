@@ -167,9 +167,9 @@ describe.skipIf(!hasTestDb)('listOrders', () => {
 
     const { receipts } = await import('../../src/db/schema');
     await db.insert(receipts).values([
-      { orderId, cloudinaryId: 'a', mime: 'image/jpeg', bytes: 1, review: 'pending' },
-      { orderId, cloudinaryId: 'b', mime: 'image/jpeg', bytes: 1, review: 'pending' },
-      { orderId, cloudinaryId: 'c', mime: 'image/jpeg', bytes: 1, review: 'approved' },
+      { orderId, storageKey: 'a', mime: 'image/jpeg', bytes: 1, review: 'pending' },
+      { orderId, storageKey: 'b', mime: 'image/jpeg', bytes: 1, review: 'pending' },
+      { orderId, storageKey: 'c', mime: 'image/jpeg', bytes: 1, review: 'approved' },
     ]);
 
     const result = await listOrders({});

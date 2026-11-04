@@ -43,11 +43,13 @@ export {
   IMAGE_PROVENANCES,
   ORDER_STATUSES,
   PAYMENT_METHODS,
+  SUPPLIER_SOURCE_TYPES,
   type CouponType,
   type DocType,
   type ImageProvenance,
   type OrderStatus,
   type PaymentMethod,
+  type SupplierSourceType,
 } from "./enums";
 // El `export ... from` re-exporta pero no trae los bindings a este módulo, y
 // las columnas `mysqlEnum(...)` de abajo los necesitan como valores.
@@ -57,6 +59,7 @@ import {
   IMAGE_PROVENANCES,
   ORDER_STATUSES,
   PAYMENT_METHODS,
+  SUPPLIER_SOURCE_TYPES,
   type PaymentMethod,
 } from "./enums";
 
@@ -160,10 +163,11 @@ export const categories = mysqlTable(
     seoTitle: varchar("seo_title", { length: 200 }),
     seoDescription: varchar("seo_description", { length: 500 }),
     /**
-     * `public_id` de la foto de portada en Cloudinary, carpeta `categorias/`.
-     * NULL = sin foto, y la página cae al encabezado de texto de siempre.
+     * Referencia de R2 (`r2:p1/…`) de la foto de portada. NULL = sin foto,
+     * y la página cae al encabezado de texto de siempre. El nombre de la
+     * columna es histórico; no se renombra para no migrar.
      */
-    imageCloudinaryId: varchar("image_cloudinary_id", { length: 255 }),
+    imageRef: varchar("image_cloudinary_id", { length: 255 }),
     /**
      * El alt de esa foto. Va aparte y no derivado del nombre: "Zapatillas" no
      * describe la imagen, y una portada sin alt es una página menos accesible
@@ -213,6 +217,23 @@ export const products = mysqlTable(
      * home llena de destacados que nadie eligió.
      */
     isFeatured: boolean("is_featured").notNull().default(false),
+    /**
+     * El orden de los destacados en la home, a mano: más chico, más adelante.
+     *
+     * NOT NULL con default 0 por la misma razón que `isFeatured`: una tienda
+     * que nunca lo toca tiene todos en 0, y el empate se desarma por
+     * `published_at DESC` — exactamente el orden de antes de esta columna.
+     */
+    featuredPosition: int("featured_position").notNull().default(0),
+    /**
+     * El enlace privado de compra del producto (proveedor, dropshipping):
+     * dónde se repone. **Dato de compras, no de vidriera**: sólo lo lee el
+     * panel, y sólo con `proveedores` prendido en `src/config/tienda.ts`
+     * (`src/lib/proveedores.ts`). Ninguna consulta de `src/db/queries.ts` lo
+     * selecciona. No confundir con `supplierDetails.sourceUrl`, que es la
+     * fuente de un dato verificado de la ficha.
+     */
+    supplierUrl: varchar("supplier_url", { length: 2048 }),
     publishedAt: datetime("published_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
@@ -255,7 +276,12 @@ export const productImages = mysqlTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
-    cloudinaryId: varchar("cloudinary_id", { length: 255 }).notNull(),
+    /**
+     * Referencia de R2 de la foto (`r2:p1/<slug>-<hash>@WxH`, ver
+     * `src/lib/imagenes-r2.ts`). El nombre de la columna es histórico; no se
+     * renombra para no migrar.
+     */
+    imageRef: varchar("cloudinary_id", { length: 255 }).notNull(),
     blurDataUrl: text("blur_data_url"),
     alt: varchar("alt", { length: 255 }),
     position: int("position").notNull().default(0),
@@ -307,6 +333,57 @@ export const variants = mysqlTable(
     unique("variants_sku_uq").on(t.sku),
     index("variants_product_idx").on(t.productId),
   ]
+);
+
+/**
+ * Ofertas de proveedores por variante: a quién se le compra, a cuánto y con
+ * qué stock del lado del proveedor (dropshipping, mayorista local,
+ * importación). **Datos privados de compras**, no del pedido ni del stock:
+ *
+ * - No los lee la vidriera, el checkout, el feed, el sitemap ni ninguna
+ *   consulta de `src/db/queries.ts` (lo fija `tests/unit/proveedores-privados.test.ts`).
+ * - `supplier_stock` es lo que el proveedor dijo tener cuando se miró
+ *   (`checked_at`), no stock vendible: el que se vende es `variants.on_hand`,
+ *   y sólo cambia por `adjustStock` / `transitionOrder`.
+ * - Con la tabla vacía —toda tienda con `proveedores` apagado— nada cambia.
+ *
+ * Lo escribe sólo `src/domain/supplier-offers.ts`. Cuelga de la variante con
+ * cascade: borrar la variante borra sus ofertas.
+ */
+export const supplierOffers = mysqlTable(
+  "supplier_offers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    variantId: int("variant_id")
+      .notNull()
+      .references(() => variants.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    /** Costo unitario en guaraníes enteros. NULL = todavía no se sabe. */
+    unitCostPyg: pyg("unit_cost_pyg"),
+    /** El nombre del proveedor o de la fuente ("Mayorista del centro"). */
+    source: varchar("source", { length: 200 }),
+    sourceType: mysqlEnum("source_type", SUPPLIER_SOURCE_TYPES)
+      .notNull()
+      .default("other"),
+    /** La ficha del producto en el sitio del proveedor. Sólo https. */
+    productUrl: varchar("product_url", { length: 2048 }),
+    /** La página del proveedor (catálogo, contacto). Sólo https. */
+    supplierUrl: varchar("supplier_url", { length: 2048 }),
+    /** Lo que el proveedor declaró tener al mirarlo. No es stock vendible. */
+    supplierStock: int("supplier_stock", { unsigned: true }),
+    notes: varchar("notes", { length: 1000 }),
+    /** "Es el mismo producto": alguien lo comparó. */
+    isConfirmed: boolean("is_confirmed").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    /** El que se usa para el margen. A lo sumo uno por variante (lo cuida el dominio). */
+    isPreferred: boolean("is_preferred").notNull().default(false),
+    /** Cuándo se miraron el costo y el stock del proveedor. */
+    checkedAt: datetime("checked_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  (t) => [index("supplier_offers_variant_idx").on(t.variantId)]
 );
 
 /**
@@ -656,8 +733,12 @@ export const receipts = mysqlTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
-    /** Private Cloudinary folder — served to the admin via signed URLs only. */
-    cloudinaryId: varchar("cloudinary_id", { length: 255 }).notNull(),
+    /**
+     * Clave del objeto **privado** en R2 (`comprobantes/…`): el admin lo ve
+     * por una URL prefirmada de vida corta, nunca por la URL pública. El
+     * nombre de la columna es histórico; no se renombra para no migrar.
+     */
+    storageKey: varchar("cloudinary_id", { length: 255 }).notNull(),
     mime: varchar("mime", { length: 100 }).notNull(),
     bytes: int("bytes", { unsigned: true }).notNull(),
     uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
@@ -1346,10 +1427,11 @@ export const bankDetails = mysqlTable("bank_details", {
   cuenta: varchar("cuenta", { length: 60 }).notNull(),
   tipoCuenta: varchar("tipo_cuenta", { length: 60 }).notNull(),
   /**
-   * `public_id` del QR SPI en Cloudinary, en una carpeta **pública**. NULL =
-   * sin QR cargado, y ahí manda `BANCO_QR_URL` del entorno si está.
+   * Referencia de R2 (`r2:p1/…`, público) del QR SPI. NULL = sin QR
+   * cargado, y ahí manda `BANCO_QR_URL` del entorno si está. El nombre de la
+   * columna es histórico; no se renombra para no migrar.
    */
-  qrCloudinaryId: varchar("qr_cloudinary_id", { length: 255 }),
+  qrImageRef: varchar("qr_cloudinary_id", { length: 255 }),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   /**
    * Quién lo tocó por última vez. `ON DELETE SET NULL`: el dato bancario de
@@ -1399,7 +1481,7 @@ export const storeSettings = mysqlTable("store_settings", {
 // ---------------------------------------------------------------------------
 
 /**
- * Cloudinary, WhatsApp, Pagopar, la medición y el reporte de errores,
+ * R2, WhatsApp, Pagopar, la medición y el reporte de errores,
  * cargados por el dueño desde el panel en vez del hPanel (una fila por
  * integración). La lectura y la precedencia —**esta fila > variable de
  * entorno > apagado**— viven en `src/lib/integraciones.ts`; la escritura en
@@ -1410,16 +1492,16 @@ export const storeSettings = mysqlTable("store_settings", {
  * (una plantilla de WhatsApp nueva no puede ser una migración que viaja a
  * todas las tiendas).
  *
- * - `data`: los valores **no** secretos, en claro (`cloudName`, `ga4Id`…).
+ * - `data`: los valores **no** secretos, en claro (`bucket`, `ga4Id`…).
  * - `secrets`: campo → blob `v1.…` de AES-256-GCM (`src/lib/secret-box.ts`),
  *   con una clave derivada de `SESSION_SECRET` que **no está en la base**. Un
- *   backup (que sale de la máquina, a Cloudinary) trae los secretos cifrados
+ *   backup (que sale de la máquina, a R2) trae los secretos cifrados
  *   y nada con qué abrirlos.
  *
  * Sin fila, la integración sale del entorno, como siempre.
  */
 export const integrationSettings = mysqlTable("integration_settings", {
-  /** `cloudinary` | `whatsapp` | `pagopar` | `analitica` | `errores`. */
+  /** `r2` | `whatsapp` | `pagopar` | `analitica` | `errores`. */
   integration: varchar("integration", { length: 32 }).primaryKey(),
   data: json("data").notNull(),
   secrets: json("secrets").notNull(),
@@ -1566,6 +1648,8 @@ export const BACKUP_TABLES = [
   "product_images",
   "product_slug_redirects",
   "variants",
+  // Cuelga de `variants`: datos privados de compras (proveedores).
+  "supplier_offers",
   "stock_alerts",
   "price_adjustments",
   "stock_adjustments",

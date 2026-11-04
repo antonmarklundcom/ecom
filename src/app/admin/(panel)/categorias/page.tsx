@@ -39,7 +39,7 @@ export default async function AdminCategoriesPage() {
             esPrimera: index === 0,
             esUltima: index === categories.length - 1,
             description: category.description,
-            imageCloudinaryId: category.imageCloudinaryId,
+            imageRef: category.imageRef,
             imageAlt: category.imageAlt,
           }))}
         />

@@ -50,6 +50,14 @@ export const IMAGE_PROVENANCES = ['supplier-authorized', 'owned-photo', 'illustr
 export type ImageProvenance = (typeof IMAGE_PROVENANCES)[number];
 
 /**
+ * De dónde viene una oferta de proveedor (`supplier_offers.source_type`):
+ * dropshipping por Dropi, un proveedor local, importación u otro. Lo dibuja
+ * el editor de proveedores del panel (componente cliente), por eso vive acá.
+ */
+export const SUPPLIER_SOURCE_TYPES = ['dropi', 'local', 'import', 'other'] as const;
+export type SupplierSourceType = (typeof SUPPLIER_SOURCE_TYPES)[number];
+
+/**
  * Las tasas de IVA. Están acá y no en el schema por el mismo camino que las
  * demás, sólo que más largo: `src/lib/money.ts` las importa para validar una
  * tasa, y `money.ts` (el `formatGs` de toda la vidriera) lo importa media

@@ -4,7 +4,7 @@ import { t } from "@/i18n";
 /**
  * "Subí tu comprobante" en la página del pedido.
  *
- * Sin almacenamiento de comprobantes (Cloudinary en `/admin/integraciones` o
+ * Sin almacenamiento de comprobantes (R2 en `/admin/integraciones` o
  * en el entorno) no se dibuja el formulario: la compradora elegía el
  * archivo, esperaba la subida y recibía un error genérico. En su lugar va el
  * camino que sí funciona —WhatsApp con el pedido ya escrito, si la tienda

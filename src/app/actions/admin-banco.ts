@@ -9,14 +9,13 @@ import {
   saveBankDetails,
   setBankQr,
 } from "@/domain/admin-bank";
-import { validateProductImage } from "@/domain/product-images";
+import { subirFotoDelPanel } from "@/domain/product-images";
 import { t } from "@/i18n";
 import {
   adminActionError,
   requireOwnerSession,
   type AdminActionResult,
 } from "@/lib/admin-guard";
-import { carpetaBanco, cloudinary } from "@/lib/cloudinary";
 
 /**
  * Datos bancarios del comercio (PLAN.md FASE 2, PR T). **Todas owner-only.**
@@ -65,33 +64,26 @@ export async function guardarDatosBancarios(input: unknown): Promise<AdminAction
 /**
  * Subida del QR SPI.
  *
- * Clonada de `uploadProductImage`, con las dos diferencias que importan: el
- * folder es `banco/` —**público**, nunca `comprobantes/`, que es
- * `authenticated` y sólo se sirve firmado— y el destino no es una fila de
+ * El mismo camino que `uploadProductImage`, con las dos diferencias que
+ * importan: va a `p1/` —**público**, nunca `comprobantes/`, que es privado y
+ * sólo se sirve con URL prefirmada— y el destino no es una fila de
  * `product_images` sino la columna del singleton.
  *
- * El tipo de archivo se valida por **los bytes** (`validateProductImage`
- * sniffea la firma del archivo), no por lo que diga el `Content-Type` ni la
- * extensión: los dos los elige quien sube.
+ * Cada archivo se valida por **los bytes** (`verificarSetPreparado`: firma y
+ * dimensiones), no por lo que diga el `Content-Type` ni la extensión: los dos
+ * los elige quien sube.
  */
 export async function subirQrBancario(formData: FormData): Promise<AdminActionResult> {
   try {
     const actor = await requireOwnerSession();
 
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
       return { ok: false, error: t("adminError.banco.elegiQr") };
     }
 
-    const content = Buffer.from(await file.arrayBuffer());
-    const { mime } = validateProductImage({ bytes: content.byteLength, content });
+    const imageRef = await subirFotoDelPanel(formData, "qr-banco", "qr");
 
-    const uploaded = await cloudinary.uploader.upload(
-      `data:${mime};base64,${content.toString("base64")}`,
-      { folder: carpetaBanco(), resource_type: "image", overwrite: false },
-    );
-
-    await setBankQr({ qrCloudinaryId: uploaded.public_id, actorUserId: actor.userId });
+    await setBankQr({ qrImageRef: imageRef, actorUserId: actor.userId });
 
     revalidatePath("/admin/banco");
     return { ok: true };

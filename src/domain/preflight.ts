@@ -1,4 +1,5 @@
 import { validSessionSecret } from "@/lib/session-secret";
+import { normalizarBasePublica } from "@/lib/imagenes-r2";
 import { MARCA_PLACEHOLDER, TIENDA } from "@/config/tienda";
 import {
   CAMPOS,
@@ -92,7 +93,7 @@ type Origenes = Record<string, Fuente | null>;
 /**
  * El entorno **efectivo**: cada variable de integración reemplazada por lo que
  * la tienda usa de verdad (panel > entorno), y de dónde salió cada una. Los
- * controles de abajo no cambiaron: siguen leyendo `CLOUDINARY_API_SECRET` y
+ * controles de abajo no cambiaron: siguen leyendo `R2_SECRET_ACCESS_KEY` y
  * compañía, sólo que ahora de esta vista.
  */
 function entornoEfectivo(
@@ -116,18 +117,19 @@ function entornoEfectivo(
   return { efectivo, origenes };
 }
 
+/** Las cinco de R2: credenciales, bucket y el dominio público de las fotos. */
+const R2_VARIABLES = [
+  "R2_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_BUCKET",
+  "R2_PUBLIC_URL",
+] as const;
+
 /** Qué variables mira cada control, para decir de dónde salieron. */
 const VARIABLES_DEL_CONTROL: Record<string, readonly string[]> = {
-  cloudinary: [
-    "CLOUDINARY_CLOUD_NAME",
-    "CLOUDINARY_API_KEY",
-    "CLOUDINARY_API_SECRET",
-  ],
-  backups: [
-    "CLOUDINARY_CLOUD_NAME",
-    "CLOUDINARY_API_KEY",
-    "CLOUDINARY_API_SECRET",
-  ],
+  r2: R2_VARIABLES,
+  backups: R2_VARIABLES,
   pagopar_credenciales: [
     "PAGOPAR_PUBLIC_KEY",
     "PAGOPAR_PRIVATE_KEY",
@@ -241,7 +243,7 @@ export function preflight(
       ajustes.cuentasClientes ?? TIENDA.cuentasClientes
     ),
     checkPagoparCredentials(env),
-    checkCloudinary(env),
+    checkR2(env),
     checkWhatsApp(env),
     checkAvisoPedidoNuevo(env),
     checkAvisoCliente(
@@ -812,33 +814,42 @@ function checkPagoparCredentials(env: PreflightEnv): PreflightCheck {
   };
 }
 
-/** Sin Cloudinary no hay comprobantes: el comprador no puede probar que pagó. */
-function checkCloudinary(env: PreflightEnv): PreflightCheck {
-  const missing = [
-    "CLOUDINARY_CLOUD_NAME",
-    "CLOUDINARY_API_KEY",
-    "CLOUDINARY_API_SECRET",
-  ].filter((name) => {
+/** Lo que falta de R2: vacío, el `changeme` de ejemplo, o con forma imposible. */
+function faltantesR2(env: PreflightEnv): string[] {
+  return R2_VARIABLES.filter((name) => {
     const current = value(env, name);
-    return current === "" || /changeme/i.test(current);
+    if (current === "" || /changeme/i.test(current)) return true;
+    if (name === "R2_ACCOUNT_ID") return !/^[a-f0-9]{32}$/.test(current);
+    if (name === "R2_BUCKET") return !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(current);
+    if (name === "R2_PUBLIC_URL") return normalizarBasePublica(current) === null;
+    return false;
   });
+}
+
+/**
+ * Sin R2 no hay comprobantes (el comprador no puede probar que pagó) ni
+ * fotos. Lo que este control no puede ver sin red —que el dominio público
+ * bloquee los prefijos privados— lo prueba `scripts/preflight.ts` aparte.
+ */
+function checkR2(env: PreflightEnv): PreflightCheck {
+  const missing = faltantesR2(env);
 
   if (missing.length === 0) {
     return {
-      id: "cloudinary",
+      id: "r2",
       severity: "ok",
-      title: "Cloudinary",
+      title: "Imágenes y archivos (R2)",
       detail: "configurado",
     };
   }
 
   return {
-    id: "cloudinary",
+    id: "r2",
     severity: "bloquea",
-    title: "Cloudinary",
+    title: "Imágenes y archivos (R2)",
     detail:
       `faltan ${missing.join(", ")} (cargalas en /admin/integraciones o en el entorno). Sin ` +
-      "esto el comprador no puede subir el comprobante, " +
+      "esto no se pueden subir fotos y el comprador no puede subir el comprobante, " +
       "que es el único paso que convierte una transferencia en un pedido verificable",
   };
 }
@@ -942,15 +953,11 @@ function checkAvisoPedidoNuevo(env: PreflightEnv): PreflightCheck {
  * con el negocio.
  *
  * De lo que este control **no** puede saber nada es de la entrada de cron del
- * hPanel: con Cloudinary configurado y sin la entrada, la ruta existe y nadie
+ * hPanel: con R2 configurado y sin la entrada, la ruta existe y nadie
  * la llama nunca. Eso está en DEPLOY.md §5 y hay que mirarlo a mano.
  */
 function checkBackups(env: PreflightEnv): PreflightCheck {
-  const faltan = [
-    "CLOUDINARY_CLOUD_NAME",
-    "CLOUDINARY_API_KEY",
-    "CLOUDINARY_API_SECRET",
-  ].filter((name) => value(env, name) === "");
+  const faltan = faltantesR2(env);
 
   if (faltan.length > 0) {
     return {
@@ -958,7 +965,7 @@ function checkBackups(env: PreflightEnv): PreflightCheck {
       severity: "advierte",
       title: "Copias de seguridad automáticas",
       detail:
-        `sin Cloudinary (falta ${faltan.join(", ")}) no hay dónde guardar la copia diaria: ` +
+        `sin R2 (falta ${faltan.join(", ")}) no hay dónde guardar la copia diaria: ` +
         "/api/cron/backup se saltea sola. Queda `pnpm backup` a mano desde tu máquina",
     };
   }
@@ -968,7 +975,7 @@ function checkBackups(env: PreflightEnv): PreflightCheck {
     severity: "ok",
     title: "Copias de seguridad automáticas",
     detail:
-      "Cloudinary configurado (falta verificar la entrada de cron del hPanel, DEPLOY.md §5)",
+      "R2 configurado, bajo backups/ (falta verificar la entrada de cron del hPanel, DEPLOY.md §5)",
   };
 }
 

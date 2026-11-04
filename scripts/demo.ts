@@ -270,11 +270,11 @@ async function ensureScenario(
 
   if (scenario.status === "esperando_verificacion") {
     // Comprobante de mentira: alcanza para que `/admin` muestre el pedido en
-    // revisión. Sin Cloudinary configurado, el botón "Ver" del admin no va a
-    // poder traer la imagen — no es un bug del demo, es que no hay archivo.
+    // revisión. La referencia no es de R2, así que el botón "Ver" del admin
+    // dice que no hay archivo — no es un bug del demo, es que no lo hay.
     await recordReceipt({
       orderId: created.orderId,
-      cloudinaryId: "demo/comprobante-placeholder",
+      storageKey: "demo/comprobante-placeholder",
       mime: "image/png",
       bytes: 123_456,
     });
