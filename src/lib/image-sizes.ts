@@ -21,9 +21,10 @@
  * componente. `tests/unit/image-sizes.test.ts` falla si una imagen de la
  * vidriera se dibuja sin `sizes`.
  *
- * Hoy `next.config.ts` tiene `images.unoptimized` (Cloudinary arma el tamaño)
- * y el `<img>` sale sin `srcset`; el `sizes` correcto ya queda puesto para el
- * día que la imagen traiga varias resoluciones.
+ * Las fotos de R2 salen como `<picture>` con un WebP por caja en el `srcset`
+ * (`src/components/imagen-r2.tsx`, que exige `sizes`): este número es el que
+ * elige cuál baja. Los placeholders locales van por `next/image`, que sigue
+ * `unoptimized` en `next.config.ts`.
  */
 export const IMAGE_SIZES = {
   /** Tarjeta de producto en la grilla de la home, categoría, relacionados y vistos. */

@@ -45,7 +45,7 @@ function integracionDe(nombre: unknown): Integracion {
 }
 
 function revalidar(): void {
-  // WhatsApp, Cloudinary y los medidores están en el layout de toda la vidriera.
+  // WhatsApp, R2 (la base de las fotos) y los medidores están en el layout de toda la vidriera.
   revalidarVidriera();
   revalidatePath("/admin/integraciones");
 }

@@ -17,7 +17,7 @@ import { safeError } from "./safe-error";
  *   planilla, acciones masivas (`src/app/actions/admin-products.ts`,
  *   `admin-categories.ts`);
  * - los ajustes y la identidad (marca, portada, anuncio, contacto, páginas) y
- *   las integraciones (WhatsApp, Cloudinary, medidores): están en el layout de
+ *   las integraciones (WhatsApp, R2, medidores): están en el layout de
  *   todas las páginas;
  * - las reseñas moderadas, las devoluciones que reponen stock;
  * - el stock que mueven los pedidos: el checkout que reserva, el panel que

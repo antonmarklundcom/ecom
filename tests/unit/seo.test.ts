@@ -591,7 +591,7 @@ describe("productJsonLd · precio oculto y modos de venta", () => {
     name: "Silla",
     description: "De madera",
     brand: "Muebles PY",
-    images: ["https://res.cloudinary.com/x/image/upload/silla.jpg"],
+    images: ["https://imagenes.tienda.test/p1/silla-0123456789.jpg"],
     variants: [{ sku: "SI-1", label: "Única", pricePyg: 450_000, available: 2 }],
   };
 
@@ -696,9 +696,9 @@ describe("Organization y WebSite del layout", () => {
       organizationJsonLd({
         origin,
         name: "Tienda",
-        logo: "https://res.cloudinary.com/x/image/upload/logo.png",
+        logo: "https://imagenes.tienda.test/p1/logo-0123456789.jpg",
       })
-    ).toMatchObject({ logo: "https://res.cloudinary.com/x/image/upload/logo.png" });
+    ).toMatchObject({ logo: "https://imagenes.tienda.test/p1/logo-0123456789.jpg" });
     expect(
       organizationJsonLd({ origin, name: "Tienda", logo: "/logo.png" })
     ).not.toHaveProperty("logo");
