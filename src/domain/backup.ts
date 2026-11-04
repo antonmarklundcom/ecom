@@ -409,6 +409,7 @@ export const PRIMARY_KEY: Record<BackupTable, string | null> = {
   product_slug_redirects: "slug",
   product_images: "id",
   variants: "id",
+  supplier_offers: "id",
   stock_alerts: "id",
   price_adjustments: "id",
   stock_adjustments: "id",

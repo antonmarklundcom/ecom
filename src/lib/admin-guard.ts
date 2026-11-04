@@ -170,6 +170,8 @@ const KNOWN_DOMAIN_ERRORS = [
   "PaymentRecoveryError",
   "MoneyError",
   "AdminInputError",
+  // Ofertas de proveedores (`src/domain/supplier-offers.ts`).
+  "SupplierOfferError",
   "AdminBankError",
   "AdminShippingMethodError",
   // O5: la nota vacía, el pedido que no existe y el usuario desactivado

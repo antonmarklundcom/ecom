@@ -60,6 +60,24 @@ describe("enquiry selector", () => {
     ).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(/123\.456|654\.321|₲/);
   });
+  it("enquiry with a visible price still asks on WhatsApp instead of adding to the cart", () => {
+    render(
+      <AddToCart
+        product={{ ...product, showPrice: true }}
+        inquiryLinks={{
+          1: waLink("+595981123456", "RING-S"),
+          2: waLink("+595981123456", "RING-L"),
+        }}
+      />
+    );
+    expect(screen.getByTestId(TESTIDS.variantInquiryLink)).toHaveAttribute(
+      "href",
+      expect.stringContaining("RING-")
+    );
+    expect(
+      screen.queryByTestId(TESTIDS.productAddToCart)
+    ).not.toBeInTheDocument();
+  });
   it.each(["enquiry", "showcase"] as const)(
     "missing contact shows %s without a purchase or dead enquiry button",
     (saleMode) => {

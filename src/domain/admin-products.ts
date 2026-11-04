@@ -39,6 +39,7 @@ import {
   type VerificationActor,
 } from "@/lib/verification-stamps";
 import { assertProductSlugAvailable, claimProductSlug } from "./product-slugs";
+import { enlaceProveedor } from "./supplier-offers";
 
 /**
  * Catálogo desde el panel (PLAN.md 4.6).
@@ -415,7 +416,30 @@ export type ProductWrite = {
    * que necesita todo formulario que no dibuje la casilla — S10 la agrega.
    */
   isFeatured?: boolean;
+  /**
+   * El orden entre los destacados de la home: más chico, más adelante.
+   * Ausente = no se toca (un formulario que no lo dibuja no lo resetea).
+   */
+  featuredPosition?: number;
+  /**
+   * El enlace privado de compra (proveedor). Ausente = no se toca: es lo que
+   * manda el formulario con `proveedores` apagado, y lo que hace que apagar el
+   * flag no borre los enlaces que ya se cargaron. `null` lo borra.
+   */
+  supplierUrl?: string | null;
 };
+
+/** `featuredPosition` y `supplierUrl` listos para `set()`: ausente = no se toca. */
+function productExtras(input: ProductWrite) {
+  return {
+    ...(input.featuredPosition === undefined
+      ? {}
+      : { featuredPosition: input.featuredPosition }),
+    ...(input.supplierUrl === undefined
+      ? {}
+      : { supplierUrl: enlaceProveedor(input.supplierUrl) }),
+  };
+}
 
 export async function createProduct(
   input: ProductWrite,
@@ -439,6 +463,7 @@ export async function createProduct(
     ivaRate: input.ivaRate,
     isActive: input.isActive,
     isFeatured: input.isFeatured ?? false,
+    ...productExtras(input),
     publishedAt: input.published ? new Date() : null,
   });
 
@@ -506,6 +531,7 @@ export async function updateProduct(
       ...(input.isFeatured === undefined
         ? {}
         : { isFeatured: input.isFeatured }),
+      ...productExtras(input),
       // Se conserva la fecha original de publicación: republicar no debería
       // mandar el producto al tope de "nuevos" otra vez.
       publishedAt: input.published ? (current.publishedAt ?? new Date()) : null,

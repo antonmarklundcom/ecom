@@ -48,6 +48,22 @@ export type Tienda = {
   cuentasClientes: boolean;
 
   /**
+   * ¿El panel maneja datos de proveedores? (dropshipping, mayoristas,
+   * importación: a quién se le compra cada variante y a cuánto).
+   *
+   * **Apagado por defecto.** Con `false` el panel se ve exactamente como
+   * antes: ni el enlace de compra del producto ni el editor de ofertas por
+   * variante. Prenderlo es una decisión por tienda. Lo lee sólo
+   * `proveedoresHabilitados()` de `src/lib/proveedores.ts`.
+   *
+   * Con el flag prendido o apagado, **nada de esto llega a la vidriera**: son
+   * datos privados de compras. Y el flag no toca los modos de venta
+   * (`stock`/`enquiry`/`showcase`), que valen para todas las tiendas.
+   * Ver NEW-STORE.md § "Proveedores".
+   */
+  proveedores?: boolean;
+
+  /**
    * El bloque de arriba de todo de la home (PLAN.md FASE 2, PR O).
    *
    * **`null` = la home de siempre**, con el texto por defecto del template.
@@ -103,6 +119,7 @@ export const TIENDA: Tienda = {
   lang: "es-PY",
   ogLocale: "es_PY",
   cuentasClientes: false,
+  proveedores: false,
   hero: null,
 };
 
