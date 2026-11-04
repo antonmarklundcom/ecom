@@ -852,7 +852,7 @@ Browser            Next.js (Hostinger)         Pagopar               MySQL
    │                     │  POST /api/webhooks/pagopar                 │
    │                     │◄──────────────────────│  (puede llegar antes
    │                     │                       │   del redirect, y N veces)
-   │                     │ 1. guard token en querystring               │
+   │                     │ 1. guard token (querystring o cuerpo, §4.2) │
    │                     │ 2. expected = sha1(PRIVATE_KEY + hash_pedido)
    │                     │ 3. timingSafeEqual vs token recibido        │
    │                     │ 4. INSERT IGNORE payment_events (provider,event_key)
@@ -869,7 +869,7 @@ Browser            Next.js (Hostinger)         Pagopar               MySQL
 - `order_id` = `orders.order_number` (immutable, human-readable), never an internal id.
 - The webhook token is `sha1(private_key + hash_pedido)` — a **different input**. Two separate helpers, two unit-test vectors, no shared function.
 - Compare with `crypto.timingSafeEqual` on equal-length buffers.
-- **The webhook response envelope Pagopar expects has changed between doc revisions.** Confirm against the current v2 docs and pin an integration test against the sandbox during PR #3. Do not trust any remembered shape, including the one in this document.
+- **The webhook response envelope Pagopar expects has changed between doc revisions.** Confirm against the current v2 docs and pin an integration test against the sandbox during PR #3. Do not trust any remembered shape, including the one in this document. What could and could not be verified, and the open ambiguities, are in §4.2.
 - Respond within ~5 s or Pagopar retries. Do the slow work after responding, not before.
 - Register the webhook URL over **HTTPS on the real domain** — Hostinger provides the certificate; Pagopar will not call `localhost` (use a tunnel in dev).
 
@@ -944,6 +944,106 @@ exist.
 `order_events` row records why (`pago tardío recuperado`). An unrecoverable one
 stays `vencido` on the buyer's page, which is honest — the merchant owes them a
 refund, and pretending the order is alive would be worse than saying nothing.
+
+### 4.2 El aviso de pago: qué está verificado y qué no (revisión 2026-11-04)
+
+**Qué se intentó leer.** El 2026-11-04 se intentó releer el código contra la
+documentación pública de la API 2.0:
+
+| Fuente | Resultado |
+|---|---|
+| `https://soporte.pagopar.com/portal/es/kb/api` | **no se pudo leer**: el host no resolvía desde la sesión de trabajo (red restringida) |
+| `https://cdn.pagopar.com/assets/documentos/Documentacion_Pagopar.pdf` | **no se pudo leer**: ídem |
+| Búsqueda web ("Pagopar API 2.0 iniciar-transaccion", "pagopar url de respuesta json resultado token sha1") | sólo resúmenes de buscador, ninguno con el texto de la doc del aviso |
+
+Lo poco que dijeron esas búsquedas, **de segunda mano y sin confirmar**:
+
+- Las claves pública y privada y las dos URLs del comercio ("URL de
+  redireccionamiento" y "URL de respuesta") se cargan en el panel del comercio,
+  en la opción **"Integrar con mi sitio web"** (guía en inglés de Pagopar,
+  `soporte.pagopar.com/portal/es/kb/articles/version-ingles-api-integraci%C3%B3n-de-medios-de-pagos`,
+  y guías de terceros como `whataform.com/help-center/integraciones-pagos/boton-pago-pagopar`).
+- Los tokens de los otros endpoints siguen el patrón `sha1(clave_privada + algo)`
+  (`"FORMA-PAGO"`, `"PEDIDO-REVERSAR"`, …): coherente con
+  `sha1(PRIVATE_KEY + hash_pedido)` para el aviso, que es lo que ya hacía el código.
+- Al menos una integración de terceros contesta a la URL de respuesta
+  **imprimiendo el JSON `resultado` con HTTP 200** y después consulta el
+  pedido por la API.
+
+Nada de eso alcanza para cambiar el comportamiento: no se cambió ningún
+endpoint, campo ni sobre de respuesta por estas búsquedas. Lo que sí se dejó
+escrito son las ambigüedades, para que quien mire el primer aviso real sepa
+qué comparar (TASKS.md §21).
+
+**Ambigüedades abiertas** (cada una con su decisión de hoy):
+
+1. **Dónde viene el token del aviso.** El PR #5 lo lee del querystring
+   (`?token=`). Pero la URL de respuesta se registra *una vez* en el panel y el
+   token cambia con cada `hash_pedido`, así que no puede venir fijo en esa URL:
+   o Pagopar lo agrega al querystring, o viene en el cuerpo. **Decisión:** se
+   aceptan los dos lugares —querystring o campo `token` del pedido— con el
+   mismo digest y la misma comparación en tiempo constante. No afloja nada: sin
+   la clave privada no hay token válido en ningún lado. El token del cuerpo no
+   se guarda en `payment_events` / `payments.raw_payload` (no cubre `pagado`:
+   quien lo tenga podría firmar un "pagado" para ese pedido) y nunca se loguea.
+2. **Qué hay que contestarle.** Hoy: `{ respuesta: true, resultado: [pedido] }`
+   con el pedido tal cual llegó. Alternativa a descartar: sólo la lista
+   `resultado` (`[pedido]`). Sigue concentrado en `webhookResponseBody()` y
+   `WEBHOOK_ENVELOPE_CONFIRMED` sigue en `false` (preflight bloquea con
+   credenciales cargadas).
+3. **Si Pagopar reintenta con un 4xx.** No está documentado a mano. El
+   contrato de la ruta asume que reintenta ante cualquier no-200 y está
+   armado para que eso sea seguro (abajo).
+4. **Cómo llega una reversión/cancelación.** No se sabe si Pagopar avisa una
+   reversión a la URL de respuesta ni con qué forma. Hoy un aviso con
+   `pagado: false` se registra y **no** toca el pedido; si el pedido ya estaba
+   cobrado, la ruta deja un `log.error` ("¿reversión?") para que el dueño lo
+   revise. Revertir un pedido cobrado sigue siendo una decisión de una persona.
+5. **Cómo vuelve el `hash_pedido` en la URL de redireccionamiento.** La página
+   `/pedido/pagopar/retorno` lo lee de `?hash_pedido=` (o `?hashPedido=`). Si
+   el panel de Pagopar lo pone de otra forma, se ajusta esa página (no decide
+   nada: el estado lo mueve sólo el aviso).
+
+**El sobre del aviso, leído a la defensiva** (`readWebhookBody` +
+`parseWebhookEvent` en `protocol.ts`, con zod). Todas estas formas terminan en
+el mismo `PagoparWebhookEvent` o en un `PagoparProtocolError`:
+
+- JSON `{ resultado: [ {...} ], respuesta: true }` (la forma de siempre), el
+  objeto pelado, la lista pelada, `resultado` como objeto o como string con
+  JSON adentro;
+- varios elementos en `resultado` sólo si son **el mismo aviso** (hash, estado
+  y monto): si dicen cosas distintas es ambiguo y se rechaza;
+- números como strings (`"150000"`, `"150000.00"`), `pagado` como booleano,
+  `1`/`0`, `"1"`/`"0"`, `"true"`/`"false"`; `"150.000"` o céntimos ≠ 0 se
+  rechazan (no se adivina un monto);
+- campos que no conocemos pasan y quedan en `raw`;
+- BOM UTF-8 y espacios, `content-type` que no coincide con el cuerpo,
+  `application/x-www-form-urlencoded` (campos sueltos, campos con JSON, o un
+  único campo con el sobre entero);
+- tope de 64 KiB: la firma depende del cuerpo, así que algo hay que leer antes
+  de verificarla, pero no cualquier cosa.
+
+Los mensajes de error son fijos y no repiten valores del cuerpo: la ruta
+loguea el motivo, nunca el cuerpo. Los avisos de prueba (formas del repo,
+hipótesis y variantes sintéticas, claramente marcadas) están en
+`tests/fixtures/pagopar/` con su README; los recorren un test unitario y uno
+de integración.
+
+**Contrato de respuestas** (`src/app/api/webhooks/pagopar/route.ts`). La regla:
+200 cuando el aviso quedó procesado y reintentar no cambiaría nada; cualquier
+otro código deja la base como estaba (ningún 4xx escribe), así que si Pagopar
+reintenta, reintentar es seguro.
+
+| Código | Cuándo | ¿Toca la base? |
+|---|---|---|
+| 200 | aplicado, repetido, `pagado: false`, pedido en estado final, pago tardío sin stock | sí (en una transacción) |
+| 400 `invalid_payload` | cuerpo que no se puede interpretar (incluye monto ambiguo y varios pedidos distintos) | no |
+| 401 `unauthorized` | token ausente o que no coincide (un solo mensaje para los dos casos) | no |
+| 404 `unknown_order` | no hay `payments` con ese `hash_pedido` — a propósito reintentable (carrera con `iniciar-transaccion`) | no (rollback) |
+| 409 `amount_mismatch` | monto ≠ `orders.total_pyg` | no (rollback) |
+| 429 `rate_limited` | más de 120 avisos/min de la misma IP | no |
+| 503 `not_configured` | sin clave privada | no |
+| 500 `internal_error` | falla nuestra o se pasó el presupuesto de 4 s | falla: rollback. Corte por tiempo: la transacción puede terminar sola, y entonces el reintento la ve repetida |
 
 ---
 

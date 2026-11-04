@@ -1,0 +1,19 @@
+{
+  "descripcion": "JSON cortado → 400.",
+  "origen": "sintetico",
+  "contentType": "application/json",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpoCrudo": "{ \"resultado\": [ { \"hash_pedido\": \"b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3\"",
+  "esperado": {
+    "parseo": "error",
+    "ruta": {
+      "status": 400,
+      "pedido": "pendiente_pago",
+      "eventos": 0
+    }
+  }
+}

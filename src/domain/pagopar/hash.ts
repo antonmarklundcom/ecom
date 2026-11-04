@@ -56,9 +56,10 @@ export function requestToken(
 /**
  * Token del webhook: `sha1(PRIVATE_KEY + hash_pedido)`.
  *
- * Otra entrada, otro digest. Pagopar lo manda en el querystring de la
- * notificación y es lo único que separa a un pago real de cualquiera en
- * internet posteando JSON a la ruta.
+ * Otra entrada, otro digest. Viene con la notificación —en el querystring o en
+ * el campo `token` del pedido; cuál de los dos usa Pagopar no está confirmado
+ * (ARCH.md §4.2) y la ruta acepta ambos— y es lo único que separa a un pago
+ * real de cualquiera en internet posteando JSON a la ruta.
  */
 export function webhookGuardToken(privateKey: string, hashPedido: string): string {
   requirePrivateKey(privateKey);

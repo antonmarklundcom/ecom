@@ -1,0 +1,23 @@
+{
+  "descripcion": "JSON válido mandado como text/plain.",
+  "origen": "sintetico",
+  "contentType": "text/plain",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpoCrudo": "{\"respuesta\": true, \"resultado\": [{\"hash_pedido\": \"b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3\", \"pagado\": true, \"monto\": \"150000\", \"forma_pago\": \"TARJETA\", \"numero_pedido\": \"PY-000123\"}]}",
+  "esperado": {
+    "parseo": {
+      "hashPedido": "b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3",
+      "pagado": true,
+      "montoPyg": 150000
+    },
+    "ruta": {
+      "status": 200,
+      "pedido": "pagado",
+      "eventos": 1
+    }
+  }
+}

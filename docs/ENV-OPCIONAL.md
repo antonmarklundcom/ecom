@@ -335,8 +335,11 @@ PAGOPAR_MODE=""
 # También se usa para armar el link a la página de pago alojada por Pagopar
 # (PLAN.md 5.5, ver `pagoparCheckoutUrl` en src/domain/pagopar/config.ts) —
 # confirmar contra la doc si el host de esa página difiere del de la API.
-# En el panel de Pagopar, registrar como "URL de retorno" la de este sitio:
-# https://tu-dominio/pedido/pagopar/retorno
+# En el panel del comercio de Pagopar ("Integrar con mi sitio web"):
+#   URL de respuesta (el aviso de pago):  https://tu-dominio/api/webhooks/pagopar
+#   URL de redireccionamiento / retorno:  https://tu-dominio/pedido/pagopar/retorno
+# Lo que falta confirmar del aviso y los pasos con credenciales: ARCH.md §4.2
+# y TASKS.md §21.
 PAGOPAR_BASE_URL=""
 
 # Credenciales del sandbox, sólo para el test de integración que fija el

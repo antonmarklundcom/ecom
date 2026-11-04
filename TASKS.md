@@ -30,8 +30,8 @@ marcados como pendientes en varias secciones más abajo.
 | Datos bancarios reales (banco, titular, RUC, nro. de cuenta) + imagen del QR SPI | Dueño del comercio (con su banco) | §0, §9 |
 | Número de WhatsApp del comercio | Dueño del comercio | §0 |
 | Credenciales de Pagopar (`PAGOPAR_PUBLIC_KEY` / `PAGOPAR_PRIVATE_KEY`) + `PAGOPAR_BASE_URL` de la API 2.0 | Pagopar (alta de comercio) | §0 |
-| Confirmar el sobre exacto de la respuesta del webhook contra la doc v2 vigente | Pagopar (acceso a la doc actualizada) | §21 |
-| Túnel HTTPS + registrar la "URL de respuesta" en el panel de Pagopar, para probar de punta a punta | Pagopar (panel del comercio) — depende de las credenciales de arriba | §21 |
+| Confirmar el aviso de pago (dónde viene el token, el sobre) y la respuesta que espera Pagopar — la doc oficial no se pudo leer en la revisión de 2026-11-04, ver ARCH.md §4.2 | Pagopar (doc vigente o el primer aviso de sandbox) — depende de las credenciales de arriba | §21 pasos 4–6 |
+| Registrar la "URL de respuesta" (`/api/webhooks/pagopar`) y la de redireccionamiento en el panel del comercio de Pagopar, sobre HTTPS (túnel en desarrollo), para probar de punta a punta | Pagopar (panel del comercio) — depende de las credenciales de arriba | §21 paso 2 |
 | Bucket de R2 por tienda, con dominio público y la regla que bloquea `/comprobantes/*` y `/backups/*` (DEPLOY.md §3b) | Dueño del proyecto (cuenta de Cloudflare) | §0 |
 | Fotos reales de cada producto | Dueño del comercio (catálogo fotográfico real) — los placeholders sólo evitan la caja gris en la demo, no reemplazan esto | §8 |
 | Lighthouse mobile ≥ 90 medido de verdad | Depende del deploy a Hostinger (primer bloqueo de esta tabla) | §8 |
@@ -45,7 +45,7 @@ marcados como pendientes en varias secciones más abajo.
 - [x] **Métodos de pago del MVP: SPI/QR manual + contra entrega.** Pagopar queda para el PR #5, post-lanzamiento
 - [ ] Datos bancarios reales (Banco, titular, RUC, nro. de cuenta) + imagen del QR SPI — necesarios recién en el PR #3
 - [ ] Número de WhatsApp del comercio en formato `+5959XXXXXXXX`
-- [ ] **Credenciales de sandbox de Pagopar** (`PAGOPAR_PUBLIC_KEY` / `PAGOPAR_PRIVATE_KEY`) + la URL base de la API 2.0 — ahora sí bloquean: son lo único que falta para confirmar el formato de la respuesta del webhook (§21)
+- [ ] **Credenciales de sandbox de Pagopar** (`PAGOPAR_PUBLIC_KEY` / `PAGOPAR_PRIVATE_KEY`) + la URL base de la API 2.0 — ahora sí bloquean: son lo único que falta para confirmar el aviso de pago y su respuesta (§21, pasos 1–7)
 - [ ] Bucket de R2 de esta tienda (DEPLOY.md §3b)
 
 ---
@@ -254,9 +254,25 @@ marcados como pendientes en varias secciones más abajo.
 
 ## 21. Formato de la respuesta *(Opus 5)*
 - [x] La forma de la respuesta vive en **una sola función** (`webhookResponseBody`), fijada por test
-- [x] Test de integración contra el sandbox listo y salteándose solo mientras no haya credenciales (`PAGOPAR_SANDBOX_*` en `.env.example`, vacías)
-- [ ] ⚠️ **Confirmar el sobre exacto contra la doc v2 vigente + sandbox.** ARCH.md §4 avisa que cambió entre revisiones; al implementar no había credenciales ni acceso de red a la documentación de Pagopar, así que quedó fijado el sobre `{respuesta, resultado}` que usa el resto de la API 2.0 — **sin confirmar**. Es lo único que falta antes de cobrar de verdad
-- [ ] Túnel HTTPS + "URL de respuesta" registrada en el panel de Pagopar para probarlo de punta a punta (Pagopar no llama a `localhost`)
+- [x] Test de integración contra el sandbox listo y salteándose solo mientras no haya credenciales (`PAGOPAR_SANDBOX_*`, documentadas en `docs/ENV-OPCIONAL.md`)
+- [x] Revisión sin credenciales (2026-11-04, ARCH.md §4.2): la doc oficial no se pudo leer (hosts de Pagopar bloqueados desde la sesión); quedan escritas las cinco ambigüedades y el contrato de respuestas
+- [x] Sobre del aviso leído a la defensiva (JSON con o sin sobre, `resultado` objeto/lista/string, números como strings, BOM, form-encoded, tope de 64 KiB) y token aceptado en el querystring **o** en el cuerpo, en tiempo constante
+- [x] Avisos de prueba en `tests/fixtures/pagopar/` (forma del repo, hipótesis y variantes sintéticas, marcadas en su README), recorridos por un test unitario y uno de integración
+- [ ] ⚠️ **Confirmar el aviso y su respuesta contra Pagopar de verdad.** Es lo único que falta antes de cobrar. Los pasos, en orden, una vez que haya credenciales de sandbox:
+  1. **Cargar las credenciales** en `/admin/integraciones` → Pagopar (clave pública, clave privada, URL de la API 2.0 tal como figura en la doc). Se guardan cifradas y las lee `src/lib/integraciones.ts`; no van al `.env` del servidor ni al repo. Con eso el checkout ofrece tarjeta y el webhook deja de contestar 503.
+  2. **Registrar las URLs en el panel del comercio de Pagopar**, opción "Integrar con mi sitio web" (según la guía de Pagopar; confirmar el nombre en el panel):
+     - "URL de respuesta" → `https://<dominio-de-la-tienda>/api/webhooks/pagopar` — HTTPS en el dominio real; en desarrollo, la URL de un túnel HTTPS (Pagopar no llama a `localhost`);
+     - "URL de redireccionamiento" → `https://<dominio-de-la-tienda>/pedido/pagopar/retorno`, de forma que el `hash_pedido` llegue como `?hash_pedido=` (ambigüedad 5 de ARCH.md §4.2).
+  3. **Correr el test de sandbox**: poner `PAGOPAR_SANDBOX_PUBLIC_KEY`, `PAGOPAR_SANDBOX_PRIVATE_KEY` y `PAGOPAR_SANDBOX_BASE_URL` en `.env.local` (o exportarlas en la terminal) y `pnpm vitest run --project integration tests/integration/pagopar-sandbox.test.ts`. Tiene que pasar `acepta el token con el total como string entero` e imprimir el sobre real de `iniciar-transaccion`; si Pagopar contesta `respuesta: false`, revisar `requestToken()` y el cuerpo de `iniciarTransaccion()` (`src/domain/pagopar/client.ts`).
+  4. **Pagar un pedido de sandbox de punta a punta** desde la tienda (método tarjeta) y mirar el primer aviso real en el log del servidor y en la fila nueva de `payment_events` (`payload`). Comparar contra ARCH.md §4.2:
+     - ¿el token vino en el querystring, en el campo `token` del cuerpo, o en otro lado? (ambigüedad 1 — si es otro lado, la ruta contestó 401 y el pedido no se cobró);
+     - ¿el sobre es `{ resultado: [...], respuesta: true }` y los campos se llaman `hash_pedido`, `pagado`, `monto`?
+     - ¿qué contestó la ruta y Pagopar dio el aviso por recibido o reintentó? (ambigüedades 2 y 3 — si reintenta con nuestra respuesta 200, el sobre de `webhookResponseBody()` está mal);
+     - ¿el comprador volvió a `/pedido/pagopar/retorno` y vio su pedido? (ambigüedad 5).
+  5. **Dejar registrado el aviso confirmado**: guardarlo como `tests/fixtures/pagopar/real-sandbox-pagado.json` con `origen: "real"`, la fecha en `descripcion`, el `hash_pedido` cambiado por el de los otros archivos, el token por `{{TOKEN}}` y sin datos del comprador (README de esa carpeta). Si la forma o la respuesta difieren: corregir `parseWebhookEvent()` / `webhookResponseBody()` y sus tests (`tests/unit/pagopar-protocol.test.ts`), y anotar lo confirmado en ARCH.md §4.2.
+  6. **Recién entonces** poner `WEBHOOK_ENVELOPE_CONFIRMED = true` en `src/domain/pagopar/protocol.ts` en ese mismo commit; `pnpm preflight` deja de bloquear por esto.
+  7. **Pasar a producción**: reemplazar en `/admin/integraciones` las credenciales de sandbox por las de producción (y la URL de la API si la de producción es otra), registrar las mismas dos URLs en el panel del comercio de producción, sacar `PAGOPAR_MODE` del entorno del servidor, correr `pnpm preflight` y hacer una compra real chica (y devolverla) antes de anunciar el pago con tarjeta.
+- [ ] Probar una reversión desde el panel de Pagopar sobre un pedido de sandbox pagado y ver si llega un aviso a la URL de respuesta y con qué forma (ambigüedad 4 de ARCH.md §4.2). Hoy un `pagado: false` sobre un pedido cobrado sólo deja un `log.error`; el pedido no se toca
 
 ## 22. Pendiente de PR #5 *(Sonnet 5)*
 - [x] Método "Tarjeta / Pagopar" en el checkout + página de retorno (PLAN.md 5.5)
@@ -265,7 +281,7 @@ marcados como pendientes en varias secciones más abajo.
 ## Definition of done del PR #5
 - [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verde (348 tests, 1 salteado: el de sandbox)
 - [x] Un webhook repetido no cambia nada; una firma alterada devuelve 401 y queda logueada
-- [ ] Compra de sandbox pagada de punta a punta *(bloqueado: faltan credenciales de Pagopar — TASKS.md §0)*
+- [ ] Compra de sandbox pagada de punta a punta *(bloqueado: faltan credenciales de Pagopar — TASKS.md §0; pasos en §21)*
 
 ---
 

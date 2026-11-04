@@ -1,0 +1,19 @@
+{
+  "descripcion": "Cuerpo vacío → 400.",
+  "origen": "sintetico",
+  "contentType": "application/json",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpoCrudo": "",
+  "esperado": {
+    "parseo": "error",
+    "ruta": {
+      "status": 400,
+      "pedido": "pendiente_pago",
+      "eventos": 0
+    }
+  }
+}
