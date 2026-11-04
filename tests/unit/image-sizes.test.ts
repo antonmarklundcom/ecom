@@ -14,9 +14,10 @@ import { IMAGE_SIZES } from "@/lib/image-sizes";
  * donde más duele. No se nota mirando la página —se ve igual de bien— y por
  * eso lo cuida un test y no una revisión a ojo.
  *
- * Es una lectura del código, no un render: cada `<Image` (de `next/image`) y
- * cada `<img` con `srcSet` de `src/app` y `src/components` tiene que traer el
- * atributo. El panel (`/admin`), el setup y las pantallas de desarrollo no
+ * Es una lectura del código, no un render: cada `<Image` (de `next/image`),
+ * cada `<ImagenR2` (las fotos de R2, `src/components/imagen-r2.tsx`) y cada
+ * `<img`/`<source` con `srcSet` de `src/app` y `src/components` tiene que
+ * traer el atributo. El panel (`/admin`), el setup y las pantallas de desarrollo no
  * cuentan: no son vidriera ni las mide Lighthouse.
  */
 
@@ -94,18 +95,28 @@ describe("sizes en las fotos de la vidriera", () => {
         path.join("src", "components", "product-gallery.tsx"),
       ])
     );
+    const conR2 = fuentes.filter(({ source }) => /<ImagenR2(?=[\s/>])/.test(source));
+    expect(conR2.map(({ archivo }) => archivo)).toEqual(
+      expect.arrayContaining([
+        path.join("src", "components", "product-image.tsx"),
+        path.join("src", "components", "product-gallery.tsx"),
+        path.join("src", "components", "home-hero.tsx"),
+        path.join("src", "components", "recently-viewed.tsx"),
+      ])
+    );
   });
 
-  it("ninguna <Image> ni <img srcSet> sale sin sizes", () => {
+  it("ninguna <Image>, <ImagenR2> ni <img>/<source> con srcSet sale sin sizes", () => {
     const sinSizes: string[] = [];
     for (const { archivo, source } of fuentes) {
       const imagenes = source.includes('from "next/image"')
         ? etiquetas(source, "Image")
         : [];
-      const crudas = etiquetas(source, "img").filter((tag) =>
-        /\bsrcSet=/i.test(tag)
+      const deR2 = etiquetas(source, "ImagenR2");
+      const crudas = [...etiquetas(source, "img"), ...etiquetas(source, "source")].filter(
+        (tag) => /\bsrcSet=/i.test(tag)
       );
-      for (const tag of [...imagenes, ...crudas]) {
+      for (const tag of [...imagenes, ...deR2, ...crudas]) {
         if (!/\bsizes=/.test(tag)) {
           sinSizes.push(`${archivo}: ${tag.slice(0, 80).replace(/\s+/g, " ")}…`);
         }

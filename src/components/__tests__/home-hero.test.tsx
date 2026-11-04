@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { HomeHero } from "@/components/home-hero";
 import { TIENDA } from "@/config/tienda";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { META_BASE_IMAGENES, resetBaseImagenesForTests } from "@/lib/images";
 
 /**
@@ -85,7 +86,7 @@ describe("hero de la home", () => {
           .map((box) => `https://img.tienda.test/p1/portada-0123456789-${box}.webp ${box}w`)
           .join(", "),
       );
-      expect(source).toHaveAttribute("sizes", "(max-width: 1152px) 100vw, 1152px");
+      expect(source).toHaveAttribute("sizes", IMAGE_SIZES.hero);
     } finally {
       document.head.innerHTML = "";
       resetBaseImagenesForTests();
