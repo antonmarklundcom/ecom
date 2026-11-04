@@ -145,13 +145,14 @@ describe("debeExcluir", () => {
     expect(debeExcluir(".template-baseline")).toBe(true);
   });
 
-  it("no copia lo que sólo es del template: fable/ y Dependabot", () => {
+  it("no copia lo que sólo es del template: fable/, Renovate y Dependabot", () => {
     // SOLO_TEMPLATE (template-shared.ts): los planes del template y los PRs de
     // dependencias no son de la tienda.
     for (const ruta of [
       "fable",
       "fable/plan.md",
       "fable/prompts/o1.md",
+      ".github/renovate.json",
       ".github/dependabot.yml",
     ]) {
       expect(debeExcluir(ruta), ruta).toBe(true);

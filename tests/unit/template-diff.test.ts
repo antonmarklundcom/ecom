@@ -299,6 +299,7 @@ describe("maquinariaFaltante", () => {
       "src/styles/temas/calido.css",
       "fable/plan.md",
       "tiendas.json",
+      ".github/renovate.json",
       ".github/dependabot.yml",
       BASELINE_FILE,
     ];

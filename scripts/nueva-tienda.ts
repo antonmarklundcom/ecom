@@ -817,9 +817,9 @@ async function main(): Promise<void> {
 }
 
 /**
- * Lo de `SOLO_TEMPLATE` (`fable/`, Dependabot) que hay que borrar al volver
+ * Lo de `SOLO_TEMPLATE` (`fable/`, Renovate) que hay que borrar al volver
  * esto una tienda: los planes del template leídos por una IA en la tienda
- * parecen tareas pendientes, y Dependabot abriría PRs (y minutos de CI) que
+ * parecen tareas pendientes, y Renovate abriría PRs (y minutos de CI) que
  * ya llegan por template:sync. Sólo cuando la tienda tiene nombre propio: con
  * el nombre del template sigue siendo el template, y ahí no se borra nada.
  */

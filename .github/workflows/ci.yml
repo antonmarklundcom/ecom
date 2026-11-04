@@ -1,20 +1,23 @@
 name: CI
 
 # Minutos de Actions (NEW-STORE.md § "CI y minutos de Actions"). Este archivo
-# viaja a TODAS las tiendas, y el costo depende de si el repo es público o
-# privado: en un repo **público** los runners estándar de GitHub son gratis y
-# sin límite; en uno **privado** cada minuto se descuenta de la cuenta. Por eso
-# cada job mira `github.event.repository.private`:
+# viaja a TODAS las tiendas. En un repo **público** los runners estándar de
+# GitHub son gratis; en uno **privado** cada minuto se descuenta de la cuenta y
+# cada job se redondea al minuto entero. Por eso cada job mira
+# `github.event.repository.private`:
 #
-#   - Público: todo corre en cada PR y en cada push a main (e2e incluido;
-#     lighthouse en cada push a main). No cuesta nada y es la red que ataja lo
-#     que un PR de piel rompe en checkout.
-#   - Privado: sólo PRs (el push a main no corre: ya corrió en su PR), `checks`
-#     siempre, `e2e` sólo con el label `ci-completo`, a mano, o en un PR de
-#     distribución del template (rama `template/…`); `lighthouse` sólo a mano.
-#   - En los dos: un PR que sólo toca docs no corre nada (`paths-ignore`), y
-#     un push nuevo cancela la corrida anterior (`concurrency`). Poner el label
-#     `ci-completo` dispara la corrida sola (`labeled`); cualquier otro label no.
+#   - PR (los dos): sólo `checks` (drift de drizzle/, typecheck, lint,
+#     unitarios + integración, build). `e2e` sólo con el label `ci-completo` o
+#     en un PR de distribución del template (rama `template/…`); `lighthouse`
+#     nunca.
+#   - Push a `main` (después de mergear): en un repo **público** (el
+#     template), `checks`, `e2e` y `lighthouse` — gratis. En uno **privado**
+#     (una tienda), nada: ya corrió en su PR.
+#   - A mano (Actions → CI → Run workflow): los tres.
+#   - Siempre: un cambio que sólo toca docs no corre nada (`paths-ignore`), y
+#     una corrida nueva del mismo PR (o de `main`) cancela la anterior
+#     (`concurrency`). Poner el label `ci-completo` dispara la corrida sola
+#     (`labeled`); cualquier otro label no.
 on:
   pull_request:
     branches: [main]
@@ -33,7 +36,7 @@ on:
 
 # Un label que no es `ci-completo` va a su propio grupo: si compartiera el
 # del PR, cancelaría la corrida de verdad (`opened`) y quedaría sólo su job
-# salteado. Pasa siempre con Dependabot, que etiqueta el PR apenas lo abre.
+# salteado. Pasa siempre con Renovate, que etiqueta el PR apenas lo abre.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'ci-completo' && format('-label-{0}', github.event.label.name) || '' }}
   cancel-in-progress: true
@@ -139,15 +142,25 @@ jobs:
   # después de `checks` — sin typecheck/lint/unitarios verdes no vale la pena
   # pagar el minuto extra de un navegador.
   #
-  # Es el job más caro (navegador + build + base sembrada): en un repo privado
-  # no corre en cada PR, ver el comentario de arriba de todo para cómo pedirlo.
+  # Es el job más caro (navegador + build + base sembrada): no corre en cada
+  # PR, ver el comentario de arriba de todo para cuándo sí.
+  #
+  # El `if` tiene dos mitades:
+  #   1. `checks` verde. `!cancelled()` y no `always()`: una corrida
+  #      cancelada por `concurrency` no tiene que arrancar el navegador igual.
+  #   2. Cuándo vale el e2e: después de mergear en un repo público (gratis), a
+  #      mano, con `ci-completo`, o en el PR de distribución (`template/sync`),
+  #      que es donde una tienda privada recibe maquinaria nueva y la prueba
+  #      antes de mergearla.
   e2e:
     needs: checks
     if: >-
-      !github.event.repository.private ||
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'ci-completo') ||
-      startsWith(github.head_ref, 'template/')
+      !cancelled() &&
+      needs.checks.result == 'success' &&
+      ((github.event_name == 'push' && !github.event.repository.private) ||
+        github.event_name == 'workflow_dispatch' ||
+        contains(github.event.pull_request.labels.*.name, 'ci-completo') ||
+        startsWith(github.head_ref, 'template/'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -236,14 +249,19 @@ jobs:
   # un número de performance bloquee un PR — el número que sí bloquea es el
   # presupuesto de JS de `tests/e2e/presupuesto.spec.ts` (arriba, en `e2e`),
   # medido con bytes reales, no con un puntaje que cambia con la carga del
-  # runner. Este job es sólo una alarma temprana.
-  # En un repo público corre en cada push a main (gratis); en uno privado,
-  # sólo a mano: es una alarma sin poder de bloqueo y no vale los minutos.
+  # runner. Este job es sólo una alarma temprana: el puntaje de performance
+  # (mobile, `.lighthouserc.json`) queda en el resumen de la corrida con la
+  # meta de ≥ 90, sin frenar nada.
+  # Nunca en un PR. En un repo público, después de cada merge (push a
+  # `main`, gratis); en uno privado, sólo a mano: es una alarma sin poder de
+  # bloqueo y no vale los minutos de cada merge.
   lighthouse:
     needs: e2e
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && !github.event.repository.private)
+      !cancelled() &&
+      needs.e2e.result == 'success' &&
+      ((github.event_name == 'push' && !github.event.repository.private) ||
+        github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true
@@ -298,11 +316,13 @@ jobs:
       # diferencia del catálogo real de una tienda) ya lo garantice. Ese
       # archivo siempre trae un producto con este slug.
       - name: Lighthouse CI
+        id: lighthouse
         uses: treosh/lighthouse-ci-action@v12
         continue-on-error: true
         with:
           urls: |
             http://127.0.0.1:3000/
+            http://127.0.0.1:3000/categoria/electronica
             http://127.0.0.1:3000/producto/auriculares-bluetooth-tws
             http://127.0.0.1:3000/checkout
           uploadArtifacts: true
@@ -312,3 +332,12 @@ jobs:
           startServerReadyPattern: "Ready in"
           startServerReadyTimeout: 30000
           configPath: ./.lighthouserc.json
+
+      # El número que se mira: performance de 0 a 100 por página, con la meta
+      # de ≥ 90, en el resumen de la corrida (pestaña Summary). Corre aunque
+      # Lighthouse haya fallado, para decir que no hubo medición.
+      - name: Puntaje de performance en el resumen
+        if: ${{ !cancelled() }}
+        env:
+          LIGHTHOUSE_MANIFEST: ${{ steps.lighthouse.outputs.manifest }}
+        run: node scripts/ci/resumen-lighthouse.mjs >> "$GITHUB_STEP_SUMMARY"

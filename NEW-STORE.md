@@ -12,7 +12,7 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 1. GitHub → **Use this template** → repo **privado** nuevo para la tienda.
 2. `git clone` · `pnpm install` · `git remote add template https://github.com/antonmarklundcom/ecom.git`
 3. `pnpm setup:doctor` → `pnpm nueva-tienda` (marca, WhatsApp **real**, dominio,
-   tema; borra `fable/`, Dependabot y `tiendas.json`, que son del template) → commit + push.
+   tema; borra `fable/`, la config de Renovate y `tiendas.json`, que son del template) → commit + push.
 4. En el repo nuevo: crear el label `ci-completo` (Issues → Labels) para pedir
    el e2e cuando haga falta. Ver § "CI y minutos de Actions".
 5. Base, catálogo y dueño (§4) · diseño (§5) · cuentas de terceros (tabla de
@@ -884,26 +884,47 @@ los unitarios de cada tienda ya sincronizada. 0 minutos de Actions.
 
 ### CI y minutos de Actions
 
-`ci.yml` viaja a todas las tiendas y cuesta distinto según el repo: en uno
-**público** los runners estándar de GitHub son gratis y sin límite; en uno
-**privado** cada minuto se descuenta de la cuenta (Linux 1x), y diez tiendas
-privadas corriendo todo en cada push se comían el mes en días. Cada job mira
-si el repo es privado y se adapta solo:
+`ci.yml` viaja a todas las tiendas. En un repo **público** los runners
+estándar de GitHub son gratis y sin límite; en uno **privado** cada minuto se
+descuenta de la cuenta (Linux 1x) y **cada job se redondea al minuto entero**.
+En un PR corre lo barato, en los dos. Lo caro (navegador, Lighthouse) corre
+después de cada merge **sólo en un repo público** (el template, gratis); en
+uno privado (una tienda) corre cuando hace falta y no en cada merge.
 
-| Qué | Repo público | Repo privado |
-|---|---|---|
-| `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | cada PR y cada push a `main` | cada PR |
-| `e2e` (Playwright) | cada PR y cada push a `main` | label `ci-completo`, corrida manual (Actions → CI → Run workflow), o un PR de distribución (rama `template/…`) |
-| `lighthouse` | cada push a `main`, o a mano | sólo a mano |
-| `distribuir.yml`, `pnpm-al-dia.yml` | sólo en el repo del template | sólo en el repo del template |
+| Qué | En un PR | Push a `main` (después de mergear) | A mano (Actions → CI → Run workflow) |
+|---|---|---|---|
+| `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | siempre | sólo en un repo público (en uno privado ya corrió en el PR) | sí |
+| `e2e` (Playwright) | sólo con el label `ci-completo` o en un PR de distribución (rama `template/…`) | sólo en un repo público | sí |
+| `lighthouse` (mobile, nunca bloquea) | nunca | sólo en un repo público, después del `e2e` | sí |
+| `mariadb.yml` (la suite contra MariaDB) | sólo en un repo público | sólo en un repo público | sí |
+| `distribuir.yml`, `pnpm-al-dia.yml` | — | sólo en el repo del template | sólo en el repo del template |
 
-En los dos casos, un PR de sólo docs (`*.md`, `fable/`) no corre nada, y un
-push nuevo al mismo PR cancela la corrida anterior. En un repo privado,
-poner el label `ci-completo` dispara la corrida con e2e al toque (cualquier
-otro label no dispara nada); pedilo siempre que el PR toque checkout,
-`/admin`, o saque/mueva un `data-testid`. El label se crea una vez por repo
-(Issues → Labels → New label, `ci-completo`); en las tiendas lo crea el
-primer PR de distribución.
+- Un cambio de sólo docs (`*.md`, `fable/`) no corre nada, y una corrida nueva
+  del mismo PR (o de `main`) cancela la anterior (`concurrency`).
+- En un PR, poner el label `ci-completo` dispara la corrida con e2e al toque
+  (cualquier otro label no dispara nada, así que el que pone Renovate no
+  cuesta). Pedilo siempre que el PR toque checkout, `/admin`, o saque/mueva un
+  `data-testid`: en una tienda privada no hay otro e2e antes del próximo PR
+  de distribución (en el template, lo ataja `main`, ya mergeado). El label
+  se crea una vez por repo (Issues → Labels → New label, `ci-completo`); en las
+  tiendas lo crea el primer PR de distribución.
+- El PR `template/sync` de cada versión corre el e2e en la tienda **antes** de
+  mergear: es lo que verifica la maquinaria nueva en cada tienda (§ "La
+  distribución automática del template").
+- Lighthouse deja el puntaje de performance de cada página (0–100, meta ≥ 90)
+  en el resumen de la corrida (pestaña **Summary**). Es una alarma: un número
+  bajo no frena nada. Lo que sí bloquea es el presupuesto de JS de
+  `tests/e2e/presupuesto.spec.ts`, dentro del `e2e`.
+- Un e2e que falla en `main` (template) es un aviso para arreglar en el
+  próximo PR, no un bloqueo: el deploy de Hostinger no mira el CI.
+
+Cuánto cuesta, en un repo privado (aprox.: `checks` ~7 min, `e2e` ~9,
+`lighthouse` ~6): un PR común, ~7 min por push (los pushes seguidos se
+cancelan); un merge a `main`, 0; un PR `template/sync`, ~16 (checks + e2e);
+un `ci-completo`, ~9 más. Una tienda con 10 PRs mergeados al mes (~1,5
+pushes cada uno) y un PR de distribución: ~120 min/mes. El template es
+público: lo suyo no se cobra. Con muchas tiendas privadas activas a la vez,
+Billing → Actions desglosa por repo.
 
 El gate de cada día es local y gratis: `pre-commit` corre `typecheck` + `lint`
 y `pre-push` corre `pnpm test:unit` (los unitarios, en paralelo, ~15 s; husky,
@@ -917,7 +938,54 @@ va a recibir cambios por un tiempo: Settings → Actions → Disable actions.
 
 Si en tu repo la protección de `main` exige el check `checks`, un PR de sólo
 docs se queda esperándolo (no corre): mergealo como admin, o no marques
-`checks` como obligatorio.
+`checks` como obligatorio. No marques `e2e` ni `lighthouse` como
+obligatorios: en un PR común no corren.
+
+### Dependencias: Renovate (sólo en el template)
+
+Las dependencias se suben **en el template**, con Renovate
+(`.github/renovate.json`), y le llegan a cada tienda ya probadas, con el PR
+`template/sync` de la versión siguiente. Una tienda no tiene esa config
+(`SOLO_TEMPLATE`: `nueva-tienda` la borra, `template:sync` no la trae) ni
+recibe PRs de dependencias propios.
+
+Qué hace la config:
+
+- **Una ventana por semana**: sábado de 2 a 8 hs (hora de Asunción). Fuera de
+  ella no abre ni rebasea PRs, así no corre `checks` de más durante la semana.
+- **Un solo PR** con todo lo menor y parche (`dependencias menores`), uno con
+  las actions de los workflows, y uno de **lock file maintenance** (refresca
+  las transitivas de `pnpm-lock.yaml`). Una mayor sale en su PR propio;
+  `next` + `eslint-config-next` van juntos, y `react` + `react-dom` +
+  `@types/react*` también. Como mucho 3 PRs abiertos a la vez.
+- **Seguridad, al toque**: un arreglo de una vulnerabilidad sale apenas
+  Renovate lo ve, sin esperar al sábado ni competir con los otros PRs por el
+  límite (label `seguridad`).
+- Una versión recién publicada espera 3 días antes de proponerse (si la
+  retiran o la comprometen, no llega).
+- **Pines**: `eslint` < 10 y `typescript` < 7 (KNOWN-ISSUES.md), `@types/node`
+  en la mayor del runtime (22). `engines.node`, una mayor de pnpm y las
+  imágenes de MySQL/MariaDB del CI no se suben solas: se cambian a mano.
+- No mergea nada solo: una persona mira el CI y mergea.
+
+**Para prenderlo (una vez, una persona con admin en la cuenta):**
+
+1. Instalar la app de Renovate (de Mend) en <https://github.com/apps/renovate>
+   → **Install** (o **Configure** si ya estaba) → la cuenta
+   `antonmarklundcom` → **Only select repositories** → elegir **sólo**
+   `antonmarklundcom/ecom` → Install. *No* elegir "All repositories": en
+   cada tienda abriría un PR de onboarding y después PRs de dependencias que
+   ya llegan por `template/sync`. Como la config ya está en `main`, Renovate
+   no abre PR de onboarding en el template: arranca directo con el issue
+   **Dependency Dashboard**, desde donde se piden las actualizaciones
+   frenadas (una mayor de pnpm, por ejemplo).
+2. En el repo del template, Settings → Code security: dejar **Dependabot
+   alerts** prendido (Renovate las lee para los PRs de seguridad) y **apagar
+   Dependabot security updates**, que abriría un segundo PR por la misma
+   vulnerabilidad. Dependabot ya no tiene config de versiones
+   (`.github/dependabot.yml` se borró): no abre PRs de versión.
+3. Los logs de cada corrida de Renovate están en <https://developer.mend.io>
+   (entrar con GitHub).
 
 ### 5. Diseño
 
@@ -1203,7 +1271,7 @@ la de la tienda y la del template ahora, y decide:
 | Maquinaria que la tienda no tiene y el template cambió | vuelve (la maquinaria no se saca por tienda) |
 | Piel o docs que la tienda cambió o borró (home, `product-card`, `README.md`, `CLAUDE.md`…) | queda lo de la tienda; se lista |
 | Mixtos (`checkout-form.tsx`, `src/app/admin`) que la tienda cambió | queda lo de la tienda; se listan aparte para mirar la lógica nueva a mano |
-| `fable/`, `.github/dependabot.yml`, `tiendas.json` | nunca viajan (y se sacan si una tienda vieja los tiene) |
+| `fable/`, `.github/renovate.json`, `.github/dependabot.yml`, `tiendas.json` | nunca viajan (y se sacan si una tienda vieja los tiene) |
 | `pnpm-lock.yaml` | el del template si las dependencias quedaron iguales; si no, se regenera |
 
 Maquinaria acá es `src/domain`, `src/lib`, `src/db`, `src/app/api`,
@@ -1290,7 +1358,7 @@ esas variables del hPanel (Redeploy), para no dejar dos verdades. Si la tienda
 sincroniza el código antes de migrar, la lectura de la tabla falla en silencio
 (queda en el log) y todo sigue saliendo del entorno.
 
-Sigue valiendo lo de siempre: Dependabot no mueve nada de esto y las columnas
+Sigue valiendo lo de siempre: Renovate no mueve nada de esto y las columnas
 no se agregan a mano en el hPanel — la migración es la única fuente.
 
 ### Migraciones propias de una tienda

@@ -46,6 +46,12 @@ libere una versión que declare (y funcione con) `eslint-plugin-react` >= la
 que arregle `getFilename`. Reintentar entonces con `pnpm outdated` +
 `pnpm lint`, no antes.
 
+Sigue bloqueado (noviembre de 2026: `eslint-config-next@16.4.1` todavía trae
+`eslint-plugin-react@7.37.5`), y para que nadie lo suba por accidente está
+pineado en la config de Renovate (`.github/renovate.json`: `eslint`
+`allowedVersions: "<10"`). Cuando se destrabe, se saca esa regla (y su chequeo
+en `tests/unit/ci-minutos.test.ts`) en el mismo PR que sube `eslint`.
+
 ## `typescript` 7 no anda con `typescript-eslint` — fase S19
 
 `tsc --noEmit` pasa limpio con `typescript@7.0.2` (cero errores en todo el
@@ -58,7 +64,11 @@ todavía no se declara compatible, no un error para "adaptar".
 
 Arreglo: reintentar `typescript` 7 cuando `typescript-eslint` cierre el
 issue 10940 y publique una versión que declare soporte para TS >= 7.1 (o la
-serie que sea). Hasta entonces, `typescript` se queda en 5.9.x.
+serie que sea). Hasta entonces, `typescript` se queda en la mayor 6
+(`^6.0.3` en `package.json`, con `typescript-eslint@8.70.0`), pineado en la
+config de Renovate (`.github/renovate.json`: `typescript`
+`allowedVersions: "<7"`). Cuando se destrabe, se saca esa regla (y su chequeo
+en `tests/unit/ci-minutos.test.ts`) en el mismo PR que sube `typescript`.
 
 ## Presupuesto de JS: producto y checkout subieron el techo — 2026-09-23
 
