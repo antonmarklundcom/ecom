@@ -7,8 +7,9 @@ import { TESTIDS } from "./testids";
 
 /**
  * Presupuesto de JS por página (plan-operacion §6.4, ARCH.md §6). Es el
- * único número de esta fase que **bloquea** el PR — Lighthouse (más abajo,
- * en `ci.yml`) sólo advierte.
+ * único número de esta fase que **bloquea** (falla el job `e2e`: después de
+ * mergear, o en el PR con `ci-completo` / `template/sync`) — Lighthouse (más
+ * abajo, en `ci.yml`) sólo advierte.
  *
  * Los techos de acá salen de medir de verdad contra un `next build` +
  * `next start` (no de una cifra aspiracional) y sumarle 10%: son un piso de
