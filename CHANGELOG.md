@@ -25,6 +25,10 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Decisión de hosting por escrito** (`docs/decisions/0001-hosting.md`). Sin
+  migración, sólo documentación: una tienda que cobra corre en Hostinger
+  Node.js + MySQL; Cloudflare da DNS (sin proxy), R2 y el ruteo de correo; el
+  runtime Workers/D1 de productos.new no entra al template.
 - **Pagopar: el aviso de pago, leído a la defensiva** (ARCH.md §4.2, TASKS.md
   §21). Sin migración. Maquinaria: llega sola por `template:sync`, la tienda
   no tiene que hacer nada a mano.
