@@ -3,14 +3,16 @@ name: CI
 # Minutos de Actions (NEW-STORE.md § "CI y minutos de Actions"). Este archivo
 # viaja a TODAS las tiendas. En un repo **público** los runners estándar de
 # GitHub son gratis; en uno **privado** cada minuto se descuenta de la cuenta y
-# cada job se redondea al minuto entero. La regla es la misma en los dos:
+# cada job se redondea al minuto entero. Por eso cada job mira
+# `github.event.repository.private`:
 #
-#   - PR: sólo `checks` (drift de drizzle/, typecheck, lint, unitarios +
-#     integración, build). `e2e` sólo con el label `ci-completo` o en un PR de
-#     distribución del template (rama `template/…`); `lighthouse` nunca.
-#   - Push a `main` (o sea, después de mergear): `e2e` y después `lighthouse`.
-#     `checks` no se repite en un repo privado (ya corrió en el PR); en uno
-#     público sí, porque es gratis, y `e2e` lo espera.
+#   - PR (los dos): sólo `checks` (drift de drizzle/, typecheck, lint,
+#     unitarios + integración, build). `e2e` sólo con el label `ci-completo` o
+#     en un PR de distribución del template (rama `template/…`); `lighthouse`
+#     nunca.
+#   - Push a `main` (después de mergear): en un repo **público** (el
+#     template), `checks`, `e2e` y `lighthouse` — gratis. En uno **privado**
+#     (una tienda), nada: ya corrió en su PR.
 #   - A mano (Actions → CI → Run workflow): los tres.
 #   - Siempre: un cambio que sólo toca docs no corre nada (`paths-ignore`), y
 #     una corrida nueva del mismo PR (o de `main`) cancela la anterior
@@ -144,20 +146,18 @@ jobs:
   # PR, ver el comentario de arriba de todo para cuándo sí.
   #
   # El `if` tiene dos mitades:
-  #   1. `checks` verde, o salteado en un push a `main` (repo privado: ya
-  #      corrió en el PR). Sin la condición explícita, un `needs` salteado
-  #      saltea también a éste. `!cancelled()` y no `always()`: una corrida
+  #   1. `checks` verde. `!cancelled()` y no `always()`: una corrida
   #      cancelada por `concurrency` no tiene que arrancar el navegador igual.
-  #   2. Cuándo vale el e2e: después de mergear, a mano, con `ci-completo`, o
-  #      en el PR de distribución (`template/sync`), que es donde una tienda
-  #      recibe maquinaria nueva y la prueba antes de mergearla.
+  #   2. Cuándo vale el e2e: después de mergear en un repo público (gratis), a
+  #      mano, con `ci-completo`, o en el PR de distribución (`template/sync`),
+  #      que es donde una tienda privada recibe maquinaria nueva y la prueba
+  #      antes de mergearla.
   e2e:
     needs: checks
     if: >-
       !cancelled() &&
-      (needs.checks.result == 'success' ||
-        (needs.checks.result == 'skipped' && github.event_name == 'push')) &&
-      (github.event_name == 'push' ||
+      needs.checks.result == 'success' &&
+      ((github.event_name == 'push' && !github.event.repository.private) ||
         github.event_name == 'workflow_dispatch' ||
         contains(github.event.pull_request.labels.*.name, 'ci-completo') ||
         startsWith(github.head_ref, 'template/'))
@@ -252,16 +252,16 @@ jobs:
   # runner. Este job es sólo una alarma temprana: el puntaje de performance
   # (mobile, `.lighthouserc.json`) queda en el resumen de la corrida con la
   # meta de ≥ 90, sin frenar nada.
-  # Corre después de mergear (push a `main`) y a mano, nunca en un PR.
-  # `needs.e2e.result` explícito por lo mismo que en `e2e`: con `checks`
-  # salteado en un push a `main` de un repo privado, la condición por defecto
-  # (`success()`) saltearía también este job.
+  # Nunca en un PR. En un repo público, después de cada merge (push a
+  # `main`, gratis); en uno privado, sólo a mano: es una alarma sin poder de
+  # bloqueo y no vale los minutos de cada merge.
   lighthouse:
     needs: e2e
     if: >-
       !cancelled() &&
       needs.e2e.result == 'success' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      ((github.event_name == 'push' && !github.event.repository.private) ||
+        github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true

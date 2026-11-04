@@ -840,14 +840,15 @@ los unitarios de cada tienda ya sincronizada. 0 minutos de Actions.
 `ci.yml` viaja a todas las tiendas. En un repo **público** los runners
 estándar de GitHub son gratis y sin límite; en uno **privado** cada minuto se
 descuenta de la cuenta (Linux 1x) y **cada job se redondea al minuto entero**.
-La regla es la misma en los dos: en un PR, lo barato; lo caro (navegador,
-Lighthouse), una vez, después de mergear.
+En un PR corre lo barato, en los dos. Lo caro (navegador, Lighthouse) corre
+después de cada merge **sólo en un repo público** (el template, gratis); en
+uno privado (una tienda) corre cuando hace falta y no en cada merge.
 
 | Qué | En un PR | Push a `main` (después de mergear) | A mano (Actions → CI → Run workflow) |
 |---|---|---|---|
 | `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | siempre | sólo en un repo público (en uno privado ya corrió en el PR) | sí |
-| `e2e` (Playwright) | sólo con el label `ci-completo` o en un PR de distribución (rama `template/…`) | sí | sí |
-| `lighthouse` (mobile, nunca bloquea) | nunca | sí, después del `e2e` | sí |
+| `e2e` (Playwright) | sólo con el label `ci-completo` o en un PR de distribución (rama `template/…`) | sólo en un repo público | sí |
+| `lighthouse` (mobile, nunca bloquea) | nunca | sólo en un repo público, después del `e2e` | sí |
 | `mariadb.yml` (la suite contra MariaDB) | sólo en un repo público | sólo en un repo público | sí |
 | `distribuir.yml`, `pnpm-al-dia.yml` | — | sólo en el repo del template | sólo en el repo del template |
 
@@ -856,7 +857,8 @@ Lighthouse), una vez, después de mergear.
 - En un PR, poner el label `ci-completo` dispara la corrida con e2e al toque
   (cualquier otro label no dispara nada, así que el que pone Renovate no
   cuesta). Pedilo siempre que el PR toque checkout, `/admin`, o saque/mueva un
-  `data-testid`: si no, el e2e recién lo ataja en `main`, ya mergeado. El label
+  `data-testid`: en una tienda privada no hay otro e2e antes del próximo PR
+  de distribución (en el template, lo ataja `main`, ya mergeado). El label
   se crea una vez por repo (Issues → Labels → New label, `ci-completo`); en las
   tiendas lo crea el primer PR de distribución.
 - El PR `template/sync` de cada versión corre el e2e en la tienda **antes** de
@@ -866,17 +868,16 @@ Lighthouse), una vez, después de mergear.
   en el resumen de la corrida (pestaña **Summary**). Es una alarma: un número
   bajo no frena nada. Lo que sí bloquea es el presupuesto de JS de
   `tests/e2e/presupuesto.spec.ts`, dentro del `e2e`.
-- Un e2e que falla en `main` es un aviso para arreglar en el próximo PR, no un
-  bloqueo: el deploy de Hostinger no mira el CI.
+- Un e2e que falla en `main` (template) es un aviso para arreglar en el
+  próximo PR, no un bloqueo: el deploy de Hostinger no mira el CI.
 
 Cuánto cuesta, en un repo privado (aprox.: `checks` ~7 min, `e2e` ~9,
 `lighthouse` ~6): un PR común, ~7 min por push (los pushes seguidos se
-cancelan); cada merge a `main`, ~15 min más (e2e + lighthouse); un PR
-`template/sync`, ~16 (más los ~15 de su merge). Una tienda con 10 PRs
-mergeados al mes (~1,5 pushes cada uno) y un PR de distribución: ~300
-min/mes; antes de correr el e2e en `main` eran ~130. Con muchas tiendas
-privadas activas a la vez, el número que hay que mirar es el de merges a
-`main`: Billing → Actions lo desglosa por repo.
+cancelan); un merge a `main`, 0; un PR `template/sync`, ~16 (checks + e2e);
+un `ci-completo`, ~9 más. Una tienda con 10 PRs mergeados al mes (~1,5
+pushes cada uno) y un PR de distribución: ~120 min/mes. El template es
+público: lo suyo no se cobra. Con muchas tiendas privadas activas a la vez,
+Billing → Actions desglosa por repo.
 
 El gate de cada día es local y gratis: `pre-commit` corre `typecheck` + `lint`
 y `pre-push` corre `pnpm test:unit` (los unitarios, en paralelo, ~15 s; husky,

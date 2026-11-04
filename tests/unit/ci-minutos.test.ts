@@ -144,9 +144,9 @@ describe('ci.yml: qué corre en cada evento', () => {
     expect(corrida({ evento: 'push', privado: false }, true)).toEqual({ checks: true, e2e: false, lighthouse: false });
   });
 
-  it('después de mergear (push a main) corren e2e y lighthouse; checks sólo si el repo es público', () => {
-    expect(corrida({ evento: 'push', privado: true })).toEqual({ checks: false, e2e: true, lighthouse: true });
+  it('después de mergear (push a main): en un repo público corren los tres; en uno privado, nada', () => {
     expect(corrida({ evento: 'push', privado: false })).toEqual({ checks: true, e2e: true, lighthouse: true });
+    expect(corrida({ evento: 'push', privado: true })).toEqual({ checks: false, e2e: false, lighthouse: false });
   });
 
   it('a mano corren los tres', () => {
@@ -156,8 +156,8 @@ describe('ci.yml: qué corre en cada evento', () => {
   });
 
   it('una corrida cancelada por concurrency no arranca el e2e ni lighthouse', () => {
-    expect(corrida({ evento: 'push', privado: true, cancelado: true })).toEqual({
-      checks: false,
+    expect(corrida({ evento: 'push', privado: false, cancelado: true })).toEqual({
+      checks: true,
       e2e: false,
       lighthouse: false,
     });
