@@ -23,16 +23,24 @@ export const dynamic = "force-dynamic";
 
 type Props = Omit<Parameters<typeof Categoria>[0], "conParametros">;
 
+/**
+ * Lo que le hace leer `searchParams` a `../page.tsx` (`parametrosDeLaUrl`).
+ * Va sin tipo a propósito: una tienda que rediseñó la página y todavía no
+ * acepta `conParametros` sigue compilando, y su página —que lee
+ * `searchParams` por su cuenta— lo ignora.
+ */
+const CON_PARAMETROS: Record<string, unknown> = { conParametros: true };
+
 async function llegoPorElProxy(): Promise<boolean> {
   return (await headers()).get(HEADER_CON_PARAMETROS) === "1";
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   if (!(await llegoPorElProxy())) return { robots: { index: false } };
-  return metadataDeLaCategoria({ ...props, conParametros: true });
+  return metadataDeLaCategoria({ ...props, ...CON_PARAMETROS });
 }
 
 export default async function CategoriaConParametros(props: Props) {
   if (!(await llegoPorElProxy())) notFound();
-  return <Categoria {...props} conParametros />;
+  return <Categoria {...props} {...CON_PARAMETROS} />;
 }

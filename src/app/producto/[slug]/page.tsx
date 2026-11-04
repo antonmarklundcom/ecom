@@ -19,6 +19,7 @@ import { RecentlyViewed } from "@/components/recently-viewed";
 import { StickyBuyBar } from "@/components/sticky-buy-bar";
 import { WishlistButton } from "@/components/wishlist-button";
 import {
+  getCatalog,
   getCategories,
   getProductBySlug,
   getRelatedProducts,
@@ -74,12 +75,19 @@ export const dynamic = "force-static";
 export const revalidate = 300;
 
 /**
- * Ninguna ficha se arma en el build (sería un build más lento por cada
- * producto): cada una se genera la primera vez que alguien la pide y desde ahí
- * queda en caché. `dynamicParams` sigue en `true`, que es lo que lo permite.
+ * En el build se arman sólo los destacados de la home (hasta 8): son las fichas
+ * a las que más se entra. Todas las demás se generan la primera vez que alguien
+ * las pide y desde ahí quedan en caché —armarlas todas haría el deploy más
+ * lento por cada producto—. `dynamicParams` sigue en `true`, que es lo que lo
+ * permite. Sin base en el build (CI), ninguna: no es un error.
  */
-export function generateStaticParams(): { slug: string }[] {
-  return [];
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  try {
+    const destacados = await getCatalog({ featured: true, limit: 8 });
+    return destacados.map((producto) => ({ slug: producto.slug }));
+  } catch {
+    return [];
+  }
 }
 
 type Params = Promise<{ slug: string }>;
