@@ -322,6 +322,7 @@ jobs:
         with:
           urls: |
             http://127.0.0.1:3000/
+            http://127.0.0.1:3000/categoria/electronica
             http://127.0.0.1:3000/producto/auriculares-bluetooth-tws
             http://127.0.0.1:3000/checkout
           uploadArtifacts: true
