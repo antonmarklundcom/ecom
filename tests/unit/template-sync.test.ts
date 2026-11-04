@@ -55,8 +55,14 @@ describe('decidirArchivo', () => {
   // base = template en el baseline, tienda = HEAD de la tienda, template = objetivo.
   const v = (base: string | null, tienda: string | null, template: string | null) => ({ base, tienda, template });
 
-  it('fable/, Dependabot, tiendas.json y el baseline nunca viajan', () => {
-    for (const ruta of ['fable/plan.md', '.github/dependabot.yml', 'tiendas.json', '.template-baseline']) {
+  it('fable/, Renovate, Dependabot, tiendas.json y el baseline nunca viajan', () => {
+    for (const ruta of [
+      'fable/plan.md',
+      '.github/renovate.json',
+      '.github/dependabot.yml',
+      'tiendas.json',
+      '.template-baseline',
+    ]) {
       expect(decidirArchivo(ruta, v('a', 'a', 'b')), ruta).toBe('ignorar');
       expect(decidirArchivo(ruta, v(null, null, 'b')), ruta).toBe('ignorar');
     }

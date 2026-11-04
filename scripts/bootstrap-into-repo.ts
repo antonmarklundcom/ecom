@@ -105,7 +105,7 @@ export function debeExcluir(rutaRelativa: string): boolean {
   )
     return true;
   if ((EXCLUIR_RUTA as readonly string[]).includes(rutaRelativa)) return true;
-  // `fable/`, Dependabot: del template, no de la tienda (SOLO_TEMPLATE).
+  // `fable/`, Renovate: del template, no de la tienda (SOLO_TEMPLATE).
   if (esSoloTemplate(rutaRelativa) || esSoloTemplate(`${rutaRelativa}/`))
     return true;
 
