@@ -402,6 +402,32 @@ La migración de seguridad cierra las cookies existentes: cada login incorpora
 `session_version`, y cada guard consulta el estado actual de la cuenta. Un
 cambio de rol, desactivación o contraseña revoca las sesiones previas.
 
+## Arranque del servidor (`pnpm start`)
+
+```dotenv
+START_GUARD=""
+START_PIDFILE=""
+```
+
+`pnpm start` es `node scripts/start.mjs`: arranca `next start` y, antes, cierra
+la instancia anterior de esta app si quedó viva y se puede verificar que es
+nuestra (DEPLOY.md § "Procesos que se apilan"). **Vacías, es el
+comportamiento de fábrica** y no hay que cargar ninguna.
+
+- `START_GUARD=off` apaga el control: arranca `next start` pelado, sin
+  pidfile y sin cerrar nada. Es la salida de emergencia si algún día molesta,
+  sin tocar `package.json`. Cualquier otro valor (o vacía) lo deja prendido.
+  El apagado ordenado del servidor (cerrar el pool de MySQL con SIGTERM) no
+  depende de esto.
+- `START_PIDFILE`: ruta del pidfile. Vacía, uno en el directorio temporal del
+  sistema con nombre derivado de la ruta de la app (sale en el log del
+  arranque). Cargala con una ruta fija sólo si Hostinger arranca la app desde
+  un directorio distinto en cada deploy y el log muestra que el pidfile del
+  deploy anterior no se encuentra.
+
+La variable `ECOM_SERVIDOR_FICHA` que aparece en el entorno del servidor la
+pone el guard; no se carga a mano.
+
 ### Required database validation
 
 ```dotenv
