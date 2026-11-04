@@ -13,7 +13,8 @@ import { describe, expect, it } from 'vitest';
  * - el historial: `CHANGELOG.md`, `fable/` (revisiones y planes cerrados),
  *   `docs/TEMPLATE-IMPROVEMENT-PLAN.md` (la auditoría de octubre, cerrada) y
  *   las migraciones de `drizzle/`, que no se reescriben;
- * - `CLAUDE.md` y `.env.example`, que esta fase no edita (reglas del repo);
+ * - `.env.example`, que no se edita (reglas del repo: sólo las cinco
+ *   imprescindibles; su comentario todavía nombra al proveedor viejo);
  * - los nombres de columnas SQL históricos (`cloudinary_id`,
  *   `image_cloudinary_id`, `qr_cloudinary_id`), que no se renombran para no
  *   migrar, el nombre del comando de migración en la documentación, y el alias
@@ -28,7 +29,6 @@ const PERMITIDOS = [
   /^tests\/unit\/fotos-scripts\.test\.ts$/,
   /^tests\/unit\/sin-proveedor-viejo\.test\.ts$/,
   /^CHANGELOG\.md$/,
-  /^CLAUDE\.md$/,
   /^\.env\.example$/,
   /^fable\//,
   /^drizzle\//,
