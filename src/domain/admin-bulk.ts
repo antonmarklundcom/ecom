@@ -343,6 +343,9 @@ export async function previewPriceAdjustment(
  * es un borrador para editar, no un producto que aparece en la vidriera con el
  * stock de otro.
  *
+ * Copia el enlace privado de compra (`supplier_url`) pero no las ofertas de
+ * proveedores de las variantes (ver el comentario en el insert).
+ *
  * **No copia las imágenes, y no es una simplificación.** `deleteProductImage`
  * borra el asset en Cloudinary, no sólo la fila: dos productos apuntando al
  * mismo `public_id` significan que borrar una foto del duplicado deja al
@@ -379,6 +382,12 @@ export async function duplicateProduct(productId: number): Promise<number> {
       ivaRate: original.ivaRate,
       isActive: false,
       isFeatured: false,
+      // El enlace de compra del producto sí viaja: la copia suele ser el mismo
+      // artículo en otra presentación y se repone en el mismo lugar. Las
+      // ofertas por variante (`supplier_offers`) **no**: cada una dice "este
+      // producto es el mismo que vende el proveedor", y eso hay que volver a
+      // confirmarlo para la copia, igual que sus hechos verificados.
+      supplierUrl: original.supplierUrl,
       publishedAt: null,
     });
 

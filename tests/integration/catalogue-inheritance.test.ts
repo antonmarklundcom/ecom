@@ -332,6 +332,9 @@ describe.skipIf(!hasTestDb)("template catalogue mechanisms", () => {
                 "supplier_details",
                 "seo_title",
                 "seo_description",
+                // 0025: posterior a la 0022 de este backup.
+                "featured_position",
+                "supplier_url",
               ]
             : record.table === "variants"
               ? ["attributes", "identifiers"]

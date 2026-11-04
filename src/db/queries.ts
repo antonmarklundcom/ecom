@@ -337,12 +337,14 @@ export async function getCatalog(
         options.featured ? eq(products.isFeatured, true) : undefined
       )
     )
-    // Los destacados se ordenan por fecha de publicación, no por categoría y
-    // nombre: en una vitrina de ocho productos elegidos a mano, el orden
-    // alfabético no significa nada y lo nuevo sí.
+    // Los destacados se ordenan por el orden que eligió el dueño
+    // (`featured_position`, más chico primero) y, a igual posición, por fecha
+    // de publicación: en una vitrina de ocho productos elegidos a mano, el
+    // orden alfabético no significa nada y lo nuevo sí. Una tienda que nunca
+    // tocó la posición los tiene a todos en 0 y ve el orden de siempre.
     .orderBy(
       ...(options.featured
-        ? [desc(products.publishedAt)]
+        ? [asc(products.featuredPosition), desc(products.publishedAt)]
         : [asc(categories.position), asc(products.name)])
     )
     .limit(options.limit ?? 100);

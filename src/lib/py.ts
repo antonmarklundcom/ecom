@@ -312,6 +312,16 @@ export function parsePyDateInput(value: string | null | undefined): Date | null 
 }
 
 /**
+ * Al revés que `parsePyDateInput`: el día paraguayo de `instant` como lo
+ * espera un `<input type="date">` (`"2026-08-07"`).
+ */
+export function pyDateInputValue(instant: Date): string {
+  const wall = pyWallClock(instant);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${wall.year}-${pad(wall.month)}-${pad(wall.day)}`;
+}
+
+/**
  * Igual, pero devuelve el borde superior **exclusivo**: la medianoche
  * siguiente. Así "hasta el 07/08" incluye todo el 7 y el filtro se escribe
  * `created_at < fin` en vez de pelearse con el último segundo del día.

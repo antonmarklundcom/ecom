@@ -2522,4 +2522,61 @@ export const esPY = {
   "setup.nextLaunch":
     "Revisá identidad, contacto e integraciones, comprobá el cron del hosting y hacé una compra de prueba antes de abrir al público.",
   "setup.preflight": "Lo que falta para cobrar de verdad:",
+
+  // -------------------------------------------------------------------------
+  // Proveedores (`proveedores` en src/config/tienda.ts) y orden de destacados.
+  // Todo esto es panel: los datos de proveedores no llegan nunca a la vidriera.
+  // -------------------------------------------------------------------------
+  "panel.producto.ordenDestacado": "Orden en destacados",
+  "panel.producto.ordenDestacadoAyuda":
+    "Más chico, más adelante en la portada. Con el mismo número, va primero el publicado más reciente.",
+  "panel.producto.enlaceCompra": "Enlace de compra (privado)",
+  "panel.producto.enlaceCompraAyuda":
+    "Dónde se repone este producto: la página del proveedor o de dropshipping. Lo ve sólo el panel, nunca la tienda.",
+  "panel.producto.proveedores": "Proveedores y costos (privado)",
+  "panel.proveedores.ayuda":
+    "A quién se le compra cada variante y a cuánto. El stock del proveedor es lo que declaró al mirarlo: no cambia el stock que vendés. Nada de esto se ve en la tienda.",
+  "panel.proveedores.agregar": "Agregar proveedor",
+  "panel.proveedores.sinOfertas": "Todavía no hay proveedores para esta variante.",
+  "panel.proveedores.preferido": "Preferido · usado para el margen",
+  "panel.proveedores.confirmado": "Mismo producto confirmado",
+  "panel.proveedores.pendiente": "Pendiente de comparar",
+  "panel.proveedores.inactivo": "Inactivo",
+  "panel.proveedores.margen": "Margen bruto: {margen} · recargo: {recargo}",
+  "panel.proveedores.stockDeclarado":
+    "Stock del proveedor: {stock} · mirado el {fecha}",
+  "panel.proveedores.enlaceProducto": "Producto en el sitio del proveedor",
+  "panel.proveedores.enlaceProveedor": "Sitio o contacto del proveedor",
+  "panel.proveedores.editar": "Editar",
+  "panel.proveedores.borrar": "Borrar",
+  "panel.proveedores.borrarConfirmar":
+    "¿Borrar esta oferta de proveedor? No se puede deshacer.",
+  "panel.proveedores.borrada": "Oferta borrada.",
+  "panel.proveedores.guardada": "Oferta guardada.",
+  "panel.proveedores.guardar": "Guardar oferta",
+  "panel.proveedores.cancelar": "Cancelar",
+  "panel.proveedores.origen": "Proveedor",
+  "panel.proveedores.tipo": "Tipo",
+  "panel.proveedores.tipo.dropi": "Dropi (dropshipping)",
+  "panel.proveedores.tipo.local": "Proveedor local",
+  "panel.proveedores.tipo.import": "Importación",
+  "panel.proveedores.tipo.other": "Otro",
+  "panel.proveedores.costo": "Costo unitario (₲); vacío = no se sabe",
+  "panel.proveedores.stock": "Stock del proveedor; vacío = no se sabe",
+  "panel.proveedores.fecha": "Mirado el",
+  "panel.proveedores.notas": "Notas: modelo, presentación, flete, dudas",
+  "panel.proveedores.confirmar": "Confirmé que es el mismo producto y variante",
+  "panel.proveedores.activa": "Oferta activa",
+  "panel.proveedores.elegir":
+    "Usar como proveedor preferido (tiene que estar activa, confirmada y con costo)",
+  "adminError.proveedores.apagado":
+    "Esta tienda no tiene los proveedores prendidos (src/config/tienda.ts).",
+  "adminError.proveedores.enlaceInvalido":
+    "Usá un enlace https:// sin usuario ni contraseña.",
+  "adminError.proveedores.noExiste": "Esa oferta no existe en esta variante.",
+  "adminError.proveedores.invalida": "Revisá los datos de la oferta.",
+  "adminError.proveedores.sinNombre": "Poné el nombre del proveedor.",
+  "adminError.proveedores.costoEntero": "El costo va en guaraníes enteros.",
+  "adminError.proveedores.preferidoIncompleto":
+    "El proveedor preferido tiene que estar activo, confirmado y con costo.",
 } as const satisfies Record<string, string>;

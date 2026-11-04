@@ -149,6 +149,9 @@ const GUARD_ESPERADO: Readonly<Record<string, "Admin" | "Staff" | "Owner">> = {
   uploadProductImage: "Staff",
   removeProductImage: "Staff",
   markProductImageProvenance: "Staff",
+  // Proveedores: staff + `precios` (un costo de compra es plata) + el flag.
+  saveVariantSupplierOffer: "Staff",
+  deleteVariantSupplierOffer: "Staff",
   previewCatalogImport: "Staff",
   applyCatalogImport: "Staff",
 

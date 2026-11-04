@@ -43,11 +43,13 @@ export {
   IMAGE_PROVENANCES,
   ORDER_STATUSES,
   PAYMENT_METHODS,
+  SUPPLIER_SOURCE_TYPES,
   type CouponType,
   type DocType,
   type ImageProvenance,
   type OrderStatus,
   type PaymentMethod,
+  type SupplierSourceType,
 } from "./enums";
 // El `export ... from` re-exporta pero no trae los bindings a este módulo, y
 // las columnas `mysqlEnum(...)` de abajo los necesitan como valores.
@@ -57,6 +59,7 @@ import {
   IMAGE_PROVENANCES,
   ORDER_STATUSES,
   PAYMENT_METHODS,
+  SUPPLIER_SOURCE_TYPES,
   type PaymentMethod,
 } from "./enums";
 
@@ -213,6 +216,23 @@ export const products = mysqlTable(
      * home llena de destacados que nadie eligió.
      */
     isFeatured: boolean("is_featured").notNull().default(false),
+    /**
+     * El orden de los destacados en la home, a mano: más chico, más adelante.
+     *
+     * NOT NULL con default 0 por la misma razón que `isFeatured`: una tienda
+     * que nunca lo toca tiene todos en 0, y el empate se desarma por
+     * `published_at DESC` — exactamente el orden de antes de esta columna.
+     */
+    featuredPosition: int("featured_position").notNull().default(0),
+    /**
+     * El enlace privado de compra del producto (proveedor, dropshipping):
+     * dónde se repone. **Dato de compras, no de vidriera**: sólo lo lee el
+     * panel, y sólo con `proveedores` prendido en `src/config/tienda.ts`
+     * (`src/lib/proveedores.ts`). Ninguna consulta de `src/db/queries.ts` lo
+     * selecciona. No confundir con `supplierDetails.sourceUrl`, que es la
+     * fuente de un dato verificado de la ficha.
+     */
+    supplierUrl: varchar("supplier_url", { length: 2048 }),
     publishedAt: datetime("published_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
@@ -307,6 +327,57 @@ export const variants = mysqlTable(
     unique("variants_sku_uq").on(t.sku),
     index("variants_product_idx").on(t.productId),
   ]
+);
+
+/**
+ * Ofertas de proveedores por variante: a quién se le compra, a cuánto y con
+ * qué stock del lado del proveedor (dropshipping, mayorista local,
+ * importación). **Datos privados de compras**, no del pedido ni del stock:
+ *
+ * - No los lee la vidriera, el checkout, el feed, el sitemap ni ninguna
+ *   consulta de `src/db/queries.ts` (lo fija `tests/unit/proveedores-privados.test.ts`).
+ * - `supplier_stock` es lo que el proveedor dijo tener cuando se miró
+ *   (`checked_at`), no stock vendible: el que se vende es `variants.on_hand`,
+ *   y sólo cambia por `adjustStock` / `transitionOrder`.
+ * - Con la tabla vacía —toda tienda con `proveedores` apagado— nada cambia.
+ *
+ * Lo escribe sólo `src/domain/supplier-offers.ts`. Cuelga de la variante con
+ * cascade: borrar la variante borra sus ofertas.
+ */
+export const supplierOffers = mysqlTable(
+  "supplier_offers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    variantId: int("variant_id")
+      .notNull()
+      .references(() => variants.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    /** Costo unitario en guaraníes enteros. NULL = todavía no se sabe. */
+    unitCostPyg: pyg("unit_cost_pyg"),
+    /** El nombre del proveedor o de la fuente ("Mayorista del centro"). */
+    source: varchar("source", { length: 200 }),
+    sourceType: mysqlEnum("source_type", SUPPLIER_SOURCE_TYPES)
+      .notNull()
+      .default("other"),
+    /** La ficha del producto en el sitio del proveedor. Sólo https. */
+    productUrl: varchar("product_url", { length: 2048 }),
+    /** La página del proveedor (catálogo, contacto). Sólo https. */
+    supplierUrl: varchar("supplier_url", { length: 2048 }),
+    /** Lo que el proveedor declaró tener al mirarlo. No es stock vendible. */
+    supplierStock: int("supplier_stock", { unsigned: true }),
+    notes: varchar("notes", { length: 1000 }),
+    /** "Es el mismo producto": alguien lo comparó. */
+    isConfirmed: boolean("is_confirmed").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    /** El que se usa para el margen. A lo sumo uno por variante (lo cuida el dominio). */
+    isPreferred: boolean("is_preferred").notNull().default(false),
+    /** Cuándo se miraron el costo y el stock del proveedor. */
+    checkedAt: datetime("checked_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  (t) => [index("supplier_offers_variant_idx").on(t.variantId)]
 );
 
 /**
@@ -1566,6 +1637,8 @@ export const BACKUP_TABLES = [
   "product_images",
   "product_slug_redirects",
   "variants",
+  // Cuelga de `variants`: datos privados de compras (proveedores).
+  "supplier_offers",
   "stock_alerts",
   "price_adjustments",
   "stock_adjustments",

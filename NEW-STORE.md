@@ -528,6 +528,49 @@ verificar el número dejaría ver el historial de compras de otra persona a
 cualquiera que tipee su número al registrarse. Se habilitan solos cuando el
 teléfono quede verificado (login por OTP).
 
+### 4b-bis. ¿Esta tienda compra a proveedores? (dropshipping, opcional)
+
+**Por defecto no.** Para una tienda que repone por dropshipping (Dropi), a un
+mayorista local o por importación, el panel puede guardar a quién se le compra
+cada variante y a cuánto. Para prenderlo, en `src/config/tienda.ts`:
+
+```ts
+proveedores: true,
+```
+
+y redeploy. Con el flag prendido, la ficha de cada producto en el panel
+(owner y staff: hace falta la capacidad `precios`) suma:
+
+- **Enlace de compra (privado)**: dónde se repone el producto.
+- **Proveedores y costos (privado)**, por variante: proveedor, tipo
+  (Dropi, local, importación, otro), costo unitario en guaraníes, stock que
+  declaró el proveedor y el día en que se miró, enlaces `https://` al producto
+  y al proveedor, notas. Una oferta por variante puede ser la **preferida**
+  (activa, confirmada y con costo) y el panel muestra el margen bruto de cada
+  una contra el precio de venta.
+
+Lo que **no** hace, con el flag como sea:
+
+- Nada de esto llega a la tienda: ni a la ficha, ni al feed de Google, ni al
+  sitemap, ni al JSON-LD (`tests/unit/proveedores-privados.test.ts`).
+- El stock del proveedor es informativo: no cambia el stock que se vende, ni
+  las reservas, ni los pedidos.
+- No toca los modos de venta. "Sólo consulta" (`enquiry`, botón de WhatsApp
+  en vez de "Agregar al carrito") y "muestra" (`showcase`) siguen en el
+  formulario de producto para todas las tiendas, con o sin proveedores.
+
+Apagarlo de nuevo esconde los campos pero **no borra** lo cargado (la tabla
+`supplier_offers` y `products.supplier_url` quedan, y el backup las incluye).
+Duplicar un producto copia el enlace de compra pero no las ofertas: hay que
+volver a confirmar que el proveedor vende lo mismo. Necesita la migración
+`0025` (viene con el template; en una tienda existente, la corre el setup
+después del deploy). Las columnas de proveedores en la planilla CSV llegan en
+un cambio aparte.
+
+Una tienda creada antes de este flag no tiene el campo en su `tienda.ts`
+(`template:sync` conserva el suyo): compila igual y queda apagado hasta que
+lo agregue.
+
 ### 4c. ¿Entrar sin contraseña? (opcional, apagado)
 
 El login por código de WhatsApp está **construido y listo**, y apagado hasta
@@ -744,6 +787,10 @@ del template. Lo que sigue es sólo dónde encontrarlo:
 - **Destacados y categorías con foto.** El toggle "Destacado" del formulario
   de producto elige lo que muestra la home bajo el título "Destacados"; sin
   ninguno elegido, la home sigue mostrando "Novedades" como siempre.
+  **Orden en destacados**, al lado del toggle, los ordena a mano (más chico,
+  más adelante; con el mismo número va primero el publicado más reciente).
+  Está siempre, sin flag: no es dato de proveedores. Dejándolo en 0 la home
+  ordena como siempre.
   `/admin/categorias` acepta una descripción y una foto por categoría —
   aparecen arriba de la grilla en `/categoria/<slug>` cuando están cargadas, y
   la descripción entra también en el `<meta name="description">` de esa

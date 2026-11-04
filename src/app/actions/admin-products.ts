@@ -57,6 +57,15 @@ import {
   VariantAttributesSchema,
 } from "@/lib/product-attributes";
 import { stripStamps } from "@/lib/verification-stamps";
+import { log } from "@/lib/log";
+import { proveedoresHabilitados } from "@/lib/proveedores";
+import { ForbiddenError } from "@/lib/session";
+import {
+  SupplierLinkSchema,
+  SupplierOfferInputSchema,
+  deleteSupplierOffer,
+  saveSupplierOffer,
+} from "@/domain/supplier-offers";
 import { parseEs, zodFieldErrors } from "@/lib/field-errors";
 
 /**
@@ -120,6 +129,16 @@ const ProductSchema = z.object({
    * En el alta, `createProduct` lo resuelve como `false`.
    */
   isFeatured: z.boolean().optional(),
+  /**
+   * El orden entre los destacados (más chico, más adelante). Opcional por lo
+   * mismo que `isFeatured`: ausente no se toca.
+   */
+  featuredPosition: z.number().int().min(0).max(1_000_000).optional(),
+  /**
+   * El enlace privado de compra. Se acepta sólo con `proveedores` prendido;
+   * con el flag apagado se descarta (no se toca lo que haya en la base).
+   */
+  supplierUrl: SupplierLinkSchema,
 });
 
 export async function saveProduct(
@@ -155,6 +174,10 @@ export async function saveProduct(
       isActive: parsed.data.isActive,
       published: parsed.data.published,
       isFeatured: parsed.data.isFeatured,
+      featuredPosition: parsed.data.featuredPosition,
+      supplierUrl: proveedoresHabilitados()
+        ? parsed.data.supplierUrl
+        : undefined,
     };
 
     const productId = parsed.data.productId;
@@ -175,7 +198,86 @@ export async function saveProduct(
       "adminError.producto.slugRepetido": "slug",
       "adminError.producto.slugHistorico": "slug",
       "adminError.producto.atributosInvalidos": "specifications",
+      "adminError.proveedores.enlaceInvalido": "supplierUrl",
     });
+  }
+}
+
+/**
+ * Las ofertas de proveedores de una variante (`src/domain/supplier-offers.ts`).
+ *
+ * Staff, como el resto del ABM de productos, y además `precios`: un costo de
+ * compra es plata, lo mismo que el precio de venta. Después del guard, el
+ * flag: con `proveedores` apagado la acción existe (es un endpoint) pero no
+ * escribe nada.
+ *
+ * El registro es la línea de log con quién, qué variante y qué oferta —sin
+ * costos ni enlaces—: el feed de actividad del panel cubre pedidos, stock y
+ * notas, y una oferta de proveedor no es ninguna de las tres.
+ */
+export async function saveVariantSupplierOffer(
+  input: unknown
+): Promise<AdminActionResult<{ offerId: number }>> {
+  try {
+    const actor = await requireStaffSession();
+    if (!can(actor.role, "precios")) throw new ForbiddenError();
+    if (!proveedoresHabilitados())
+      return { ok: false, error: t("adminError.proveedores.apagado") };
+
+    const parsed = parseEs(SupplierOfferInputSchema, input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: t("adminForm.revisaCampos"),
+        fields: zodFieldErrors(parsed.error),
+      };
+    }
+
+    const offerId = await saveSupplierOffer(parsed.data);
+    log.info("proveedor: oferta guardada", {
+      actorUserId: actor.userId,
+      productId: parsed.data.productId,
+      variantId: parsed.data.variantId,
+      offerId,
+      nueva: parsed.data.offerId === undefined,
+    });
+    revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    return { ok: true, offerId };
+  } catch (error) {
+    return adminFieldError("saveVariantSupplierOffer", error, {
+      "adminError.proveedores.enlaceInvalido": "productUrl",
+    });
+  }
+}
+
+const DeleteSupplierOfferSchema = z.object({
+  productId: z.number().int().positive(),
+  variantId: z.number().int().positive(),
+  offerId: z.number().int().positive(),
+});
+
+export async function deleteVariantSupplierOffer(
+  input: unknown
+): Promise<AdminActionResult> {
+  try {
+    const actor = await requireStaffSession();
+    if (!can(actor.role, "precios")) throw new ForbiddenError();
+    if (!proveedoresHabilitados())
+      return { ok: false, error: t("adminError.proveedores.apagado") };
+
+    const parsed = DeleteSupplierOfferSchema.safeParse(input);
+    if (!parsed.success)
+      return { ok: false, error: t("adminError.proveedores.invalida") };
+
+    await deleteSupplierOffer(parsed.data);
+    log.info("proveedor: oferta borrada", {
+      actorUserId: actor.userId,
+      ...parsed.data,
+    });
+    revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    return { ok: true };
+  } catch (error) {
+    return adminActionError("deleteVariantSupplierOffer", error);
   }
 }
 

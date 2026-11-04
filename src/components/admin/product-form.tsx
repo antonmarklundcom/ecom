@@ -47,14 +47,25 @@ export type ProductFormValues = {
   published: boolean;
   // == S17 == Destacado en la home (O14 dejó `isFeatured` en `saveProduct`).
   isFeatured: boolean;
+  /** El orden entre destacados (más chico, más adelante). 0 = el de siempre. */
+  featuredPosition?: number;
+  /**
+   * El enlace privado de compra. La página lo manda **sólo** con
+   * `proveedores` prendido; sin él, el campo no se dibuja y el formulario no
+   * lo envía (y la acción no lo toca).
+   */
+  supplierUrl?: string | null;
 };
 
 export function ProductForm({
   defaults,
   categories,
+  proveedores = false,
 }: {
   defaults: ProductFormValues;
   categories: Array<{ id: number; name: string }>;
+  /** `proveedoresHabilitados()`, resuelto en el servidor. */
+  proveedores?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -119,6 +130,10 @@ export function ProductForm({
             isActive: data.get("isActive") === "on",
             published: data.get("published") === "on",
             isFeatured: data.get("isFeatured") === "on",
+            featuredPosition: Number(data.get("featuredPosition") ?? 0) || 0,
+            ...(proveedores
+              ? { supplierUrl: String(data.get("supplierUrl") ?? "") }
+              : {}),
           });
 
           if (!result.ok) {
@@ -317,7 +332,52 @@ export function ProductForm({
         <p className="text-muted-foreground text-xs">
           {t("panel.producto.destacadoAyuda")}
         </p>
+        <div className="grid max-w-48 gap-1.5">
+          <Label htmlFor="featuredPosition">
+            {t("panel.producto.ordenDestacado")}
+          </Label>
+          <Input
+            id="featuredPosition"
+            name="featuredPosition"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={1_000_000}
+            step={1}
+            data-testid={TESTIDS.adminProductFeaturedPosition}
+            defaultValue={defaults.featuredPosition ?? 0}
+            {...fieldA11y(fields, "featuredPosition", "featuredPosition")}
+          />
+          <FieldError
+            errors={fields}
+            name="featuredPosition"
+            id="featuredPosition"
+          />
+        </div>
+        <p className="text-muted-foreground text-xs">
+          {t("panel.producto.ordenDestacadoAyuda")}
+        </p>
       </div>
+
+      {proveedores ? (
+        <div className="grid gap-1.5">
+          <Label htmlFor="supplierUrl">{t("panel.producto.enlaceCompra")}</Label>
+          <Input
+            id="supplierUrl"
+            name="supplierUrl"
+            type="url"
+            maxLength={2048}
+            placeholder="https://"
+            data-testid={TESTIDS.adminProductSupplierUrl}
+            defaultValue={defaults.supplierUrl ?? ""}
+            {...fieldA11y(fields, "supplierUrl", "supplierUrl")}
+          />
+          <FieldError errors={fields} name="supplierUrl" id="supplierUrl" />
+          <p className="text-muted-foreground text-xs">
+            {t("panel.producto.enlaceCompraAyuda")}
+          </p>
+        </div>
+      ) : null}
 
       <Button
         type="submit"

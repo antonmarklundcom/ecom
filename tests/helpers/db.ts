@@ -48,6 +48,8 @@ const TABLES = [
   "order_items",
   "orders",
   "stock_adjustments",
+  // Cuelga de `variants` (FK cascade): antes que ella.
+  "supplier_offers",
   "variants",
   "product_images",
   "product_slug_redirects",
