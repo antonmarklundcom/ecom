@@ -25,6 +25,11 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Decisión de hosting por escrito** (`docs/decisions/0001-hosting.md`). Sin
+  migración, sólo documentación: una tienda que cobra corre en Hostinger
+  Node.js + MySQL; Cloudflare da DNS (sin proxy), R2 y el ruteo de correo; el
+  runtime Workers/D1 de productos.new no entra al template.
+
 - **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   F1–F6). Sin migración.
   - Errores del panel: los formularios de producto, variante, categoría y
