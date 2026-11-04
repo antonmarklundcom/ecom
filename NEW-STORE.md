@@ -1013,8 +1013,11 @@ pnpm reconcile     # control de caja: totales e invariantes entre tablas
 
 Deploy: el runbook completo está en **[DEPLOY.md](./DEPLOY.md)** — el flujo git
 de Hostinger, las trampas del SSH, la base de datos, el cron cada 15 minutos
-contra `/api/cron/vencer-pedidos` y la prueba de humo. Acordate además de
-registrar la URL de respuesta de Pagopar.
+contra `/api/cron/vencer-pedidos` y la prueba de humo. Si la tienda cobra con
+tarjeta, acordate además de registrar en el panel de Pagopar la URL de
+respuesta (`https://tu-dominio/api/webhooks/pagopar`) y la de retorno
+(`https://tu-dominio/pedido/pagopar/retorno`); los pasos completos, con el
+test de sandbox y qué mirar en el primer aviso real, están en TASKS.md §21.
 
 ### 7. Google Shopping y el catálogo de Meta (después del lanzamiento)
 
