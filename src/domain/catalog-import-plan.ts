@@ -17,12 +17,20 @@ import { slugify } from "@/lib/slug";
 import { decoded } from "@/lib/product-attributes";
 import { validSessionSecret } from "@/lib/session-secret";
 import { sameContent } from "@/lib/verification-stamps";
-import {
-  carpetaProductos,
-  cloudinary,
-  cloudinaryConfigured,
-} from "@/lib/cloudinary";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
+import { DescargaError, descargarImagen, type Resolver } from "@/lib/descarga-segura";
+import { jpegKeyFor, parseRef } from "@/lib/imagenes-r2";
+import {
+  clienteR2,
+  mensajeR2,
+  r2Configurado,
+  type ClienteR2,
+} from "@/lib/r2";
+import {
+  ImagenInvalidaError,
+  prepararDesdeOriginal,
+  subirSetImagen,
+} from "@/lib/r2-imagenes";
 
 import {
   upsertCatalogProducts,
@@ -567,45 +575,103 @@ export type CatalogFotoFallida = {
 export type CatalogFotosResult = {
   /** Cuántas fotos se subieron y quedaron registradas. */
   fotosSubidas: number;
-  /** Cuántas fotos NO se intentaron subir porque Cloudinary no está configurado. */
+  /** Cuántas fotos NO se intentaron subir porque R2 no está configurado. */
   fotosOmitidas: number;
   /** Cada URL que se intentó y falló, sin frenar el resto de la importación. */
   fotosFallidas: CatalogFotoFallida[];
 };
 
-const FOTOS_CONCURRENCIA = 4;
+const FOTOS_CONCURRENCIA = 2;
+
+/** Lo que `applyCatalogFotos` necesita de afuera; los tests lo reemplazan. */
+export type CatalogFotosOpciones = {
+  cliente?: ClienteR2;
+  fetchImpl?: typeof fetch;
+  resolver?: Resolver;
+};
+
+/** Un motivo escrito acá: se puede mostrar tal cual. */
+class FotoError extends Error {}
 
 /**
- * Sube las fotos de `productos` a Cloudinary y las registra con
- * `addProductImage` — sólo para un producto que hoy no tiene ninguna, igual
- * que `contarFotosNuevas` (así reimportar la misma planilla nunca duplica).
+ * El motivo de una foto fallida, para el panel y la consola. Los nuestros
+ * (descarga, imagen inválida, R2) dicen qué pasó sin datos de nadie; cualquier
+ * otro error pasa por `safeError`, que no muestra el mensaje.
+ */
+function motivoDeFoto(error: unknown): string {
+  if (error instanceof FotoError || error instanceof DescargaError) return error.message;
+  return mensajeR2(error);
+}
+
+const MOTIVO_IMAGEN: Record<string, string> = {
+  VACIA: "la imagen vino vacía",
+  DEMASIADO_PESADA: "la imagen pesa demasiado",
+  FORMATO: "no es una imagen JPG, PNG, WebP o GIF",
+  NO_SE_PUDO_LEER: "la imagen está dañada o no se pudo leer",
+  PIXELES: "la imagen tiene demasiados píxeles",
+};
+
+/**
+ * Una foto de la planilla → la referencia de R2, con el objeto ya escrito.
+ *
+ * - `r2:p1/…` (lo que deja `pnpm fotos:preparar` en `import-r2.csv`, ya
+ *   subido con `pnpm fotos:subir`): se confirma que el JPEG exista en el
+ *   bucket antes de usarla — una fila nunca apunta a un objeto que no está.
+ * - `https://…`: el servidor la baja (`descargarImagen`: https, timeout,
+ *   tope de bytes, redirecciones contadas, contenido mirado por los bytes),
+ *   la achica con el mismo pipeline de todo lo demás y la sube.
+ */
+async function fotoDeLaPlanilla(
+  cliente: ClienteR2,
+  url: string,
+  slug: string,
+  opciones: CatalogFotosOpciones
+): Promise<string> {
+  if (url.startsWith("r2:")) {
+    const ref = parseRef(url);
+    if (!ref) throw new FotoError("referencia r2: inválida");
+    const { existe } = await cliente.head(jpegKeyFor(ref.base)!);
+    if (!existe) throw new FotoError("esa foto no está en el bucket (¿faltó `pnpm fotos:subir`?)");
+    return url;
+  }
+  const original = await descargarImagen(url, {
+    fetchImpl: opciones.fetchImpl,
+    resolver: opciones.resolver,
+  });
+  try {
+    const set = await prepararDesdeOriginal(original);
+    return await subirSetImagen(cliente, set, slug, "producto");
+  } catch (error) {
+    if (error instanceof ImagenInvalidaError)
+      throw new FotoError(MOTIVO_IMAGEN[error.codigo] ?? "no se pudo preparar la imagen");
+    throw error;
+  }
+}
+
+/**
+ * Sube las fotos de `productos` a R2 y las registra con `addProductImage` —
+ * sólo para un producto que hoy no tiene ninguna, igual que
+ * `contarFotosNuevas` (así reimportar la misma planilla nunca duplica).
  *
  * Se llama **después** de que el upsert de `upsertCatalogProducts` ya
  * commiteó: una foto que falla no puede tumbar productos y precios que sí
  * se guardaron. Por eso nunca tira — junta los fallos en `fotosFallidas`.
+ * Cada fila de `product_images` se inserta recién cuando sus objetos
+ * quedaron escritos en R2.
  *
- * Sin credenciales de Cloudinary, no se intenta ni una subida: se cuentan
- * como `fotosOmitidas` para que quien llama avise con un mensaje claro, no
- * con un error.
- *
- * Es Cloudinary quien va a buscar la URL (`resource_type: "image"` con la
- * URL como fuente) — este server nunca hace un `fetch` de la foto.
+ * Sin R2 configurado, no se intenta ni una subida: se cuentan como
+ * `fotosOmitidas` para que quien llama avise con un mensaje claro, no con un
+ * error.
  */
 export async function applyCatalogFotos(
   productos: readonly CatalogoProducto[],
-  executor?: Executor
+  executor?: Executor,
+  opciones: CatalogFotosOpciones = {}
 ): Promise<CatalogFotosResult> {
   const tx = executor ?? getDb();
   const conFotos = productos.filter((p) => p.fotos.length > 0);
   if (conFotos.length === 0) {
     return { fotosSubidas: 0, fotosOmitidas: 0, fotosFallidas: [] };
-  }
-
-  // Cloudinary puede venir de /admin/integraciones (también desde el script).
-  await cargarIntegraciones();
-  if (!cloudinaryConfigured()) {
-    const total = conFotos.reduce((acc, p) => acc + p.fotos.length, 0);
-    return { fotosSubidas: 0, fotosOmitidas: total, fotosFallidas: [] };
   }
 
   const slugs = conFotos.map((p) => p.slug);
@@ -625,12 +691,34 @@ export async function applyCatalogFotos(
     .map((producto) => {
       const row = porSlug.get(producto.slug);
       if (!row || tieneFotos.has(row.id)) return null;
-      return { productId: row.id, nombre: row.name, urls: producto.fotos };
+      return {
+        productId: row.id,
+        slug: row.slug,
+        nombre: row.name,
+        urls: producto.fotos,
+      };
     })
     .filter(
-      (grupo): grupo is { productId: number; nombre: string; urls: string[] } =>
-        grupo !== null
+      (
+        grupo
+      ): grupo is {
+        productId: number;
+        slug: string;
+        nombre: string;
+        urls: string[];
+      } => grupo !== null
     );
+
+  // R2 puede venir de /admin/integraciones (también desde el script). Sin R2
+  // se cuentan como omitidas sólo las que se habrían subido: las de un
+  // producto que ya tiene fotos no se iban a tocar (un export reimportado en
+  // la misma tienda no avisa de más).
+  await cargarIntegraciones();
+  if (!opciones.cliente && !r2Configurado()) {
+    const total = grupos.reduce((acc, grupo) => acc + grupo.urls.length, 0);
+    return { fotosSubidas: 0, fotosOmitidas: total, fotosFallidas: [] };
+  }
+  const cliente = opciones.cliente ?? clienteR2();
 
   let fotosSubidas = 0;
   const fotosFallidas: CatalogFotoFallida[] = [];
@@ -645,14 +733,16 @@ export async function applyCatalogFotos(
       // mismo producto en paralelo las haría pelear por la posición 0.
       for (const [index, url] of grupo.urls.entries()) {
         try {
-          const uploaded = await cloudinary.uploader.upload(url, {
-            folder: carpetaProductos(),
-            resource_type: "image",
-          });
+          const imageRef = await fotoDeLaPlanilla(
+            cliente,
+            url,
+            grupo.slug,
+            opciones
+          );
           await addProductImage(
             {
               productId: grupo.productId,
-              cloudinaryId: uploaded.public_id,
+              imageRef,
               alt:
                 index === 0
                   ? grupo.nombre
@@ -665,7 +755,7 @@ export async function applyCatalogFotos(
           fotosFallidas.push({
             producto: grupo.nombre,
             url,
-            motivo: safeError(error).message,
+            motivo: motivoDeFoto(error),
           });
         }
       }
@@ -863,13 +953,14 @@ export async function applyCatalogImportLote(
   csvText: string,
   lote: number,
   opciones: Omit<CatalogImportPlanOptions, "lote">,
-  options: CatalogImportApplyOptions
+  options: CatalogImportApplyOptions,
+  fotosOpciones: CatalogFotosOpciones = {}
 ): Promise<CatalogImportLoteResult> {
   const plan = await buildCatalogImportPlan(csvText, { ...opciones, lote });
   if (plan.errores.length > 0)
     return { ok: false, lote, lotes: plan.lotes, errores: plan.errores };
   const escrito = await applyCatalogImportPlan(plan, options);
-  const fotos = await applyCatalogFotos(plan.productos);
+  const fotos = await applyCatalogFotos(plan.productos, undefined, fotosOpciones);
   return {
     ok: true,
     lote,

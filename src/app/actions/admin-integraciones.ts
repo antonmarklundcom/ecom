@@ -20,9 +20,9 @@ import {
 import { log } from "@/lib/log";
 
 /**
- * `/admin/integraciones` (Cloudinary, WhatsApp, Pagopar, medición, errores).
+ * `/admin/integraciones` (R2, WhatsApp, Pagopar, medición, errores).
  * **Todas owner-only**: quien cambia estas credenciales puede mandar los
- * comprobantes a otra cuenta de Cloudinary o cambiar la clave que firma los
+ * comprobantes a otro bucket o cambiar la clave que firma los
  * pagos con tarjeta.
  *
  * Ninguna devuelve un secreto: guardar devuelve los **nombres** de los campos

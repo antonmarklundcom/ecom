@@ -1,9 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { ImagenR2 } from "@/components/imagen-r2";
 import { Button } from "@/components/ui/button";
 import type { Hero } from "@/config/tienda";
-import { productImageUrl } from "@/lib/images";
+import { refDeHeroImagen } from "@/lib/hero-imagen";
+import { productImageSources } from "@/lib/images";
 
 /**
  * La portada de la home (PLAN.md FASE 2, PR O).
@@ -18,16 +19,18 @@ import { productImageUrl } from "@/lib/images";
  */
 export function HomeHero({ hero }: { hero: Hero }) {
   const imagen = hero.imagen ?? null;
-  // `null` cuando falta `CLOUDINARY_CLOUD_NAME`: el hero se dibuja igual, con
-  // el fondo de siempre, en vez de con un rectángulo roto.
-  const src = productImageUrl(imagen?.cloudinaryId, "hero");
+  // `null` sin base pública de R2 o con una referencia que no es de R2: el
+  // hero se dibuja igual, con el fondo de siempre, en vez de con un
+  // rectángulo roto.
+  const fuentes = productImageSources(refDeHeroImagen(imagen), "hero");
+  const src = fuentes !== null;
 
   return (
     <section className="border-border relative isolate overflow-hidden rounded-2xl border">
-      {src ? (
+      {fuentes ? (
         <>
-          <Image
-            src={src}
+          <ImagenR2
+            fuentes={fuentes}
             alt={imagen?.alt ?? ""}
             fill
             priority

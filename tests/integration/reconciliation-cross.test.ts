@@ -127,7 +127,7 @@ describe.skipIf(!hasTestDb)("reconciliación: invariantes entre tablas", () => {
       .insert(receipts)
       .values({
         orderId,
-        cloudinaryId: `comprobantes/${randomBytes(6).toString("hex")}`,
+        storageKey: `comprobantes/${randomBytes(6).toString("hex")}`,
         mime: "image/jpeg",
         bytes: 12_345,
         review,

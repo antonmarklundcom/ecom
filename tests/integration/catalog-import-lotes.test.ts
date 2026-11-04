@@ -6,6 +6,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   categories,
   priceAdjustments,
+  productImages,
   products,
   stockAdjustments,
   supplierOffers,
@@ -22,6 +23,7 @@ import {
   type CatalogImportApplyOptions,
 } from "@/domain/catalog-import-plan";
 import { saveSupplierOffer } from "@/domain/supplier-offers";
+import { jpegKeyFor, parseRef } from "@/lib/imagenes-r2";
 
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from "../helpers/db";
 import { createAdminUser, createCategory } from "../helpers/factories";
@@ -401,6 +403,39 @@ describe.skipIf(!hasTestDb)("importación de catálogo por lotes", () => {
     expect(b.advertencias).toEqual([]);
     expect(await getTestDb().select().from(supplierOffers)).toEqual([]);
     expect(await exportar(false)).toBe(sinProveedores);
+  });
+
+  it("Fotos: el export trae la URL del JPEG en R2 y reimportarlo en la misma tienda no baja nada", async () => {
+    vi.stubEnv("R2_PUBLIC_URL", "https://imagenes.example.com");
+    try {
+      await importarTodo(FIXTURE, { proveedores: false });
+      const termo = (
+        await getTestDb()
+          .select()
+          .from(products)
+          .where(eq(products.slug, "termo-de-acero-inoxidable-1-l"))
+      )[0]!;
+      const ref = "r2:p1/termo-3f9a0c12de@1200x900";
+      await getTestDb()
+        .insert(productImages)
+        .values({ productId: termo.id, imageRef: ref, alt: "Termo", position: 0 });
+
+      const csv = await exportar(false);
+      const jpeg = `https://imagenes.example.com/${jpegKeyFor(parseRef(ref)!.base)}`;
+      const filas = csv.split("\r\n").filter((fila) => fila.includes(jpeg));
+      // Sólo en la primera fila del producto (tiene tres variantes).
+      expect(filas).toHaveLength(1);
+      expect(filas[0]).toContain("TER-INOX-NEG");
+
+      // El producto ya tiene foto: nada que subir, nada que bajar.
+      const plan = await buildCatalogImportPlan(csv);
+      expect(plan.fotosNuevas).toBe(0);
+      const { lotes } = await importarTodo(csv, { proveedores: false });
+      expect(lotes[0]).toMatchObject({ fotosSubidas: 0, fotosOmitidas: 0, fotosFallidas: [] });
+      expect(await getTestDb().select().from(productImages)).toHaveLength(1);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("los posibles repetidos aparecen en la vista previa y no en el plan de un lote", async () => {

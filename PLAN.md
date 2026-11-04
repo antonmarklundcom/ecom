@@ -10,7 +10,7 @@ con las seis fases O14–S19 de este último mergeadas en dos ventanas.
 la auditoría del template, `fable/TEMPLATE-REVIEW.md` (2026-09-19). La próxima
 arranca desde `fable/PROMPT.md`.
 
-**Stack (locked):** Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js slot** + Cloudinary.
+**Stack (locked):** Next.js 16 + Drizzle + **Hostinger MySQL** + **Hostinger Node.js slot** + Cloudflare R2 (fotos, comprobantes y backups; hasta 2026-11 era otro proveedor).
 No Supabase, no Vercel, no Cloudflare. Deploy mechanics live in `DEPLOY.md` and the `nextjs-deploy-hostinger` skill.
 
 **Estado:** la **FASE 2 está terminada y mergeada** — PR A a U, con CI verde completo en cada uno. El plan original (PR #1–#5: schema, vidriera, checkout, admin, Pagopar) y los PRs de endurecimiento #6–#12 ya estaban antes; el historial completo vive en `TASKS.md`. Lo que queda abierto no es código de este repo: son las cuentas y los datos de terceros que lista `TASKS.md` §"Bloqueado por terceros". Este archivo queda como el registro de qué se construyó en la FASE 2 —cuentas de cliente opcionales, roles de verdad, cupones, los ABMs que faltaban del panel, UX de la vidriera, i18n por tienda y el arranque automatizado de una tienda nueva— y de por qué cada decisión salió como salió.
@@ -186,11 +186,11 @@ Las sugerencias son `suggestProducts`, que es `searchProducts` **sin `hydrate()`
 El buscador pasó a ser un `<form method="get" action="/buscar">`: sin JavaScript, o mientras el bundle baja en una 3G paraguaya, escribir y apretar Enter lleva igual a los resultados. Las sugerencias son una mejora encima de algo que ya funciona.
 
 ## PR O — Hero de la home (piel, config-driven) — **hecho**
-Slot `hero` en `tienda.ts`: foto de Cloudinary + título + bajada + un botón. Sin configurar (`hero: null`, el default) la home queda **exactamente** como estaba — el texto que hoy tiene escrito a mano pasó a ser el hero por defecto, así que una tienda que se actualiza no ve ningún cambio.
+Slot `hero` en `tienda.ts`: foto (hoy una referencia de R2) + título + bajada + un botón. Sin configurar (`hero: null`, el default) la home queda **exactamente** como estaba — el texto que hoy tiene escrito a mano pasó a ser el hero por defecto, así que una tienda que se actualiza no ve ningún cambio.
 
 **Sin carrusel, a propósito.** El plan lo dejaba abierto ("o lista para carrusel simple") y la respuesta es que no: un carrusel es JavaScript, autoplay, gestos y un estado que se sincroniza, o sea maquinaria, en el único lugar de la FASE 2 que es piel. Una portada más ambiciosa se escribe en `src/app/page.tsx`, que es de la tienda y se puede reescribir entero.
 
-Dos bordes que el test fija: sin `CLOUDINARY_CLOUD_NAME` en el entorno —el estado de toda tienda recién clonada— el hero sale de texto y no con un `<img>` roto; y sin categorías cargadas todavía, el hero por defecto sale sin botón en vez de con uno que lleva a un 404.
+Dos bordes que el test fija: sin la base pública de las fotos en el entorno —el estado de toda tienda recién clonada— el hero sale de texto y no con un `<img>` roto; y sin categorías cargadas todavía, el hero por defecto sale sin botón en vez de con uno que lleva a un 404.
 
 ## PR P–S — i18n por tienda (Nivel A: un idioma por tienda, elegido en `tienda.ts`)
 **En serie y al final** (así las features de arriba se extraen una sola vez). No hay switcher para el visitante ni rutas por locale — eso sería un Nivel B futuro sobre esta base. Las URLs quedan en español para siempre (decisión: son parte del template). Moneda y dinero **fuera de alcance**: `money.ts` queda PYG-entero con su `₲` literal.
@@ -233,8 +233,9 @@ exista** —uno nuevo cierra todas las sesiones del panel y deja al cron llamand
 con la llave vieja—; `--dry-run` no escribe nada y las seis respuestas se
 pueden pasar por bandera para correrlo sin TTY.
 
-Se suman `CLOUDINARY_FOLDER_PREFIX` (varias tiendas en una misma cuenta de
-Cloudinary dejan de mezclar comprobantes: todas acuñan `PY-000123`) y, en
+Se sumó un prefijo de carpetas por tienda en el almacenamiento de entonces
+(hoy no hace falta: R2 va con un bucket por tienda y claves privadas con
+componente aleatorio) y, en
 `/api/setup/init`, el alta de zonas de envío por `{zonas:[...]}` más el reporte
 de `preflight()` medido **contra el entorno del servidor**, que es lo que mata
 el paso de correr el preflight desde tu máquina contra un `.env` parecido al de

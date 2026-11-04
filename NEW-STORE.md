@@ -82,7 +82,7 @@ terceros**, porque son cuentas de otro que nadie puede abrir por vos:
 |---|---|---|
 | Hosting y base | hPanel de Hostinger | `DATABASE_URL` y el deploy (DEPLOY.md) |
 | Dominio | tu registrador | `NEXT_PUBLIC_SITE_URL` — el wizard ya lo escribe, falta apuntarlo |
-| Cloudinary | cloudinary.com → `/admin/integraciones` | fotos de producto y comprobantes de pago (§4a-ter) |
+| R2 (Cloudflare) | un bucket por tienda (DEPLOY.md §3b) → `/admin/integraciones` | fotos, comprobantes de pago y copias de seguridad (§4a-ter) |
 | Pagopar | el comercio → `/admin/integraciones` | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
 | Datos bancarios | `/admin/banco`, con la tienda arriba | a dónde transfieren (§4a) |
 | Fotos y favicon | el comercio | `src/app/favicon.ico` y `/admin/productos` |
@@ -273,8 +273,7 @@ ausentes, cada una apaga su feature.
 | `SESSION_SECRET` | **lo genera el wizard.** Uno nuevo por tienda, nunca reciclado |
 | `WHATSAPP_NUMBER` | **lo escribe el wizard.** El del comercio |
 | `BANCO_*` | **legacy/fallback.** Podés dejarlos vacíos: los datos bancarios se cargan desde `/admin/banco` con la tienda ya arriba (ver §4a). Si los ponés y la tabla está vacía, mandan éstos |
-| `CLOUDINARY_*` | cuenta de Cloudinary de esta tienda |
-| `CLOUDINARY_FOLDER_PREFIX` | opcional, vacío por defecto. Ponelo **si varias tiendas comparten una cuenta de Cloudinary**: el `public_id` de un comprobante sale del número de pedido, y todas las tiendas acuñan `PY-000123`, así que sin prefijo los comprobantes de las dos terminan mezclados en la misma carpeta. Elegilo al crear la tienda y no lo toques más |
+| `R2_*` | el bucket de R2 de esta tienda (DEPLOY.md §3b). **Un bucket por tienda**: la retención de backups borra lo viejo bajo `backups/`, y dos tiendas en el mismo bucket se borrarían las copias entre sí |
 | `NEXT_PUBLIC_SITE_URL` | **lo escribe el wizard.** El dominio final |
 | `CRON_SECRET` | **lo genera el wizard.** ≥ 16 caracteres, nuevo por tienda |
 | `SETUP_SECRET` | **lo genera el wizard.** Va sólo en el servidor y sólo durante el primer deploy: habilita `/api/setup/init` y después se borra (DEPLOY.md §4) |
@@ -333,9 +332,19 @@ Los productos reales entran por dos caminos:
     "pisar stock" / `--pisar-stock`.
   - **Lo nuevo entra como borrador**, un SKU es de un solo producto, y los
     precios o el stock en masa los aplica el dueño (quedan auditados).
-  - **Fotos**: URLs `https://` en la columna Fotos; sólo se suben a un
-    producto que todavía no tiene ninguna, y nada se descarga acá. Una foto
-    también se puede cargar suelta desde `/admin/productos`.
+  - **Fotos**: URLs `https://` (o referencias `r2:p1/…`) en la columna Fotos;
+    sólo se suben a un producto que todavía no tiene ninguna. El servidor las
+    baja (sólo `https://`, con tope de tamaño, tiempo y redirecciones, y
+    mirando por los bytes que sean imágenes), las achica y las sube a R2; sin
+    R2 configurado se avisa y se sigue sin ellas. Para cientos de fotos
+    conviene prepararlas antes en tu máquina: `pnpm fotos:preparar -- --csv
+    lista.csv --salida /fuera/del/repo` (baja y achica, deja `review.html`
+    para mirarlas e `import-r2.csv` con las fotos como `r2:p1/…`), `pnpm
+    fotos:subir -- --manifiesto /fuera/del/repo/manifest.private.json
+    --aplicar` (sube) y después importás `import-r2.csv`. `pnpm fotos:reparar`
+    reemplaza la galería de un producto que ya tenía fotos (ver
+    `scripts/fotos-lib.ts`). Una foto también se puede cargar suelta desde
+    `/admin/productos`.
 
 El seed deja un punto de partida que **se termina de ajustar desde el panel**,
 sin volver a tocar código:
@@ -368,8 +377,8 @@ Dos reglas que la pantalla sostiene:
   persona, en el banco.
 
 El QR del SPI es opcional y se sube desde la misma pantalla (JPG/PNG/WebP, hasta
-5 MB). Va a una carpeta **pública** de Cloudinary, separada de la de
-comprobantes. Sin QR, la página muestra los datos con botón de copiar, que es lo
+5 MB; el navegador la achica antes de subirla). Va a R2 como foto **pública**,
+nunca con los comprobantes, que son privados. Sin QR, la página muestra los datos con botón de copiar, que es lo
 que hacía siempre.
 
 **Compatibilidad con lo de antes:** los `BANCO_*` del entorno siguen andando y
@@ -392,7 +401,7 @@ template no trae migración, y una fila vieja o rota se lee con los defaults.
 | Se edita en `/admin/ajustes` | Sigue en el código / el entorno |
 |---|---|
 | Bajada del pie, título y descripción de la home para Google | El **nombre** (`TIENDA.nombre`): también es el `<title>` de cada página y lo verifica `pnpm preflight` |
-| Portada: prendida/apagada, título, texto, botón, foto (se sube a Cloudinary, carpeta `portadas/`) | Una portada distinta (carrusel, vídeo): se escribe en `src/app/page.tsx` |
+| Portada: prendida/apagada, título, texto, botón, foto (se sube a R2) | Una portada distinta (carrusel, vídeo): se escribe en `src/app/page.tsx` |
 | Barra de anuncio arriba de todo | Idioma, `ogLocale`, cuentas de cliente (`tienda.ts`) |
 | WhatsApp **público**, email, dirección, horario, Instagram/Facebook/TikTok | `WHATSAPP_NUMBER`: destino de los avisos al dueño (y el público si el panel está vacío) |
 | Envío y devoluciones para el JSON-LD de Google (días, precio desde, política) | Tarifas y zonas de envío (`/admin/envios`) |
@@ -413,14 +422,14 @@ trae esto por `template:sync` se queda con los suyos: la barra de anuncio, los
 links a las páginas y el contacto nuevo del pie no aparecen hasta sumarlos a
 mano (las páginas en sí sí existen).
 
-### 4a-ter. Integraciones desde el panel: Cloudinary, WhatsApp, Pagopar, medición
+### 4a-ter. Integraciones desde el panel: R2, WhatsApp, Pagopar, medición
 
 **`/admin/integraciones`** (sólo el dueño) carga lo que antes eran variables del
 hPanel, con la tienda ya arriba y sin redeploy:
 
 | Tarjeta | Qué carga | Fallback de entorno |
 |---|---|---|
-| Cloudinary | cloud name, API key, **API secret**, prefijo de carpetas | `CLOUDINARY_*` |
+| R2 | Account ID, Access Key ID, **Secret Access Key**, bucket, dominio público | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` |
 | WhatsApp | número del comercio (avisos al dueño), phone number ID, **token**, versión de la API, las nueve plantillas | `WHATSAPP_NUMBER`, `WHATSAPP_CLOUD_*` |
 | Pagopar | clave pública, **clave privada**, URL de la API | `PAGOPAR_PUBLIC_KEY`, `PAGOPAR_PRIVATE_KEY`, `PAGOPAR_BASE_URL` |
 | Medición | ID de GA4, ID del Pixel | `NEXT_PUBLIC_GA4_ID`, `NEXT_PUBLIC_META_PIXEL_ID` |
@@ -433,15 +442,17 @@ Las reglas, todas en `src/lib/integraciones.ts`:
   sin ninguno de los dos, la función queda apagada (nunca rota). El botón
   "Borrar lo del panel" devuelve una integración entera al entorno.
 - **Las credenciales que van juntas no se mezclan**: si el panel tiene alguna
-  de las de Cloudinary (o de Pagopar, o phone ID + token de WhatsApp), el grupo
-  entero sale del panel. Las plantillas y el prefijo se resuelven de a uno.
+  de las de R2 (cuenta, access key, secret, bucket; o las de Pagopar, o phone
+  ID + token de WhatsApp), el grupo entero sale del panel. Las plantillas y el
+  dominio público se resuelven de a uno.
 - **Los secretos se guardan cifrados** (AES-256-GCM, clave derivada de
   `SESSION_SECRET` por HKDF, una por campo) y **nunca vuelven al navegador**: la
   pantalla muestra "Configurado ••••1234" y sólo deja reemplazar o borrar. Sin
   `SESSION_SECRET` válido no se lee ni se guarda nada. **Cambiar
   `SESSION_SECRET` deja ilegibles los secretos guardados** — la pantalla lo dice
   y hay que volver a cargarlos.
-- **"Probar conexión"** para Cloudinary (ping de la Admin API), WhatsApp (lee
+- **"Probar conexión"** para R2 (escribe, lee y borra un archivo privado de
+  prueba y avisa si el dominio público lo sirve), WhatsApp (lee
   el número en la Graph API, no manda nada) y Pagopar (sólo que el host
   conteste por https: sus claves sólo se verifican con una transacción del
   sandbox). Cada guardado y cada prueba quedan en el log del hPanel con quién y
@@ -469,8 +480,8 @@ editar `src/config/tienda.ts` y el tema en cada tienda clonada:
 | Favicon | la pestaña del navegador | `src/app/favicon.ico` |
 | Color de marca | `--primary` (botones, links, foco); el texto encima se elige solo por contraste | el del tema de `globals.css` |
 
-Logo y favicon van a la carpeta pública `marca/` de Cloudinary (hace falta
-Cloudinary configurado, §4a-ter). El tema completo (tipografía, radios, modo
+Logo y favicon se suben a R2 como fotos públicas (hace falta R2 configurado,
+§4a-ter); el WebP conserva la transparencia. El tema completo (tipografía, radios, modo
 oscuro) sigue siendo piel del código (§5): el panel pisa sólo el color de marca.
 
 **Piel rediseñada:** `site-header.tsx` y `site-footer.tsx` del template ya leen
@@ -794,8 +805,8 @@ del template. Lo que sigue es sólo dónde encontrarlo:
   está, con su fila en el ledger de devoluciones (`refunds`, ARCH.md §2).
 - **Backups automáticos y restauración.** Corren solos con la entrada de cron
   del hPanel (DEPLOY.md §5, tercera entrada) — nada que prender a mano más
-  allá de tener Cloudinary configurado. Restaurar una copia es
-  `pnpm restore -- <archivo.jsonl.gz>` (README.md, DEPLOY.md §"Restaurar una
+  allá de tener R2 configurado. Restaurar una copia es
+  `pnpm restore -- --r2 ultimo` (README.md, DEPLOY.md §"Restaurar una
   copia"): sólo corre contra una base cuyo nombre contenga `restore` o `test`.
 
 ### La distribución automática del template (S13)
@@ -1000,7 +1011,7 @@ header y footer → home → `product-card`. Los dos primeros pasos ya mueven el
 variables iban a resolver solas.
 
 **La portada de la home** se cambia sin tocar código: `hero` en
-[`src/config/tienda.ts`](./src/config/tienda.ts) acepta una foto de Cloudinary,
+[`src/config/tienda.ts`](./src/config/tienda.ts) acepta una foto de R2 (`imageRef`),
 un título, una bajada y un botón. Con `hero: null` (el default) sale la portada
 del template. Es lo que le permite al comercio cambiar su banner de temporada
 solo; todo lo demás de la home se rediseña editando `src/app/page.tsx`.
@@ -1250,6 +1261,39 @@ transacción abierta ya no cuelga la tienda: falla y se reintenta).
 
 Si algún día son muchas tiendas, recién ahí conviene sacar `src/domain` y
 `src/lib` a un paquete compartido. Antes de eso es complejidad sin pagar.
+
+### Migrar las fotos a R2 (una tienda de antes del cambio)
+
+Desde esta versión, fotos, comprobantes y copias de seguridad viven en
+**Cloudflare R2** (DEPLOY.md §3b). Una tienda que ya tenía fotos en el
+almacenamiento anterior **no se rompe** al traer el cambio: cada referencia
+vieja se dibuja como el placeholder de su categoría (nunca una imagen rota) y
+`pnpm preflight` dice cuántas quedan. Para traerlas, una sola vez:
+
+```bash
+# 1. R2 configurado (DEPLOY.md §3b) y DATABASE_URL apuntando a la tienda.
+# 2. Ensayo: cuenta y lista, no baja ni escribe nada.
+pnpm fotos:migrar-cloudinary -- --cloud <nombre-de-la-cuenta-vieja>
+# 3. De verdad: baja cada original por su URL pública, lo achica, lo sube a R2
+#    y recién después reescribe la referencia.
+pnpm fotos:migrar-cloudinary -- --cloud <nombre-de-la-cuenta-vieja> --aplicar
+```
+
+- Migra fotos de producto, de categoría, el QR del banco y la portada, el logo
+  y el favicon de `/admin/ajustes`. Es **idempotente**: lo que ya es `r2:` no
+  se toca y la misma foto da la misma clave, así que se puede cortar y volver
+  a correr.
+- **Comprobantes** (eran privados): sólo si se agregan `--api-key K
+  --api-secret S` de la cuenta vieja (por la línea de comandos, nunca en un
+  archivo). Sin eso quedan donde estaban y el panel los muestra como "de antes
+  del cambio": los pedidos ya revisados no los necesitan; los que esperan
+  revisión, migralos o pedile el comprobante de nuevo a la compradora.
+- `hero.imagen` de `src/config/tienda.ts` es código: el script sube la foto e
+  imprime la referencia nueva para pegarla a mano (el campo ahora se llama
+  `imageRef`; una tienda que lo tenía cargado tiene que renombrarlo, o
+  typecheck falla).
+- Cuando `pnpm preflight` dice "todas son de R2", la cuenta vieja ya no hace
+  falta para la vidriera.
 
 ## Catalogue inheritance upgrade
 

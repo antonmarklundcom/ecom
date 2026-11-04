@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Hero } from "@/config/tienda";
+import { refDeHeroImagen } from "@/lib/hero-imagen";
 import { t } from "@/i18n";
 import { normalizePhonePY } from "@/lib/py";
 
@@ -85,7 +86,7 @@ export const StoreSettingsSchema = z.object({
    */
   identidad: seccion({
     nombre: texto,
-    /** `public_id` en la carpeta pública `marca/` de Cloudinary. */
+    /** Referencias de R2 (`r2:p1/…`, públicas). */
     logoId: texto,
     faviconId: texto,
     /** `#RRGGBB`. Pisa `--primary` del tema; el texto encima se elige solo. */
@@ -523,9 +524,18 @@ export function heroEfectivo(
   const href = linkSeguro(marca.heroCtaHref) ?? base.cta?.href ?? null;
   const cta = label && href ? { label, href } : undefined;
 
-  const cloudinaryId = marca.heroImagenId ?? base.imagen?.cloudinaryId ?? null;
-  const imagen = cloudinaryId
-    ? { cloudinaryId, alt: marca.heroImagenAlt ?? base.imagen?.alt ?? titulo }
+  const imageRef = marca.heroImagenId ?? refDeHeroImagen(base.imagen);
+  // Las dos claves: `imageRef` para el `Hero` de hoy y `cloudinaryId` (el
+  // nombre viejo) para el `tienda.ts` o la portada rediseñada de una tienda
+  // que todavía los usa — así su markup viejo recibe la referencia de R2.
+  // Variable y no literal: con el `Hero` viejo de la tienda (sin `imageRef`)
+  // un literal fallaría por propiedad de más.
+  const imagen = imageRef
+    ? {
+        imageRef,
+        cloudinaryId: imageRef,
+        alt: marca.heroImagenAlt ?? base.imagen?.alt ?? titulo,
+      }
     : null;
 
   return { titulo, texto, cta, imagen };

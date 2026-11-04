@@ -37,8 +37,10 @@ import {
   previewPriceAdjustment,
 } from "@/domain/admin-bulk";
 import { sweepBackInStock } from "@/domain/stock-alerts";
-import { validateProductImage } from "@/domain/product-images";
-import { carpetaProductos, cloudinary } from "@/lib/cloudinary";
+import { subirFotoDelPanel } from "@/domain/product-images";
+import { getDb } from "@/db";
+import { products } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import {
   spreadsheetToCsvText,
   UnsupportedSpreadsheetError,
@@ -413,9 +415,10 @@ export async function adjustVariantStock(
 /**
  * Subida de una foto de producto.
  *
- * Va a la carpeta pública `productos/` — al revés que los comprobantes, esto
- * tiene que servirse por CDN sin firmar. El tipo se valida por los bytes
- * antes de subir.
+ * El navegador manda la foto ya preparada (WebP por caja + JPEG, ver
+ * `src/lib/preparar-imagen.ts`); acá se verifica por los bytes, se escribe en
+ * R2 con claves inmutables y **recién después** se inserta la fila de la
+ * galería. Si R2 falla, no queda ninguna fila apuntando a la nada.
  */
 export async function uploadProductImage(
   formData: FormData
@@ -428,26 +431,25 @@ export async function uploadProductImage(
       return { ok: false, error: t("adminError.productoInvalido") };
     }
 
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
       return { ok: false, error: t("adminError.elegiFoto") };
     }
 
-    const content = Buffer.from(await file.arrayBuffer());
-    const { mime } = validateProductImage({
-      bytes: content.byteLength,
-      content,
-    });
+    const [producto] = await getDb()
+      .select({ slug: products.slug })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
+    if (!producto) {
+      return { ok: false, error: t("adminError.productoInvalido") };
+    }
 
-    const uploaded = await cloudinary.uploader.upload(
-      `data:${mime};base64,${content.toString("base64")}`,
-      { folder: carpetaProductos(), resource_type: "image", overwrite: false }
-    );
+    const imageRef = await subirFotoDelPanel(formData, producto.slug, "producto");
 
     const alt = String(formData.get("alt") ?? "").trim();
     await addProductImage({
       productId,
-      cloudinaryId: uploaded.public_id,
+      imageRef,
       alt: alt === "" ? null : alt.slice(0, 255),
     });
 
@@ -503,9 +505,10 @@ export async function removeProductImage(
       return { ok: false, error: t("adminError.imagenInvalida") };
     }
 
-    // Se borra sólo la fila. El archivo queda en Cloudinary a propósito: si
-    // la imagen está referenciada en otro lado, borrarla del CDN rompe esa
-    // página, y el costo de una foto huérfana es despreciable.
+    // Se borra sólo la fila, **nunca** los bytes de R2: la clave sale del
+    // contenido, así que la misma foto puede estar en otro producto, en una
+    // categoría o en un backup que la nombra; borrarla rompería esa página, y
+    // el costo de un objeto huérfano es despreciable.
     await deleteProductImage(parsed.data.imageId);
 
     revalidatePath(`/admin/productos/${parsed.data.productId}`);

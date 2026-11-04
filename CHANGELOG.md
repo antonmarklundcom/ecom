@@ -60,6 +60,37 @@ funciones nuevas; **parche** para arreglos.
   - Una tienda existente: después del deploy, correr el setup para aplicar la
     `0025` (como toda migración). Su `tienda.ts` no necesita cambios; el campo
     `proveedores` es opcional.
+- **R2 reemplaza a Cloudinary para fotos, comprobantes y backups.** Migración:
+  no (las columnas `cloudinary_id` quedan con su nombre; cambian sólo las
+  propiedades de TypeScript: `imageRef`, `storageKey`, `qrImageRef`). **Cada
+  tienda tiene que hacer algo a mano** antes de subir fotos o recibir
+  comprobantes: crear su bucket de R2 con dominio público, la regla de WAF que
+  bloquea `/comprobantes/*` y `/backups/*`, y un token del bucket, y cargarlo en
+  `/admin/integraciones` → R2 (DEPLOY.md §3b). Las que ya tenían fotos en
+  Cloudinary corren una vez `pnpm fotos:migrar-cloudinary -- --cloud <nombre>
+  --aplicar` (NEW-STORE.md § "Migrar las fotos a R2"); hasta entonces cada foto
+  vieja se ve como el placeholder, nunca rota. `TIENDA.hero.imagen.cloudinaryId`
+  pasa a ser `imageRef` en `src/config/tienda.ts`.
+  - Integración R2 (Account ID, access key, secret cifrado, bucket, dominio
+    público; panel > entorno > apagado) y "Probar conexión" que escribe, lee
+    y borra un archivo privado y avisa si el dominio público lo sirve.
+  - Fotos del panel (producto, categoría, portada, logo, favicon, QR):
+    preparadas en el navegador (WebP 240/480/800/1200 + JPEG, ≤ 1200 px),
+    verificadas en el servidor por los bytes, claves inmutables con el hash
+    del contenido, y la fila se inserta recién después de escribir en R2.
+    Se dibujan con `<picture>` y `srcset`.
+  - La importación por planilla baja las fotos en el servidor (https, topes de
+    tiempo, tamaño y redirecciones, contenido mirado por los bytes); nuevos
+    `pnpm fotos:preparar`, `fotos:subir` y `fotos:reparar` para cargas grandes.
+  - Comprobantes privados en `comprobantes/` con URL prefirmada de 2 minutos.
+  - Backup en un set por tabla con un manifiesto escrito al final; `pnpm
+    restore -- --r2 ultimo` y `pnpm restore` rechaza un set incompleto o con un
+    conteo o hash que no coincide (el `.jsonl.gz` de formato 2 sigue andando).
+  - `pnpm preflight` bloquea sin R2, sale con 1 si el dominio público sirve un
+    canario privado, y avisa cuántas referencias de fotos no son de R2.
+  - CSP: `img-src` con el dominio público del bucket (y, en el panel, el
+    endpoint S3 de la cuenta para ver comprobantes). Sale la dependencia
+    `cloudinary`; entran `aws4fetch` y `sharp`.
 
 - **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   F1–F6). Sin migración.

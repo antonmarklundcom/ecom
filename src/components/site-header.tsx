@@ -28,7 +28,7 @@ export async function SiteHeader() {
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
         <Link href="/" className="text-lg font-semibold tracking-tight">
           {marca.logoUrl ? (
-            // `<img>` y no `next/image`: Cloudinary ya lo entrega al tamaño justo.
+            // `<img>` y no `next/image`: el archivo de R2 ya viene al tamaño justo.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={marca.logoUrl}

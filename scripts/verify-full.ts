@@ -19,7 +19,7 @@ const env: NodeJS.ProcessEnv = {
 };
 for (const key of Object.keys(env)) {
   if (
-    /^(CLOUDINARY_|WHATSAPP_|PAGOPAR_|BANCO_|NEXT_PUBLIC_GA4_|NEXT_PUBLIC_META_)/.test(
+    /^(R2_|WHATSAPP_|PAGOPAR_|BANCO_|NEXT_PUBLIC_GA4_|NEXT_PUBLIC_META_)/.test(
       key
     ) ||
     key === "ERROR_REPORT_URL"
@@ -41,9 +41,10 @@ for (const fields of Object.values(CAMPOS))
 for (const args of [["typecheck"], ["lint"], ["test", "--maxWorkers=2"]]) {
   runPnpm(args, { stdio: "inherit", env });
 }
-// Synthetic image URL namespace for browser fixtures only. Unit tests also
-// verify the default without Cloudinary; no live API credentials are needed.
-env.CLOUDINARY_CLOUD_NAME = "disposable-gallery-fixture";
+// Synthetic public image base for browser fixtures only (a reserved `.test`
+// host the specs intercept). Unit tests also verify the default without R2;
+// no live credentials are needed.
+env.R2_PUBLIC_URL = "https://imagenes.fixture.test";
 for (const args of [
   ["exec", "tsx", "scripts/prepare-browser-tests.ts"],
   ["build"],

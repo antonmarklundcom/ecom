@@ -56,7 +56,7 @@ pnpm importar:productos scripts/fixtures/catalogo-demo.csv --aplicar  # escribe
 | 9 | `IVA` | | `10`, `5` o `0`. | no se toca; 10 en un alta |
 | 10 | `Precio antes (₲)` | | El precio tachado. `0` es un valor guardado y vuelve igual. | **se borra** |
 | 11 | `Slug` | | La URL del producto. Es **cómo se encuentra el producto**: sin Slug sale del nombre. | sale del nombre |
-| 12 | `Fotos` | | URLs `https://` separadas por `\|`, espacio o salto de línea; hasta 10 por producto. | nada que subir |
+| 12 | `Fotos` | | URLs `https://` o referencias `r2:p1/…@AxB`, separadas por `\|`, espacio o salto de línea; hasta 10 por producto. | nada que subir |
 | 13 | `Proveedor` | | Nombre del proveedor de la variante (oferta). Sólo con proveedores. | no hay oferta en la fila |
 | 14 | `URL proveedor` | | Enlace privado de compra del producto (`https://`, sin usuario ni contraseña). Sólo con proveedores. | **se borra** |
 | 15 | `Costo proveedor` | | Costo unitario en ₲ de esa oferta. Sólo con proveedores. | se borra (y deja de ser preferida) |
@@ -101,9 +101,14 @@ suele ser un encabezado mal escrito.
   producto (nombre, slug) y por el orden de las variantes.
 - `Precio`, `Stock`, `Costo` como enteros pelados (la planilla los suma).
 - `Mostrar precio` como `true`/`false`.
-- `Fotos`: las URLs públicas de las fotos del producto, en la primera fila de
-  cada producto. Otra tienda que importa el archivo las sube a su propio
-  almacenamiento; la misma tienda no las vuelve a subir.
+- `Fotos`: la URL pública del **JPEG** de cada foto del producto en R2, en la
+  primera fila de cada producto. Es una `https://` común: otra tienda que
+  importa el archivo la baja, la achica y la sube a **su** bucket. La misma
+  tienda no la vuelve a bajar, porque las fotos sólo se agregan a un producto
+  que no tiene ninguna. No se exporta la referencia `r2:` porque sólo vale en
+  el bucket que la tiene: en otra tienda sería un error ("no está en el
+  bucket"). Importar el export en una base vacía de la misma tienda sí vuelve
+  a bajar las fotos (una vez por producto; no duplica filas).
 - Proveedor, Costo y Stock proveedor de la oferta **preferida** de cada
   variante; URL proveedor de `products.supplier_url`.
 
@@ -153,7 +158,12 @@ Con proveedores:
    ofertas en una transacción); un lote que falla no deshace los anteriores.
    Cada lote se vuelve a planificar contra la base de ese momento.
 4. **Fotos**, después del commit de cada lote: sólo a productos que todavía no
-   tienen ninguna (así reimportar no duplica). Sin almacenamiento de fotos
+   tienen ninguna (así reimportar no duplica). Una URL `https://` la baja el
+   servidor (`src/lib/descarga-segura.ts`: sólo https, topes de tamaño,
+   tiempo y redirecciones, y el contenido mirado por los bytes), la achica a
+   WebP + JPEG y la sube a R2; una referencia `r2:p1/…` (de `pnpm
+   fotos:preparar` + `pnpm fotos:subir`) se usa sólo si el objeto existe en el
+   bucket. Una foto que falla se informa y no frena el resto. Sin R2
    configurado se avisa y se sigue sin ellas.
 
 Reglas que protegen lo cargado (docs/TEMPLATE-IMPROVEMENT-PLAN.md C1–C7):

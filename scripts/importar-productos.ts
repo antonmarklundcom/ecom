@@ -31,10 +31,12 @@ import { safeError } from "../src/lib/safe-error";
  * como venga; un `.xlsx` se lee de su primera hoja. Para probar con datos de
  * ejemplo: `pnpm importar:productos scripts/fixtures/catalogo-demo.csv`.
  *
- * **Fotos**: URLs `https://` separadas por `|`, espacio o salto de línea —
- * este script nunca las descarga. Sólo se suben a un producto que hoy no
- * tiene ninguna foto, igual que una carga a mano; si el almacenamiento de
- * fotos no está configurado se avisa y se sigue sin ellas.
+ * **Fotos**: URLs `https://` (o referencias `r2:p1/…` de `pnpm fotos:preparar`)
+ * separadas por `|`, espacio o salto de línea. Las URLs las baja este proceso
+ * (https, con topes de tamaño, tiempo y redirecciones, y mirando que sean
+ * imágenes por los bytes), las achica y las sube a R2. Sólo se suben a un
+ * producto que hoy no tiene ninguna foto, igual que una carga a mano; si R2
+ * no está configurado se avisa y se sigue sin ellas.
  *
  * **Proveedores** (Proveedor, URL proveedor, Costo proveedor, Stock
  * proveedor): sólo con `proveedores: true` en `src/config/tienda.ts`; si no,
@@ -221,7 +223,7 @@ async function main(): Promise<void> {
   console.log(`✓ ${productosEscritos} productos escritos`);
   if (fotosOmitidas > 0) {
     console.log(
-      `⚠ ${fotosOmitidas} fotos NO se subieron: el almacenamiento de fotos no está configurado (ver docs/ENV-OPCIONAL.md).`
+      `⚠ ${fotosOmitidas} fotos NO se subieron: R2 no está configurado (ver docs/ENV-OPCIONAL.md).`
     );
   } else if (fotosSubidas > 0) {
     console.log(`✓ ${fotosSubidas} fotos subidas`);

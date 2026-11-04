@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
 
 import { CATALOGUE } from "@/config/catalogue";
 import { CatalogueEditorial } from "@/components/catalogue-editorial";
+import { ImagenR2 } from "@/components/imagen-r2";
 import { AttributeFilters } from "@/components/attribute-filters";
 import {
   getCatalogueFacets,
@@ -18,7 +18,7 @@ import { ProductDescription } from "@/components/product-description";
 import { Button } from "@/components/ui/button";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
-import { productImageUrl } from "@/lib/images";
+import { productImageSources } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
 import { parsePriceRange } from "@/lib/price-ranges";
 import { breadcrumbJsonLd, itemListJsonLd, jsonLdScript } from "@/lib/seo";
@@ -112,9 +112,10 @@ export default async function CategoryPage({
   // esta ruta tampoco lleva loading.tsx.
   if (!category) notFound();
 
-  // `null` sin `CLOUDINARY_CLOUD_NAME` o sin foto cargada — la página cae al
-  // encabezado de texto de siempre (plan-operacion §6.3).
-  const categoryImageUrl = productImageUrl(category.imageCloudinaryId, "hero");
+  // `null` sin base pública de R2 o sin foto cargada (o una referencia que no
+  // es de R2) — la página cae al encabezado de texto de siempre
+  // (plan-operacion §6.3).
+  const categoryImage = productImageSources(category.imageRef, "hero");
 
   const sortParam = first(query.orden);
   const { min, max } = parsePriceRange(first(query.precio));
@@ -204,15 +205,14 @@ export default async function CategoryPage({
 
       {/* Sin foto ni descripción cargadas (O7, `/admin/categorias`), esta
           página queda exactamente igual que antes de esta sección. */}
-      {categoryImageUrl || category.description ? (
+      {categoryImage || category.description ? (
         <div className="mt-5">
-          {categoryImageUrl ? (
+          {categoryImage ? (
             <div className="bg-muted relative aspect-[16/5] w-full overflow-hidden rounded-xl">
-              <Image
-                src={categoryImageUrl}
+              <ImagenR2
+                fuentes={categoryImage}
                 alt={category.imageAlt ?? category.name}
                 fill
-                unoptimized
                 priority
                 sizes="(max-width: 1024px) 100vw, 1152px"
                 className="object-cover"
@@ -222,7 +222,7 @@ export default async function CategoryPage({
           {category.description ? (
             <ProductDescription
               markdown={category.description}
-              className={categoryImageUrl ? "mt-4" : undefined}
+              className={categoryImage ? "mt-4" : undefined}
             />
           ) : null}
         </div>

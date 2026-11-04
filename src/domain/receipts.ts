@@ -97,13 +97,13 @@ export async function assertCanUpload(orderId: number, executor?: Executor): Pro
 }
 
 export async function recordReceipt(
-  input: { orderId: number; cloudinaryId: string; mime: string; bytes: number },
+  input: { orderId: number; storageKey: string; mime: string; bytes: number },
   executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
   await tx.insert(receipts).values({
     orderId: input.orderId,
-    cloudinaryId: input.cloudinaryId,
+    storageKey: input.storageKey,
     mime: input.mime,
     bytes: input.bytes,
     review: "pending",
@@ -142,7 +142,7 @@ export async function pendingReceipts(executor?: Executor) {
  */
 export async function finalizeUploadedReceipt(input: {
   orderId: number;
-  cloudinaryId: string;
+  storageKey: string;
   mime: string;
   bytes: number;
 }): Promise<void> {

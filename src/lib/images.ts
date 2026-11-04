@@ -1,92 +1,99 @@
 /**
- * URLs de entrega de imágenes públicas de producto.
+ * URLs de entrega de las imágenes públicas (R2, formato `p1`:
+ * `src/lib/imagenes-r2.ts`).
  *
- * A propósito NO importa `src/lib/cloudinary.ts`: ese módulo configura el SDK
- * con el api_secret y explota al importarse si falta una variable. Armar una
- * URL de entrega pública no necesita ningún secreto, y la vidriera no puede
- * caerse porque el comercio todavía no cargó las credenciales.
+ * Armar una URL pública no necesita ningún secreto: sólo la **base pública**
+ * del bucket (`R2_PUBLIC_URL`, o la cargada en `/admin/integraciones`). La
+ * vidriera no se puede caer porque el comercio todavía no cargó las
+ * credenciales: sin base, o con una referencia que no es de R2 (un id viejo de
+ * antes de la migración, un texto pegado a mano), todo da `null` y quien
+ * llama muestra el placeholder — nunca una URL rota.
  */
 
+import {
+  fuentesR2,
+  normalizarBasePublica,
+  urlR2,
+  type FuentesR2,
+  type ImageSize,
+} from "./imagenes-r2";
 
-/** Lo registra `src/lib/integraciones.ts` al cargarse (ver `cloudName`). */
-const LECTOR_CLOUD_NAME = Symbol.for("ecom.integraciones.cloudName");
+export type { ImageSize } from "./imagenes-r2";
+
+/** Lo registra `src/lib/integraciones.ts` al cargarse (ver `basePublicaImagenes`). */
+const LECTOR_BASE_PUBLICA = Symbol.for("ecom.integraciones.r2PublicUrl");
+
+/** El `<meta>` que deja el layout para los componentes cliente. */
+export const META_BASE_IMAGENES = "ecom-imagenes";
+
+let baseDelDocumento: string | null | undefined;
 
 /**
- * El `cloud_name`, panel > entorno (src/lib/integraciones.ts). Se lee en cada
- * llamada: el dueño lo puede cargar desde el panel sin redeploy.
+ * La base pública de las imágenes, panel > entorno. Se lee en cada llamada: el
+ * dueño la puede cargar desde el panel sin redeploy.
  *
  * **No importa `integraciones.ts`**, a propósito: este archivo lo usan
  * componentes cliente, y ese módulo (con la tabla de campos de todas las
  * integraciones) inflaba el JS de la home por encima del presupuesto de
  * `tests/e2e/presupuesto.spec.ts`. En el servidor, `integraciones.ts` deja un
  * lector en `globalThis` al cargarse (lo carga `instrumentation.ts` al
- * arrancar); sin él, el entorno de siempre. En el navegador no hay ni lector
- * ni entorno y da `null`, como siempre.
+ * arrancar); sin él, el entorno. En el navegador la lee del
+ * `<meta name="ecom-imagenes">` que dibuja el layout con el mismo valor que
+ * usó el servidor, así el primer render del cliente da lo mismo que el HTML.
  */
-function cloudName(): string | null {
-  const lector = (globalThis as { [LECTOR_CLOUD_NAME]?: () => string | null })[LECTOR_CLOUD_NAME];
-  if (lector) return lector();
+export function basePublicaImagenes(): string | null {
+  // En el navegador manda el `<meta>`, siempre: aunque algún módulo cliente
+  // haya cargado `integraciones.ts` (y su lector), ahí no hay foto ni entorno.
+  if (typeof document !== "undefined") {
+    if (baseDelDocumento === undefined) {
+      const meta = document.querySelector<HTMLMetaElement>(
+        `meta[name="${META_BASE_IMAGENES}"]`
+      );
+      // Sin `<meta>` todavía no se cachea: un test que lo agrega después lo ve.
+      if (!meta) return null;
+      baseDelDocumento = normalizarBasePublica(meta.content);
+    }
+    return baseDelDocumento;
+  }
+  const lector = (globalThis as { [LECTOR_BASE_PUBLICA]?: () => string | null })[
+    LECTOR_BASE_PUBLICA
+  ];
+  if (lector) return normalizarBasePublica(lector());
   if (typeof process === "undefined") return null;
-  return (process.env.CLOUDINARY_CLOUD_NAME ?? "").trim() || null;
+  return normalizarBasePublica(process.env.R2_PUBLIC_URL);
 }
 
-/** Transformaciones por defecto: formato y calidad los decide Cloudinary. */
-const DEFAULT_TRANSFORMS = "f_auto,q_auto";
-
-export type ImageSize = "thumb" | "card" | "detail" | "og" | "hero" | "qr" | "logo" | "favicon";
+/** Sólo tests: olvida la base leída del documento. */
+export function resetBaseImagenesForTests(): void {
+  baseDelDocumento = undefined;
+}
 
 /**
- * 1200×630 es la caja que esperan WhatsApp, Instagram y Facebook. `c_fill` y
- * no `c_fit`: una foto cuadrada metida en un lienzo 1.91:1 sale con dos
- * franjas vacías a los costados, y en la previsualización del chat eso se ve
- * como un error del comercio.
+ * 1200×630 es la caja que esperan WhatsApp, Instagram y Facebook para la
+ * imagen de Open Graph que se dibuja (`opengraph-image.tsx`).
  */
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
 
-const SIZE_TRANSFORMS: Record<ImageSize, string> = {
-  thumb: "c_fill,w_160,h_160",
-  card: "c_fill,w_600,h_600",
-  detail: "c_fit,w_1200,h_1200",
-  og: `c_fill,w_${OG_IMAGE_SIZE.width},h_${OG_IMAGE_SIZE.height}`,
-  /**
-   * La portada de la home (PR O). Ancha y baja, y con `c_fill` para que una
-   * foto vertical no salga con franjas: es la primera pantalla y ahí una
-   * imagen deformada o con bordes vacíos se lee como tienda descuidada.
-   *
-   * 1600 de ancho y no 2400: el techo real de este template es una pantalla de
-   * escritorio común, y en el celular paraguayo cada 100 kB de portada son
-   * segundos antes de ver un producto (ARCH.md §6).
-   */
-  hero: "c_fill,w_1600,h_600",
-  /**
-   * El QR del SPI (PR T). `c_fit` y no `c_fill`: recortar un QR lo rompe —
-   * deja de escanear— y ahí no hay "se ve un poco mal", hay una compradora
-   * parada frente a la app del banco que no puede pagar.
-   */
-  qr: "c_fit,w_600,h_600",
-  /**
-   * El logo del header (`/admin/ajustes` → Identidad). `c_fit` para no
-   * recortar un logo apaisado; 96 de alto alcanza para el doble de densidad
-   * del header (h-8/h-10).
-   */
-  logo: "c_fit,h_96,w_480",
-  /** El favicon: cuadrado, chico, recortado al centro. */
-  favicon: "c_fill,w_64,h_64",
-};
-
 /**
- * `productImageUrl("productos/remera-azul", "card")`.
- * Devuelve `null` si no hay cloud configurado o el id está vacío — quien
+ * `productImageUrl("r2:p1/remera-azul-3f9a0c12de@1200x1200", "card")`.
+ * Devuelve `null` si no hay base pública o la referencia no es de R2 — quien
  * llama muestra el placeholder.
  */
 export function productImageUrl(
-  cloudinaryId: string | null | undefined,
-  size: ImageSize = "card"
+  imageRef: string | null | undefined,
+  size: ImageSize = "card",
+  base: string | null = basePublicaImagenes()
 ): string | null {
-  const cloud = cloudName();
-  if (!cloud || !cloudinaryId) return null;
-  const transforms = `${DEFAULT_TRANSFORMS},${SIZE_TRANSFORMS[size]}`;
-  return `https://res.cloudinary.com/${cloud}/image/upload/${transforms}/${cloudinaryId}`;
+  return urlR2(imageRef, size, base);
+}
+
+/** Todo lo que necesita un `<picture>` (WebP por caja + JPEG). `null` = placeholder. */
+export function productImageSources(
+  imageRef: string | null | undefined,
+  size: ImageSize = "card",
+  base: string | null = basePublicaImagenes()
+): FuentesR2 | null {
+  return fuentesR2(imageRef, base, size);
 }
 
 /**
@@ -112,10 +119,10 @@ export function categoryPlaceholderSrc(categorySlug: string): string {
 /**
  * El QR SPI del comercio, subido desde `/admin/banco` (PLAN.md FASE 2, PR T).
  *
- * Es la misma URL pública de siempre con la transformación `qr`; existe como
- * función propia para que quien la lee no tenga que acordarse de pasar el
- * tamaño correcto, que en un QR no es cosmético (ver arriba).
+ * El archivo más grande, sin recortar: recortar un QR lo rompe —deja de
+ * escanear— y ahí no hay "se ve un poco mal", hay una compradora parada frente
+ * a la app del banco que no puede pagar.
  */
-export function bankQrUrl(cloudinaryId: string | null | undefined): string | null {
-  return productImageUrl(cloudinaryId, "qr");
+export function bankQrUrl(imageRef: string | null | undefined): string | null {
+  return productImageUrl(imageRef, "qr");
 }

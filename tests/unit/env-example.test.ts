@@ -42,7 +42,7 @@ const NO_DOCUMENTADAS = new Set([
 ]);
 
 /** Prefijos de configuración de la tienda: un literal con esta forma es una variable. */
-const PREFIJOS = /^(WHATSAPP|PAGOPAR|CLOUDINARY|BANCO|FACTURAPY|OWNER|CUSTOMER|ERROR_REPORT|NEXT_PUBLIC)_[A-Z0-9_]+$/;
+const PREFIJOS = /^(WHATSAPP|PAGOPAR|R2|BANCO|FACTURAPY|OWNER|CUSTOMER|ERROR_REPORT|NEXT_PUBLIC)_[A-Z0-9_]+$/;
 
 function clavesDotenv(texto: string): string[] {
   return [...texto.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map(([, clave]) => clave ?? '');
@@ -73,8 +73,8 @@ describe('docs/ENV-OPCIONAL.md', () => {
   });
 
   it('ningún secreto trae un valor de ejemplo que cuente como configurado', async () => {
-    // `CLOUDINARY_*="changeme"` en un bloque copiado a `.env.local` hacía que
-    // `cloudinaryConfigured()` diera true con credenciales falsas.
+    // Un `="changeme"` en un bloque copiado a `.env.local` hacía que una
+    // integración diera "configurada" con credenciales falsas.
     const docs = await leer('docs/ENV-OPCIONAL.md');
     const conValor = [...docs.matchAll(/^([A-Z][A-Z0-9_]*)="([^"\n]+)"$/gm)]
       .map(([, clave]) => clave)

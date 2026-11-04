@@ -25,10 +25,11 @@ import { listPreferredSupplierOffers } from "./supplier-offers";
  * derivado del nombre no siempre es el guardado), la descripción, la marca,
  * el IVA y el precio antes —con su ₲0 tal cual, si es lo que hay guardado—.
  *
- * **Fotos** son las URLs públicas de entrega de las fotos del producto, en la
- * primera fila de cada producto: otra tienda que importa el archivo las sube
- * a su propio almacenamiento; la misma tienda no las vuelve a subir (sólo se
- * agregan a un producto sin ninguna foto).
+ * **Fotos** son las URLs públicas del JPEG de cada foto del producto (R2), en
+ * la primera fila de cada producto: otra tienda que importa el archivo las
+ * baja, las achica y las sube a su propio bucket; la misma tienda no las
+ * vuelve a subir (sólo se agregan a un producto sin ninguna foto). No se
+ * exporta la referencia `r2:` porque sólo sirve en el mismo bucket.
  *
  * Las de **proveedor** (Proveedor, URL proveedor, Costo proveedor, Stock
  * proveedor) se escriben sólo con `proveedores: true` —el flag y el permiso
@@ -118,7 +119,7 @@ export async function listCatalogExportRows(
     const imagenes = await tx
       .select({
         productId: productImages.productId,
-        cloudinaryId: productImages.cloudinaryId,
+        imageRef: productImages.imageRef,
       })
       .from(productImages)
       .where(inArray(productImages.productId, productIds))
@@ -128,7 +129,9 @@ export async function listCatalogExportRows(
         asc(productImages.id)
       );
     for (const imagen of imagenes) {
-      const url = productImageUrl(imagen.cloudinaryId, "detail");
+      // El JPEG de respaldo: una URL https que cualquier tienda baja y
+      // vuelve a preparar (WebP + JPEG) en su propio bucket.
+      const url = productImageUrl(imagen.imageRef, "og");
       if (!url) continue;
       const lista = fotosPorProducto.get(imagen.productId) ?? [];
       if (lista.length < MAX_FOTOS_EXPORT) lista.push(url);

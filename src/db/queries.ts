@@ -60,7 +60,7 @@ export type CatalogVariant = {
 };
 
 export type CatalogImage = {
-  cloudinaryId: string;
+  imageRef: string;
   blurDataUrl: string | null;
   alt: string | null;
   /**
@@ -192,7 +192,7 @@ async function hydrate(
   const imageRows = await tx
     .select({
       productId: productImages.productId,
-      cloudinaryId: productImages.cloudinaryId,
+      imageRef: productImages.imageRef,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
       position: productImages.position,
@@ -232,7 +232,7 @@ async function hydrate(
   for (const row of imageRows) {
     const list = imagesByProduct.get(row.productId) ?? [];
     list.push({
-      cloudinaryId: row.cloudinaryId,
+      imageRef: row.imageRef,
       blurDataUrl: row.blurDataUrl,
       alt: row.alt,
       provenance: effectiveProvenance(
@@ -500,7 +500,7 @@ export async function getProductBySlug(
 
   const imageRows = await tx
     .select({
-      cloudinaryId: productImages.cloudinaryId,
+      imageRef: productImages.imageRef,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
       provenance: productImages.provenance,
@@ -1070,7 +1070,7 @@ export async function getFeedProducts(
   const imageRows = await tx
     .select({
       productId: productImages.productId,
-      cloudinaryId: productImages.cloudinaryId,
+      imageRef: productImages.imageRef,
       blurDataUrl: productImages.blurDataUrl,
       alt: productImages.alt,
       provenance: productImages.provenance,

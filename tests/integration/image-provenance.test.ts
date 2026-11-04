@@ -43,8 +43,8 @@ describe.skipIf(!hasTestDb)("procedencia por foto", () => {
       compareAtPyg: null,
       isActive: true,
     });
-    for (const [index, cloudinaryId] of ["frente", "dorso"].entries())
-      await addProductImage({ productId, cloudinaryId, alt: `Foto ${index}` });
+    for (const [index, imageRef] of ["frente", "dorso"].entries())
+      await addProductImage({ productId, imageRef, alt: `Foto ${index}` });
     const ids = (
       await getTestDb()
         .select({ id: productImages.id })
@@ -71,7 +71,7 @@ describe.skipIf(!hasTestDb)("procedencia por foto", () => {
     ]);
     // Afuera sale sólo la propia: antes, con la marca a nivel producto,
     // salían las dos o ninguna.
-    expect(outsideImages(ficha!.images).map((i) => i.cloudinaryId)).toEqual([
+    expect(outsideImages(ficha!.images).map((i) => i.imageRef)).toEqual([
       "dorso",
     ]);
     const feed = await getFeedProducts();

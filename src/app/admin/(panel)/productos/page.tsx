@@ -9,7 +9,6 @@ import { listAdminProducts, listCategories } from "@/domain/admin-products";
 import { isAdminProductSort } from "@/lib/admin-product-sort";
 import { requireCapabilityPage } from "@/lib/admin-guard";
 import { can } from "@/lib/permissions";
-import { productImageUrl } from "@/lib/images";
 import { t } from "@/i18n";
 
 export const metadata: Metadata = { title: t("panel.productos.meta") };
@@ -121,8 +120,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             onHand: product.onHand,
             isActive: product.isActive,
             publishedAt: product.publishedAt ? product.publishedAt.toISOString() : null,
-            imageCloudinaryId: product.imageCloudinaryId,
-            imageUrl: productImageUrl(product.imageCloudinaryId, "thumb"),
+            imageRef: product.imageRef,
             imageAlt: product.imageAlt,
             isFeatured: product.isFeatured,
           }))}

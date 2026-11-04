@@ -118,7 +118,7 @@ describe("la vidriera no dibuja datos de proveedores", () => {
         {
           ...producto,
           description: producto.description ?? "",
-          images: ["https://res.cloudinary.com/x/termo.jpg"],
+          images: ["https://imagenes.example.com/termo.jpg"],
         },
       ],
     });

@@ -1,12 +1,31 @@
 import "@/lib/load-env";
 
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { closePool } from "@/db";
-import { restoreBackup } from "@/domain/restore-backup";
+import {
+  descargarSet,
+  restoreBackup,
+  ultimoSetCompleto,
+} from "@/domain/restore-backup";
+import { clienteR2 } from "@/lib/r2";
 import { safeError } from "@/lib/safe-error";
 
 /**
- * `pnpm restore -- <archivo.jsonl.gz>` — reconstruye una base desde un backup
- * de `src/domain/backup.ts` (plan-operacion §5.4 A).
+ * `pnpm restore -- <origen>` — reconstruye una base desde un backup de
+ * `src/domain/backup.ts` (plan-operacion §5.4 A). El origen puede ser:
+ *
+ *   pnpm restore -- --r2 ultimo                    # el set completo más nuevo de R2
+ *   pnpm restore -- --r2 backup-2026-08-12T0300-…  # un set de R2 por nombre
+ *   pnpm restore -- ./backup-2026-08-12T0300-…/    # un set ya bajado (directorio)
+ *   pnpm restore -- copia.jsonl.gz                 # un archivo de formato 2
+ *
+ * Con `--r2`, las credenciales salen de `R2_*` en el entorno de la máquina de
+ * recuperación (la base destino está vacía: no hay panel del que leerlas). El
+ * set se baja a un directorio temporal, se verifica entero —un objeto de menos
+ * o un conteo/hash que no coincide lo rechaza— y recién ahí se carga.
  *
  * ### El candado, que es lo más importante de este archivo
  *
@@ -25,20 +44,35 @@ import { safeError } from "@/lib/safe-error";
  * conexión/transacción y verifica explícitamente las FK antes del commit.
  */
 
-export type Opciones = { archivo: string; vaciar: boolean; legacy?: boolean };
+export type Opciones = {
+  /** Archivo `.jsonl.gz` o directorio de un set. Vacío con `r2`. */
+  archivo: string;
+  vaciar: boolean;
+  legacy?: boolean;
+  /** Nombre del set en R2, o `ultimo`. */
+  r2?: string;
+};
 
 export function parseArgs(argv: string[]): Opciones {
   const args = argv.filter((arg) => arg !== "--");
-  const archivo = args.find((arg) => !arg.startsWith("--"));
-  if (!archivo) {
+  const r2Index = args.indexOf("--r2");
+  const r2 = r2Index >= 0 ? args[r2Index + 1] : undefined;
+  if (r2Index >= 0 && (!r2 || r2.startsWith("--"))) {
+    throw new Error("--r2 espera el nombre del set o `ultimo`");
+  }
+  const archivo = args.find(
+    (arg, index) => !arg.startsWith("--") && !(r2Index >= 0 && index === r2Index + 1)
+  );
+  if (!archivo && !r2) {
     throw new Error(
-      "Falta el archivo: pnpm restore -- backups/backup-2026-08-12T0300.jsonl.gz"
+      "Falta el origen: pnpm restore -- --r2 ultimo, o un directorio de set, o un .jsonl.gz"
     );
   }
   return {
-    archivo,
+    archivo: archivo ?? "",
     vaciar: !args.includes("--sin-vaciar"),
     legacy: args.includes("--legacy"),
+    ...(r2 ? { r2 } : {}),
   };
 }
 
@@ -66,9 +100,29 @@ export async function restaurar(opciones: Opciones) {
   return restoreBackup(opciones);
 }
 
+/** Baja el set de R2 a un directorio temporal y restaura desde ahí. */
+async function restaurarDesdeR2(opciones: Opciones) {
+  if (!baseEsRestaurable(process.env.DATABASE_URL ?? ""))
+    throw new Error("La base destino debe contener restore o test");
+  const cliente = clienteR2();
+  const setId =
+    opciones.r2 === "ultimo" ? await ultimoSetCompleto(cliente) : opciones.r2!;
+  if (!setId) throw new Error("No hay ningún set completo en R2 (backups/)");
+  const dir = await mkdtemp(path.join(tmpdir(), "ecom-restore-set-"));
+  try {
+    console.log(`Bajando ${setId} de R2…`);
+    await descargarSet(cliente, setId, dir);
+    return await restaurar({ ...opciones, archivo: dir });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 async function main(): Promise<void> {
   const opciones = parseArgs(process.argv.slice(2));
-  const reporte = await restaurar(opciones);
+  const reporte = opciones.r2
+    ? await restaurarDesdeR2(opciones)
+    : await restaurar(opciones);
   if (reporte.keyMatches === false)
     console.warn(
       "SESSION_SECRET no coincide: las credenciales cifradas requieren la clave original"
