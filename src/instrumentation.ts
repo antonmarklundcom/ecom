@@ -127,11 +127,23 @@ export function cuerpoDelReporte(
  * se carga antes del primer request, así las lecturas síncronas —el CSP del
  * proxy, los senders de WhatsApp— ya ven lo que el dueño cargó en el panel.
  *
+ * En producción, además, el apagado ordenado (`src/lib/apagado-ordenado.ts`):
+ * con SIGTERM/SIGINT se terminan los requests en curso, se cierra el pool de
+ * MySQL y se sale, con plazo. Sólo con `NODE_ENV=production`: `next dev`
+ * maneja sus propias señales y los tests no pasan por acá.
+ *
  * Import dinámico y sólo en Node: este archivo también se carga en el runtime
  * edge, donde la base no existe. Nunca tira: sin base, todo sale del entorno.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.NODE_ENV === "production") {
+    const [{ instalarApagadoOrdenado }, { closePool }] = await Promise.all([
+      import("@/lib/apagado-ordenado"),
+      import("@/db"),
+    ]);
+    instalarApagadoOrdenado({ cerrar: closePool });
+  }
   const { cargarIntegraciones } = await import("@/lib/integraciones-store");
   await cargarIntegraciones({ forzar: true });
 }
