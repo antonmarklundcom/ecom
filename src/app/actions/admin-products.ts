@@ -245,6 +245,10 @@ export async function saveVariantSupplierOffer(
       nueva: parsed.data.offerId === undefined,
     });
     revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    // La oferta no se ve en la vidriera, pero toda escritura del catálogo
+    // invalida igual (`src/lib/revalidar-vidriera.ts`): una regla sin
+    // excepciones no se rompe el día que la ficha muestre algo de acá.
+    revalidarVidriera();
     return { ok: true, offerId };
   } catch (error) {
     return adminFieldError("saveVariantSupplierOffer", error, {
@@ -278,6 +282,7 @@ export async function deleteVariantSupplierOffer(
       ...parsed.data,
     });
     revalidatePath(`/admin/productos/${parsed.data.productId}`);
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("deleteVariantSupplierOffer", error);
