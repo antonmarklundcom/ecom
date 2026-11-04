@@ -393,6 +393,10 @@ Sin `CRON_SECRET` configurado (o con menos de 16 caracteres) la ruta responde
 503 y no vence nada: una ruta "abierta hasta que la configuren" es una ruta
 abierta.
 
+Cuando vence algo o borra reservas, la misma corrida tira la caché de la
+vidriera (ARCH.md §6, "Caché de la vidriera"): lo liberado se ve disponible en
+la próxima visita y no a los 5 minutos.
+
 ### La segunda entrada: el resumen diario (O6)
 
 `/api/cron/resumen-diario` le manda al dueño, por WhatsApp, las cuatro cosas
@@ -517,6 +521,20 @@ base ni la red, así que se puede correr todas las veces que quieras.
 
 Después, a mano: entrar a la tienda, agregar algo al carrito, llegar al
 checkout, y entrar a `/admin` con la cuenta del dueño.
+
+La caché de la vidriera (ARCH.md §6) se ve en los headers: la segunda vez que
+pedís una ficha tiene que decir `x-nextjs-cache: HIT`, y con un parámetro
+propio ir por request (sin ese header):
+
+```bash
+curl -sI https://TU-DOMINIO/producto/<slug> | grep -i x-nextjs-cache          # HIT (o MISS la primera vez)
+curl -sI "https://TU-DOMINIO/producto/<slug>?variante=<SKU>" | grep -i x-nextjs-cache   # nada
+```
+
+Esas páginas salen con `Cache-Control: s-maxage=300`. Si hay un CDN adelante
+del dominio (el de Hostinger u otro) y lo respeta, un cambio del panel puede
+tardar hasta 5 minutos en verse desde afuera aunque el servidor ya lo haya
+invalidado: si el dueño lo nota, es eso, no la tienda.
 
 ### ¿El redeploy tomó de verdad?
 

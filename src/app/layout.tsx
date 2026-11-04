@@ -14,6 +14,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { getStoreSettings } from "@/domain/store-settings";
 import { linkSeguro } from "@/domain/store-settings-schema";
 import { idiomaActivo } from "@/i18n";
+import { contactoPublico } from "@/lib/comercio";
+import { jsonLdScript, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
@@ -70,11 +72,29 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   // La foto de integraciones (GA4/Pixel, WhatsApp, Cloudinary) fresca para
   // este render: src/lib/integraciones.ts. Nunca tira.
-  const [{ anuncio }, marca] = await Promise.all([
+  const [{ anuncio }, marca, contacto] = await Promise.all([
     getStoreSettings(),
     marcaEfectiva(),
+    contactoPublico(),
     cargarIntegraciones(),
   ]);
+
+  // Quién es la tienda y dónde está su buscador, para Google, en todas las
+  // páginas de la vidriera. Nombre y logo de `/admin/ajustes` → Identidad
+  // (`marcaEfectiva`), contacto y redes de los ajustes. Sin dominio
+  // configurado no sale ninguno de los dos (ver `src/lib/seo.ts`).
+  const origin = siteOrigin();
+  const datosDeLaTienda = [
+    organizationJsonLd({
+      origin,
+      name: marca.nombre,
+      logo: marca.logoUrl,
+      telephone: contacto.whatsapp,
+      email: contacto.email,
+      sameAs: contacto.redes.map((red) => red.url),
+    }),
+    websiteJsonLd({ origin, name: marca.nombre }),
+  ].filter((dato) => dato !== null);
 
   // El idioma **efectivo** y no el que dice el config: si `TIENDA.lang` apunta
   // a un catálogo que no existe, los textos salen en es-PY y el `lang` del
@@ -94,6 +114,13 @@ export default async function RootLayout({
         <StorefrontShell
           storefrontBefore={
             <>
+              {datosDeLaTienda.map((dato) => (
+                <script
+                  key={String(dato["@type"])}
+                  type="application/ld+json"
+                  dangerouslySetInnerHTML={{ __html: jsonLdScript(dato) }}
+                />
+              ))}
               {anuncio.activo && anuncio.texto ? (
                 <AnnouncementBar
                   texto={anuncio.texto}

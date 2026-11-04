@@ -1017,28 +1017,55 @@ export async function getProductsBySlugs(
  * no necesita variantes, ni fotos, ni disponibilidad, y traerlas sería pagar
  * el `hydrate()` entero para tirarlo. El filtro es el mismo `PUBLISHED()` de
  * la vidriera: lo que no se ve, no se indexa.
+ *
+ * La fecha de una categoría es la del producto publicado suyo que cambió por
+ * último: es lo que cambia su página. `categories` no tiene `updated_at`, así
+ * que editar sólo el texto de la categoría no la mueve; una categoría sin
+ * productos publicados queda sin fecha (no se inventa una).
  */
 export async function getSitemapEntries(executor?: Executor): Promise<{
-  categories: { slug: string }[];
+  categories: { slug: string; updatedAt: Date | null }[];
   products: { slug: string; updatedAt: Date | null }[];
 }> {
   const tx = executor ?? getDb();
 
   const [categoryRows, productRows] = await Promise.all([
     tx
-      .select({ slug: categories.slug })
+      .select({ id: categories.id, slug: categories.slug })
       .from(categories)
       .where(eq(categories.isActive, true))
       .orderBy(asc(categories.position)),
     tx
-      .select({ slug: products.slug, updatedAt: products.updatedAt })
+      .select({
+        slug: products.slug,
+        updatedAt: products.updatedAt,
+        categoryId: products.categoryId,
+      })
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
       .where(PUBLISHED())
       .orderBy(asc(products.slug)),
   ]);
 
-  return { categories: categoryRows, products: productRows };
+  const ultimaPorCategoria = new Map<number, Date>();
+  for (const product of productRows) {
+    if (!product.updatedAt) continue;
+    const previa = ultimaPorCategoria.get(product.categoryId);
+    if (!previa || product.updatedAt > previa) {
+      ultimaPorCategoria.set(product.categoryId, product.updatedAt);
+    }
+  }
+
+  return {
+    categories: categoryRows.map((category) => ({
+      slug: category.slug,
+      updatedAt: ultimaPorCategoria.get(category.id) ?? null,
+    })),
+    products: productRows.map((product) => ({
+      slug: product.slug,
+      updatedAt: product.updatedAt,
+    })),
+  };
 }
 
 /**

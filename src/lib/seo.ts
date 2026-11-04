@@ -47,7 +47,8 @@ export type SitemapEntry = {
 };
 
 export type SitemapInput = {
-  categories: { slug: string }[];
+  /** `updatedAt`: el último cambio de un producto publicado suyo (ver `getSitemapEntries`). */
+  categories: { slug: string; updatedAt?: Date | null }[];
   products: { slug: string; updatedAt: Date | null }[];
   /** Las páginas de políticas prendidas (`/envios`, `/terminos`…), por slug. */
   pages?: string[];
@@ -85,11 +86,26 @@ export function jsonLdScript(value: unknown): string {
  */
 export function buildSitemap(origin: URL, input: SitemapInput): SitemapEntry[] {
   const base = origin.origin;
+  // La home lista destacados y categorías: cambia cuando cambia cualquier
+  // producto publicado. Sin ninguna fecha, sin `lastModified` (no se inventa).
+  const ultima = [...input.products, ...input.categories].reduce<Date | null>(
+    (max, entrada) =>
+      entrada.updatedAt && (!max || entrada.updatedAt > max)
+        ? entrada.updatedAt
+        : max,
+    null
+  );
 
   return [
-    { url: `${base}/`, changeFrequency: "daily", priority: 1 },
+    {
+      url: `${base}/`,
+      ...(ultima ? { lastModified: ultima } : {}),
+      changeFrequency: "daily",
+      priority: 1,
+    },
     ...input.categories.map((category) => ({
       url: `${base}/categoria/${category.slug}`,
+      ...(category.updatedAt ? { lastModified: category.updatedAt } : {}),
       changeFrequency: "daily" as const,
       priority: 0.8,
     })),
@@ -443,6 +459,12 @@ export function returnPolicyLd(m: MerchantPoliciesLd): JsonLd | null {
 export function organizationJsonLd(input: {
   origin: URL | null;
   name: string;
+  /**
+   * URL absoluta del logo (`marcaEfectiva().logoUrl`, el de `/admin/ajustes`
+   * → Identidad). Sin logo cargado no sale: el favicon o una foto de producto
+   * no son el logo, y Google lo muestra al lado del nombre.
+   */
+  logo?: string | null;
   /** Ya normalizado (`+595…`). */
   telephone?: string | null;
   email?: string | null;
@@ -469,10 +491,78 @@ export function organizationJsonLd(input: {
     "@type": "Organization",
     name: input.name,
     url: `${input.origin.origin}/`,
+    ...(input.logo && /^https:\/\//.test(input.logo)
+      ? { logo: input.logo }
+      : {}),
     ...(input.email ? { email: input.email } : {}),
     ...contacto,
     ...(input.sameAs && input.sameAs.length > 0
       ? { sameAs: input.sameAs }
       : {}),
   };
+}
+
+/**
+ * `WebSite` con el buscador de la tienda (`/buscar?q=`).
+ *
+ * Es lo que le dice a Google cómo se llama el sitio (el nombre que muestra
+ * arriba del resultado en vez del dominio pelado) y dónde está su buscador.
+ * Mismo criterio que `organizationJsonLd`: sin origen público no sale —un
+ * `SearchAction` con URL relativa no es válido—.
+ */
+export function websiteJsonLd(input: {
+  origin: URL | null;
+  name: string;
+}): JsonLd | null {
+  if (!input.origin) return null;
+  const base = input.origin.origin;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: input.name,
+    url: `${base}/`,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${base}/buscar?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
+}
+
+/** Lo mínimo de una categoría para armar su camino hasta la raíz. */
+export type CategoriaDelArbol = {
+  id: number;
+  slug: string;
+  name: string;
+  parentId: number | null;
+};
+
+/**
+ * El camino de una categoría desde la raíz: `[abuela, madre, ella]`.
+ *
+ * Sale de `categories.parent_id`. Recibe la lista de categorías **activas**
+ * (`getCategories()`): si una madre está desactivada el camino se corta ahí,
+ * porque su página da 404 y una miga de pan que lleva a un 404 es peor que
+ * una más corta. Un ciclo (A madre de B, B madre de A: no lo impide la base)
+ * también corta en vez de colgar el render.
+ *
+ * Sin la categoría en la lista devuelve `[]`.
+ */
+export function categoryTrail<T extends CategoriaDelArbol>(
+  categorias: readonly T[],
+  slug: string
+): T[] {
+  const porId = new Map(categorias.map((categoria) => [categoria.id, categoria]));
+  let actual = categorias.find((categoria) => categoria.slug === slug);
+  const camino: T[] = [];
+  const vistas = new Set<number>();
+  while (actual && !vistas.has(actual.id)) {
+    vistas.add(actual.id);
+    camino.unshift(actual);
+    actual = actual.parentId === null ? undefined : porId.get(actual.parentId);
+  }
+  return camino;
 }

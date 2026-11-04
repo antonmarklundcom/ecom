@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { cache } from "react";
 
 import { getDb } from "@/db";
@@ -187,7 +186,9 @@ export async function saveStoreSettingsSection(
     return siguiente;
   });
 
-  revalidarVidriera();
+  // La caché de la vidriera la tira quien guarda (`src/app/actions/admin-ajustes.ts`,
+  // con `revalidarVidriera()` de `src/lib/revalidar-vidriera.ts`): el dominio
+  // no sabe de Next.
   return guardado;
 }
 
@@ -206,14 +207,6 @@ export async function resetStoreSettingsSection(
         )
       : sinNulosDeTexto(DEFAULT_STORE_SETTINGS[section]);
   return saveStoreSettingsSection(section, porDefecto, actor);
-}
-
-/**
- * La portada, las páginas y la barra se dibujan en el layout raíz: hay que
- * tirar la caché de ISR de todo el sitio, no de una ruta.
- */
-function revalidarVidriera(): void {
-  revalidatePath("/", "layout");
 }
 
 function definidos(objeto: Record<string, unknown>): Record<string, unknown> {

@@ -947,6 +947,8 @@ esa traducción, para no volver a deducirla en cada sesión:
 | Resto de la home: grilla de destacados, categorías, secciones nuevas | `src/app/page.tsx` | Es de la tienda entera |
 | Ficha de producto en la grilla | `src/components/product-card.tsx` | El precio "desde" y el badge de stock salen de `price-tag.tsx` y `stock-badge.tsx` |
 | Foto de producto y sus placeholders | `src/components/product-image.tsx`, `public/placeholders/` | Cuatro placeholders dibujados, uno por categoría del seed; cualquier otra categoría cae en `categoria.svg` con su nombre en texto (no en el mismo dibujo de "producto sin foto") |
+| Ancho de las fotos en la grilla, la ficha y la portada | `src/lib/image-sizes.ts` (`IMAGE_SIZES`) | Si cambiás la grilla (3 columnas, otro contenedor), cambiá el `sizes` ahí. Toda `<Image>` de la vidriera lleva `sizes` (`tests/unit/image-sizes.test.ts`) |
+| Ficha de producto y página de categoría | `src/app/producto/[slug]/page.tsx`, `src/app/categoria/[slug]/page.tsx` | Rediseñá esos archivos; **no** las gemelas `…/con-parametros/page.tsx`, que reusan la misma página para los links con parámetros (§7b). Dejá `export const dynamic`/`revalidate` y no leas `cookies()`/`headers()` ahí |
 | Pie: columnas, contacto, WhatsApp | `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
 | Botón flotante de WhatsApp | `src/components/whatsapp-fab.tsx` | El número sale del entorno (`src/lib/comercio.ts`) |
 | Nombre, título del navegador, tagline, meta description | `src/config/tienda.ts` | **Nunca** en un componente: `tests/unit/marca-centralizada.test.ts` lo bloquea |
@@ -1033,6 +1035,39 @@ vuelven a leer solos:
 Sin `NEXT_PUBLIC_SITE_URL` el feed responde 404 (sin dominio no hay links), y
 un producto sin foto no entra (Google lo rechazaría). No hay nada que
 configurar en la tienda.
+
+### 7b. SEO y caché de la vidriera (no hay nada que configurar)
+
+Lo que la tienda le dice a Google sale solo, de los datos que ya cargó el
+dueño. Nada de esto tiene variables propias:
+
+- **Datos estructurados (JSON-LD)**, armados en `src/lib/seo.ts`:
+  - en todas las páginas, `Organization` (nombre, logo, WhatsApp, email y redes
+    de `/admin/ajustes`) y `WebSite` con el buscador de `/buscar`;
+  - en la ficha, `Product` —o `ProductGroup` si las variantes tienen una
+    dimensión verificada— con precio en PYG, disponibilidad y estrellas sólo de
+    reseñas aprobadas, más `BreadcrumbList`;
+  - en la categoría, `BreadcrumbList` e `ItemList`.
+
+  Con el precio oculto o en modo consulta/vidriera no se publica precio.
+  Sin `NEXT_PUBLIC_SITE_URL` no salen ni `Organization` ni `WebSite`. Para
+  revisarlo: [Rich Results Test](https://search.google.com/test/rich-results)
+  con la URL de una ficha.
+- **`/sitemap.xml`**: home, categorías activas, productos publicados (también
+  los de consulta: su ficha existe y se puede encontrar) y páginas de políticas
+  prendidas, con URLs absolutas y fecha de último cambio. `robots.txt` apunta a
+  él y bloquea panel, checkout, pedido y cuenta. Se carga una vez en Google
+  Search Console → Sitemaps.
+- **Caché**: la home, la categoría y la ficha se sirven ya armadas (ISR,
+  ARCH.md §6 "Caché de la vidriera") y se rearman en cuanto el panel guarda
+  algo o entra/vence un pedido. Si el dueño dice "cambié el precio y no se ve",
+  no es la caché: la primera visita después de guardar ya ve el dato nuevo.
+  Los links con filtros o `?variante=` se renderizan por request (por eso
+  existen las carpetas `con-parametros/`: no las borres ni las rediseñes).
+- **Lighthouse** (`.lighthouserc.json`): celular, performance ≥ 0.9 como
+  advertencia, más accesibilidad, buenas prácticas y SEO. Corre en el CI del
+  template; en una tienda, contra su dominio, con
+  `npx lighthouse https://DOMINIO/producto/<slug> --form-factor=mobile`.
 
 ---
 

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ export function HomeHero({ hero }: { hero: Hero }) {
             alt={imagen?.alt ?? ""}
             fill
             priority
-            sizes="(max-width: 1152px) 100vw, 1152px"
+            sizes={IMAGE_SIZES.hero}
             className="object-cover"
           />
           {/*

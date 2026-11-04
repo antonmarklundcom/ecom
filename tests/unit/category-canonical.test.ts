@@ -30,12 +30,35 @@ describe("category pagination canonicals", () => {
     "canonical and indexing for %j",
     async (query, canonical, robots) => {
       vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://store.example.test");
+      // Con parámetros, la página la renderiza la gemela `con-parametros/`,
+      // que es la que pasa `conParametros` (ARCH.md §6, "Caché de la vidriera").
       const metadata = await generateMetadata({
         params: Promise.resolve({ slug: "rings" }),
         searchParams: Promise.resolve(query),
+        conParametros: true,
       });
       expect(metadata.alternates?.canonical).toBe(canonical);
       expect(metadata.robots).toEqual(robots);
     }
   );
+
+  it("la ruta cacheada ni mira los parámetros: es la URL limpia", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://store.example.test");
+    let leidos = false;
+    const searchParams = {
+      then(resolve: (value: Record<string, string>) => void) {
+        leidos = true;
+        resolve({ page: "2", precio: "1-100" });
+      },
+    } as unknown as Promise<Record<string, string>>;
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ slug: "rings" }),
+      searchParams,
+    });
+    expect(leidos).toBe(false);
+    expect(metadata.alternates?.canonical).toBe(
+      "https://store.example.test/categoria/rings"
+    );
+    expect(metadata.robots).toBeUndefined();
+  });
 });
