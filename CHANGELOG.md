@@ -25,6 +25,25 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Proveedores (dropshipping) en el panel, opcional y apagado**, y orden
+  manual de destacados. **Migración: sí** (`0025`: tabla `supplier_offers`,
+  `products.supplier_url` y `products.featured_position`, todas aditivas).
+  - `proveedores: true` en `src/config/tienda.ts` suma a la ficha del panel el
+    enlace privado de compra y las ofertas de proveedores por variante (costo,
+    stock declarado, enlaces https, preferida y margen bruto). Owner y staff.
+    Nunca llega a la vidriera, el feed, el sitemap ni el JSON-LD. Ver
+    NEW-STORE.md §4b-bis y ARCH.md § "Proveedores".
+  - Con el flag apagado —el default— el panel y la tienda quedan iguales. No
+    toca los modos de venta (`enquiry`/`showcase`) ni el stock, las reservas o
+    los pedidos.
+  - "Orden en destacados" en la ficha del panel, para todas las tiendas: la
+    home ordena los destacados por ese número y después por fecha de
+    publicación. En 0 (el default) el orden es el de antes.
+  - `/api/health` ahora prueba la consulta de destacados de la home.
+  - Una tienda existente: después del deploy, correr el setup para aplicar la
+    `0025` (como toda migración). Su `tienda.ts` no necesita cambios; el campo
+    `proveedores` es opcional.
+
 - **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   F1–F6). Sin migración.
   - Errores del panel: los formularios de producto, variante, categoría y

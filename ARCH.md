@@ -443,7 +443,11 @@ relaciones nuevas:
 
 - **`products.is_featured`** (bool, default `false`, índice
   `(is_featured, published_at)`): lo elige el dueño a mano desde el panel.
-  `getFeaturedProducts(limit)` los devuelve; si no hay ninguno, cae al mismo
+  `getFeaturedProducts(limit)` los devuelve ordenados por
+  **`products.featured_position`** (int, default `0`, "Orden en destacados"
+  en la ficha del panel; más chico, más adelante) y después por
+  `published_at DESC`. Con todos en 0 —una tienda que nunca lo tocó— el
+  orden es el de antes de la columna (migración `0025`). Si no hay ninguno, cae al mismo
   criterio que la home de siempre (`getCatalog({ limit })`, orden por
   posición de categoría y nombre) — **no** "los más nuevos" a secas, para que
   una tienda que recién trae la migración no vea moverse su portada.
@@ -468,6 +472,50 @@ relaciones nuevas:
   (`adjustStock`, importación de catálogo) y además lo barre el cron del
   resumen diario, para el caso de una reserva vencida que liberó stock sin
   ningún ajuste manual detrás. Purga a los 90 días desde `runMaintenance`.
+
+### Proveedores: datos privados de compras, no de pedido ni de stock
+
+Opcional y apagado de fábrica (`proveedores` en `src/config/tienda.ts`, leído
+sólo por `proveedoresHabilitados()` de `src/lib/proveedores.ts`). Sirve para
+dropshipping, mayoristas o importación: a quién se le compra cada variante y a
+cuánto. Dos piezas (migración `0025`):
+
+- **`supplier_offers`** (`variant_id` FK cascade, `unit_cost_pyg` BIGINT
+  UNSIGNED NULL, `source`, `source_type` `dropi|local|import|other`,
+  `product_url`, `supplier_url`, `supplier_stock` INT UNSIGNED NULL, `notes`,
+  `is_confirmed`, `is_active`, `is_preferred`, `checked_at`, `updated_at`):
+  varias ofertas por variante, a lo sumo una preferida (la que se usa para el
+  margen bruto del panel, `src/lib/supplier-margin.ts`), que tiene que estar
+  activa, confirmada y con costo. La escribe sólo `src/domain/supplier-offers.ts`
+  (zod: enlaces `https://` sin credenciales, guaraníes enteros, largos
+  acotados), por las acciones `saveVariantSupplierOffer` /
+  `deleteVariantSupplierOffer`: guard de staff, capacidad `precios` y el flag,
+  en ese orden. Cada escritura deja una línea de log con actor, variante y
+  oferta (sin costos ni enlaces).
+- **`products.supplier_url`** (varchar 2048 NULL): el enlace privado de compra
+  del producto. `saveProduct` lo acepta sólo con el flag prendido; ausente no
+  se toca, así que apagar el flag no borra lo cargado.
+
+Reglas que no cambian con el flag:
+
+1. **No es parte del pedido ni del stock.** `supplier_stock` es lo que el
+   proveedor declaró al mirarlo, nunca stock vendible; `on_hand`, reservas,
+   `createOrder` y `transitionOrder` no leen esta tabla. Con la tabla vacía la
+   tienda se comporta exactamente como antes.
+2. **Nunca sale del panel.** Ninguna consulta de `src/db/queries.ts`, el feed,
+   el sitemap, el JSON-LD ni un componente de la vidriera los nombra
+   (`tests/unit/proveedores-privados.test.ts` lo fija sobre el código, con una
+   lista explícita de archivos permitidos, y
+   `tests/integration/supplier-offers.test.ts` sobre lo que devuelve cada
+   consulta pública con datos cargados). No confundir con
+   `products.supplier_details`, que es la fuente de un hecho verificado de la
+   ficha (docs/TEMPLATE-INHERITANCE.md).
+3. **Duplicar un producto** copia `supplier_url` pero no las ofertas: cada una
+   afirma "es el mismo producto que vende el proveedor", y eso se vuelve a
+   confirmar para la copia.
+4. **El backup las incluye** (`BACKUP_TABLES`, después de `variants`).
+5. **El flag no toca los modos de venta** (`sale_mode` `stock|enquiry|showcase`
+   y `show_price`), que valen para todas las tiendas.
 
 ### Zonas de envío: quién las escribe (FASE 2, PR K)
 
