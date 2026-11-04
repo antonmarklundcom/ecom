@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 
 import { ImagenR2 } from "@/components/imagen-r2";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import type { FuentesR2 } from "@/lib/imagenes-r2";
 import {
   Dialog,
@@ -98,7 +99,7 @@ export function ProductGallery({
                 image={current}
                 alt={current.alt}
                 priority={selected === 0}
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 55vw, 720px"
+                sizes={IMAGE_SIZES.detail}
                 className="product-gallery-image"
               />
               <span className="product-gallery-zoom-label">Ampliar imagen</span>
@@ -133,7 +134,7 @@ export function ProductGallery({
             <Foto
               image={current}
               alt={current.alt}
-              sizes="95vw"
+              sizes={IMAGE_SIZES.zoom}
               className="object-contain"
             />
           </div>
@@ -171,7 +172,7 @@ export function ProductGallery({
               <Foto
                 image={item}
                 alt=""
-                sizes="(max-width: 640px) 20vw, 110px"
+                sizes={IMAGE_SIZES.thumb}
                 className="product-gallery-image"
               />
             </button>

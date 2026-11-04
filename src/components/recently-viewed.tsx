@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
 import { t } from "@/i18n/client";
 import { ImagenR2 } from "@/components/imagen-r2";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import type { FuentesR2 } from "@/lib/imagenes-r2";
 import { formatGs, isChargeablePrice } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
@@ -163,7 +164,7 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
                     fuentes={fuentes}
                     alt={item.imageAlt ?? item.name}
                     fill
-                    sizes="(max-width: 640px) 50vw, 300px"
+                    sizes={IMAGE_SIZES.card}
                     className="object-cover"
                   />
                 ) : (
@@ -173,7 +174,7 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
                     // nombre ya está en el título de la tarjeta.
                     alt=""
                     fill
-                    sizes="(max-width: 640px) 50vw, 300px"
+                    sizes={IMAGE_SIZES.card}
                     className="object-cover"
                   />
                 )}

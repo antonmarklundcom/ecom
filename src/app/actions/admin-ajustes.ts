@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import { subirFotoDelPanel } from "@/domain/product-images";
@@ -25,8 +26,9 @@ import {
  *
  * La validación de cada campo vive en el dominio (`SECTION_INPUT` de
  * `store-settings-schema.ts`); acá sólo se valida la forma del pedido —qué
- * sección— y se traduce el error para el formulario. `saveStoreSettingsSection`
- * ya revalida toda la vidriera.
+ * sección— y se traduce el error para el formulario. Cada guardado tira la
+ * caché de toda la vidriera (`revalidarVidriera()`): la marca, la portada, el
+ * anuncio y el contacto están en el layout de todas las páginas.
  */
 
 const SeccionSchema = z.enum(STORE_SETTINGS_SECTIONS as [StoreSettingsSection, ...StoreSettingsSection[]]);
@@ -48,6 +50,7 @@ export async function guardarAjustes(input: unknown): Promise<AdminActionResult>
     });
 
     revalidatePath("/admin/ajustes");
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     // Con los campos que no pasaron, para marcarlos en el formulario (F1).
@@ -67,6 +70,7 @@ export async function restaurarAjustes(input: unknown): Promise<AdminActionResul
     await resetStoreSettingsSection(parsed.data.seccion, { userId: actor.userId });
 
     revalidatePath("/admin/ajustes");
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     if (error instanceof StoreSettingsError) return { ok: false, error: error.message };
@@ -93,6 +97,7 @@ export async function subirImagenPortada(formData: FormData): Promise<AdminActio
     await guardarImagenPortada(imageRef, actor.userId);
 
     revalidatePath("/admin/ajustes");
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     if (error instanceof StoreSettingsError) return { ok: false, error: error.message };
@@ -111,6 +116,7 @@ export async function quitarImagenPortada(): Promise<AdminActionResult> {
     await guardarImagenPortada(null, actor.userId);
 
     revalidatePath("/admin/ajustes");
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     if (error instanceof StoreSettingsError) return { ok: false, error: error.message };
@@ -148,6 +154,7 @@ export async function subirImagenMarca(formData: FormData): Promise<AdminActionR
     await guardarImagenMarca(tipo.data, imageRef, actor.userId);
 
     revalidatePath("/admin/ajustes");
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     if (error instanceof StoreSettingsError) return { ok: false, error: error.message };
@@ -166,6 +173,7 @@ export async function quitarImagenMarca(input: unknown): Promise<AdminActionResu
     await guardarImagenMarca(tipo.data, null, actor.userId);
 
     revalidatePath("/admin/ajustes");
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     if (error instanceof StoreSettingsError) return { ok: false, error: error.message };

@@ -129,7 +129,7 @@ marcados como pendientes en varias secciones más abajo.
 - [x] Búsqueda con `FULLTEXT` (+ fallback a `LIKE` para términos cortos)
 - [x] Pipeline de imágenes con placeholders (hoy formato `p1` de R2, `<picture>` con WebP por caja + JPEG)
 - [x] Estados vacíos / loading / error, `not-found.tsx`
-- [ ] Lighthouse mobile ≥ 90 perf/a11y en la ficha de producto *(medir con el sitio desplegado)*
+- [ ] Lighthouse mobile ≥ 90 perf/a11y en la ficha de producto *(medir con el sitio desplegado; `.lighthouserc.json` ya pide celular, perf ≥ 0.9 como advertencia, más a11y/SEO/buenas prácticas, y la ficha y la categoría ya son ISR — ARCH.md §6 "Caché de la vidriera")*
 - [ ] Fotos reales de producto en R2 *(el seed no trae fotos: se ve una ilustración placeholder por categoría — `public/placeholders/` — en vez de la caja de color de antes)*
 
 ---

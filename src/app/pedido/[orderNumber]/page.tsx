@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -132,6 +133,7 @@ export default async function OrderPage({
                       alt={t("pedido.banco.qrAlt")}
                       fill
                       className="object-contain p-2"
+                      sizes={IMAGE_SIZES.qr}
                       unoptimized
                     />
                   </div>

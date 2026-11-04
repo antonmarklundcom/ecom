@@ -10,19 +10,22 @@ import { getCatalog, getCategories, type CatalogProduct } from "@/db/queries";
 import { getStoreSettings } from "@/domain/store-settings";
 import { heroEfectivo } from "@/domain/store-settings-schema";
 import { t } from "@/i18n";
-import { contactoPublico } from "@/lib/comercio";
-import { jsonLdScript, organizationJsonLd } from "@/lib/seo";
-import { siteOrigin } from "@/lib/site-url";
 import { log } from "@/lib/log";
 import { safeError } from "@/lib/safe-error";
-import { nombreTienda } from "@/lib/marca";
 import { temaActivo } from "@/themes";
 import type { SeccionHome } from "@/themes/tipos";
 
 /**
  * Home. ISR: el catálogo cambia poco y las redes móviles paraguayas
- * agradecen el HTML ya armado. La disponibilidad exacta se ve en la ficha.
+ * agradecen el HTML ya armado. Se rearma cuando el panel cambia algo o entra
+ * un pedido (`revalidarVidriera()`), o a los 5 minutos como mucho (ARCH.md
+ * §6, "Caché de la vidriera").
+ *
+ * `force-static` no es redundante: sin él, cualquier `headers()` del layout
+ * —el de los medidores, con GA4 o el Pixel prendidos— volvía dinámica la
+ * vidriera entera sin que nada lo avisara.
  */
+export const dynamic = "force-static";
 export const revalidate = 300;
 
 export default function HomePage() {
@@ -63,25 +66,11 @@ async function HomeContent() {
 
   // Los ajustes del panel (`/admin/ajustes`) pisan campo por campo la portada
   // de `TIENDA.hero` (o la del template); `null` = el dueño la apagó.
-  const [ajustes, contacto, nombre] = await Promise.all([
-    getStoreSettings(),
-    contactoPublico(),
-    nombreTienda(),
-  ]);
+  const ajustes = await getStoreSettings();
   const hero = heroEfectivo(
     ajustes.marca,
     TIENDA.hero ?? heroPorDefecto(categories[0]?.slug)
   );
-
-  // Quién es la tienda, para Google. Sin dominio configurado no sale (ver
-  // `organizationJsonLd`).
-  const organizacion = organizationJsonLd({
-    origin: siteOrigin(),
-    name: nombre,
-    telephone: contacto.whatsapp,
-    email: contacto.email,
-    sameAs: contacto.redes.map((red) => red.url),
-  });
 
   /*
     La portada. Sin `TIENDA.hero` configurado sale la de siempre, con el
@@ -158,12 +147,6 @@ async function HomeContent() {
     // `data-vidriera`: la escala del tema (espaciado, letra, ancho) vale acá
     // adentro, no en el resto de la tienda (`src/themes/tipos.ts`).
     <main data-vidriera="" className="mx-auto w-full max-w-6xl px-4 py-8">
-      {organizacion ? (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: jsonLdScript(organizacion) }}
-        />
-      ) : null}
       {conPortada ? null : tituloOculto}
 
       {error ? (

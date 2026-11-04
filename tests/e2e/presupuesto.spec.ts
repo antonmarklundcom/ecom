@@ -1,6 +1,6 @@
 import { gzipSync } from "node:zlib";
 
-import type { Page, Response } from "@playwright/test";
+import type { Page, Request, Response } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
 import { TESTIDS } from "./testids";
@@ -42,6 +42,15 @@ import { TESTIDS } from "./testids";
  * para las locales). "Vistos recientemente" ya no arma URLs en el navegador
  * —guarda las que arma el servidor— para no sumar más. → +10%, según la
  * regla de arriba. Anotado en `KNOWN-ISSUES.md`.
+ *
+ * 2026-11-04: se cuenta el JS **de la página** —lo que se pide antes del
+ * evento `load`— y no el prefetch. Desde que la ficha y la categoría son ISR
+ * (ARCH.md §6, "Caché de la vidriera"), los `<Link>` del header y de las
+ * tarjetas prefetchean esas páginas enteras con su JS, en idle y después de
+ * `load`: +21 KB que no son de la página medida (medido contra `main`: el JS
+ * antes de `load` quedó igual al byte, 228.1 / 234.8 / 226.9 KB, y lo que
+ * crecía era sólo lo de después). Contarlo era medir la navegación siguiente.
+ * Ese cambio no tocó los techos.
  */
 const BUDGET_KB = {
   home: 247,
@@ -75,11 +84,22 @@ async function collectScriptResponses(
 ): Promise<ScriptSample[]> {
   const samples: ScriptSample[] = [];
   const pending: Promise<void>[] = [];
+  // Los scripts que la página pidió antes de `load`: los suyos. Lo que se
+  // pide después es el prefetch de las páginas a las que linkea (ver arriba).
+  const deLaPagina = new Set<Request>();
+  let cargo = false;
+  const onRequest = (request: Request): void => {
+    if (!cargo) deLaPagina.add(request);
+  };
+  const onLoad = (): void => {
+    cargo = true;
+  };
 
   const onResponse = (response: Response): void => {
     const url = response.url();
     if (!url.startsWith(SAME_ORIGIN)) return;
     if (response.request().resourceType() !== "script") return;
+    if (!deLaPagina.has(response.request())) return;
 
     pending.push(
       (async () => {
@@ -109,10 +129,14 @@ async function collectScriptResponses(
     );
   };
 
+  page.on("request", onRequest);
+  page.on("load", onLoad);
   page.on("response", onResponse);
   await page.goto(path, { waitUntil: "networkidle" });
   await Promise.all(pending);
   page.off("response", onResponse);
+  page.off("load", onLoad);
+  page.off("request", onRequest);
 
   return samples;
 }

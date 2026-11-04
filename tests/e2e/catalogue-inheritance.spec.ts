@@ -17,7 +17,13 @@ test("SKU links, true redirects, gallery keyboard/focus and public comparison", 
     maxRedirects: 0,
   });
   expect(redirect.status()).toBe(308);
-  expect(redirect.headers().location).toBe("/producto/browser-stock");
+  // La ficha es ISR: en la primera visita (MISS) Next 16.4 repite el mismo
+  // `Location` dos veces —Playwright los junta con ", "—, y desde la caché
+  // sale uno solo. Los navegadores aceptan copias idénticas; lo que importa
+  // es que apunten todas al mismo lugar (KNOWN-ISSUES.md).
+  expect([
+    ...new Set(redirect.headers().location?.split(", ")),
+  ]).toEqual(["/producto/browser-stock"]);
   const skuRedirect = await request.get(
     "/producto/browser-stock-original?variante=browser-stock-Large",
     { maxRedirects: 0 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import { moderateReview, replyToReview, REVIEW_REPLY_MAX } from "@/domain/reviews";
@@ -17,9 +18,9 @@ import { t } from "@/i18n";
 
 function revalidarResenas(): void {
   revalidatePath("/admin/resenas");
-  // La ficha de producto es `force-dynamic`, pero el layout de la vidriera no:
-  // una reseña publicada tiene que aparecer sin esperar al ISR.
-  revalidatePath("/", "layout");
+  // Una reseña publicada (o su respuesta) tiene que aparecer en la ficha y en
+  // las estrellas de las tarjetas sin esperar al ISR.
+  revalidarVidriera();
 }
 
 const ModerateSchema = z.object({

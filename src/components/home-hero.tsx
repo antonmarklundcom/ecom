@@ -4,6 +4,7 @@ import { ImagenR2 } from "@/components/imagen-r2";
 import { Button } from "@/components/ui/button";
 import type { Hero } from "@/config/tienda";
 import { refDeHeroImagen } from "@/lib/hero-imagen";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { productImageSources } from "@/lib/images";
 // Los colores semánticos (`--estrella`, `--velo`…) con su default: ver el archivo.
 import "@/themes/semanticos.css";
@@ -36,7 +37,7 @@ export function HomeHero({ hero }: { hero: Hero }) {
             alt={imagen?.alt ?? ""}
             fill
             priority
-            sizes="(max-width: 1152px) 100vw, 1152px"
+            sizes={IMAGE_SIZES.hero}
             className="object-cover"
           />
           {/*

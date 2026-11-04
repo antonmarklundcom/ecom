@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import { registerReturn, RETURN_REASON_MAX } from "@/domain/returns";
@@ -60,7 +61,7 @@ export async function registrarDevolucion(
     revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);
     revalidatePath("/admin/devoluciones");
     revalidatePath("/admin/productos");
-    revalidatePath("/", "layout");
+    revalidarVidriera();
     return { ok: true, returnId: result.returnId };
   } catch (error) {
     return adminActionError("registrarDevolucion", error);

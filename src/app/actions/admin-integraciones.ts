@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import { t } from "@/i18n";
@@ -44,7 +45,8 @@ function integracionDe(nombre: unknown): Integracion {
 }
 
 function revalidar(): void {
-  revalidatePath("/", "layout");
+  // WhatsApp, Cloudinary y los medidores están en el layout de toda la vidriera.
+  revalidarVidriera();
   revalidatePath("/admin/integraciones");
 }
 

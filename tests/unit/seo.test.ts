@@ -7,9 +7,12 @@ import {
   RUTAS_PRIVADAS,
   breadcrumbJsonLd,
   buildSitemap,
+  categoryTrail,
   itemListJsonLd,
+  jsonLdScript,
   organizationJsonLd,
   productJsonLd,
+  websiteJsonLd,
   type MerchantPoliciesLd,
 } from "../../src/lib/seo";
 
@@ -532,3 +535,222 @@ describe("sitemap · páginas de políticas", () => {
     ]);
   });
 });
+
+describe("sitemap · lastmod", () => {
+  const origin = new URL("https://tienda.com.py");
+
+  it("la categoría y la home llevan la fecha del último producto que cambió", () => {
+    const entries = buildSitemap(origin, {
+      categories: [
+        { slug: "remeras", updatedAt: new Date("2026-03-01T00:00:00Z") },
+        { slug: "vacia", updatedAt: null },
+      ],
+      products: [
+        { slug: "a", updatedAt: new Date("2026-02-01T00:00:00Z") },
+        { slug: "b", updatedAt: new Date("2026-03-01T00:00:00Z") },
+      ],
+    });
+    const porUrl = new Map(entries.map((entry) => [entry.url, entry]));
+
+    expect(porUrl.get("https://tienda.com.py/")?.lastModified).toEqual(
+      new Date("2026-03-01T00:00:00Z")
+    );
+    expect(
+      porUrl.get("https://tienda.com.py/categoria/remeras")?.lastModified
+    ).toEqual(new Date("2026-03-01T00:00:00Z"));
+    // Sin productos publicados no hay fecha que decir: no se inventa una.
+    expect(porUrl.get("https://tienda.com.py/categoria/vacia")).not.toHaveProperty(
+      "lastModified"
+    );
+  });
+
+  it("sin ninguna fecha, la home sale sin lastModified", () => {
+    const [home] = buildSitemap(origin, { categories: [], products: [] });
+    expect(home).not.toHaveProperty("lastModified");
+  });
+
+  it("nunca lista rutas privadas", () => {
+    const entries = buildSitemap(origin, {
+      categories: [{ slug: "remeras" }],
+      products: [{ slug: "a", updatedAt: null }],
+      pages: ["envios"],
+    });
+    for (const entry of entries) {
+      expect(entry.url.startsWith("https://tienda.com.py/")).toBe(true);
+      for (const privada of RUTAS_PRIVADAS) {
+        expect(new URL(entry.url).pathname.startsWith(privada)).toBe(false);
+      }
+    }
+  });
+});
+
+describe("productJsonLd · precio oculto y modos de venta", () => {
+  const base = {
+    origin: new URL("https://tienda.com.py"),
+    slug: "silla",
+    name: "Silla",
+    description: "De madera",
+    brand: "Muebles PY",
+    images: ["https://res.cloudinary.com/x/image/upload/silla.jpg"],
+    variants: [{ sku: "SI-1", label: "Única", pricePyg: 450_000, available: 2 }],
+  };
+
+  it("en venta: name, image, description, sku, brand y una Offer completa en PYG", () => {
+    const jsonLd = productJsonLd(base) as Record<string, unknown> & {
+      offers: Array<Record<string, unknown>>;
+    };
+    expect(jsonLd).toMatchObject({
+      "@type": "Product",
+      name: "Silla",
+      description: "De madera",
+      sku: "SI-1",
+      brand: { "@type": "Brand", name: "Muebles PY" },
+      image: base.images,
+      url: "https://tienda.com.py/producto/silla",
+    });
+    expect(jsonLd.offers).toEqual([
+      expect.objectContaining({
+        "@type": "Offer",
+        price: 450_000,
+        priceCurrency: "PYG",
+        availability: "https://schema.org/InStock",
+        url: "https://tienda.com.py/producto/silla?variante=SI-1",
+      }),
+    ]);
+    expect(jsonLd).not.toHaveProperty("aggregateRating");
+  });
+
+  it.each([
+    { caso: "precio oculto", extra: { showPrice: false } },
+    { caso: "sólo consulta", extra: { saleMode: "enquiry" as const } },
+    { caso: "vidriera", extra: { saleMode: "showcase" as const } },
+  ])("$caso: el producto sale, pero sin Offer ni precio", ({ extra }) => {
+    const jsonLd = productJsonLd({ ...base, ...extra });
+    expect(jsonLd["@type"]).toBe("Product");
+    expect(jsonLd.name).toBe("Silla");
+    expect(jsonLd).not.toHaveProperty("offers");
+    expect(JSON.stringify(jsonLd)).not.toContain("450000");
+  });
+});
+
+describe("BreadcrumbList de la ficha y jerarquía de categorías", () => {
+  const categorias = [
+    { id: 1, slug: "ropa", name: "Ropa", parentId: null },
+    { id: 2, slug: "mujer", name: "Mujer", parentId: 1 },
+    { id: 3, slug: "remeras", name: "Remeras", parentId: 2 },
+    { id: 4, slug: "huerfana", name: "Huérfana", parentId: 99 },
+    { id: 5, slug: "ciclo-a", name: "A", parentId: 6 },
+    { id: 6, slug: "ciclo-b", name: "B", parentId: 5 },
+  ];
+
+  it("arma el camino desde la raíz por parent_id", () => {
+    expect(categoryTrail(categorias, "remeras").map((c) => c.slug)).toEqual([
+      "ropa",
+      "mujer",
+      "remeras",
+    ]);
+  });
+
+  it("una madre que no está (desactivada) corta el camino ahí", () => {
+    expect(categoryTrail(categorias, "huerfana").map((c) => c.slug)).toEqual([
+      "huerfana",
+    ]);
+  });
+
+  it("un ciclo en la base no cuelga el render", () => {
+    expect(categoryTrail(categorias, "ciclo-a").map((c) => c.slug)).toEqual([
+      "ciclo-b",
+      "ciclo-a",
+    ]);
+  });
+
+  it("una categoría desconocida da un camino vacío", () => {
+    expect(categoryTrail(categorias, "no-existe")).toEqual([]);
+  });
+
+  it("la miga de la ficha: inicio, categorías y el producto, con URLs absolutas", () => {
+    const trail = categoryTrail(categorias, "remeras");
+    const jsonLd = breadcrumbJsonLd(new URL("https://tienda.com.py"), [
+      { name: "Inicio", path: "/" },
+      ...trail.map((c) => ({ name: c.name, path: `/categoria/${c.slug}` })),
+      { name: "Remera azul", path: "/producto/remera-azul" },
+    ]) as { itemListElement: Array<Record<string, unknown>> };
+
+    expect(jsonLd.itemListElement.map((item) => item.position)).toEqual([
+      1, 2, 3, 4, 5,
+    ]);
+    expect(jsonLd.itemListElement.at(-1)).toMatchObject({
+      name: "Remera azul",
+      item: "https://tienda.com.py/producto/remera-azul",
+    });
+    expect(jsonLd.itemListElement[2]).toMatchObject({
+      item: "https://tienda.com.py/categoria/mujer",
+    });
+  });
+});
+
+describe("Organization y WebSite del layout", () => {
+  it("el logo sale sólo si es una URL https absoluta", () => {
+    const origin = new URL("https://tienda.com.py");
+    expect(
+      organizationJsonLd({
+        origin,
+        name: "Tienda",
+        logo: "https://res.cloudinary.com/x/image/upload/logo.png",
+      })
+    ).toMatchObject({ logo: "https://res.cloudinary.com/x/image/upload/logo.png" });
+    expect(
+      organizationJsonLd({ origin, name: "Tienda", logo: "/logo.png" })
+    ).not.toHaveProperty("logo");
+    expect(organizationJsonLd({ origin, name: "Tienda", logo: null })).not.toHaveProperty(
+      "logo"
+    );
+  });
+
+  it("WebSite con el buscador de /buscar", () => {
+    expect(
+      websiteJsonLd({ origin: new URL("https://tienda.com.py/x"), name: "Tienda" })
+    ).toEqual({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "Tienda",
+      url: "https://tienda.com.py/",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: "https://tienda.com.py/buscar?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
+    });
+  });
+
+  it("sin origen público no sale ninguno de los dos", () => {
+    expect(websiteJsonLd({ origin: null, name: "Tienda" })).toBeNull();
+    expect(organizationJsonLd({ origin: null, name: "Tienda" })).toBeNull();
+  });
+
+  it("un nombre de marca con </script> no cierra la etiqueta", () => {
+    const salida = jsonLdScript(
+      websiteJsonLd({
+        origin: new URL("https://tienda.com.py"),
+        name: "Mi </script><script>alert(1)</script> tienda",
+      })
+    );
+    expect(salida).not.toContain("<");
+    expect(JSON.parse(salida).name).toBe(
+      "Mi </script><script>alert(1)</script> tienda"
+    );
+  });
+
+  it("el layout arma los dos desde marcaEfectiva y el contacto, sin nombre hardcodeado", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const layout = await readFile(path.join("src", "app", "layout.tsx"), "utf8");
+    expect(layout).toContain("organizationJsonLd(");
+    expect(layout).toContain("websiteJsonLd(");
+    expect(layout).toMatch(/name: marca\.nombre/);
+    expect(layout).toMatch(/logo: marca\.logoUrl/);
+  });
+});
+

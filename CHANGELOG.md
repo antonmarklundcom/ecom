@@ -25,6 +25,34 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **SEO y caché de la vidriera.** Sin migración. Nada que hacer a mano.
+  - La ficha y la categoría pasan a ISR, como la home (`force-static` +
+    `revalidate = 300`). Se rearman en cuanto el panel guarda algo, entra un
+    pedido o el cron vence uno: `revalidarVidriera()`
+    (`src/lib/revalidar-vidriera.ts`), llamada desde cada escritura. Los
+    ajustes de la tienda ahora también invalidan la vidriera.
+  - Con filtros, orden, página o `?variante=`, `src/proxy.ts` las manda a una
+    gemela por request (`…/con-parametros/`) que reusa la misma `page.tsx`.
+    Los parámetros de campañas (`utm_*`, `fbclid`, `srsltid`…) salen de la
+    caché con `X-Robots-Tag: noindex`.
+  - Arreglo: con GA4 o el Pixel prendidos, el `headers()` del layout volvía
+    dinámica toda la vidriera (la home perdía el ISR sin avisar).
+  - JSON-LD: `Organization` (con logo) y `WebSite` con el buscador pasan al
+    layout de todas las páginas; `BreadcrumbList` en la ficha; la miga de pan
+    sigue `categories.parent_id`.
+  - Sitemap con fecha en categorías y home (la del último producto que
+    cambió).
+  - `sizes` correctos en todas las fotos de la vidriera, desde
+    `src/lib/image-sizes.ts`, con un test que falla si falta.
+  - `.lighthouserc.json`: celular, performance ≥ 0.9 como advertencia, más
+    accesibilidad, buenas prácticas y SEO.
+  - El presupuesto de JS cuenta el JS de la página, no el prefetch de las
+    páginas a las que linkea.
+  - **Una tienda que rediseñó la ficha o la categoría:** su `page.tsx` queda
+    como está (sigue `force-dynamic`, sin caché) hasta que lo pase a ISR:
+    `export const dynamic = "force-static"`, `revalidate = 300` y leer
+    `searchParams` sólo con `parametrosDeLaUrl()` (NEW-STORE.md §7b, ARCH.md
+    §6). `tests/unit/csp-isr.test.ts` lo marca en rojo mientras tanto.
 - **Arranque y apagado del servidor en Hostinger; Cloudflare sólo DNS.** Sin
   migración. **No hay que tocar nada en el hPanel**: el `start` sigue siendo
   el script `start`.
