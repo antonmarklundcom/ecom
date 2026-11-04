@@ -102,13 +102,13 @@ async function main(): Promise<void> {
         await db.insert(productImages).values([
           {
             productId: Number(product.insertId),
-            cloudinaryId: "fixture-front",
+            imageRef: "r2:p1/fixture-front-0123456789@400x400",
             alt: "Vista frontal de la botella de prueba",
             position: 0,
           },
           {
             productId: Number(product.insertId),
-            cloudinaryId: "fixture-back",
+            imageRef: "r2:p1/fixture-back-abcdef0123@400x400",
             alt: "Vista posterior de la botella de prueba",
             position: 1,
           },

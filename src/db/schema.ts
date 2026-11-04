@@ -160,10 +160,11 @@ export const categories = mysqlTable(
     seoTitle: varchar("seo_title", { length: 200 }),
     seoDescription: varchar("seo_description", { length: 500 }),
     /**
-     * `public_id` de la foto de portada en Cloudinary, carpeta `categorias/`.
-     * NULL = sin foto, y la página cae al encabezado de texto de siempre.
+     * Referencia de R2 (`r2:p1/…`) de la foto de portada. NULL = sin foto,
+     * y la página cae al encabezado de texto de siempre. El nombre de la
+     * columna es histórico; no se renombra para no migrar.
      */
-    imageCloudinaryId: varchar("image_cloudinary_id", { length: 255 }),
+    imageRef: varchar("image_cloudinary_id", { length: 255 }),
     /**
      * El alt de esa foto. Va aparte y no derivado del nombre: "Zapatillas" no
      * describe la imagen, y una portada sin alt es una página menos accesible
@@ -255,7 +256,12 @@ export const productImages = mysqlTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
-    cloudinaryId: varchar("cloudinary_id", { length: 255 }).notNull(),
+    /**
+     * Referencia de R2 de la foto (`r2:p1/<slug>-<hash>@WxH`, ver
+     * `src/lib/imagenes-r2.ts`). El nombre de la columna es histórico; no se
+     * renombra para no migrar.
+     */
+    imageRef: varchar("cloudinary_id", { length: 255 }).notNull(),
     blurDataUrl: text("blur_data_url"),
     alt: varchar("alt", { length: 255 }),
     position: int("position").notNull().default(0),
@@ -656,8 +662,12 @@ export const receipts = mysqlTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
-    /** Private Cloudinary folder — served to the admin via signed URLs only. */
-    cloudinaryId: varchar("cloudinary_id", { length: 255 }).notNull(),
+    /**
+     * Clave del objeto **privado** en R2 (`comprobantes/…`): el admin lo ve
+     * por una URL prefirmada de vida corta, nunca por la URL pública. El
+     * nombre de la columna es histórico; no se renombra para no migrar.
+     */
+    storageKey: varchar("cloudinary_id", { length: 255 }).notNull(),
     mime: varchar("mime", { length: 100 }).notNull(),
     bytes: int("bytes", { unsigned: true }).notNull(),
     uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
@@ -1346,10 +1356,11 @@ export const bankDetails = mysqlTable("bank_details", {
   cuenta: varchar("cuenta", { length: 60 }).notNull(),
   tipoCuenta: varchar("tipo_cuenta", { length: 60 }).notNull(),
   /**
-   * `public_id` del QR SPI en Cloudinary, en una carpeta **pública**. NULL =
-   * sin QR cargado, y ahí manda `BANCO_QR_URL` del entorno si está.
+   * Referencia de R2 (`r2:p1/…`, público) del QR SPI. NULL = sin QR
+   * cargado, y ahí manda `BANCO_QR_URL` del entorno si está. El nombre de la
+   * columna es histórico; no se renombra para no migrar.
    */
-  qrCloudinaryId: varchar("qr_cloudinary_id", { length: 255 }),
+  qrImageRef: varchar("qr_cloudinary_id", { length: 255 }),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   /**
    * Quién lo tocó por última vez. `ON DELETE SET NULL`: el dato bancario de
@@ -1399,7 +1410,7 @@ export const storeSettings = mysqlTable("store_settings", {
 // ---------------------------------------------------------------------------
 
 /**
- * Cloudinary, WhatsApp, Pagopar, la medición y el reporte de errores,
+ * R2, WhatsApp, Pagopar, la medición y el reporte de errores,
  * cargados por el dueño desde el panel en vez del hPanel (una fila por
  * integración). La lectura y la precedencia —**esta fila > variable de
  * entorno > apagado**— viven en `src/lib/integraciones.ts`; la escritura en
@@ -1410,16 +1421,16 @@ export const storeSettings = mysqlTable("store_settings", {
  * (una plantilla de WhatsApp nueva no puede ser una migración que viaja a
  * todas las tiendas).
  *
- * - `data`: los valores **no** secretos, en claro (`cloudName`, `ga4Id`…).
+ * - `data`: los valores **no** secretos, en claro (`bucket`, `ga4Id`…).
  * - `secrets`: campo → blob `v1.…` de AES-256-GCM (`src/lib/secret-box.ts`),
  *   con una clave derivada de `SESSION_SECRET` que **no está en la base**. Un
- *   backup (que sale de la máquina, a Cloudinary) trae los secretos cifrados
+ *   backup (que sale de la máquina, a R2) trae los secretos cifrados
  *   y nada con qué abrirlos.
  *
  * Sin fila, la integración sale del entorno, como siempre.
  */
 export const integrationSettings = mysqlTable("integration_settings", {
-  /** `cloudinary` | `whatsapp` | `pagopar` | `analitica` | `errores`. */
+  /** `r2` | `whatsapp` | `pagopar` | `analitica` | `errores`. */
   integration: varchar("integration", { length: 32 }).primaryKey(),
   data: json("data").notNull(),
   secrets: json("secrets").notNull(),

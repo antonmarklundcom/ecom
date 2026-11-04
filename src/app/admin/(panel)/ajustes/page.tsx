@@ -23,7 +23,7 @@ import {
 import { t } from "@/i18n";
 import { paymentPolicy } from "@/domain/payment-policy";
 import { requireCapabilityPage } from "@/lib/admin-guard";
-import { cloudinaryConfigured } from "@/lib/cloudinary";
+import { r2Configurado } from "@/lib/r2";
 import { customerSessionConfigured } from "@/lib/customer-session";
 import { comercioWhatsApp } from "@/lib/comercio";
 import { productImageUrl } from "@/lib/images";
@@ -135,7 +135,7 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
     cta: { label: t("home.hero.cta"), href: "" },
   };
   const efectivo = heroEfectivo({ ...m, heroActivo: true }, base);
-  const imagenUrl = productImageUrl(efectivo?.imagen?.cloudinaryId, "card");
+  const imagenUrl = productImageUrl(efectivo?.imagen?.imageRef, "card");
 
   const campos: Record<string, TipoCampo> = {
     tagline: "texto",
@@ -244,7 +244,7 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
 
       <HeroImagePanel
         imagenUrl={imagenUrl}
-        habilitado={cloudinaryConfigured()}
+        habilitado={r2Configurado()}
       />
     </Tarjeta>
   );
@@ -252,7 +252,7 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
 
 function IdentidadSection({ settings }: { settings: StoreSettings }) {
   const i = settings.identidad;
-  const cloudinaryListo = cloudinaryConfigured();
+  const almacenamientoListo = r2Configurado();
   const campos: Record<string, TipoCampo> = {
     nombre: "texto",
     colorPrimario: "texto",
@@ -316,12 +316,12 @@ function IdentidadSection({ settings }: { settings: StoreSettings }) {
         <MarcaImagenPanel
           tipo="logo"
           imagenUrl={productImageUrl(i.logoId, "logo")}
-          habilitado={cloudinaryListo}
+          habilitado={almacenamientoListo}
         />
         <MarcaImagenPanel
           tipo="favicon"
           imagenUrl={productImageUrl(i.faviconId, "favicon")}
-          habilitado={cloudinaryListo}
+          habilitado={almacenamientoListo}
         />
       </div>
     </Tarjeta>

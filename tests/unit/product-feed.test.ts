@@ -17,8 +17,8 @@ function producto(overrides: Partial<FeedProduct> = {}): FeedProduct {
     brand: null,
     categoryName: "Conjuntos",
     images: [
-      "https://res.cloudinary.com/x/a.jpg",
-      "https://res.cloudinary.com/x/b.jpg",
+      "https://img.tienda.test/p1/a.jpg",
+      "https://img.tienda.test/p1/b.jpg",
     ],
     variants: [
       {
@@ -44,10 +44,10 @@ describe("buildProductFeed", () => {
       "<link>https://tienda.com.py/producto/conjunto-encaje?variante=CE-U</link>"
     );
     expect(xml).toContain(
-      "<g:image_link>https://res.cloudinary.com/x/a.jpg</g:image_link>"
+      "<g:image_link>https://img.tienda.test/p1/a.jpg</g:image_link>"
     );
     expect(xml).toContain(
-      "<g:additional_image_link>https://res.cloudinary.com/x/b.jpg</g:additional_image_link>"
+      "<g:additional_image_link>https://img.tienda.test/p1/b.jpg</g:additional_image_link>"
     );
     expect(xml).toContain("<g:price>150000 PYG</g:price>");
     expect(xml).toContain("<g:availability>in_stock</g:availability>");

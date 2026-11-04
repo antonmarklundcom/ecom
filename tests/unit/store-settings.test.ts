@@ -199,7 +199,7 @@ describe("precedencia: ajuste → tienda.ts / entorno", () => {
     titulo: "Base",
     texto: "Texto base",
     cta: { label: "Ver", href: "/categoria/x" },
-    imagen: { cloudinaryId: "portadas/base", alt: "Foto base" },
+    imagen: { imageRef: "portadas/base", alt: "Foto base" },
   };
 
   it("sin nada cargado, la portada es la base tal cual", () => {
@@ -218,7 +218,7 @@ describe("precedencia: ajuste → tienda.ts / entorno", () => {
       { titulo: "Sin foto" }
     );
     expect(conFoto?.imagen).toEqual({
-      cloudinaryId: "portadas/nueva",
+      imageRef: "portadas/nueva",
       alt: "Sin foto",
     });
   });

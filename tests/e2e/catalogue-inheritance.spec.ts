@@ -5,7 +5,9 @@ test("SKU links, true redirects, gallery keyboard/focus and public comparison", 
   page,
   request,
 }) => {
-  await page.route("https://res.cloudinary.com/**", (route) =>
+  // La base pública de R2 de los fixtures (playwright.config.ts): nada sale
+  // a la red, se contesta acá.
+  await page.route("https://imagenes.fixture.test/**", (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="skyblue"/></svg>',

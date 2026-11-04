@@ -6,6 +6,7 @@ import { withTimeout } from "@/domain/notify-timing";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
 import { log } from "@/lib/log";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
+import { mensajeR2 } from "@/lib/r2";
 
 /**
  * El cron de la copia de seguridad (plan-operacion §5.4 A).
@@ -52,11 +53,11 @@ async function handle(request: Request): Promise<Response> {
   // Plantillas y credenciales pueden venir de /admin/integraciones.
   await cargarIntegraciones();
 
-  // Sin Cloudinary no hay dónde guardar la copia. Se contesta 200 y no un
+  // Sin R2 no hay dónde guardar la copia. Se contesta 200 y no un
   // error: no es una falla de esta corrida, es una tienda que no configuró la
   // feature, y un status de error haría que Hostinger reintente para siempre.
   if (!backupsEnabled()) {
-    return cronJson({ ok: true, skipped: "sin_cloudinary", uploaded: false });
+    return cronJson({ ok: true, skipped: "sin_almacenamiento", uploaded: false });
   }
 
   const claim = await claimJob("backup", { lockMinutes: LOCK_MINUTES });
@@ -76,7 +77,7 @@ async function handle(request: Request): Promise<Response> {
 
     await finishJob("backup", { ok: true, payload: resultado });
 
-    // Sin el `publicId`: el nombre del archivo es media pista para encontrarlo,
+    // Sin el `setId`: el nombre del set es media pista para encontrarlo,
     // y esta respuesta la ve cualquiera con acceso a los logs del hPanel.
     return cronJson({
       ok: true,
@@ -87,7 +88,9 @@ async function handle(request: Request): Promise<Response> {
       pruned: resultado.pruned,
     });
   } catch (error) {
-    const motivo = safeError(error).message;
+    // `mensajeR2`: un error de R2 dice método, status y código (nunca la
+    // firma); cualquier otro pasa por `safeError`.
+    const motivo = mensajeR2(error);
     log.error("backup falló", { error: motivo });
 
     await finishJob("backup", { ok: false, error: motivo });

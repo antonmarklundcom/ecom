@@ -1,6 +1,6 @@
 /**
- * **El** módulo de lectura de la configuración de integraciones: Cloudinary,
- * WhatsApp (el número del comercio y la Cloud API), Pagopar, la medición
+ * **El** módulo de lectura de la configuración de integraciones: R2 (fotos,
+ * comprobantes y copias de seguridad), WhatsApp (el número del comercio y la Cloud API), Pagopar, la medición
  * (GA4/Pixel) y el reporte de errores.
  *
  * Precedencia, siempre la misma: **fila de la base > variable de entorno >
@@ -11,13 +11,13 @@
  *
  * ### Credenciales que van juntas
  *
- * Los campos marcados `grupo` (cloud_name + api_key + api_secret; phone id +
- * token; las tres de Pagopar) no se mezclan entre fuentes: si el panel tiene
- * **cualquiera** de ellos, el grupo entero sale del panel, y lo que falte ahí
- * falta — no se completa con el entorno. Mezclar el `cloud_name` de una cuenta
- * cargada en el panel con el `api_secret` de otra que quedó en el hPanel es una
- * integración que falla de formas rarísimas, o que sube los comprobantes a la
- * cuenta equivocada. El resto (plantillas, prefijo, versión de la API) se
+ * Los campos marcados `grupo` (cuenta + access key + secret + bucket de R2;
+ * phone id + token; las tres de Pagopar) no se mezclan entre fuentes: si el
+ * panel tiene **cualquiera** de ellos, el grupo entero sale del panel, y lo que
+ * falte ahí falta — no se completa con el entorno. Mezclar la cuenta de R2
+ * cargada en el panel con el secret de otra que quedó en el hPanel es una
+ * integración que falla de formas rarísimas, o que sube los comprobantes al
+ * bucket equivocado. El resto (plantillas, base pública, versión de la API) se
  * resuelve campo por campo.
  *
  * ### Por qué la lectura es síncrona
@@ -26,7 +26,7 @@
  * deja acá una **foto** en memoria, compartida por todo el proceso vía
  * `globalThis` —también con `src/proxy.ts`, que se compila aparte—. Leer es
  * síncrono: las funciones de siempre (`pagoparConfig()`, `whatsappCloudConfig()`,
- * `cloudinaryConfigured()`, `analyticsConfig()`) siguen teniendo la misma
+ * `r2Configurado()`, `analyticsConfig()`) siguen teniendo la misma
  * firma y sólo cambió **de dónde** sacan los valores.
  *
  * La foto se carga al arrancar (`instrumentation.ts`), se refresca cada
@@ -44,7 +44,7 @@
  */
 
 export const INTEGRACIONES = [
-  "cloudinary",
+  "r2",
   "whatsapp",
   "pagopar",
   "analitica",
@@ -67,16 +67,18 @@ export type CampoDef = {
 };
 
 export const CAMPOS = {
-  cloudinary: [
-    { campo: "cloudName", env: "CLOUDINARY_CLOUD_NAME", grupo: true },
-    { campo: "apiKey", env: "CLOUDINARY_API_KEY", grupo: true },
+  r2: [
+    { campo: "accountId", env: "R2_ACCOUNT_ID", grupo: true },
+    { campo: "accessKeyId", env: "R2_ACCESS_KEY_ID", grupo: true },
     {
-      campo: "apiSecret",
-      env: "CLOUDINARY_API_SECRET",
+      campo: "secretAccessKey",
+      env: "R2_SECRET_ACCESS_KEY",
       grupo: true,
       secreto: true,
     },
-    { campo: "folderPrefix", env: "CLOUDINARY_FOLDER_PREFIX" },
+    { campo: "bucket", env: "R2_BUCKET", grupo: true },
+    // Pública por definición (es el dominio que sirve las fotos): campo suelto.
+    { campo: "publicUrl", env: "R2_PUBLIC_URL" },
   ],
   whatsapp: [
     { campo: "numeroComercio", env: "WHATSAPP_NUMBER" },
@@ -172,7 +174,7 @@ type Entorno = Record<string, string | undefined>;
 /**
  * Un valor que no cuenta como cargado: vacío, o el `changeme` que traían los
  * `.env.example` viejos (un `.env.local` copiado de esa época lo tiene, y con
- * él `cloudinaryConfigured()` daba true con credenciales de mentira).
+ * él una integración daba "configurada" con credenciales de mentira).
  */
 function limpio(valor: string | undefined | null): string | null {
   const texto = (valor ?? "").trim();
@@ -355,7 +357,10 @@ export const REQUERIDOS: {
     campos: readonly CampoDe<N>[];
   };
 } = {
-  cloudinary: { modo: "todos", campos: ["cloudName", "apiKey", "apiSecret"] },
+  r2: {
+    modo: "todos",
+    campos: ["accountId", "accessKeyId", "secretAccessKey", "bucket", "publicUrl"],
+  },
   whatsapp: { modo: "todos", campos: ["phoneNumberId", "accessToken"] },
   pagopar: { modo: "todos", campos: ["publicKey", "privateKey", "baseUrl"] },
   analitica: { modo: "alguno", campos: ["ga4Id", "metaPixelId"] },
@@ -405,10 +410,11 @@ export function resumirIntegracion<N extends Integracion>(
 }
 
 /**
- * El lector del `cloud_name` que usa `src/lib/images.ts` sin importar este
- * módulo (se usa en componentes cliente y el presupuesto de JS de la home no
- * da para la tabla de campos). Se registra al cargar este archivo.
+ * El lector de la base pública de las imágenes que usa `src/lib/images.ts` sin
+ * importar este módulo (se usa en componentes cliente y el presupuesto de JS
+ * de la home no da para la tabla de campos). Se registra al cargar este
+ * archivo.
  */
 (globalThis as { [K: symbol]: unknown })[
-  Symbol.for("ecom.integraciones.cloudName")
-] = (): string | null => integracion("cloudinary").valores.cloudName;
+  Symbol.for("ecom.integraciones.r2PublicUrl")
+] = (): string | null => integracion("r2").valores.publicUrl;

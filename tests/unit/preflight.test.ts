@@ -40,9 +40,11 @@ function envSano(overrides: PreflightEnv = {}): PreflightEnv {
     BANCO_RUC: "80012345-6",
     BANCO_CUENTA: "123456789",
     BANCO_TIPO_CUENTA: "Cuenta corriente",
-    CLOUDINARY_CLOUD_NAME: "tienda-py",
-    CLOUDINARY_API_KEY: "123456789012345",
-    CLOUDINARY_API_SECRET: "una-clave-de-cloudinary",
+    R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+    R2_ACCESS_KEY_ID: "clave-de-acceso-r2",
+    R2_SECRET_ACCESS_KEY: "una-clave-secreta-de-r2",
+    R2_BUCKET: "tienda-py",
+    R2_PUBLIC_URL: "https://img.tienda.com.py",
     WHATSAPP_NUMBER: "+595971000111",
     NEXT_PUBLIC_SITE_URL: "https://tienda.com.py",
     PAGOPAR_PUBLIC_KEY: "publica",
@@ -83,7 +85,9 @@ describe("preflight", () => {
     const casos: Array<[string, PreflightEnv]> = [
       ["cron_secret", { CRON_SECRET: "" }],
       ["session_secret", { SESSION_SECRET: "" }],
-      ["cloudinary", { CLOUDINARY_API_SECRET: "" }],
+      ["r2", { R2_SECRET_ACCESS_KEY: "" }],
+      ["r2", { R2_PUBLIC_URL: "http://img.tienda.com.py" }],
+      ["r2", { R2_ACCOUNT_ID: "no-es-un-account-id" }],
       ["whatsapp", { WHATSAPP_NUMBER: "" }],
       ["database_url", { DATABASE_URL: "" }],
       ["site_url", { NEXT_PUBLIC_SITE_URL: "" }],
@@ -109,7 +113,7 @@ describe("preflight", () => {
         "session_secret",
       ),
     ).toBe("bloquea");
-    expect(severityOf(envSano({ CLOUDINARY_CLOUD_NAME: "changeme" }), "cloudinary")).toBe("bloquea");
+    expect(severityOf(envSano({ R2_BUCKET: "changeme" }), "r2")).toBe("bloquea");
   });
 
   it("el WhatsApp de ejemplo del template bloquea aunque tenga forma válida", () => {
@@ -230,7 +234,7 @@ describe("preflight", () => {
       env.SESSION_SECRET,
       env.CRON_SECRET,
       env.PAGOPAR_PRIVATE_KEY,
-      env.CLOUDINARY_API_SECRET,
+      env.R2_SECRET_ACCESS_KEY,
       env.SETUP_SECRET,
       env.DATABASE_URL,
     ]) {
@@ -426,10 +430,12 @@ describe("preflight · marca de la tienda", () => {
 });
 
 describe("preflight entiende las dos fuentes: /admin/integraciones y el entorno", () => {
-  const sinCloudinaryNiWhatsApp = envSano({
-    CLOUDINARY_CLOUD_NAME: "",
-    CLOUDINARY_API_KEY: "",
-    CLOUDINARY_API_SECRET: "",
+  const sinR2NiWhatsApp = envSano({
+    R2_ACCOUNT_ID: "",
+    R2_ACCESS_KEY_ID: "",
+    R2_SECRET_ACCESS_KEY: "",
+    R2_BUCKET: "",
+    R2_PUBLIC_URL: "",
     WHATSAPP_NUMBER: "",
   });
 
@@ -443,37 +449,43 @@ describe("preflight entiende las dos fuentes: /admin/integraciones y el entorno"
     const panel = {
       lectura: "ok" as const,
       filas: {
-        cloudinary: {
-          valores: { cloudName: "nube", apiKey: "123", apiSecret: "secreto-del-panel-largo" },
+        r2: {
+          valores: {
+            accountId: "0123456789abcdef0123456789abcdef",
+            accessKeyId: "clave-del-panel",
+            secretAccessKey: "secreto-del-panel-largo",
+            bucket: "tienda-panel",
+            publicUrl: "https://img.tienda.com.py",
+          },
           ilegibles: [],
         },
         whatsapp: { valores: { numeroComercio: "+595971000222" }, ilegibles: [] },
       },
     };
 
-    const cloudinary = check(sinCloudinaryNiWhatsApp, panel, "cloudinary");
-    expect(cloudinary.severity).toBe("ok");
-    expect(cloudinary.detail).toContain("desde el panel");
+    const r2 = check(sinR2NiWhatsApp, panel, "r2");
+    expect(r2.severity).toBe("ok");
+    expect(r2.detail).toContain("desde el panel");
     // Nunca el valor de un secreto.
-    expect(JSON.stringify(preflight(sinCloudinaryNiWhatsApp, panel))).not.toContain(
+    expect(JSON.stringify(preflight(sinR2NiWhatsApp, panel))).not.toContain(
       "secreto-del-panel-largo",
     );
 
-    expect(check(sinCloudinaryNiWhatsApp, panel, "whatsapp").severity).toBe("ok");
-    expect(check(sinCloudinaryNiWhatsApp, panel, "integraciones_panel").detail).toContain("cloudinary");
+    expect(check(sinR2NiWhatsApp, panel, "whatsapp").severity).toBe("ok");
+    expect(check(sinR2NiWhatsApp, panel, "integraciones_panel").detail).toContain("r2");
   });
 
   it("sin panel, lo del entorno se marca como del entorno", () => {
-    const cloudinary = check(envSano(), { lectura: "ok", filas: {} }, "cloudinary");
-    expect(cloudinary.severity).toBe("ok");
-    expect(cloudinary.detail).toContain("desde el entorno");
+    const r2 = check(envSano(), { lectura: "ok", filas: {} }, "r2");
+    expect(r2.severity).toBe("ok");
+    expect(r2.detail).toContain("desde el entorno");
   });
 
   it("sin nada en ninguna de las dos, bloquea igual que antes", () => {
-    expect(check(sinCloudinaryNiWhatsApp, { lectura: "ok", filas: {} }, "cloudinary").severity).toBe(
+    expect(check(sinR2NiWhatsApp, { lectura: "ok", filas: {} }, "r2").severity).toBe(
       "bloquea",
     );
-    expect(check(sinCloudinaryNiWhatsApp, { lectura: "ok", filas: {} }, "whatsapp").severity).toBe(
+    expect(check(sinR2NiWhatsApp, { lectura: "ok", filas: {} }, "whatsapp").severity).toBe(
       "bloquea",
     );
   });
@@ -483,7 +495,7 @@ describe("preflight entiende las dos fuentes: /admin/integraciones y el entorno"
     const lectura = check(envSano(), panel, "integraciones_panel");
     expect(lectura.severity).toBe("advierte");
     expect(lectura.detail).toContain("ECONNREFUSED");
-    expect(check(envSano(), panel, "cloudinary").severity).toBe("ok");
+    expect(check(envSano(), panel, "r2").severity).toBe("ok");
   });
 
   it("sin panel (llamada sólo con el entorno) no aparece el control de lectura", () => {

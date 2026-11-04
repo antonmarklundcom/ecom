@@ -164,7 +164,7 @@ export default async function AdminProductPage({ params }: { params: Params }) {
             productId={product.id}
             images={images.map((image) => ({
               id: image.id,
-              cloudinaryId: image.cloudinaryId,
+              imageRef: image.imageRef,
               alt: image.alt,
               provenance: image.provenance,
               verifiedAt: image.verifiedAt?.toISOString() ?? null,

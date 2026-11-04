@@ -1,5 +1,6 @@
 import { IVA_RATES, type IvaRate } from "@/db/enums";
 import { parseCsv } from "@/lib/csv";
+import { parseRef } from "@/lib/imagenes-r2";
 import { slugify } from "@/lib/slug";
 import { z } from "zod";
 import {
@@ -28,9 +29,10 @@ import { stripStamps } from "@/lib/verification-stamps";
  *
  * **Fotos** es URLs separadas por `|`, un espacio o un salto de línea —
  * normalmente sólo en la primera fila de cada producto, porque las fotos son
- * del producto, no de la variante. Tienen que ser `https://` (no hay
- * descarga del lado del servidor: es Cloudinary quien va a buscarlas) y como
- * mucho 10 por producto. `applyCatalogImport`/`--aplicar` las sube sólo a un
+ * del producto, no de la variante. Tienen que ser `https://` (las baja el
+ * servidor, con topes de tamaño, tiempo y redirecciones, y las sube a R2) o
+ * referencias `r2:p1/…@WxH` ya subidas (`pnpm fotos:preparar` +
+ * `pnpm fotos:subir`), y como mucho 10 por producto. `applyCatalogImport`/`--aplicar` las sube sólo a un
  * producto que todavía no tiene ninguna foto — igual que una carga manual, y
  * para que reimportar la misma planilla no duplique nada.
  *
@@ -240,6 +242,11 @@ function parseFotosCelda(raw: string): { urls: string[]; invalidas: string[] } {
   const urls: string[] = [];
   const invalidas: string[] = [];
   for (const token of tokens) {
+    if (token.startsWith("r2:")) {
+      if (parseRef(token)) urls.push(token);
+      else invalidas.push(token);
+      continue;
+    }
     if (!token.startsWith("https://")) {
       invalidas.push(token);
       continue;
@@ -422,7 +429,7 @@ export function parseCatalogo(text: string): CatalogoImportado {
       const { urls, invalidas } = parseFotosCelda(fotosCrudo);
       if (invalidas.length > 0) {
         errores.push(
-          `Línea ${linea}: la(s) URL de foto "${invalidas.join(", ")}" tienen que ser https:// y URLs válidas.`
+          `Línea ${linea}: la(s) foto(s) "${invalidas.join(", ")}" tienen que ser URLs https:// válidas o referencias r2:p1 válidas.`
         );
         continue;
       }

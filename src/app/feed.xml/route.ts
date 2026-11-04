@@ -57,7 +57,7 @@ export async function GET(): Promise<Response> {
       categoryName: product.categoryName,
       // Ni ilustrativas ni, si la tienda lo pide, sin procedencia (E2).
       images: outsideImages(product.images)
-        .map((image) => productImageUrl(image.cloudinaryId, "detail"))
+        .map((image) => productImageUrl(image.imageRef, "detail"))
         .filter((src): src is string => src !== null),
       variants: product.variants,
     })),

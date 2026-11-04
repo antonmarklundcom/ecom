@@ -16,6 +16,7 @@ import { linkSeguro } from "@/domain/store-settings-schema";
 import { idiomaActivo } from "@/i18n";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
+import { META_BASE_IMAGENES, basePublicaImagenes } from "@/lib/images";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 import { marcaEfectiva } from "@/lib/marca";
 
@@ -68,13 +69,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // La foto de integraciones (GA4/Pixel, WhatsApp, Cloudinary) fresca para
-  // este render: src/lib/integraciones.ts. Nunca tira.
+  // La foto de integraciones (GA4/Pixel, WhatsApp, R2) fresca para este
+  // render: src/lib/integraciones.ts. Nunca tira.
   const [{ anuncio }, marca] = await Promise.all([
     getStoreSettings(),
     marcaEfectiva(),
     cargarIntegraciones(),
   ]);
+
+  const baseImagenes = basePublicaImagenes();
 
   // El idioma **efectivo** y no el que dice el config: si `TIENDA.lang` apunta
   // a un catálogo que no existe, los textos salen en es-PY y el `lang` del
@@ -91,6 +94,12 @@ export default async function RootLayout({
       }
     >
       <body className="flex min-h-full flex-col">
+        {/* La base pública de las fotos (R2) para los componentes cliente:
+            `basePublicaImagenes()` la lee de acá en el navegador, con el
+            mismo valor que usó el servidor (React la sube al <head>). */}
+        {baseImagenes ? (
+          <meta name={META_BASE_IMAGENES} content={baseImagenes} />
+        ) : null}
         <StorefrontShell
           storefrontBefore={
             <>

@@ -85,7 +85,7 @@ export const StoreSettingsSchema = z.object({
    */
   identidad: seccion({
     nombre: texto,
-    /** `public_id` en la carpeta pública `marca/` de Cloudinary. */
+    /** Referencias de R2 (`r2:p1/…`, públicas). */
     logoId: texto,
     faviconId: texto,
     /** `#RRGGBB`. Pisa `--primary` del tema; el texto encima se elige solo. */
@@ -523,9 +523,9 @@ export function heroEfectivo(
   const href = linkSeguro(marca.heroCtaHref) ?? base.cta?.href ?? null;
   const cta = label && href ? { label, href } : undefined;
 
-  const cloudinaryId = marca.heroImagenId ?? base.imagen?.cloudinaryId ?? null;
-  const imagen = cloudinaryId
-    ? { cloudinaryId, alt: marca.heroImagenAlt ?? base.imagen?.alt ?? titulo }
+  const imageRef = marca.heroImagenId ?? base.imagen?.imageRef ?? null;
+  const imagen = imageRef
+    ? { imageRef, alt: marca.heroImagenAlt ?? base.imagen?.alt ?? titulo }
     : null;
 
   return { titulo, texto, cta, imagen };

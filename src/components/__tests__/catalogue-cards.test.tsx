@@ -5,6 +5,7 @@ import { ProductCard } from "@/components/product-card";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import type { CatalogProduct } from "@/db/queries";
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
+import { META_BASE_IMAGENES, resetBaseImagenesForTests } from "@/lib/images";
 import { TESTIDS } from "@/lib/testids";
 
 /**
@@ -21,7 +22,7 @@ const product: CatalogProduct = {
   categorySlug: "hogar",
   categoryName: "Hogar",
   image: {
-    cloudinaryId: "productos/botella",
+    imageRef: "r2:p1/botella-0123456789@1200x1200",
     blurDataUrl: null,
     alt: "Botella de frente",
     provenance: "illustrative",
@@ -38,12 +39,15 @@ const product: CatalogProduct = {
   ],
 };
 
-// Una nube de prueba, para que la foto se dibuje en vez del placeholder.
+// La base pública de prueba, como la deja el layout en el `<meta>`, para que
+// la foto se dibuje en vez del placeholder.
 beforeEach(() => {
-  vi.stubEnv("CLOUDINARY_CLOUD_NAME", "disposable-gallery-fixture");
+  resetBaseImagenesForTests();
+  document.head.innerHTML = `<meta name="${META_BASE_IMAGENES}" content="https://img.tienda.test">`;
 });
 afterEach(() => {
-  vi.unstubAllEnvs();
+  document.head.innerHTML = "";
+  resetBaseImagenesForTests();
 });
 
 describe("tarjeta de producto", () => {
@@ -104,7 +108,7 @@ describe("vistos recientemente", () => {
           slug: "actual",
           name: "Actual",
           pricePyg: null,
-          imageCloudinaryId: null,
+          imageRef: null,
           imageAlt: null,
         }}
       />
@@ -120,7 +124,7 @@ describe("vistos recientemente", () => {
         slug: "botella",
         name: "Botella",
         pricePyg: 50_000,
-        imageCloudinaryId: "productos/botella",
+        imageRef: "r2:p1/botella-0123456789@1200x1200",
         imageAlt: "Botella de frente",
         imageIllustrative: true,
       },
@@ -136,7 +140,7 @@ describe("vistos recientemente", () => {
         slug: "sin-foto",
         name: "Sin foto",
         pricePyg: 50_000,
-        imageCloudinaryId: null,
+        imageRef: null,
         imageAlt: null,
       },
     ]);

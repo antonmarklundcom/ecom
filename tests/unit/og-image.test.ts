@@ -20,25 +20,23 @@ afterEach(() => {
 });
 
 describe('URL de la imagen para compartir', () => {
-  it('pide a Cloudinary la caja 1200×630', async () => {
-    vi.stubEnv('CLOUDINARY_CLOUD_NAME', 'demo');
-    const { OG_IMAGE_SIZE, productImageUrl } = await import('../../src/lib/images');
+  it('usa el JPEG de respaldo de la foto, que entienden todos los chats', async () => {
+    vi.stubEnv('R2_PUBLIC_URL', 'https://img.tienda.test');
+    const { OG_IMAGE_SIZE, productImageSources, productImageUrl } = await import('../../src/lib/images');
 
-    const url = productImageUrl('productos/remera-azul', 'og');
-
+    const ref = 'r2:p1/remera-azul-0123456789@1200x900';
     expect(OG_IMAGE_SIZE).toEqual({ width: 1200, height: 630 });
-    expect(url).toContain(`w_${OG_IMAGE_SIZE.width},h_${OG_IMAGE_SIZE.height}`);
-    // `c_fill`, no `c_fit`: una foto cuadrada en un lienzo 1.91:1 sale con
-    // franjas vacías y eso se lee como un error del comercio.
-    expect(url).toContain('c_fill');
-    expect(url).toMatch(/^https:\/\/res\.cloudinary\.com\//);
+    expect(productImageUrl(ref, 'og')).toBe('https://img.tienda.test/p1/remera-azul-0123456789.jpg');
+    // Con su tamaño real: nunca se recorta, así que no es 1200×630.
+    const fuentes = productImageSources(ref, 'og');
+    expect(fuentes).toMatchObject({ width: 1200, height: 900 });
   });
 
-  it('sin cloud configurado no inventa una URL', async () => {
-    vi.stubEnv('CLOUDINARY_CLOUD_NAME', '');
+  it('sin base pública no inventa una URL', async () => {
+    vi.stubEnv('R2_PUBLIC_URL', '');
     const { productImageUrl } = await import('../../src/lib/images');
 
-    expect(productImageUrl('productos/remera-azul', 'og')).toBeNull();
+    expect(productImageUrl('r2:p1/remera-azul-0123456789@1200x900', 'og')).toBeNull();
   });
 });
 
@@ -71,10 +69,12 @@ describe('la ficha de producto comparte con foto', () => {
 
     // Ni ilustrativa ni sin procedencia si la tienda lo pide
     // (docs/TEMPLATE-IMPROVEMENT-PLAN.md E2; la regla, en image-provenance.test.ts).
-    expect(page).toMatch(/sharePhoto = outsideImages\(product\.images\)\[0\]/);
-    expect(page).toMatch(/productImageUrl\(\s*sharePhoto\?\.cloudinaryId,\s*"og"\s*\)/);
+    expect(page).toMatch(/sharePhoto = outsideImages\(product\.images\)\.find\(/);
+    expect(page).toMatch(/productImageSources\(\s*sharePhoto\?\.imageRef,\s*"og"\s*\)/);
+    expect(page).toContain('width: ogFuentes.width');
+    expect(page).toContain('height: ogFuentes.height');
+    // El respaldo del sitio sigue en 1200×630.
     expect(page).toContain('OG_IMAGE_SIZE.width');
-    expect(page).toContain('OG_IMAGE_SIZE.height');
   });
 
   it('repite el nombre del sitio y el idioma: el openGraph de la página reemplaza el del layout', async () => {

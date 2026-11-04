@@ -16,8 +16,8 @@ describe.skipIf(!hasTestDb)("getFeedProducts", () => {
     const publicado = await createProduct();
     await createVariant({ onHand: 3, productId: publicado });
     await db.insert(productImages).values([
-      { productId: publicado, cloudinaryId: "b", position: 1 },
-      { productId: publicado, cloudinaryId: "a", position: 0 },
+      { productId: publicado, imageRef: "b", position: 1 },
+      { productId: publicado, imageRef: "a", position: 0 },
     ]);
 
     const borrador = await createProduct();
@@ -27,7 +27,7 @@ describe.skipIf(!hasTestDb)("getFeedProducts", () => {
     const feed = await getFeedProducts();
 
     expect(feed.map((product) => product.id)).toEqual([publicado]);
-    expect(feed[0]?.images.map((image) => image.cloudinaryId)).toEqual(["a", "b"]);
+    expect(feed[0]?.images.map((image) => image.imageRef)).toEqual(["a", "b"]);
     expect(feed[0]?.variants[0]?.available).toBe(3);
     expect(feed[0]?.description).toBe("producto de prueba");
   });

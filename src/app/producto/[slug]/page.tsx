@@ -8,7 +8,10 @@ import { AddToCart } from "@/components/add-to-cart";
 import { FunnelEvent } from "@/components/funnel-event";
 import { ProductDescription } from "@/components/product-description";
 import { ProductImage } from "@/components/product-image";
-import { ProductGallery } from "@/components/product-gallery";
+import {
+  ProductGallery,
+  type GalleryImage,
+} from "@/components/product-gallery";
 import { CatalogueEditorial } from "@/components/catalogue-editorial";
 import { CATALOGUE } from "@/config/catalogue";
 import { getProductSlugRedirect } from "@/domain/product-slugs";
@@ -25,7 +28,11 @@ import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
 import { waLinkPublico, whatsappPublico } from "@/lib/comercio";
-import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
+import {
+  OG_IMAGE_SIZE,
+  productImageSources,
+  productImageUrl,
+} from "@/lib/images";
 import { outsideImages } from "@/lib/image-provenance";
 import { nombreTienda } from "@/lib/marca";
 import { TIENDA } from "@/config/tienda";
@@ -82,10 +89,12 @@ export async function generateMetadata({
       : product.name);
 
   // La primera foto que puede salir afuera (ni ilustrativa ni, si la tienda
-  // lo pide, sin procedencia: docs/TEMPLATE-IMPROVEMENT-PLAN.md E2),
-  // recortada a la caja que espera WhatsApp.
-  const sharePhoto = outsideImages(product.images)[0];
-  const ogImage = productImageUrl(sharePhoto?.cloudinaryId, "og");
+  // lo pide, sin procedencia: docs/TEMPLATE-IMPROVEMENT-PLAN.md E2) y que
+  // sea de R2: el JPEG de respaldo, que es lo que entienden todos los chats.
+  const sharePhoto = outsideImages(product.images).find(
+    (image) => productImageSources(image.imageRef, "og") !== null
+  );
+  const ogFuentes = productImageSources(sharePhoto?.imageRef, "og");
 
   // == S17 == Mismo criterio que `categoria/[slug]`: canonical a la URL
   // limpia del producto, y sólo si hay origen configurado (`siteOrigin()`,
@@ -116,11 +125,11 @@ export async function generateMetadata({
       siteName: await nombreTienda(),
       locale: TIENDA.ogLocale,
       images: [
-        ogImage
+        ogFuentes
           ? {
-              url: ogImage,
-              width: OG_IMAGE_SIZE.width,
-              height: OG_IMAGE_SIZE.height,
+              url: ogFuentes.jpeg,
+              width: ogFuentes.width,
+              height: ogFuentes.height,
               alt: sharePhoto?.alt ?? product.name,
             }
           : {
@@ -228,7 +237,7 @@ export default async function ProductPage({
     brand: product.brand,
     images: outsideImages(product.images)
       .slice(0, 5)
-      .map((image) => productImageUrl(image.cloudinaryId, "detail"))
+      .map((image) => productImageUrl(image.imageRef, "detail"))
       .filter((src): src is string => src !== null),
     variants: product.variants,
     saleMode: product.saleMode,
@@ -243,6 +252,22 @@ export default async function ProductPage({
       body: review.body,
       date: review.createdAt,
     })),
+  });
+
+  // Una referencia que no es de R2 (o sin base pública) no entra a la
+  // galería: nunca una foto rota. Sin ninguna, el placeholder.
+  const galeria: GalleryImage[] = product.images.flatMap((image) => {
+    const fuentes = productImageSources(image.imageRef, "detail");
+    return fuentes
+      ? [
+          {
+            src: fuentes.jpeg,
+            fuentes,
+            alt: image.alt || product.name,
+            illustrative: image.provenance === "illustrative",
+          },
+        ]
+      : [];
   });
 
   return (
@@ -267,23 +292,9 @@ export default async function ProductPage({
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">
         <div>
-          {product.images.length ? (
+          {galeria.length ? (
             <ProductGallery
-              images={product.images
-                .map((image) => ({
-                  src: productImageUrl(image.cloudinaryId, "detail"),
-                  alt: image.alt || product.name,
-                  illustrative: image.provenance === "illustrative",
-                }))
-                .filter(
-                  (
-                    image
-                  ): image is {
-                    src: string;
-                    alt: string;
-                    illustrative: boolean;
-                  } => image.src !== null
-                )}
+              images={galeria}
             />
           ) : (
             <ProductImage
@@ -504,7 +515,7 @@ export default async function ProductPage({
             pricePyg: cheapest ?? null,
             // La primera foto que no es ilustrativa; si todas lo son, la
             // primera, con su leyenda (F6).
-            imageCloudinaryId: recentPhoto?.cloudinaryId ?? null,
+            imageRef: recentPhoto?.imageRef ?? null,
             imageAlt: recentPhoto?.alt ?? null,
             imageIllustrative: recentPhoto?.provenance === "illustrative",
           }}

@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { StoreSettingsSection } from "@/domain/store-settings-schema";
 import { t } from "@/i18n";
+
+import { prepararFoto } from "./preparar-foto";
 import type { FieldErrors } from "@/lib/field-errors";
 
 /**
@@ -229,7 +231,7 @@ function leerCampos(
 }
 
 /**
- * La foto de portada: subirla a Cloudinary o sacarla. Va aparte del
+ * La foto de portada: subirla a R2 o sacarla. Va aparte del
  * formulario de "Marca y portada" porque es un archivo, igual que el QR del
  * banco.
  */
@@ -239,7 +241,7 @@ export function HeroImagePanel({
 }: {
   /** La foto que se ve hoy (del panel o de `tienda.ts`), ya como URL. */
   imagenUrl: string | null;
-  /** `false` sin Cloudinary configurado: no se ofrece una subida que va a fallar. */
+  /** `false` sin R2 configurado: no se ofrece una subida que va a fallar. */
   habilitado: boolean;
 }) {
   const router = useRouter();
@@ -310,6 +312,11 @@ export function HeroImagePanel({
             setError(null);
             const data = new FormData(event.currentTarget);
             startTransition(async () => {
+              const preparada = await prepararFoto(data);
+              if (preparada) {
+                setError(preparada);
+                return;
+              }
               const result = await subirImagenPortada(data);
               if (!result.ok) {
                 setError(result.error);
@@ -341,7 +348,7 @@ export function HeroImagePanel({
         </form>
       ) : (
         <p className="text-muted-foreground text-xs">
-          {t("panel.ajustes.marca.sinCloudinary")}
+          {t("panel.ajustes.marca.sinAlmacenamiento")}
         </p>
       )}
     </div>
@@ -350,7 +357,7 @@ export function HeroImagePanel({
 
 /**
  * El logo o el favicon de la tienda (`/admin/ajustes` → Identidad): subirlo a
- * Cloudinary o sacarlo. Mismo patrón que la foto de portada.
+ * R2 o sacarlo. Mismo patrón que la foto de portada.
  */
 export function MarcaImagenPanel({
   tipo,
@@ -444,6 +451,11 @@ export function MarcaImagenPanel({
             const data = new FormData(event.currentTarget);
             data.set("tipo", tipo);
             startTransition(async () => {
+              const preparada = await prepararFoto(data);
+              if (preparada) {
+                setError(preparada);
+                return;
+              }
               const result = await subirImagenMarca(data);
               if (!result.ok) {
                 setError(result.error);
@@ -475,7 +487,7 @@ export function MarcaImagenPanel({
         </form>
       ) : (
         <p className="text-muted-foreground text-xs">
-          {t("panel.ajustes.marca.sinCloudinary")}
+          {t("panel.ajustes.marca.sinAlmacenamiento")}
         </p>
       )}
     </div>

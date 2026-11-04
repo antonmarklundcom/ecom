@@ -12,6 +12,13 @@ import { listShippingZones } from "../src/domain/shipping";
 import { readBankDetails } from "../src/domain/admin-bank";
 import { readStoreSettings } from "../src/domain/store-settings";
 import { leerIntegracionesDelPanel } from "../src/lib/integraciones-store";
+import { publicarFoto } from "../src/lib/integraciones";
+import { clienteR2, r2Configurado } from "../src/lib/r2";
+import { probarCanariosPrivados } from "../src/domain/preflight-r2";
+import {
+  contarRefsLegacy,
+  totalRefsLegacy,
+} from "../src/domain/imagenes-legacy";
 
 /**
  * `pnpm preflight` — ¿podemos cobrar plata de verdad?
@@ -104,6 +111,65 @@ async function revisarMetodosDeEnvio(): Promise<void> {
   }
 }
 
+/**
+ * R2 contra la red: que el dominio público **no** sirva los prefijos privados
+ * (canario en `comprobantes/` y `backups/`), y cuántas referencias de imagen
+ * quedaron del almacenamiento anterior.
+ *
+ * El canario sí cambia el código de salida: un comprobante bancario que se
+ * baja por el dominio público es una filtración, no una advertencia. Las
+ * referencias viejas sólo avisan: se ven como placeholder, no rompen nada.
+ */
+async function revisarR2(): Promise<void> {
+  console.log("Imágenes y archivos en R2 (se conecta; el canario sí bloquea)\n");
+
+  if (!r2Configurado()) {
+    console.log("  · Prefijos privados");
+    console.log("      R2 no está configurado: no hay nada que probar todavía (ver arriba)");
+  } else {
+    try {
+      const resultados = await probarCanariosPrivados(clienteR2());
+      for (const resultado of resultados) {
+        if (resultado.estado === "bloqueado") {
+          console.log(`  ✓ /${resultado.prefijo}* no se sirve por el dominio público`);
+        } else if (resultado.estado === "publico") {
+          console.log(`  ✗ /${resultado.prefijo}* SE PUEDE LEER por el dominio público`);
+          console.log(
+            "      agregá la regla de Cloudflare que bloquea /comprobantes/* y /backups/* en el " +
+              "dominio del bucket (DEPLOY.md) antes de recibir un solo comprobante"
+          );
+          process.exitCode = 1;
+        } else {
+          console.log(`  ! /${resultado.prefijo}*`);
+          console.log(`      no se pudo probar (${resultado.motivo})`);
+        }
+      }
+    } catch (error) {
+      console.log("  ! Prefijos privados");
+      console.log(`      no se pudo probar (${safeError(error).message})`);
+    }
+  }
+
+  try {
+    const refs = await contarRefsLegacy();
+    const total = totalRefsLegacy(refs);
+    if (total === 0) {
+      console.log("  ✓ Referencias de imagen: todas son de R2");
+    } else {
+      console.log("  ! Referencias de imagen del almacenamiento anterior");
+      console.log(
+        `      ${total} (fotos ${refs.productImages}, categorías ${refs.categories}, ` +
+          `QR ${refs.bankQr}, ajustes ${refs.storeSettings}, tienda.ts ${refs.tiendaConfig}, ` +
+          `comprobantes ${refs.receipts}). Se ven como placeholder: migralas con el script de ` +
+          "migración de fotos (NEW-STORE.md)"
+      );
+    }
+  } catch (error) {
+    console.log("  · Referencias de imagen");
+    console.log(`      no se pudo revisar (${safeError(error).message})`);
+  }
+}
+
 async function main(): Promise<void> {
   // Lo cargado en /admin/integraciones manda sobre el entorno: se lee (sólo
   // lectura) para que el reporte diga lo que la tienda usa de verdad y de
@@ -161,8 +227,12 @@ async function main(): Promise<void> {
     process.exitCode = 1;
   }
 
-  // Aparte y al final, porque es el único que se conecta: lo que salga de acá
-  // no cambia el código de salida que ya quedó decidido arriba.
+  // Aparte y al final, porque son los que se conectan. Los métodos de envío
+  // no cambian el código de salida; el canario privado de R2 sí.
+  console.log("");
+  // Lo del panel manda: el cliente de R2 lee la foto de integraciones.
+  if (panel.lectura === "ok") publicarFoto(panel.filas);
+  await revisarR2();
   console.log("");
   await revisarMetodosDeEnvio();
   console.log("");

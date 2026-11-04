@@ -4,7 +4,7 @@
  * Todo lo que cambia de una tienda a otra y no es un secreto vive acá: el
  * nombre que se ve en el header, el pie y los títulos del navegador, la
  * descripción para buscadores y el idioma. Los datos que sí son secretos o
- * cambian por ambiente (WhatsApp, banco, Pagopar, Cloudinary) siguen en el
+ * cambian por ambiente (WhatsApp, banco, Pagopar, R2) siguen en el
  * entorno — ver `docs/ENV-OPCIONAL.md` y `src/lib/comercio.ts`.
  *
  * Regla para no romper el template: nada del dominio (checkout, pedidos,
@@ -68,12 +68,13 @@ export type Tienda = {
 /** La portada de la home. Ver `Tienda["hero"]`. */
 export type Hero = {
   /**
-   * Foto de fondo. El id público de Cloudinary, igual que en las fotos de
-   * producto (ej. `"portadas/verano-2026"`). Sin `CLOUDINARY_CLOUD_NAME` en el
-   * entorno o sin id, el hero se dibuja sin foto y con el fondo de siempre —
-   * nunca con un rectángulo roto.
+   * Foto de fondo. La referencia de R2, igual que en las fotos de producto
+   * (ej. `"r2:p1/portada-3f9a0c12de@1200x600"`; lo más simple es subirla
+   * desde `/admin/ajustes`, que manda sobre esto). Sin base pública de R2 o
+   * con una referencia que no es de R2, el hero se dibuja sin foto y con el
+   * fondo de siempre — nunca con un rectángulo roto.
    */
-  imagen?: { cloudinaryId: string; alt: string } | null;
+  imagen?: { imageRef: string; alt: string } | null;
   titulo: string;
   /** Una o dos líneas abajo del título. */
   texto?: string;

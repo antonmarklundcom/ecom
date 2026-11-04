@@ -104,7 +104,7 @@ export async function getDatosBancarios(
       ruc: fila.ruc,
       cuenta: fila.cuenta,
       tipoCuenta: fila.tipoCuenta,
-      qrUrl: bankQrUrl(fila.qrCloudinaryId) ?? qrUrlDeEnv(),
+      qrUrl: bankQrUrl(fila.qrImageRef) ?? qrUrlDeEnv(),
     };
   }
 
@@ -130,7 +130,7 @@ export function datosBancariosDeEnv(): DatosBancarios | null {
   return { banco, titular, ruc, cuenta, tipoCuenta, qrUrl: qrUrlDeEnv() };
 }
 
-/** `BANCO_QR_URL` — sigue valiendo, y es el fallback del QR de Cloudinary. */
+/** `BANCO_QR_URL` — sigue valiendo, y es el fallback del QR subido a R2. */
 function qrUrlDeEnv(): string | null {
   return (process.env.BANCO_QR_URL ?? "").trim() || null;
 }

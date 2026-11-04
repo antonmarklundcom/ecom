@@ -8,7 +8,7 @@ import { validSessionSecret } from "./session-secret";
 
 /**
  * Cifrado de los secretos que el dueño carga desde `/admin/integraciones`
- * (`api_secret` de Cloudinary, token de WhatsApp Cloud, clave privada de
+ * (secret de R2, token de WhatsApp Cloud, clave privada de
  * Pagopar).
  *
  * **AES-256-GCM** con una clave derivada de `SESSION_SECRET` por **HKDF-SHA256**.
@@ -16,7 +16,7 @@ import { validSessionSecret } from "./session-secret";
  * filtra la base (un backup, un dump, un `SELECT` de alguien con acceso)?
  *
  * 1. **La clave no está en la base.** Sale de `SESSION_SECRET`, que vive en el
- *    hPanel. Un backup de la base —que sí sale de la máquina, a Cloudinary—
+ *    hPanel. Un backup de la base —que sí sale de la máquina, a R2—
  *    trae los secretos cifrados y nada con qué abrirlos.
  * 2. **Una clave por uso.** El `info` de HKDF es el contexto (`integraciones/
  *    pagopar/privateKey`), así que cada campo tiene su propia clave, y además

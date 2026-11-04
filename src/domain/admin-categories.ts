@@ -68,7 +68,7 @@ export type AdminCategoryRow = {
    * destildado, que es lo que esta fase viene a borrar.
    */
   description: string | null;
-  imageCloudinaryId: string | null;
+  imageRef: string | null;
   imageAlt: string | null;
 };
 
@@ -96,7 +96,7 @@ export async function listAdminCategories(
       description: categories.description,
       seoTitle: categories.seoTitle,
       seoDescription: categories.seoDescription,
-      imageCloudinaryId: categories.imageCloudinaryId,
+      imageRef: categories.imageRef,
       imageAlt: categories.imageAlt,
       productos: count(products.id),
       publicados: PUBLICADO,
@@ -112,7 +112,7 @@ export async function listAdminCategories(
       categories.description,
       categories.seoTitle,
       categories.seoDescription,
-      categories.imageCloudinaryId,
+      categories.imageRef,
       categories.imageAlt
     )
     .orderBy(asc(categories.position), asc(categories.id));
@@ -161,7 +161,7 @@ export type CategoryPresentation = {
   seoTitle?: string | null;
   seoDescription?: string | null;
   description?: string | null;
-  imageCloudinaryId?: string | null;
+  imageRef?: string | null;
   imageAlt?: string | null;
 };
 
@@ -182,8 +182,8 @@ function presentacion(
   }
   if (input.description !== undefined)
     campos.description = input.description?.trim() || null;
-  if (input.imageCloudinaryId !== undefined) {
-    campos.imageCloudinaryId = input.imageCloudinaryId?.trim() || null;
+  if (input.imageRef !== undefined) {
+    campos.imageRef = input.imageRef?.trim() || null;
   }
   if (input.imageAlt !== undefined)
     campos.imageAlt = input.imageAlt?.trim() || null;
@@ -240,7 +240,7 @@ export async function createCategory(
       description: row.description,
       seoTitle: row.seoTitle,
       seoDescription: row.seoDescription,
-      imageCloudinaryId: row.imageCloudinaryId,
+      imageRef: row.imageRef,
       imageAlt: row.imageAlt,
       productos: 0,
       publicados: 0,
@@ -294,26 +294,25 @@ export async function updateCategory(
 }
 
 /**
- * La foto de la categoría, ya subida a Cloudinary.
+ * La foto de la categoría, ya escrita en R2.
  *
- * Devuelve el `public_id` que había antes (o `null`) para que la acción borre
- * ese asset del CDN. El borrado se hace **después** de que la fila apunte a la
- * foto nueva y nunca adentro de esta función: si Cloudinary está caído, la
- * categoría ya quedó bien y lo único que pasa es que sobra un archivo.
+ * Devuelve la referencia que había antes (o `null`), para quien quiera
+ * registrarla. **No** se borra del bucket: las claves salen del contenido y la
+ * misma foto puede estar en un producto u otra categoría.
  *
  * A diferencia de `updateCategory`, no toca nombre ni slug: subir una foto no
  * es el momento de re-validar la URL de la categoría.
  */
 export async function setCategoryImage(input: {
   categoryId: number;
-  imageCloudinaryId: string;
+  imageRef: string;
   imageAlt?: string | null;
-}): Promise<{ previousCloudinaryId: string | null }> {
+}): Promise<{ previousImageRef: string | null }> {
   return getDb().transaction(async (tx) => {
     const rows = await tx
       .select({
         id: categories.id,
-        imageCloudinaryId: categories.imageCloudinaryId,
+        imageRef: categories.imageRef,
       })
       .from(categories)
       .where(eq(categories.id, input.categoryId))
@@ -326,7 +325,7 @@ export async function setCategoryImage(input: {
     await tx
       .update(categories)
       .set({
-        imageCloudinaryId: input.imageCloudinaryId,
+        imageRef: input.imageRef,
         // `undefined` no toca el alt que ya había: quien sólo reemplaza la
         // foto no tiene por qué volver a escribir la descripción.
         ...(input.imageAlt === undefined
@@ -336,10 +335,10 @@ export async function setCategoryImage(input: {
       .where(eq(categories.id, category.id));
 
     return {
-      previousCloudinaryId:
-        category.imageCloudinaryId === input.imageCloudinaryId
+      previousImageRef:
+        category.imageRef === input.imageRef
           ? null
-          : category.imageCloudinaryId,
+          : category.imageRef,
     };
   });
 }

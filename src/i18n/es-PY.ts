@@ -595,6 +595,8 @@ export const esPY = {
     "Ya subiste {maximo} comprobantes para este pedido. Escribinos por WhatsApp.",
   "error.comprobante.sinMotivo":
     "Escribí el motivo del rechazo: el comprador lo ve y necesita saber qué corregir.",
+  "error.comprobante.legado":
+    "Este comprobante se subió antes del cambio de almacenamiento a R2 y no se puede abrir desde acá. Migralo con el script de migración de fotos (NEW-STORE.md) o pedile a la compradora que lo vuelva a mandar.",
   "error.comprobante.noExiste": "No encontramos ese comprobante.",
   "error.comprobante.yaAprobado": "Ese comprobante ya estaba aprobado.",
   "error.comprobante.yaRechazado": "Ese comprobante ya estaba rechazado.",
@@ -844,6 +846,19 @@ export const esPY = {
   "adminError.foto.vacia": "El archivo está vacío.",
   "adminError.foto.pesada": "La foto no puede pesar más de 5 MB.",
   "adminError.foto.formato": "Subí una foto en JPG, PNG o WebP.",
+  "panel.foto.preparar.elegi": "Elegí una foto JPG, PNG o WebP de hasta 25 MB.",
+  "panel.foto.preparar.noSePudoLeer":
+    "No se pudo leer la foto. Elegí otro JPG, PNG o WebP y volvé a intentar.",
+  "panel.foto.preparar.demasiadoGrande":
+    "La foto es demasiado grande. Reducí sus dimensiones y volvé a intentar.",
+  "panel.foto.preparar.sinWebp":
+    "Tu navegador no puede convertir fotos a WebP. Probá con un navegador actualizado.",
+  "panel.foto.preparar.pesada":
+    "La foto sigue pesando demasiado después de achicarla. Recortala o elegí otra.",
+  "adminError.foto.sinPreparar":
+    "La foto no llegó preparada. Recargá la página y volvé a elegirla (hace falta un navegador actualizado).",
+  "adminError.foto.sinAlmacenamiento":
+    "Para subir fotos falta configurar R2 en /admin/integraciones.",
 
   "adminError.pago.yaDevuelto":
     "Ese pago ya está marcado como devuelto: no corresponde revivir el pedido.",
@@ -1596,7 +1611,7 @@ export const esPY = {
   "panel.productos.importar.fotosNuevas.uno": "{n} foto a subir",
   "panel.productos.importar.fotosNuevas.varios": "{n} fotos a subir",
   "panel.productos.importar.fotosOmitidas":
-    "{n} fotos NO se subieron: Cloudinary no está configurado.",
+    "{n} fotos NO se subieron: falta configurar R2 en /admin/integraciones.",
   "panel.productos.importar.fotosFallidas.uno": "{n} foto no se pudo subir.",
   "panel.productos.importar.fotosFallidas.varios":
     "{n} fotos no se pudieron subir.",
@@ -1941,7 +1956,7 @@ export const esPY = {
   "panel.productos.destacadoChip": "Destacado",
   "panel.filtros.destacados": "Sólo destacados",
 
-  // Foto de categoría (B): antes era un ID de Cloudinary pegado a mano.
+  // Foto de categoría (B): antes era un ID pegado a mano.
   "panel.categoria.foto.vacia": "Todavía no tiene foto.",
   "panel.categoria.foto.subida": "Foto actualizada.",
 
@@ -2159,8 +2174,8 @@ export const esPY = {
   "panel.ajustes.marca.imagenSubida": "Foto de portada cargada.",
   "panel.ajustes.marca.imagenQuitar": "Quitar foto",
   "panel.ajustes.marca.imagenQuitada": "Foto de portada quitada.",
-  "panel.ajustes.marca.sinCloudinary":
-    "Para subir fotos falta configurar Cloudinary (CLOUDINARY_* en el entorno).",
+  "panel.ajustes.marca.sinAlmacenamiento":
+    "Para subir fotos falta configurar R2 en /admin/integraciones (o R2_* en el entorno).",
   "panel.ajustes.anuncio.titulo": "Barra de anuncio",
   "panel.ajustes.anuncio.bajada":
     "Una línea arriba de todo en la tienda: una promo, un feriado, un aviso de envíos.",
@@ -2286,7 +2301,7 @@ export const esPY = {
   "panel.integraciones.meta": "Integraciones",
   "panel.integraciones.titulo": "Integraciones",
   "panel.integraciones.bajada":
-    "Cloudinary, WhatsApp, Pagopar, medición y reporte de errores, sin tocar el hPanel ni redeployar. Lo que cargues acá manda sobre las variables de entorno; vacío, vuelve a mandar el entorno, y sin ninguno de los dos la función queda apagada.",
+    "Imágenes (R2), WhatsApp, Pagopar, medición y reporte de errores, sin tocar el hPanel ni redeployar. Lo que cargues acá manda sobre las variables de entorno; vacío, vuelve a mandar el entorno, y sin ninguno de los dos la función queda apagada.",
   "panel.integraciones.sinClave":
     "No se puede leer ni guardar nada acá: SESSION_SECRET no está configurado en el hosting (o es el de ejemplo, o mide menos de 32 caracteres). Es la clave con la que se cifran estos datos. Mientras tanto, todo sale de las variables de entorno.",
   "panel.integraciones.estado.panel": "Activa · desde el panel",
@@ -2312,9 +2327,9 @@ export const esPY = {
     "¿Borrar todo lo cargado en el panel para esta integración? Vuelven a mandar las variables de entorno (o queda apagada si no hay).",
   "panel.integraciones.vueltoAlEntorno": "Listo: vuelve a mandar el entorno.",
   "panel.integraciones.actualizado": "Guardado en el panel el {fecha}",
-  "panel.integraciones.cloudinary.titulo": "Cloudinary",
-  "panel.integraciones.cloudinary.bajada":
-    "Fotos de producto, comprobantes de pago (carpeta privada) y copias de seguridad. Sin esto la compradora no puede subir el comprobante.",
+  "panel.integraciones.r2.titulo": "Imágenes y archivos (Cloudflare R2)",
+  "panel.integraciones.r2.bajada":
+    "Fotos de producto, comprobantes de pago y copias de seguridad, en un bucket de R2 de esta tienda. Los comprobantes y las copias son privados: el dominio público tiene que bloquear /comprobantes/* y /backups/* (DEPLOY.md). Sin esto no se pueden subir fotos y la compradora no puede subir el comprobante.",
   "panel.integraciones.whatsapp.titulo": "WhatsApp",
   "panel.integraciones.whatsapp.bajada":
     "El número del comercio (a donde llegan los avisos al dueño) y la WhatsApp Cloud API de Meta con sus plantillas aprobadas. Cada plantilla vacía apaga sólo ese aviso.",
@@ -2327,11 +2342,12 @@ export const esPY = {
   "panel.integraciones.errores.titulo": "Reporte de errores",
   "panel.integraciones.errores.bajada":
     "Un webhook https propio (Slack, Discord, n8n) que recibe los errores del servidor. Sin datos de compradoras. Vacío, nada sale de la máquina.",
-  "panel.integraciones.campo.cloudName": "Cloud name",
-  "panel.integraciones.campo.apiKey": "API key",
-  "panel.integraciones.campo.apiSecret": "API secret",
-  "panel.integraciones.campo.folderPrefix":
-    "Prefijo de carpetas (sólo si varias tiendas comparten la cuenta; no lo cambies con fotos subidas)",
+  "panel.integraciones.campo.accountId": "Account ID de Cloudflare (32 caracteres)",
+  "panel.integraciones.campo.accessKeyId": "Access Key ID (token de R2)",
+  "panel.integraciones.campo.secretAccessKey": "Secret Access Key (token de R2)",
+  "panel.integraciones.campo.bucket": "Nombre del bucket",
+  "panel.integraciones.campo.publicUrl":
+    "Dominio público del bucket (https://…, sin barra final)",
   "panel.integraciones.campo.numeroComercio":
     "WhatsApp del comercio (avisos al dueño)",
   "panel.integraciones.campo.phoneNumberId": "Phone number ID (Cloud API)",
@@ -2373,10 +2389,11 @@ export const esPY = {
   "panel.integraciones.campo.reportUrl": "URL del webhook (https://…)",
   "panel.integraciones.prueba.incompleta":
     "Faltan datos para probar: {faltan}.",
-  "panel.integraciones.prueba.cloudinaryOk":
-    "Cloudinary respondió: las credenciales andan.",
-  "panel.integraciones.prueba.cloudinaryError":
-    "Cloudinary rechazó la prueba: {detalle}",
+  "panel.integraciones.prueba.r2Ok":
+    "R2 respondió: se pudo escribir, leer y borrar un archivo de prueba privado en el bucket {bucket}.",
+  "panel.integraciones.prueba.r2Error": "R2 rechazó la prueba: {detalle}",
+  "panel.integraciones.prueba.r2Publico":
+    "Las credenciales andan, pero el archivo de prueba privado se puede leer por el dominio público ({host}). Bloqueá /comprobantes/* y /backups/* en ese dominio antes de recibir comprobantes (DEPLOY.md).",
   "panel.integraciones.prueba.whatsappOk":
     "Meta respondió: número {numero} ({nombre}).",
   "panel.integraciones.prueba.whatsappError":
@@ -2513,7 +2530,7 @@ export const esPY = {
     "En el hosting: base de datos (DATABASE_URL), sesiones (SESSION_SECRET), dirección pública HTTPS (NEXT_PUBLIC_SITE_URL) y cron protegido (CRON_SECRET). SETUP_SECRET se usa sólo para inicializar: después borrala del hosting y hacé Redeploy.",
   "setup.optionalTitle": "Integraciones según lo que necesites",
   "setup.optionalHelp":
-    "Desde Integraciones en el panel podés configurar Cloudinary para subir fotos y comprobantes, WhatsApp para contacto y avisos, Pagopar para tarjetas, analítica y reportes de errores. No necesitás estas cuentas para inicializar. Cada función se habilita cuando la configurás.",
+    "Desde Integraciones en el panel podés configurar R2 para subir fotos, comprobantes y copias de seguridad, WhatsApp para contacto y avisos, Pagopar para tarjetas, analítica y reportes de errores. No necesitás estas cuentas para inicializar. Cada función se habilita cuando la configurás.",
   "setup.nextTitle": "Después de inicializar",
   "setup.nextCatalog":
     "Entrá al panel, cargá los productos reales y revisá precios y stock. Quitá los ejemplos si elegiste el catálogo de prueba.",

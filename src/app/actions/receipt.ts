@@ -11,27 +11,37 @@ import {
   validateReceipt,
 } from "@/domain/receipts";
 import {
-  carpetaComprobantes,
-  cloudinary,
-  cloudinaryConfigured,
-} from "@/lib/cloudinary";
+  PREFIJO_COMPROBANTES,
+  clavePrivada,
+  clienteR2,
+  r2Configurado,
+  refPrivada,
+} from "@/lib/r2";
 import { t } from "@/i18n";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 
 /**
  * Subida del comprobante de transferencia (PLAN.md 3.5).
  *
- * El archivo va a una carpeta **privada** de Cloudinary (`type: authenticated`):
- * un comprobante bancario tiene el nombre y la cuenta del comprador, y una URL
- * pública adivinable sería una filtración. El admin lo mira con URL firmada.
+ * El archivo va a R2 bajo `comprobantes/`, con una clave que lleva 128 bits
+ * aleatorios (`clavePrivada`): un comprobante bancario tiene el nombre y la
+ * cuenta del comprador, y una URL adivinable sería una filtración. El dominio
+ * público bloquea ese prefijo (DEPLOY.md; `pnpm preflight` lo verifica) y el
+ * admin lo mira con una URL prefirmada de vida corta.
  */
+
+const EXTENSION: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "application/pdf": "pdf",
+};
 
 export type UploadReceiptResult = { ok: true } | { ok: false; error: string };
 
 export async function uploadReceipt(
   formData: FormData
 ): Promise<UploadReceiptResult> {
-  // Cloudinary puede estar configurado desde /admin/integraciones.
+  // R2 puede estar configurado desde /admin/integraciones.
   await cargarIntegraciones();
   const orderNumber = String(formData.get("orderNumber") ?? "");
   const token = String(formData.get("token") ?? "");
@@ -51,7 +61,7 @@ export async function uploadReceipt(
   // (docs/TEMPLATE-IMPROVEMENT-PLAN.md D3); esto es para una pestaña vieja o
   // un POST armado a mano: se corta antes de leer el archivo, con un mensaje
   // que dice qué hacer en vez de un error genérico después de esperar.
-  if (!cloudinaryConfigured()) {
+  if (!r2Configurado()) {
     return { ok: false, error: t("error.comprobante.sinAlmacenamiento") };
   }
 
@@ -76,24 +86,23 @@ export async function uploadReceipt(
       content,
     });
 
-    const uploaded = await cloudinary.uploader.upload(
-      `data:${mime};base64,${content.toString("base64")}`,
-      {
-        folder: carpetaComprobantes(),
-        // `authenticated` = sin URL pública: sólo se ve con firma y TTL.
-        type: "authenticated",
-        resource_type: mime === "application/pdf" ? "image" : "image",
-        public_id: `${order.orderNumber}-${Date.now()}`,
-        overwrite: false,
-      }
+    const key = clavePrivada(
+      PREFIJO_COMPROBANTES,
+      `${order.orderNumber}.${EXTENSION[mime] ?? "bin"}`
     );
-    subido = uploaded.public_id;
+    await clienteR2().put(key, new Uint8Array(content), {
+      contentType: mime,
+      // Nunca a un caché compartido, aunque alguien saltee el bloqueo del dominio.
+      cacheControl: "private, no-store",
+      soloSiNoExiste: true,
+    });
+    subido = key;
 
     // Estado, cupo, registro, transición y reserva: todo bajo el lock del
     // pedido, en una transacción.
     await finalizeUploadedReceipt({
       orderId: order.id,
-      cloudinaryId: uploaded.public_id,
+      storageKey: refPrivada(key),
       mime,
       bytes: content.byteLength,
     });
@@ -104,8 +113,8 @@ export async function uploadReceipt(
     // Subido pero no registrado (el pedido cambió, se llenó el cupo, falló la
     // base): el archivo privado no puede quedar huérfano en la cuenta.
     if (subido) {
-      await cloudinary.uploader
-        .destroy(subido, { type: "authenticated", resource_type: "image" })
+      await clienteR2()
+        .delete(subido)
         .catch((cleanup: unknown) => {
           console.error(
             "uploadReceipt: no pude borrar el comprobante sin registrar",

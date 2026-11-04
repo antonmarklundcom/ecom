@@ -14,7 +14,7 @@ import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import { REVIEWABLE_ORDER_STATUS, listReviewableItems } from "@/domain/reviews";
 import { t } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
-import { cloudinaryConfigured } from "@/lib/cloudinary";
+import { r2Configurado } from "@/lib/r2";
 import { getDatosBancarios, waLinkPublico } from "@/lib/comercio";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 import { formatGs, formatGsPlain } from "@/lib/money";
@@ -162,7 +162,7 @@ export default async function OrderPage({
           orderNumber={order.orderNumber}
           token={token}
           remaining={RECEIPT_MAX_PER_ORDER - receiptCount}
-          storageReady={cloudinaryConfigured()}
+          storageReady={r2Configurado()}
           waHref={comprobanteWaHref}
         />
       ) : null}
