@@ -1,0 +1,23 @@
+{
+  "descripcion": "Form-encoded con los campos del pedido sueltos.",
+  "origen": "sintetico",
+  "contentType": "application/x-www-form-urlencoded",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpoCrudo": "hash_pedido=b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3&pagado=1&monto=150000&forma_pago=TARJETA",
+  "esperado": {
+    "parseo": {
+      "hashPedido": "b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3",
+      "pagado": true,
+      "montoPyg": 150000
+    },
+    "ruta": {
+      "status": 200,
+      "pedido": "pagado",
+      "eventos": 1
+    }
+  }
+}

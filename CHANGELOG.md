@@ -25,6 +25,29 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Pagopar: el aviso de pago, leído a la defensiva** (ARCH.md §4.2, TASKS.md
+  §21). Sin migración. Maquinaria: llega sola por `template:sync`, la tienda
+  no tiene que hacer nada a mano.
+  - El webhook ya no usa `request.json()`: `readWebhookBody()` +
+    `parseWebhookEvent()` (zod) aceptan el sobre de siempre, el pedido o la
+    lista sin sobre, `resultado` como objeto o string con JSON, números como
+    strings, BOM, `content-type` equivocado y form-encoded, con tope de 64 KiB.
+    Lo que no se puede leer —incluidos un monto ambiguo o varios pedidos
+    distintos en un aviso— contesta 400 sin tocar la base y loguea el motivo,
+    nunca el cuerpo.
+  - El token `sha1(clave + hash_pedido)` se acepta en el querystring **o** en
+    el campo `token` del pedido (mismo digest, tiempo constante): la URL de
+    respuesta es fija y el token cambia por pedido, así que no puede venir
+    fijo en la URL. El token del cuerpo no se guarda en `payment_events` ni se
+    loguea.
+  - Un aviso `pagado: false` sobre un pedido ya cobrado deja un `log.error`
+    (posible reversión); el pedido sigue sin tocarse.
+  - Avisos de prueba en `tests/fixtures/pagopar/` (con README que marca qué es
+    forma del repo, hipótesis o sintético) y dos tests que los recorren.
+  - La doc oficial de Pagopar no se pudo leer desde la sesión: el sobre de la
+    respuesta sigue **sin confirmar** (`WEBHOOK_ENVELOPE_CONFIRMED = false`,
+    preflight igual que antes). TASKS.md §21 tiene los pasos exactos para
+    cuando haya credenciales de sandbox.
 - **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   F1–F6). Sin migración.
   - Errores del panel: los formularios de producto, variante, categoría y

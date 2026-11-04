@@ -1,0 +1,23 @@
+{
+  "descripcion": "Form-encoded con un único campo que trae el sobre entero en JSON.",
+  "origen": "sintetico",
+  "contentType": "application/x-www-form-urlencoded",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpoCrudo": "datos=%7B%22respuesta%22%3A+true%2C+%22resultado%22%3A+%5B%7B%22hash_pedido%22%3A+%22b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3%22%2C+%22pagado%22%3A+true%2C+%22monto%22%3A+%22150000%22%2C+%22forma_pago%22%3A+%22TARJETA%22%2C+%22numero_pedido%22%3A+%22PY-000123%22%7D%5D%7D",
+  "esperado": {
+    "parseo": {
+      "hashPedido": "b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3",
+      "pagado": true,
+      "montoPyg": 150000
+    },
+    "ruta": {
+      "status": 200,
+      "pedido": "pagado",
+      "eventos": 1
+    }
+  }
+}

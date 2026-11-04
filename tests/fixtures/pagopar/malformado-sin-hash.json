@@ -1,0 +1,29 @@
+{
+  "descripcion": "Pedido sin `hash_pedido` → 400.",
+  "origen": "sintetico",
+  "contentType": "application/json",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpo": {
+    "respuesta": true,
+    "resultado": [
+      {
+        "pagado": true,
+        "monto": "150000",
+        "forma_pago": "TARJETA",
+        "numero_pedido": "PY-000123"
+      }
+    ]
+  },
+  "esperado": {
+    "parseo": "error",
+    "ruta": {
+      "status": 400,
+      "pedido": "pendiente_pago",
+      "eventos": 0
+    }
+  }
+}
