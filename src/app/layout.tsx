@@ -18,6 +18,7 @@ import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 import { marcaEfectiva } from "@/lib/marca";
+import { temaActivo } from "@/themes";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -83,6 +84,10 @@ export default async function RootLayout({
   return (
     <html
       lang={idiomaActivo()}
+      // El tema de `src/config/tienda.ts` (`src/themes/`): elige cuál de los
+      // bloques de `src/themes/temas.css` vale. Sin este atributo se ve el
+      // tema base, que es la tienda de antes del kit.
+      data-tema={temaActivo().id}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       // El color de marca de /admin/ajustes → Identidad pisa `--primary` del
       // tema (ya validado como #RRGGBB, con el texto encima por contraste).

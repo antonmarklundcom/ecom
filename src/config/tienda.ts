@@ -13,6 +13,8 @@
  *
  * Ver NEW-STORE.md para el checklist completo de una tienda nueva.
  */
+import type { TemaId } from "@/themes/presets";
+
 export type Tienda = {
   /** Nombre comercial. Header, pie y `siteName` de Open Graph. */
   nombre: string;
@@ -26,6 +28,18 @@ export type Tienda = {
   lang: string;
   /** `locale` de Open Graph. */
   ogLocale: string;
+
+  /**
+   * El tema de la vidriera (`src/themes/`, NEW-STORE.md §5): colores, radio,
+   * escala, variante de header y de pie, y orden de las secciones de la home.
+   * `"clasico"` es la tienda de siempre. Los del template: `clasico`,
+   * `vitrina`, `calido`, `oscuro-vivo` (`src/themes/presets.ts`).
+   *
+   * Lo escribe `pnpm nueva-tienda --tema <nombre>`. Los retoques que ningún
+   * tema resuelve van en `src/themes/custom.css`; el color de marca de
+   * `/admin/ajustes` → Identidad le gana igual al del tema.
+   */
+  tema: TemaId;
 
   /**
    * ¿Esta tienda ofrece cuentas de cliente? (PLAN.md FASE 2, PR E)
@@ -102,6 +116,7 @@ export const TIENDA: Tienda = {
   tagline: "Conocé nuestro catálogo y las opciones disponibles.",
   lang: "es-PY",
   ogLocale: "es_PY",
+  tema: "clasico",
   cuentasClientes: false,
   hero: null,
 };

@@ -151,6 +151,26 @@ export const DOCS_DEL_TEMPLATE = [
   "docs/ENV-OPCIONAL.md",
 ] as const;
 
+/**
+ * Archivos que son **de la tienda** aunque el template traiga uno: el template
+ * los ofrece como punto de partida y nunca más los pisa. `template:sync` los
+ * conserva siempre que la tienda tenga el suyo —aunque nunca lo haya tocado
+ * y el template haya cambiado el de él—, y los trae sólo si a la tienda le
+ * faltan (`globals.css` los importa: sin el archivo, el build se cae).
+ *
+ * La diferencia con la piel común: un archivo de piel que la tienda nunca
+ * tocó se actualiza con el del template. Éstos no, porque estar "sin tocar"
+ * no quiere decir que la tienda no lo quiera así.
+ *
+ * `src/themes/custom.css` son los retoques de CSS de la tienda, cargados
+ * últimos (NEW-STORE.md §5): el template lo trae vacío y comentado.
+ */
+export const DE_LA_TIENDA = ["src/themes/custom.css"] as const;
+
+export function esDeLaTienda(ruta: string): boolean {
+  return (DE_LA_TIENDA as readonly string[]).includes(ruta);
+}
+
 export const BASELINE_FILE = ".template-baseline";
 
 /**

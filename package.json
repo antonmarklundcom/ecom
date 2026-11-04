@@ -36,6 +36,7 @@
     "restore": "tsx scripts/restore-backup.ts",
     "test:full": "tsx scripts/verify-full.ts",
     "i18n:client": "tsx scripts/client-messages.ts",
+    "temas:css": "tsx scripts/temas-css.ts",
     "prebuild": "pnpm i18n:client"
   },
   "dependencies": {
