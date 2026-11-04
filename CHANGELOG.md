@@ -25,6 +25,23 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **CI más barato y dependencias con Renovate.** Sin migración.
+  - `ci.yml`: un PR (público o privado) corre sólo `checks`. En un repo
+    público (el template), `e2e` y `lighthouse` corren después de cada merge
+    (push a `main`, gratis) y ya no en cada PR. En uno privado (una tienda)
+    el push a `main` sigue sin correr nada; el e2e corre con el label
+    `ci-completo`, en el PR `template/sync` de cada versión y a mano, y
+    `lighthouse` sólo a mano. Los minutos de una tienda no cambian (~120 por
+    mes, NEW-STORE.md § "CI y minutos de Actions").
+  - Lighthouse deja el puntaje de performance (mobile, meta ≥ 90) en el
+    resumen de la corrida, sin bloquear (`scripts/ci/resumen-lighthouse.mjs`).
+  - Renovate (`.github/renovate.json`, sólo en el template) reemplaza a
+    Dependabot: sábado a la madrugada, un PR para todo lo menor, seguridad al
+    toque, pines de `eslint` < 10, `typescript` < 7 y `@types/node` 22.
+  - Una tienda no tiene que hacer nada: el PR `template/sync` le trae el
+    `ci.yml` nuevo y le saca `.github/dependabot.yml` si lo tenía. En el
+    template, una persona instala la app de Renovate (NEW-STORE.md §
+    "Dependencias: Renovate").
 - **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   F1–F6). Sin migración.
   - Errores del panel: los formularios de producto, variante, categoría y

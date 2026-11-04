@@ -437,8 +437,13 @@ describe('el título se sugiere a partir del nombre', () => {
 describe('soloTemplateABorrar', () => {
   const todo = () => true;
 
-  it('en una tienda con nombre propio, borra fable/ y Dependabot si existen', () => {
-    expect(soloTemplateABorrar('La Esquina', todo)).toEqual(['fable', '.github/dependabot.yml', 'tiendas.json']);
+  it('en una tienda con nombre propio, borra fable/, Renovate y Dependabot si existen', () => {
+    expect(soloTemplateABorrar('La Esquina', todo)).toEqual([
+      'fable',
+      '.github/renovate.json',
+      '.github/dependabot.yml',
+      'tiendas.json',
+    ]);
     expect(soloTemplateABorrar('La Esquina', (ruta) => ruta === 'fable')).toEqual(['fable']);
   });
 

@@ -37,7 +37,7 @@ import {
  *   - maquinaria que la tienda nunca tuvo → se restaura aunque el template no la haya cambiado
  *   - maquinaria cambiada de los dos lados → merge de 3 vías; si choca, conflicto
  *   - piel o docs que la tienda cambió → quedan los de la tienda (se listan)
- *   - `fable/`, Dependabot, `tiendas.json` → nunca viajan
+ *   - `fable/`, Renovate (y el viejo Dependabot), `tiendas.json` → nunca viajan
  *   - `pnpm-lock.yaml`                → el del template, o se regenera
  *
  * Todo termina en **un** commit con el baseline nuevo. Si hubo conflictos,
@@ -135,7 +135,7 @@ export function parseArgs(entrada: string[]): Opciones {
 // ---------------------------------------------------------------------------
 
 export type Accion =
-  /** `fable/`, Dependabot, `tiendas.json`, el propio baseline: nunca viajan. */
+  /** `fable/`, Renovate, `tiendas.json`, el propio baseline: nunca viajan. */
   | 'ignorar'
   /** La tienda ya tiene exactamente lo del template. */
   | 'al-dia'
