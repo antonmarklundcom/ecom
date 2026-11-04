@@ -1,6 +1,5 @@
 import { createHash, createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
 
-import { safeError } from "@/lib/safe-error";
 import { count, eq, inArray, sql } from "drizzle-orm";
 
 import {
