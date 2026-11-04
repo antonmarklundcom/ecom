@@ -872,11 +872,11 @@ Lighthouse), una vez, después de mergear.
 Cuánto cuesta, en un repo privado (aprox.: `checks` ~7 min, `e2e` ~9,
 `lighthouse` ~6): un PR común, ~7 min por push (los pushes seguidos se
 cancelan); cada merge a `main`, ~15 min más (e2e + lighthouse); un PR
-`template/sync`, ~16. Una tienda con 10 merges al mes y un PR de
-distribución: ~250 min/mes, holgado dentro de los 2000 de una cuenta con
-una o dos tiendas activas. Con muchas tiendas privadas activas a la vez, el
-número que hay que mirar es el de merges a `main`: Billing → Actions lo
-desglosa por repo.
+`template/sync`, ~16 (más los ~15 de su merge). Una tienda con 10 PRs
+mergeados al mes (~1,5 pushes cada uno) y un PR de distribución: ~300
+min/mes; antes de correr el e2e en `main` eran ~130. Con muchas tiendas
+privadas activas a la vez, el número que hay que mirar es el de merges a
+`main`: Billing → Actions lo desglosa por repo.
 
 El gate de cada día es local y gratis: `pre-commit` corre `typecheck` + `lint`
 y `pre-push` corre `pnpm test:unit` (los unitarios, en paralelo, ~15 s; husky,
