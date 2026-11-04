@@ -301,54 +301,41 @@ Para una demo mostrable al cliente antes de tener productos reales:
 Los productos reales entran por dos caminos:
 
 - **Pocos, o de a uno:** el panel, `/admin/productos`.
-- **El catálogo entero de una vez:** `pnpm importar:productos lista.csv`. El
-  comercio ya tiene su lista de precios en Excel; las columnas obligatorias son
-  SKU, Producto, Categoría y Precio (₲). Variante y Stock son opcionales:
-  Variante vacía significa variante única y Stock vacío significa 0 al crear,
-  sin tocarlo al reimportar. El formato es el mismo que baja el export del
-  panel (una fila por variante) más columnas opcionales — Descripción, Marca,
-  IVA, Precio antes (₲), Slug y **Fotos**. Separador `;` o `,`, como venga. Sin
-  `--aplicar` es un ensayo que sólo cuenta; los errores salen todos juntos con
-  número de línea. Idempotente: re-importar actualiza precios sin duplicar y
-  **no pisa el stock** de variantes existentes (`--pisar-stock` si de verdad
-  querés eso). Las categorías que no existan se crean al final del menú.
-  Reglas que protegen lo cargado (docs/TEMPLATE-IMPROVEMENT-PLAN.md C1–C7):
-  - **Ausente no es vacío.** Una columna que la planilla no trae no toca lo
-    guardado (la planilla del proveedor con SKU y precio cambia sólo
-    precios). Una celda vacía en Descripción, Marca o Precio antes lo
-    **borra**; Variante, Stock e IVA vacíos no se tocan en lo existente (en
-    un alta son "Único", 0 e IVA 10).
-  - **Todo o nada.** Si algo falla —un SKU que otra persona cargó entre la
-    vista previa y la confirmación, un valor que la base rechaza— no queda
-    nada escrito, tampoco las categorías nuevas.
-  - **Un SKU es de un solo producto**, con la misma igualdad que la base
-    (`ABC-1`, `abc-1` y `ÁBC-1` son el mismo SKU): una planilla no muda una
-    variante a otro producto.
-  - **Lo nuevo entra como borrador**; lo existente no cambia de activo ni de
-    publicado, ni de orden.
-  - **Precios y stock en masa son del dueño** (`precios.masivo`): el personal
-    puede cargar productos y textos, pero una planilla que cambia un precio o
-    pisa un stock se rechaza entera si no la aplica el dueño. Cada precio y
-    cada stock que cambia queda en el registro con quién lo hizo.
-  - **Exportar e importar el mismo archivo no cambia nada**: el export trae
-    Slug, Descripción, Marca, IVA y Precio antes (₲0 incluido), las columnas
-    que la importación necesita para encontrar y conservar cada producto.
-  - **Fotos**: una o más URLs `https://` en la columna Fotos, separadas por
-    `|`, espacio o salto de línea (normalmente sólo en la primera fila de cada
-    producto). Cloudinary va a buscarlas solo — nada se descarga acá — y sólo
-    se suben a un producto que hoy no tiene ninguna foto, para que reimportar
-    la misma planilla no duplique nada. Ejemplo de fila (mismas columnas de
-    siempre + Fotos al final):
+- **El catálogo entero de una vez:** una planilla (CSV o Excel), desde
+  `/admin/productos` → "Cargar planilla" o con `pnpm importar:productos
+  lista.csv`. El formato es **uno solo** para el export del panel, la
+  importación del panel y la CLI, y está documentado en
+  **[docs/CATALOGO-CSV.md](docs/CATALOGO-CSV.md)**: una fila por variante;
+  obligatorias SKU, Producto, Categoría y Precio (₲); el resto opcional
+  (Variante, Stock, Descripción, Marca, IVA, Precio antes, Slug, Fotos, Modo
+  de venta, Mostrar precio y, con proveedores prendidos, Proveedor, URL
+  proveedor, Costo proveedor y Stock proveedor). Un archivo exportado de otra
+  tienda entra sin tocarlo.
 
-    ```
-    SKU;Producto;Categoría;Variante;Precio (₲);Stock;Descripción;Marca;IVA;Precio antes (₲);Slug;Fotos
-    AUR-1;Auriculares TWS;Electrónica;Negro;285000;24;;;;;;https://cdn.tienda.com/aur-1.jpg|https://cdn.tienda.com/aur-1b.jpg
-    ```
+  Para probar con datos de ejemplo (20 productos genéricos, sin fotos):
 
-    Tanto el panel (`/admin/productos`) como la CLI las suben iguales, con la
-    misma regla; sin credenciales de Cloudinary configuradas se avisa y se
-    sigue el resto de la importación sin ellas. Una foto también se puede
-    cargar suelta, a mano, desde `/admin/productos`.
+  ```sh
+  pnpm importar:productos scripts/fixtures/catalogo-demo.csv            # ensayo
+  pnpm importar:productos scripts/fixtures/catalogo-demo.csv --aplicar  # escribe
+  ```
+
+  Lo esencial (el detalle, en docs/CATALOGO-CSV.md):
+  - **Primero se revisa**: sin `--aplicar` (o con "Revisar" en el panel) no
+    se escribe nada; los errores salen todos juntos con número de línea, y
+    los **posibles productos repetidos** (mismo nombre con otro slug, nombres
+    casi iguales, slug que ya existe sin SKU en común) hay que marcarlos como
+    revisados antes de confirmar (`--revisado` en la CLI).
+  - **Por lotes**: se escribe de a 25 productos y cada lote entra entero o no
+    entra; si uno falla o se corta la conexión, los anteriores quedan.
+    Volver a Revisar y reimportar el archivo termina el trabajo sin duplicar.
+  - **Idempotente por SKU y slug**, **ausente no es vacío** (una columna que
+    no viene no toca lo guardado) y **el stock existente no se pisa** salvo
+    "pisar stock" / `--pisar-stock`.
+  - **Lo nuevo entra como borrador**, un SKU es de un solo producto, y los
+    precios o el stock en masa los aplica el dueño (quedan auditados).
+  - **Fotos**: URLs `https://` en la columna Fotos; sólo se suben a un
+    producto que todavía no tiene ninguna, y nada se descarga acá. Una foto
+    también se puede cargar suelta desde `/admin/productos`.
 
 El seed deja un punto de partida que **se termina de ajustar desde el panel**,
 sin volver a tocar código:
@@ -564,8 +551,10 @@ Apagarlo de nuevo esconde los campos pero **no borra** lo cargado (la tabla
 Duplicar un producto copia el enlace de compra pero no las ofertas: hay que
 volver a confirmar que el proveedor vende lo mismo. Necesita la migración
 `0025` (viene con el template; en una tienda existente, la corre el setup
-después del deploy). Las columnas de proveedores en la planilla CSV llegan en
-un cambio aparte.
+después del deploy). La planilla del catálogo trae columnas de proveedor
+(Proveedor, URL proveedor, Costo proveedor, Stock proveedor) que sólo se
+exportan e importan con el flag prendido; apagado, se ignoran con un aviso
+(docs/CATALOGO-CSV.md § "Proveedores").
 
 Una tienda creada antes de este flag no tiene el campo en su `tienda.ts`
 (`template:sync` conserva el suyo): compila igual y queda apagado hasta que

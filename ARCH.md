@@ -517,6 +517,42 @@ Reglas que no cambian con el flag:
 5. **El flag no toca los modos de venta** (`sale_mode` `stock|enquiry|showcase`
    y `show_price`), que valen para todas las tiendas.
 
+### La planilla del catálogo: un formato, tres puntas, por lotes
+
+El export del panel, la importación del panel y `pnpm importar:productos`
+usan **una** definición de columnas (`src/domain/catalog-csv.ts`, nombres de
+`csv.producto.*`), documentada en docs/CATALOGO-CSV.md: un archivo de una
+tienda entra en otra sin tocarlo, y exportar → importar no cambia nada.
+
+- **Plan** (`buildCatalogImportPlan`, `src/domain/catalog-import-plan.ts`):
+  parseo puro (`parseCatalogo`, todos los errores con línea), conflictos de
+  SKU con la colación de la base, cuentas, y **posibles repetidos**
+  (`src/domain/catalog-duplicates.ts`: mismo nombre con otro slug, nombres
+  casi iguales en la categoría, slug existente sin SKU en común, foto o URL
+  de proveedor compartida). Los repetidos no frenan, pero el panel no deja
+  confirmar sin marcarlos y la CLI pide `--revisado`.
+- **Escritura por lotes** (`applyCatalogImportLote`): `CATALOG_IMPORT_LOTE`
+  (25) productos por transacción, en el orden del archivo. Cada lote se
+  vuelve a planificar contra la base de ese momento y entra entero o no
+  entra; uno que falla no deshace los anteriores. Es idempotente por slug y
+  SKU, así que reimportar el archivo completo termina un trabajo cortado. El
+  panel pide los lotes de a uno desde el navegador: si la conexión se corta a
+  mitad de un lote, dice que de ése no se sabe y pide volver a Revisar.
+- **Firma de la vista previa** (`firmaRevision`): HMAC con `SESSION_SECRET`
+  sobre la huella del archivo, la lista de repetidos, el modo de proveedores y
+  quien importa. Cada lote la verifica; el lote 0 además vuelve a revisar el
+  archivo entero. Así nadie escribe un archivo que no pasó por la vista
+  previa ni saltea la revisión de repetidos.
+- **Proveedores**: con el flag (y `precios` en el panel), URL proveedor va a
+  `products.supplier_url` y Proveedor/Costo/Stock proveedor a la oferta de la
+  variante con ese nombre (`upsertImportedSupplierOffer`, idempotente por
+  variante y nombre); con costo queda como la preferida. Sin el flag, esas
+  columnas no se exportan y al importar se ignoran con un aviso.
+- Lo de siempre (docs/TEMPLATE-IMPROVEMENT-PLAN.md C2–C7): ausente no es
+  vacío, el stock existente no se pisa sin pedirlo, lo nuevo entra como
+  borrador, precios y stock en masa son del dueño y quedan auditados. Las
+  fotos suben después del commit de cada lote.
+
 ### Zonas de envío: quién las escribe (FASE 2, PR K)
 
 `shipping_zones` la edita el `owner` desde `/admin/envios`, y el dominio

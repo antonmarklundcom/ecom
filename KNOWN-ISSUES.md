@@ -124,3 +124,15 @@ produce un `RENAME COLUMN` sobre una columna JSON, reescribir esa sentencia
 como `CHANGE … JSON NULL` antes de commitear la migración y probarla contra
 MariaDB (`.github/workflows/mariadb.yml`). La causa exacta en MariaDB no se
 investigó más allá de reproducirla.
+
+## La planilla sin "Modo de venta" valida el precio como venta con stock — foundation C
+
+`parseCatalogo` es puro y no sabe qué modo de venta tiene guardado cada
+producto. Si el archivo no trae la columna `Modo de venta`, una fila con ₲0 se
+valida como si el producto se vendiera con stock y es un error, aunque en la
+base esté en consulta (`enquiry`) o vidriera (`showcase`). El export siempre
+trae la columna, así que la ida y vuelta no lo sufre; lo sufre una planilla de
+sólo precios armada a mano que incluya esos productos. Arreglo: mover esa
+validación al plan (`buildCatalogImportPlan`), que sí mira la base, y aplicar
+el modo guardado cuando la columna falta. Ver docs/CATALOGO-CSV.md § "Una
+limitación".

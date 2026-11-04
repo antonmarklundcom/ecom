@@ -25,6 +25,23 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Importación del catálogo como función del panel, y una sola planilla
+  para export, panel y CLI** (docs/CATALOGO-CSV.md). Columnas canónicas en
+  orden fijo (SKU, Producto, Categoría, Variante, Precio (₲), Stock,
+  Descripción, Marca, IVA, Precio antes (₲), Slug, Fotos, [Proveedor, URL
+  proveedor, Costo proveedor, Stock proveedor], Modo de venta, Mostrar
+  precio); los encabezados viejos siguen entrando como alias. El **export del
+  panel cambia de formato**: antes bajaba 8 columnas, ahora la planilla
+  completa (con Slug, Descripción, Fotos, etc.), que vuelve a entrar sin
+  cambios en esta tienda o en otra. Vista previa con avisos y **posibles
+  productos repetidos** que hay que marcar como revisados (`--revisado` en la
+  CLI); la escritura va **por lotes de 25 productos**, cada uno atómico (antes
+  era todo el archivo en una transacción), con el avance a la vista y aviso
+  claro si se corta la conexión. Columnas de proveedor sólo con
+  `proveedores` prendido (si no, se ignoran con aviso). La CLI acepta `.xlsx`.
+  Datos de ejemplo: `scripts/fixtures/catalogo-demo.csv`. Migración: no. A
+  mano: nada; quien tenga macros o fórmulas sobre el CSV de productos del
+  panel tiene que revisar las columnas nuevas.
 - **Proveedores (dropshipping) en el panel, opcional y apagado**, y orden
   manual de destacados. **Migración: sí** (`0025`: tabla `supplier_offers`,
   `products.supplier_url` y `products.featured_position`, todas aditivas).
