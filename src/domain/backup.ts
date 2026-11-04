@@ -282,10 +282,12 @@ export type SubirObjeto = (nombre: string, bytes: Uint8Array, contentType: strin
 
 /** Un stream de texto → gzip → bytes, sin armar el texto entero en memoria. */
 async function gzipDe(lineas: AsyncIterable<string>): Promise<Buffer> {
-  const gzip = createGzip();
   const trozos: Buffer[] = [];
-  gzip.on("data", (trozo: Buffer) => trozos.push(trozo));
-  await pipeline(Readable.from(lineas), gzip);
+  // El último paso es un consumidor: `pipeline` termina recién cuando gzip
+  // vació todo, cierre del stream incluido.
+  await pipeline(Readable.from(lineas), createGzip(), async (comprimido: AsyncIterable<Buffer>) => {
+    for await (const trozo of comprimido) trozos.push(trozo);
+  });
   return Buffer.concat(trozos);
 }
 
