@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { Hero } from "@/config/tienda";
 import { productImageUrl } from "@/lib/images";
+// Los colores semánticos (`--estrella`, `--velo`…) con su default: ver el archivo.
+import "@/themes/semanticos.css";
 
 /**
  * La portada de la home (PLAN.md FASE 2, PR O).
@@ -40,14 +42,14 @@ export function HomeHero({ hero }: { hero: Hero }) {
             exactamente lo que no se puede saber desde acá. `aria-hidden`
             porque no aporta nada a quien no ve la foto.
           */}
-          <div className="absolute inset-0 -z-0 bg-black/45" aria-hidden />
+          <div className="absolute inset-0 -z-0 bg-(--velo)/45" aria-hidden />
         </>
       ) : null}
 
       <div className={`relative p-6 sm:p-10 ${src ? "min-h-[280px] sm:min-h-[360px]" : "bg-muted/30"}`}>
         <h1
           className={`max-w-2xl text-2xl font-semibold tracking-tight sm:text-4xl ${
-            src ? "text-white" : ""
+            src ? "text-(--sobre-velo)" : ""
           }`}
         >
           {hero.titulo}
@@ -56,7 +58,7 @@ export function HomeHero({ hero }: { hero: Hero }) {
         {hero.texto ? (
           <p
             className={`mt-3 max-w-xl text-sm sm:text-base ${
-              src ? "text-white/90" : "text-muted-foreground"
+              src ? "text-(--sobre-velo)/90" : "text-muted-foreground"
             }`}
           >
             {hero.texto}

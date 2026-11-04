@@ -1,5 +1,7 @@
 import { t } from "@/i18n/client";
 import { cn } from "@/lib/utils";
+// Los colores semánticos (`--estrella`, `--velo`…) con su default: ver el archivo.
+import "@/themes/semanticos.css";
 
 /**
  * Estrellas de 0 a 5, sólo para mirar (el selector de la compradora es otro:
@@ -28,7 +30,7 @@ export function RatingStars({
       role="img"
       aria-label={label}
       className={cn(
-        "inline-flex items-center gap-0.5 text-amber-500",
+        "inline-flex items-center gap-0.5 text-(--estrella)",
         className
       )}
     >
