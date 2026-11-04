@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { comercioWhatsApp } from '../../src/lib/comercio';
-import { cloudinaryConfigured, carpetaComprobantes } from '../../src/lib/cloudinary';
+import { r2Configurado } from '../../src/lib/r2';
 import { analyticsConfig } from '../../src/lib/analytics';
 import { productImageUrl } from '../../src/lib/images';
 import {
@@ -24,7 +24,7 @@ import { stockAlertTemplate } from '../../src/domain/stock-alerts';
 /**
  * La precedencia de `src/lib/integraciones.ts`: **fila de la base > variable
  * de entorno > apagado**, y que cada lector de siempre (Pagopar, WhatsApp,
- * Cloudinary, GA4/Pixel, reporte de errores) la respete sin cambiar su firma.
+ * R2, GA4/Pixel, reporte de errores) la respete sin cambiar su firma.
  */
 
 /** Todas las variables de integraciones, vacías: el punto de partida "apagado". */
@@ -64,27 +64,29 @@ describe('resolverIntegracion (pura)', () => {
   });
 
   it('las credenciales de un grupo no se mezclan entre fuentes', () => {
-    // El panel tiene el cloud_name de una cuenta; el entorno, la clave de
-    // otra. Mezclarlas subiría los comprobantes a donde nadie espera: el grupo
+    // El panel tiene la cuenta de R2; el entorno, la clave de otra.
+    // Mezclarlas subiría los comprobantes a donde nadie espera: el grupo
     // entero sale del panel, y lo que falta ahí falta.
     const config = resolverIntegracion(
-      'cloudinary',
-      { valores: { cloudName: 'cuenta-del-panel' }, ilegibles: [] },
+      'r2',
+      { valores: { accountId: '0123456789abcdef0123456789abcdef' }, ilegibles: [] },
       {
-        CLOUDINARY_CLOUD_NAME: 'cuenta-del-entorno',
-        CLOUDINARY_API_KEY: '111',
-        CLOUDINARY_API_SECRET: 'secreto-del-entorno',
-        CLOUDINARY_FOLDER_PREFIX: 'tienda',
+        R2_ACCOUNT_ID: 'ffffffffffffffffffffffffffffffff',
+        R2_ACCESS_KEY_ID: 'AKIAENTORNO000000',
+        R2_SECRET_ACCESS_KEY: 'secreto-del-entorno',
+        R2_BUCKET: 'bucket-del-entorno',
+        R2_PUBLIC_URL: 'https://img.tienda.test',
       },
     );
-    expect(config.valores.cloudName).toBe('cuenta-del-panel');
-    expect(config.valores.apiKey).toBeNull();
-    expect(config.valores.apiSecret).toBeNull();
+    expect(config.valores.accountId).toBe('0123456789abcdef0123456789abcdef');
+    expect(config.valores.accessKeyId).toBeNull();
+    expect(config.valores.secretAccessKey).toBeNull();
+    expect(config.valores.bucket).toBeNull();
     // Lo que no es credencial sigue campo por campo.
-    expect(config.valores.folderPrefix).toBe('tienda');
-    expect(resumirIntegracion('cloudinary', config)).toEqual({
+    expect(config.valores.publicUrl).toBe('https://img.tienda.test');
+    expect(resumirIntegracion('r2', config)).toEqual({
       estado: 'incompleta',
-      faltan: ['CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'],
+      faltan: ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'],
     });
   });
 
@@ -99,12 +101,14 @@ describe('resolverIntegracion (pura)', () => {
   });
 
   it('el changeme de los .env.example viejos cuenta como vacío', () => {
-    const config = resolverIntegracion('cloudinary', undefined, {
-      CLOUDINARY_CLOUD_NAME: 'changeme',
-      CLOUDINARY_API_KEY: 'changeme',
-      CLOUDINARY_API_SECRET: 'changeme',
+    const config = resolverIntegracion('r2', undefined, {
+      R2_ACCOUNT_ID: 'changeme',
+      R2_ACCESS_KEY_ID: 'changeme',
+      R2_SECRET_ACCESS_KEY: 'changeme',
+      R2_BUCKET: 'changeme',
+      R2_PUBLIC_URL: 'changeme',
     });
-    expect(resumirIntegracion('cloudinary', config)).toEqual({ estado: 'apagada' });
+    expect(resumirIntegracion('r2', config)).toEqual({ estado: 'apagada' });
   });
 
   it('sin fila y sin entorno, todas apagadas', () => {
@@ -126,8 +130,8 @@ describe('sin configuración, todo queda apagado', () => {
     expect(comercioWhatsApp()).toBeNull();
     expect(isPagoparConfigured()).toBe(false);
     expect(pagoparPrivateKey()).toBeNull();
-    expect(cloudinaryConfigured()).toBe(false);
-    expect(productImageUrl('productos/x')).toBeNull();
+    expect(r2Configurado()).toBe(false);
+    expect(productImageUrl('r2:p1/remera-0123456789@1200x900')).toBeNull();
     expect(analyticsConfig()).toEqual({ ga4Id: null, metaPixelId: null });
     expect(errorReportUrl()).toBeNull();
   });
@@ -140,9 +144,11 @@ describe('el entorno sigue funcionando (legacy)', () => {
     vi.stubEnv('PAGOPAR_BASE_URL', 'https://api.pagopar.test/');
     vi.stubEnv('WHATSAPP_NUMBER', '0981 222 333');
     vi.stubEnv('NEXT_PUBLIC_GA4_ID', 'G-ENTORNO1');
-    vi.stubEnv('CLOUDINARY_CLOUD_NAME', 'nube-env');
-    vi.stubEnv('CLOUDINARY_API_KEY', '123');
-    vi.stubEnv('CLOUDINARY_API_SECRET', 'secreto-env');
+    vi.stubEnv('R2_ACCOUNT_ID', '0123456789abcdef0123456789abcdef');
+    vi.stubEnv('R2_ACCESS_KEY_ID', 'AKIAENTORNO000000');
+    vi.stubEnv('R2_SECRET_ACCESS_KEY', 'secreto-env');
+    vi.stubEnv('R2_BUCKET', 'tienda-env');
+    vi.stubEnv('R2_PUBLIC_URL', 'https://img-env.tienda.test/');
 
     expect(pagoparConfig()).toEqual({
       publicKey: 'pub-env',
@@ -151,8 +157,12 @@ describe('el entorno sigue funcionando (legacy)', () => {
     });
     expect(comercioWhatsApp()).toBe('+595981222333');
     expect(analyticsConfig().ga4Id).toBe('G-ENTORNO1');
-    expect(cloudinaryConfigured()).toBe(true);
-    expect(productImageUrl('productos/x')).toContain('/nube-env/');
+    expect(r2Configurado()).toBe(true);
+    expect(productImageUrl('r2:p1/remera-0123456789@1200x900')).toBe(
+      'https://img-env.tienda.test/p1/remera-0123456789-480.webp',
+    );
+    // Una referencia que no es de R2 nunca arma una URL: placeholder.
+    expect(productImageUrl('productos/x')).toBeNull();
   });
 });
 
@@ -204,16 +214,24 @@ describe('el panel manda sobre el entorno', () => {
     expect(digestTemplate()).toBe('resumen_env');
   });
 
-  it('Cloudinary: credenciales y prefijo de carpetas, sin redeploy', () => {
+  it('R2: credenciales, bucket y dominio público, sin redeploy', () => {
+    vi.stubEnv('R2_PUBLIC_URL', 'https://img-env.tienda.test');
     publicarFoto({
-      cloudinary: {
-        valores: { cloudName: 'nube-panel', apiKey: '999', apiSecret: 's3cr3t-panel', folderPrefix: 'lenceria' },
+      r2: {
+        valores: {
+          accountId: '0123456789abcdef0123456789abcdef',
+          accessKeyId: 'AKIAPANEL00000000',
+          secretAccessKey: 's3cr3t-panel',
+          bucket: 'tienda-panel',
+          publicUrl: 'https://img-panel.tienda.test',
+        },
         ilegibles: [],
       },
     });
-    expect(cloudinaryConfigured()).toBe(true);
-    expect(carpetaComprobantes()).toBe('lenceria/comprobantes');
-    expect(productImageUrl('productos/x')).toContain('/nube-panel/');
+    expect(r2Configurado()).toBe(true);
+    expect(productImageUrl('r2:p1/remera-0123456789@1200x900', 'thumb')).toBe(
+      'https://img-panel.tienda.test/p1/remera-0123456789-240.webp',
+    );
   });
 
   it('Medición y reporte de errores', () => {

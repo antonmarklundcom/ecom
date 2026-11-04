@@ -169,12 +169,12 @@ describe.skipIf(!hasTestDb)('finishJob', () => {
     await claimJob('backup', { now: MEDIODIA_PY });
     await finishJob('backup', {
       ok: false,
-      error: 'Cloudinary  dijo\n  que no\n    at foo (bar.ts:1)',
+      error: 'R2  dijo\n  que no\n    at foo (bar.ts:1)',
       now: MEDIODIA_PY,
     });
 
     const fila = await getJobRun('backup');
-    expect(fila?.lastError).toBe('Cloudinary dijo que no at foo (bar.ts:1)');
+    expect(fila?.lastError).toBe('R2 dijo que no at foo (bar.ts:1)');
     expect(fila?.lastOkAt).toBeNull();
   });
 

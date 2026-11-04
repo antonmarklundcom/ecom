@@ -429,13 +429,13 @@ export function fijarEnv(
  * Hostinger las carga de a una, a mano, así que lo que sirve es la lista
  * exacta. Los valores públicos van sin comillas; los secretos se consultan en
  * `.env.local` para que no terminen en logs o artifacts. Se listan sólo las
- * que este script conoce; el resto —Cloudinary, Pagopar, la base— las trae
+ * que este script conoce; el resto —R2, Pagopar, la base— las trae
  * quien tiene esas cuentas, y el script no las va a inventar.
  */
 export function bloqueHPanel(valores: ValoresEnv): string {
   return Object.entries(valores)
     .filter(([, valor]) => valor !== '')
-    .map(([clave, valor]) => `${clave}=${/(?:SECRET|TOKEN|PASSWORD|(?:API|PUBLIC|PRIVATE)_KEY|DATABASE_URL)/i.test(clave) ? '<copiá el valor de .env.local>' : valor}`)
+    .map(([clave, valor]) => `${clave}=${/(?:SECRET|TOKEN|PASSWORD|(?:API|PUBLIC|PRIVATE|ACCESS)_KEY|DATABASE_URL)/i.test(clave) ? '<copiá el valor de .env.local>' : valor}`)
     .join('\n');
 }
 
@@ -711,7 +711,7 @@ async function main(): Promise<void> {
   console.log(
     '\n  Falta lo que no depende de este repo (NEW-STORE.md):\n' +
       '    · el favicon (src/app/favicon.ico) — ningún control lo verifica\n' +
-      '    · Cloudinary, la base de Hostinger y, si va con tarjeta, Pagopar\n' +
+      '    · R2 (fotos, comprobantes y backups), la base de Hostinger y, si va con tarjeta, Pagopar\n' +
       '      (variables opcionales, documentadas en docs/ENV-OPCIONAL.md)\n' +
       '    · los datos bancarios, que se cargan desde /admin/banco\n\n' +
       '  Y después, la base:\n\n' +

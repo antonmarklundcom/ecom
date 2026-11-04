@@ -10,7 +10,7 @@ import type { Integracion } from "./integraciones";
  */
 
 export const TITULO_INTEGRACION: Record<Integracion, MessageKey> = {
-  cloudinary: "panel.integraciones.cloudinary.titulo",
+  r2: "panel.integraciones.r2.titulo",
   whatsapp: "panel.integraciones.whatsapp.titulo",
   pagopar: "panel.integraciones.pagopar.titulo",
   analitica: "panel.integraciones.analitica.titulo",
@@ -18,7 +18,7 @@ export const TITULO_INTEGRACION: Record<Integracion, MessageKey> = {
 };
 
 export const BAJADA_INTEGRACION: Record<Integracion, MessageKey> = {
-  cloudinary: "panel.integraciones.cloudinary.bajada",
+  r2: "panel.integraciones.r2.bajada",
   whatsapp: "panel.integraciones.whatsapp.bajada",
   pagopar: "panel.integraciones.pagopar.bajada",
   analitica: "panel.integraciones.analitica.bajada",
@@ -26,10 +26,11 @@ export const BAJADA_INTEGRACION: Record<Integracion, MessageKey> = {
 };
 
 export const ETIQUETA_CAMPO: Record<string, MessageKey> = {
-  cloudName: "panel.integraciones.campo.cloudName",
-  apiKey: "panel.integraciones.campo.apiKey",
-  apiSecret: "panel.integraciones.campo.apiSecret",
-  folderPrefix: "panel.integraciones.campo.folderPrefix",
+  accountId: "panel.integraciones.campo.accountId",
+  accessKeyId: "panel.integraciones.campo.accessKeyId",
+  secretAccessKey: "panel.integraciones.campo.secretAccessKey",
+  bucket: "panel.integraciones.campo.bucket",
+  publicUrl: "panel.integraciones.campo.publicUrl",
   numeroComercio: "panel.integraciones.campo.numeroComercio",
   phoneNumberId: "panel.integraciones.campo.phoneNumberId",
   accessToken: "panel.integraciones.campo.accessToken",
@@ -58,7 +59,7 @@ export const ETIQUETA_CAMPO: Record<string, MessageKey> = {
 
 /** Las integraciones que tienen "Probar conexión". */
 export const CON_PRUEBA: readonly Integracion[] = [
-  "cloudinary",
+  "r2",
   "whatsapp",
   "pagopar",
 ];

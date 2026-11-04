@@ -199,11 +199,18 @@ describe("precedencia: ajuste → tienda.ts / entorno", () => {
     titulo: "Base",
     texto: "Texto base",
     cta: { label: "Ver", href: "/categoria/x" },
-    imagen: { cloudinaryId: "portadas/base", alt: "Foto base" },
+    imagen: { imageRef: "portadas/base", alt: "Foto base" },
+  };
+
+  // La foto sale con su referencia también bajo el nombre viejo (deprecado),
+  // para el markup de una tienda que todavía lo lee (src/lib/hero-imagen.ts).
+  const baseEfectiva = {
+    ...base,
+    imagen: { imageRef: "portadas/base", cloudinaryId: "portadas/base", alt: "Foto base" },
   };
 
   it("sin nada cargado, la portada es la base tal cual", () => {
-    expect(heroEfectivo(DEFAULT_STORE_SETTINGS.marca, base)).toEqual(base);
+    expect(heroEfectivo(DEFAULT_STORE_SETTINGS.marca, base)).toEqual(baseEfectiva);
   });
 
   it("cada campo cargado pisa sólo ése", () => {
@@ -211,13 +218,14 @@ describe("precedencia: ajuste → tienda.ts / entorno", () => {
       { ...DEFAULT_STORE_SETTINGS.marca, heroTitulo: "Verano" },
       base
     );
-    expect(hero).toEqual({ ...base, titulo: "Verano" });
+    expect(hero).toEqual({ ...baseEfectiva, titulo: "Verano" });
 
     const conFoto = heroEfectivo(
       { ...DEFAULT_STORE_SETTINGS.marca, heroImagenId: "portadas/nueva" },
       { titulo: "Sin foto" }
     );
     expect(conFoto?.imagen).toEqual({
+      imageRef: "portadas/nueva",
       cloudinaryId: "portadas/nueva",
       alt: "Sin foto",
     });

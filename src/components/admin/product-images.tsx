@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,13 +13,16 @@ import type { ImageProvenance } from "@/db/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { productImageUrl } from "@/lib/images";
+import { ImagenR2 } from "@/components/imagen-r2";
+import { productImageSources } from "@/lib/images";
+
+import { prepararFoto } from "./preparar-foto";
 import { formatDateTimePY } from "@/lib/py";
 import { t } from "@/i18n";
 
 type ImageCard = {
   id: number;
-  cloudinaryId: string;
+  imageRef: string;
   alt: string | null;
   /** La de la foto, no la efectiva: `null` = sin marcar. */
   provenance?: ImageProvenance | null;
@@ -65,16 +67,15 @@ export function ProductImages({
       {images.length > 0 ? (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {images.map((image) => {
-            const url = productImageUrl(image.cloudinaryId, "card");
+            const fuentes = productImageSources(image.imageRef, "card");
             return (
               <li key={image.id} className="border-border overflow-hidden rounded-lg border">
                 <div className="bg-muted relative aspect-square">
-                  {url ? (
-                    <Image
-                      src={url}
+                  {fuentes ? (
+                    <ImagenR2
+                      fuentes={fuentes}
                       alt={image.alt ?? t("panel.fotos.alt")}
                       fill
-                      unoptimized
                       sizes="200px"
                       className="object-cover"
                     />
@@ -168,6 +169,11 @@ export function ProductImages({
           data.set("productId", String(productId));
 
           startTransition(async () => {
+            const preparada = await prepararFoto(data);
+            if (preparada) {
+              setError(preparada);
+              return;
+            }
             const result = await uploadProductImage(data);
             if (!result.ok) {
               setError(result.error);

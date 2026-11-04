@@ -37,7 +37,7 @@ import type { Executor } from './executor';
  *    que se verifica.
  *
  * El QR va aparte (`setBankQr`) porque llega por otro camino: un archivo que
- * se sube a Cloudinary, no un campo de texto de un formulario.
+ * se sube a R2, no un campo de texto de un formulario.
  */
 
 export class AdminBankError extends DomainError {
@@ -54,7 +54,7 @@ export type BankDetailsRow = {
   ruc: string;
   cuenta: string;
   tipoCuenta: string;
-  qrCloudinaryId: string | null;
+  qrImageRef: string | null;
   updatedAt: Date;
   updatedBy: number | null;
 };
@@ -93,7 +93,7 @@ export async function readBankDetails(executor?: Executor): Promise<BankDetailsR
 
   return {
     ...campos,
-    qrCloudinaryId: row.qrCloudinaryId?.trim() || null,
+    qrImageRef: row.qrImageRef?.trim() || null,
     updatedAt: row.updatedAt,
     updatedBy: row.updatedBy,
   };
@@ -202,14 +202,14 @@ export async function saveBankDetails(input: {
     await tx.insert(bankDetails).values({
       id: SINGLETON_ID,
       ...campos,
-      qrCloudinaryId: null,
+      qrImageRef: null,
       updatedBy: input.actorUserId,
     });
   });
 }
 
 /**
- * Guarda el `public_id` del QR ya subido a Cloudinary.
+ * Guarda la referencia del QR ya escrito en R2 (`r2:p1/…`).
  *
  * Exige que los datos estén cargados: un QR solo no sirve de nada —la página
  * dibuja la sección entera o no la dibuja— y guardarlo en una fila que no
@@ -217,11 +217,11 @@ export async function saveBankDetails(input: {
  * regla de todos-o-nada evita.
  */
 export async function setBankQr(input: {
-  qrCloudinaryId: string;
+  qrImageRef: string;
   actorUserId: number | null;
 }): Promise<void> {
-  const qrCloudinaryId = input.qrCloudinaryId.trim();
-  if (qrCloudinaryId === '') throw new AdminBankError('adminError.banco.qrVacio');
+  const qrImageRef = input.qrImageRef.trim();
+  if (qrImageRef === '') throw new AdminBankError('adminError.banco.qrVacio');
 
   return getDb().transaction(async (tx) => {
     const existente = (
@@ -237,15 +237,15 @@ export async function setBankQr(input: {
 
     await tx
       .update(bankDetails)
-      .set({ qrCloudinaryId, updatedBy: input.actorUserId })
+      .set({ qrImageRef, updatedBy: input.actorUserId })
       .where(eq(bankDetails.id, SINGLETON_ID));
   });
 }
 
 /**
- * Saca el QR. **No borra el archivo de Cloudinary**, por el mismo motivo que
+ * Saca el QR. **No borra el archivo de R2**, por el mismo motivo que
  * las fotos de producto: si esa imagen está referenciada en otro lado,
- * borrarla del CDN rompe esa pantalla, y una imagen huérfana no cuesta nada.
+ * borrarla del bucket rompe esa pantalla, y una imagen huérfana no cuesta nada.
  */
 export async function clearBankQr(input: { actorUserId: number | null }): Promise<void> {
   return getDb().transaction(async (tx) => {
@@ -262,7 +262,7 @@ export async function clearBankQr(input: { actorUserId: number | null }): Promis
 
     await tx
       .update(bankDetails)
-      .set({ qrCloudinaryId: null, updatedBy: input.actorUserId })
+      .set({ qrImageRef: null, updatedBy: input.actorUserId })
       .where(eq(bankDetails.id, SINGLETON_ID));
   });
 }

@@ -30,7 +30,7 @@ import { createOrder, createVariant, getStatus } from "../helpers/factories";
 function subida(orderId: number) {
   return {
     orderId,
-    cloudinaryId: `comprobantes/${randomBytes(6).toString("hex")}`,
+    storageKey: `comprobantes/${randomBytes(6).toString("hex")}`,
     mime: "image/jpeg",
     bytes: 12_345,
   };

@@ -69,7 +69,7 @@ export const AdminProductInput = z.object({
   images: z
     .array(
       z.object({
-        cloudinaryId: z.string().trim().min(1).max(255),
+        imageRef: z.string().trim().min(1).max(255),
         sortOrder: z.number().int().nonnegative(),
       })
     )

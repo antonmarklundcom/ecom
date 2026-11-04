@@ -49,7 +49,7 @@ export default async function AdminBankPage() {
                 }
               : null
           }
-          qrUrl={fila ? bankQrUrl(fila.qrCloudinaryId) : null}
+          qrUrl={fila ? bankQrUrl(fila.qrImageRef) : null}
           actualizado={fila ? formatDateTimePY(fila.updatedAt) : null}
           desdeEntorno={
             fila

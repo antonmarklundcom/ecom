@@ -211,7 +211,7 @@ const GUARD_ESPERADO: Readonly<Record<string, "Admin" | "Staff" | "Owner">> = {
   // log de plata: la tienda sigue andando igual y el dueño se entera cuando
   // mira su banco. No se delega.
   guardarDatosBancarios: "Owner",
-  // Integraciones: credenciales de Cloudinary, WhatsApp y Pagopar. Owner.
+  // Integraciones: credenciales de R2, WhatsApp y Pagopar. Owner.
   guardarIntegracionAccion: "Owner",
   volverAlEntornoAccion: "Owner",
   probarIntegracionAccion: "Owner",

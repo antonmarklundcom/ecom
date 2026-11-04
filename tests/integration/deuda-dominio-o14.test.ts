@@ -142,14 +142,14 @@ describe.skipIf(!hasTestDb)("O14 — deuda de dominio", () => {
       const categoryId = await createCategory();
       await setCategoryImage({
         categoryId,
-        imageCloudinaryId: "categorias/lenceria",
+        imageRef: "categorias/lenceria",
         imageAlt: "Vitrina de lencería",
       });
 
       const fila = (await listAdminCategories()).find(
         (row) => row.id === categoryId
       );
-      expect(fila?.imageCloudinaryId).toBe("categorias/lenceria");
+      expect(fila?.imageRef).toBe("categorias/lenceria");
       expect(fila?.imageAlt).toBe("Vitrina de lencería");
       // Una categoría sin descripción devuelve `null`, no `undefined`: el
       // formulario dibuja un campo vacío, no "undefined".
@@ -160,39 +160,39 @@ describe.skipIf(!hasTestDb)("O14 — deuda de dominio", () => {
       const categoryId = await createCategory();
       const primera = await setCategoryImage({
         categoryId,
-        imageCloudinaryId: "categorias/vieja",
+        imageRef: "categorias/vieja",
       });
-      expect(primera.previousCloudinaryId).toBeNull();
+      expect(primera.previousImageRef).toBeNull();
 
       const segunda = await setCategoryImage({
         categoryId,
-        imageCloudinaryId: "categorias/nueva",
+        imageRef: "categorias/nueva",
       });
-      expect(segunda.previousCloudinaryId).toBe("categorias/vieja");
+      expect(segunda.previousImageRef).toBe("categorias/vieja");
 
       // Subir la misma foto dos veces no pide borrar la que se acaba de poner.
       const tercera = await setCategoryImage({
         categoryId,
-        imageCloudinaryId: "categorias/nueva",
+        imageRef: "categorias/nueva",
       });
-      expect(tercera.previousCloudinaryId).toBeNull();
+      expect(tercera.previousImageRef).toBeNull();
 
       const fila = (await listAdminCategories()).find(
         (row) => row.id === categoryId
       );
-      expect(fila?.imageCloudinaryId).toBe("categorias/nueva");
+      expect(fila?.imageRef).toBe("categorias/nueva");
     });
 
     it("cambiar la foto sin mandar alt conserva el alt que ya había", async () => {
       const categoryId = await createCategory();
       await setCategoryImage({
         categoryId,
-        imageCloudinaryId: "categorias/uno",
+        imageRef: "categorias/uno",
         imageAlt: "Alt original",
       });
       await setCategoryImage({
         categoryId,
-        imageCloudinaryId: "categorias/dos",
+        imageRef: "categorias/dos",
       });
 
       const fila = (await listAdminCategories()).find(

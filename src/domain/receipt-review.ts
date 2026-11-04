@@ -3,7 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { orders, receipts, type OrderStatus } from "@/db/schema";
 import { withLockRetry } from "@/db/retry";
-import { signedReceiptUrl } from "@/lib/cloudinary";
+import { cargarIntegraciones } from "@/lib/integraciones-store";
+import { claveDeRefPrivada, clienteR2 } from "@/lib/r2";
 
 import { ReceiptError } from "./receipts";
 import { transitionOrder } from "./orders";
@@ -119,12 +120,17 @@ export async function reviewReceipt(input: {
 }
 
 /**
- * URL firmada para mirar el comprobante desde el panel.
+ * URL prefirmada para mirar el comprobante desde el panel.
  *
- * Los comprobantes viven en una carpeta `authenticated` de Cloudinary: no
- * tienen URL pública. Se firma una por vez, con TTL corto, y se genera recién
- * cuando el dueño pide verla — no se embebe en el HTML del listado, donde
- * quedaría cacheada y compartible.
+ * Los comprobantes viven en R2 bajo `comprobantes/` y el dominio público no
+ * los sirve. Se firma una URL por vez (SigV4 en la query, contra el endpoint
+ * S3 del bucket), con TTL corto, y se genera recién cuando el dueño pide
+ * verla — no se embebe en el HTML del listado, donde quedaría cacheada y
+ * compartible.
+ *
+ * Un comprobante de antes del cambio a R2 (una referencia sin `r2:`) no tiene
+ * de dónde firmarse: se dice con un error que explica qué hacer, en vez de
+ * armar una URL que no abre.
  */
 export async function receiptPreview(
   receiptId: number,
@@ -134,7 +140,7 @@ export async function receiptPreview(
     .select({
       id: receipts.id,
       orderId: receipts.orderId,
-      cloudinaryId: receipts.cloudinaryId,
+      storageKey: receipts.storageKey,
       mime: receipts.mime,
     })
     .from(receipts)
@@ -146,10 +152,14 @@ export async function receiptPreview(
     throw new ReceiptError("error.comprobante.noExiste");
   }
 
+  const key = claveDeRefPrivada(receipt.storageKey);
+  if (!key) {
+    throw new ReceiptError("adminError.comprobante.legado");
+  }
+
+  await cargarIntegraciones();
   return {
-    url: signedReceiptUrl(receipt.cloudinaryId, {
-      expiresInSeconds: options.expiresInSeconds ?? 120,
-    }),
+    url: await clienteR2().urlFirmada(key, options.expiresInSeconds ?? 120),
     mime: receipt.mime,
     orderId: receipt.orderId,
   };

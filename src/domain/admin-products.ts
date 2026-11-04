@@ -96,7 +96,7 @@ export type AdminProductRow = {
   minPricePyg: number | null;
   onHand: number;
   /** La primera foto del producto, o `null` si no cargó ninguna. */
-  imageCloudinaryId: string | null;
+  imageRef: string | null;
   imageAlt: string | null;
 };
 
@@ -169,7 +169,7 @@ export async function listAdminProducts(
       // paginación. Las columnas van calificadas a mano — interpolar
       // `${productImages.productId}` acá adentro las emite sin el alias y la
       // correlación se compara consigo misma.
-      imageCloudinaryId: sql<string | null>`(
+      imageRef: sql<string | null>`(
         SELECT pi.\`cloudinary_id\` FROM \`product_images\` AS pi
         WHERE pi.\`product_id\` = \`products\`.\`id\`
         ORDER BY pi.\`position\` ASC, pi.\`id\` ASC LIMIT 1
@@ -877,7 +877,7 @@ export async function listStockAdjustments(
 }
 
 export async function addProductImage(
-  input: { productId: number; cloudinaryId: string; alt: string | null },
+  input: { productId: number; imageRef: string; alt: string | null },
   executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
@@ -888,7 +888,7 @@ export async function addProductImage(
 
   await tx.insert(productImages).values({
     productId: input.productId,
-    cloudinaryId: input.cloudinaryId,
+    imageRef: input.imageRef,
     alt: input.alt,
     position: row?.total ?? 0,
   });

@@ -25,10 +25,12 @@ import { safeError } from "../src/lib/safe-error";
  * este script sólo agrega lo que necesita base: qué categoría existe, de
  * quién es cada SKU, y el upsert compartido con el seed.
  *
- * **Fotos**: URLs `https://` separadas por `|`, espacio o salto de línea —
- * Cloudinary las va a buscar solo, este script nunca las descarga. Sólo se
- * suben a un producto que hoy no tiene ninguna foto, igual que una carga a
- * mano; si Cloudinary no está configurado se avisa y se sigue sin ellas.
+ * **Fotos**: URLs `https://` (o referencias `r2:p1/…` de `pnpm fotos:preparar`)
+ * separadas por `|`, espacio o salto de línea. Las URLs las baja este proceso
+ * (https, con topes de tamaño, tiempo y redirecciones, y mirando que sean
+ * imágenes por los bytes), las achica y las sube a R2. Sólo se suben a un
+ * producto que hoy no tiene ninguna foto, igual que una carga a mano; si R2
+ * no está configurado se avisa y se sigue sin ellas.
  *
  * Ejemplo de fila completa, con dos fotos:
  *
@@ -140,7 +142,7 @@ async function main(): Promise<void> {
   const fotos = await applyCatalogFotos(plan.productos);
   if (fotos.fotosOmitidas > 0) {
     console.log(
-      `⚠ ${fotos.fotosOmitidas} fotos NO se subieron: Cloudinary no está configurado (ver docs/ENV-OPCIONAL.md).`
+      `⚠ ${fotos.fotosOmitidas} fotos NO se subieron: R2 no está configurado (ver docs/ENV-OPCIONAL.md).`
     );
   } else if (fotos.fotosSubidas > 0 || fotos.fotosFallidas.length > 0) {
     console.log(`✓ ${fotos.fotosSubidas} fotos subidas`);
