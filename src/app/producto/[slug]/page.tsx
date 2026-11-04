@@ -516,6 +516,7 @@ export default async function ProductPage({
             // La primera foto que no es ilustrativa; si todas lo son, la
             // primera, con su leyenda (F6).
             imageRef: recentPhoto?.imageRef ?? null,
+            imageFuentes: productImageSources(recentPhoto?.imageRef, "card"),
             imageAlt: recentPhoto?.alt ?? null,
             imageIllustrative: recentPhoto?.provenance === "illustrative",
           }}

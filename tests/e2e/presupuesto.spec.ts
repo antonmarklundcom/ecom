@@ -36,10 +36,16 @@ import { TESTIDS } from "./testids";
  * cuentas desde el panel. La causa es el catálogo de textos, que viaja entero
  * al cliente (cada clave nueva, aunque sea del panel, suma a todas las
  * páginas) → +10%, según la regla de arriba. Anotado en `KNOWN-ISSUES.md`.
+ *
+ * 2026-11-04: producto pasó su techo por 0,7 KB (252.7 KB) con las fotos de
+ * R2: la galería dibuja `<picture>` con `srcset` (y conserva `next/image`
+ * para las locales). "Vistos recientemente" ya no arma URLs en el navegador
+ * —guarda las que arma el servidor— para no sumar más. → +10%, según la
+ * regla de arriba. Anotado en `KNOWN-ISSUES.md`.
  */
 const BUDGET_KB = {
   home: 247,
-  producto: 252,
+  producto: 278,
   checkout: 246,
 } as const;
 

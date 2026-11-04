@@ -352,7 +352,6 @@ export const publicCatalogs: Record<string, Record<string, string>> = {
     "error.comprobante.generico": "No pudimos subir el comprobante. Probá de nuevo.",
     "error.comprobante.demasiados": "Ya subiste {maximo} comprobantes para este pedido. Escribinos por WhatsApp.",
     "error.comprobante.sinMotivo": "Escribí el motivo del rechazo: el comprador lo ve y necesita saber qué corregir.",
-    "error.comprobante.legado": "Este comprobante se subió antes del cambio de almacenamiento a R2 y no se puede abrir desde acá. Migralo con el script de migración de fotos (NEW-STORE.md) o pedile a la compradora que lo vuelva a mandar.",
     "error.comprobante.noExiste": "No encontramos ese comprobante.",
     "error.comprobante.yaAprobado": "Ese comprobante ya estaba aprobado.",
     "error.comprobante.yaRechazado": "Ese comprobante ya estaba rechazado.",

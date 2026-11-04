@@ -5,7 +5,11 @@ import { ProductCard } from "@/components/product-card";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import type { CatalogProduct } from "@/db/queries";
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
-import { META_BASE_IMAGENES, resetBaseImagenesForTests } from "@/lib/images";
+import {
+  META_BASE_IMAGENES,
+  productImageSources,
+  resetBaseImagenesForTests,
+} from "@/lib/images";
 import { TESTIDS } from "@/lib/testids";
 
 /**
@@ -125,6 +129,7 @@ describe("vistos recientemente", () => {
         name: "Botella",
         pricePyg: 50_000,
         imageRef: "r2:p1/botella-0123456789@1200x1200",
+        imageFuentes: productImageSources("r2:p1/botella-0123456789@1200x1200", "card"),
         imageAlt: "Botella de frente",
         imageIllustrative: true,
       },

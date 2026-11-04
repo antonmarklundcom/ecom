@@ -154,7 +154,7 @@ export async function receiptPreview(
 
   const key = claveDeRefPrivada(receipt.storageKey);
   if (!key) {
-    throw new ReceiptError("error.comprobante.legado");
+    throw new ReceiptError("adminError.comprobante.legado");
   }
 
   await cargarIntegraciones();

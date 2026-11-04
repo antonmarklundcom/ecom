@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
 import { t } from "@/i18n/client";
 import { ImagenR2 } from "@/components/imagen-r2";
-import { categoryPlaceholderSrc, productImageSources } from "@/lib/images";
+import type { FuentesR2 } from "@/lib/imagenes-r2";
 import { formatGs, isChargeablePrice } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
 
@@ -39,6 +39,14 @@ export type RecentlyViewedItem = {
    */
   pricePyg: number | null;
   imageRef: string | null;
+  /**
+   * Las URLs de la foto de tarjeta, ya armadas por el servidor
+   * (`productImageSources`). Se guardan así y no se rearman acá para que la
+   * ficha de producto no cargue en el navegador el código que arma URLs de R2
+   * (presupuesto de JS, tests/e2e/presupuesto.spec.ts). Una entrada sin esto
+   * (guardada antes) se dibuja con el placeholder.
+   */
+  imageFuentes?: FuentesR2 | null;
   imageAlt: string | null;
   /**
    * La foto guardada es ilustrativa (no es este producto): se dibuja con su
@@ -64,6 +72,9 @@ function isItem(value: unknown): value is RecentlyViewedItem {
     (item.imageRef === undefined ||
       item.imageRef === null ||
       typeof item.imageRef === "string") &&
+    (item.imageFuentes === undefined ||
+      item.imageFuentes === null ||
+      typeof item.imageFuentes === "object") &&
     (item.imageAlt === null || typeof item.imageAlt === "string") &&
     (item.imageIllustrative === undefined ||
       typeof item.imageIllustrative === "boolean")
@@ -89,6 +100,17 @@ function writeList(items: RecentlyViewedItem[]): void {
     // no se guarda nada, y no es un error — es sólo que esta compradora no
     // tiene "vistos recientemente" hoy.
   }
+}
+
+/**
+ * Lo guardado en `localStorage` se revisa antes de ir a un `src`: sólo URLs
+ * `https://` (React escapa los atributos). Cualquier otra cosa es el
+ * placeholder.
+ */
+function fuentesGuardadas(valor: unknown): FuentesR2 | null {
+  const f = valor as Partial<FuentesR2> | null | undefined;
+  const https = (texto: unknown) => typeof texto === "string" && texto.startsWith("https://");
+  return f && https(f.src) && https(f.jpeg) && https(f.srcSet) ? (f as FuentesR2) : null;
 }
 
 export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
@@ -126,7 +148,7 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {items.map((item) => {
-          const fuentes = productImageSources(item.imageRef, "card");
+          const fuentes = fuentesGuardadas(item.imageFuentes);
           return (
             <Link
               key={item.slug}
@@ -146,7 +168,7 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
                   />
                 ) : (
                   <Image
-                    src={categoryPlaceholderSrc("generico")}
+                    src="/placeholders/generico.svg"
                     // El dibujo genérico no es el producto: decorativo, el
                     // nombre ya está en el título de la tarjeta.
                     alt=""

@@ -90,6 +90,20 @@ con el catálogo poblado. Los límites anteriores no se aumentaron. Esto
 resuelve la importación del diccionario completo; los bundles de Next y las
 otras funciones del cliente siguen formando parte del presupuesto.
 
+## Presupuesto de JS: producto subió el techo con las fotos de R2 — 2026-11-04
+
+El cambio a R2 pasó el techo de la ficha de producto por 0,7 KB: 252.7 KB >
+252 (home 239.7 KB y checkout 244.9 KB siguen adentro; las dos crecieron ~4,5
+KB desde la medición del 2026-10-05 sin tocar fotos, así que la ficha ya venía
+justa). Lo nuevo en el cliente de la ficha es la galería con `<picture>` y
+`srcset` (`src/components/imagen-r2.tsx`), que convive con `next/image` para
+las fotos locales. Antes de subir el techo se sacó de la ficha el código que
+arma URLs de R2 (vistos recientemente guarda las URLs que arma el servidor) y
+una clave de texto del panel que viajaba en el catálogo público. Según la
+regla del spec, el techo pasó al valor medido + 10% (278). Candidato para
+recuperar el margen, en una fase aparte: que la galería no importe
+`next/image` cuando todas sus fotos son de R2.
+
 ## MariaDB 10.11 puede rechazar `RENAME COLUMN` de una columna JSON — 2026-10-07
 
 MariaDB guarda una columna `json` como `longtext` con un `CHECK
