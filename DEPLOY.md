@@ -16,7 +16,7 @@ En el hPanel, dentro del sitio:
 1. **Websites → tu sitio → Advanced → GIT**: pegá la URL del repo y la rama
    (`main`). Si el repo es privado, copiá la clave pública que muestra
    Hostinger y cargala como _deploy key_ en GitHub (Settings → Deploy keys).
-2. **Node.js**: elegí la versión compatible con `engines`, `.nvmrc` y CI (actualmente Node 22). En los controles reales de hPanel elegí framework **Next.js**, gestor **pnpm**, build **pnpm run build** y salida **.next**. El script `start` del repositorio arranca el servidor. No es una exportación estática.
+2. **Node.js**: elegí la versión compatible con `engines`, `.nvmrc` y CI (actualmente Node 22). En los controles reales de hPanel elegí framework **Next.js**, gestor **pnpm**, build **pnpm run build** y salida **.next**. El script `start` del repositorio arranca el servidor: es `node scripts/start.mjs`, que corre `next start` con los mismos argumentos y el mismo `PORT` y además cierra la instancia anterior si quedó viva (§ "Procesos que se apilan"). No hay que cambiar nada en el hPanel por eso. No es una exportación estática.
 
    Usá la opción disponible en el dropdown, sin asumir campos libres para los tres comandos. Contrastá `packageManager` y los logs completos de instalación **y** build: el pnpm usado por Corepack en `prebuild` también debe coincidir. Un install exitoso no demuestra un build compatible. El repositorio mantiene su pin actual; no copies un pin antiguo de otra tienda ni desactives la verificación de versiones. La validación local no verifica un despliegue en Hostinger.
 
@@ -87,6 +87,10 @@ tiempo, el sitio anda pero se sabotea solo — los links de Open Graph y el
 sitemap apuntan a un dominio que todavía no resuelve, y las cookies de sesión
 del panel se emiten para otro host. Con la URL temporal, en cambio, todo cierra
 y podés probar de verdad.
+
+Si el DNS del dominio está en Cloudflare, los registros que apuntan a
+Hostinger van en **"DNS only"** (nube gris), nunca proxeados: ver §
+"Cloudflare: sólo DNS (nube gris)".
 
 Cuando el DNS del dominio real ya resuelve: cargá el dominio en el hPanel,
 cambiá `NEXT_PUBLIC_SITE_URL` al dominio final, **Redeploy** (es una
@@ -564,9 +568,13 @@ pnpm preflight
 
 Lista qué falta para cobrar plata de verdad (datos bancarios, `CRON_SECRET`,
 modo de la pasarela, R2) y sale con código 1 si algo bloquea. El reporte de
-arriba no toca la base ni la red; después, aparte, prueba el canario privado
-de R2 (que también puede dar código 1, §3b), cuenta las referencias de fotos
-que no son de R2 y revisa las formas de entrega.
+arriba no toca la base ni la red, así que se puede correr todas las veces que
+quieras; después, aparte, prueba el canario privado de R2 (que también puede
+dar código 1, §3b), cuenta las referencias de fotos que no son de R2 y revisa
+las formas de entrega. Al final hay un control que sí sale a la red —un DNS y
+un `HEAD` al sitio, con timeout corto—: si el dominio resuelve a IPs de
+Cloudflare (proxeado) bloquea; si la respuesta trae `cf-ray` advierte; y sin
+red no se pudo ver, lo dice y no bloquea (§ "Cloudflare: sólo DNS (nube gris)").
 
 Después, a mano: entrar a la tienda, agregar algo al carrito, llegar al
 checkout, y entrar a `/admin` con la cuenta del dueño.
@@ -663,3 +671,155 @@ desapareció del hPanel (el aviso por WhatsApp sólo sale cuando corre y falla).
 
 Con varias tiendas, uno por tienda y con el nombre del comercio en la alerta:
 a las 3 de la mañana no vas a adivinar cuál de las cuatro se cayó.
+
+---
+
+## Procesos que se apilan (429 en toda la cuenta)
+
+Hostinger cuenta los procesos de **toda la cuenta** contra un cupo compartido
+(del orden de 200), no los de cada sitio. Cuando un redeploy mata al proceso
+de arriba (`pnpm`) y no a sus hijos, el `next-server` viejo queda huérfano:
+vivo, sin atender a nadie y con su pool de MySQL abierto. Después de unos
+cuantos redeploys los huérfanos llenan el cupo y el hosting empieza a
+contestar **429** —o a no dejar arrancar nada— en **todas** las tiendas de la
+cuenta, no sólo en la que se redeployó. Se vio en una tienda de la cuenta en
+octubre de 2026.
+
+### Lo que hace el template
+
+**Al arrancar** (`pnpm start` = `node scripts/start.mjs`):
+
+1. Lee el pidfile de la instancia anterior de esta app. Vive en el directorio
+   temporal del sistema (`/tmp/ecom-start-<hash de la ruta de la app>.pid`), o
+   donde diga `START_PIDFILE` (docs/ENV-OPCIONAL.md). La ruta sale en el log
+   del arranque (`"msg":"servidor arrancado"`).
+2. Si ese proceso sigue vivo **y se puede verificar que es nuestro**, le manda
+   SIGTERM, espera hasta 15 s y, si sigue ahí, SIGKILL. La verificación es una
+   ficha al azar que el guard le pone en el entorno al servidor que lanza y
+   anota en el pidfile; antes de matar se busca en `/proc/<pid>/environ`. Un
+   pid reciclado —que hoy puede ser otra tienda de la misma cuenta— no tiene la
+   ficha y **no se toca**. Sin `/proc` (fuera de Linux) no hay cómo verificar y
+   no se mata nada.
+3. Arranca `next start` con los mismos argumentos y el `PORT` del entorno, y
+   reenvía SIGTERM/SIGINT (SIGHUP como SIGTERM). Si después de la señal el
+   servidor no salió en 15 s, SIGKILL. Sale con el código del servidor y borra
+   el pidfile sólo si sigue siendo el suyo.
+
+El log dice qué pasó con la anterior: `"msg":"instancia anterior: terminada"`
+(se cerró sola con SIGTERM), `forzada` (hizo falta SIGKILL), `muerta` (ya no
+estaba), `ajena` (el pid es de otro proceso: no se tocó), `no_verificable`
+(no hay `/proc`: no se tocó) o `sobrevivio` (ni con SIGKILL: miralo a mano).
+
+**Al apagarse** (el servidor, `src/lib/apagado-ordenado.ts`, sólo con
+`NODE_ENV=production`): con SIGTERM o SIGINT, Next deja de aceptar
+conexiones y termina los requests en curso; antes de salir se cierra el pool
+de MySQL. Si en 10 s no terminó (un request colgado), se cierra el pool y se
+sale igual. Esto corre aunque Hostinger lance `next start` directo sin pasar
+por `scripts/start.mjs`.
+
+Supuesto: **una sola instancia por app**, que es lo que da Hostinger (el rate
+limit en memoria, `src/lib/rate-limit.ts`, ya lo asume). Dos `pnpm start` desde
+el mismo directorio no conviven: el segundo cierra al primero, aunque usen
+puertos distintos.
+
+Si alguna vez el guard molesta, `START_GUARD=off` en las variables del hPanel
+(y Redeploy) arranca `next start` pelado, sin pidfile y sin cerrar nada. El
+apagado ordenado del servidor sigue igual. Si Hostinger arranca la app desde
+otro directorio en cada deploy, el pidfile del deploy anterior no se
+encuentra: `START_PIDFILE` con una ruta fija (por ejemplo
+`/home/<usuario>/.ecom-<tienda>.pid`) lo resuelve.
+
+### Ver y matar procesos a mano (SSH)
+
+Primero el PATH del §2 (`node` no está). Después, **tus** procesos, con
+cuánto hace que corren:
+
+```bash
+ps -u "$USER" -o pid,ppid,etime,args | grep -E 'next-server|start\.mjs|next start' | grep -v grep
+ps -u "$USER" --no-headers | wc -l     # cuántos procesos tiene la cuenta en total
+```
+
+El servidor aparece como `next-server (v16…)` (Next le cambia el título) y el
+guard como `node scripts/start.mjs`. Para saber de qué tienda es cada uno:
+
+```bash
+ls -l /proc/<pid>/cwd     # el directorio de la app
+```
+
+Uno que no es el de la instancia actual (`PPID` 1, `ELAPSED` de días, o un
+directorio de un deploy viejo) es un huérfano:
+
+```bash
+kill <pid>          # SIGTERM: termina los requests, cierra el pool, sale
+sleep 15
+kill -9 <pid>       # sólo si sigue ahí
+```
+
+**No uses `pkill -f next-server` ni `killall node`**: matan los servidores de
+**todas** las tiendas de la cuenta, no sólo los huérfanos de ésta. De a un pid,
+mirando el `cwd` de cada uno.
+
+---
+
+## Cloudflare: sólo DNS (nube gris)
+
+Si el dominio de la tienda tiene el DNS en Cloudflare, los registros que
+apuntan a Hostinger (`@`, `www`: los A/AAAA o CNAME que da el hPanel) van con
+**Proxy status: DNS only** —la nube gris—, **nunca proxeados** (nube naranja).
+Cloudflare como proveedor de DNS está bien; como proxy delante de Hostinger,
+no. Lo demás del dominio (MX, registros de correo, un subdominio de imágenes
+aparte) no cambia.
+
+Por qué, punto por punto:
+
+- **El aviso de pago de Pagopar.** `POST /api/webhooks/pagopar` lo hace el
+  servidor de Pagopar, no un navegador. Proxeado, las protecciones de
+  Cloudflare (Bot Fight Mode, desafíos administrados, reglas del WAF, "Under
+  Attack") le pueden contestar con un desafío o un 403 a un cliente que no es
+  un navegador, y el aviso no llega a la tienda. No sabemos si Pagopar
+  reintenta ni desde qué IPs llama, así que no hay cómo dejarlo pasar con
+  certeza: es un pago acreditado que la tienda no se entera. El riesgo no
+  vale la pena.
+- **La IP de la compradora.** Los límites de intentos (login del panel y de
+  la cuenta, checkout, "buscar mi pedido", el propio webhook de Pagopar, el
+  cron) usan `clientIp()` de `src/lib/rate-limit.ts`, que toma la IP
+  de `X-Forwarded-For` contando `TRUSTED_PROXY_HOPS` saltos desde la derecha
+  (por defecto 1: el proxy de Hostinger). Con Cloudflare en el medio, esa IP
+  pasa a ser la de un nodo de Cloudflare: miles de compradoras comparten unas
+  pocas IPs y el límite de una lo paga otra. Subir `TRUSTED_PROXY_HOPS` a 2
+  sólo es seguro si el origen no se puede alcanzar sin pasar por Cloudflare;
+  si se puede, cualquiera inventa su `X-Forwarded-For` (docs/ENV-OPCIONAL.md
+  § "Proxy y sesiones", y `/api/admin/proxy-diagnostic` para ver la cadena
+  real).
+- **La caché del HTML.** Las páginas de la tienda son dinámicas y algunas son
+  privadas: `/pedido/...?t=` es el link del pedido con el token, `/cuenta` y
+  `/admin` dependen de la cookie. Cloudflare por defecto cachea sólo archivos
+  estáticos, pero una regla de "Cache Everything" (o un caché de HTML puesto
+  para "acelerar") sirve la página de una persona a otra. Next ya manda sus
+  propios `Cache-Control`; otra capa sólo puede equivocarse.
+- **El certificado.** Con SSL "Flexible", Cloudflare le habla a Hostinger por
+  http y Hostinger redirige a https: bucle de redirecciones. Con "Full
+  (strict)" hace falta que el certificado de Hostinger sea válido siempre, y
+  su renovación automática puede fallar si la validación pasa por el proxy;
+  cuando vence, el sitio se cae. Sin proxy, el certificado que se ve es el de
+  Hostinger y se renueva solo.
+- **Hostinger ya tiene su CDN.** Apilar las dos CDN suma un salto, otro caché y
+  otro límite de tráfico. En una tienda de la cuenta, con Cloudflare proxeado
+  delante de la CDN de Hostinger, se vieron 429 con las cabeceras de las dos
+  (octubre de 2026). Hostinger tiene una guía de soporte para elegir entre su
+  CDN y Cloudflare: si algún día se quiere Cloudflare como CDN, es una
+  decisión aparte —apagar la de Hostinger y revisar todo lo de arriba—, no un
+  clic en la nube.
+
+Cómo verificarlo:
+
+```bash
+dig +short TU-DOMINIO                 # IPs de Hostinger, no 104.x / 172.6x de Cloudflare
+curl -sI https://TU-DOMINIO | grep -i -E '^(server|cf-ray):'   # sin cf-ray
+pnpm preflight                        # el control "Cloudflare sólo DNS (nube gris)"
+```
+
+`pnpm preflight` bloquea si el dominio resuelve a IPs de Cloudflare (los
+rangos publicados están copiados en `src/domain/preflight-cloudflare.ts`, con
+la fecha), advierte si la respuesta trae la marca de Cloudflare y, si no hay
+red, no bloquea.

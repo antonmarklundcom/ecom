@@ -25,6 +25,27 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Arranque y apagado del servidor en Hostinger; Cloudflare sólo DNS.** Sin
+  migración. **No hay que tocar nada en el hPanel**: el `start` sigue siendo
+  el script `start`.
+  - `pnpm start` es ahora `node scripts/start.mjs` (Node pelado, sin tsx):
+    arranca `next start` con los mismos argumentos y `PORT`.
+    - Antes, si la instancia anterior de esta app quedó viva, la cierra
+      (SIGTERM, 15 s, SIGKILL). Sólo si verifica que es suya, con una ficha
+      en `/proc/<pid>/environ`: nunca toca un pid reciclado ni otra tienda de
+      la cuenta.
+    - Reenvía las señales al servidor y sale con su código.
+    - `START_GUARD=off` lo apaga y `START_PIDFILE` mueve el pidfile
+      (docs/ENV-OPCIONAL.md).
+  - Con SIGTERM/SIGINT el servidor termina los requests en curso, cierra el
+    pool de MySQL y sale; a los 10 s sale igual (`src/lib/apagado-ordenado.ts`,
+    sólo en producción).
+  - `pnpm preflight` revisa al final, por DNS y un `HEAD`, si un Cloudflare
+    proxeado está delante. **Una tienda con el dominio proxeado empieza a
+    salir con código 1**: pasar los registros a "DNS only". Sin red no
+    bloquea.
+  - DEPLOY.md: § "Procesos que se apilan" (cómo verlos y matarlos por SSH) y
+    § "Cloudflare: sólo DNS (nube gris)".
 - **Kit de temas: la piel como configuración** (`src/themes/`, NEW-STORE.md §5).
   Migración: no. Una tienda no tiene que hacer nada: sin el campo `tema` en su
   `tienda.ts` se ve exactamente como antes (`clasico`, que es el `neutro` de

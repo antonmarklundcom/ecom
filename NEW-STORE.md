@@ -81,7 +81,7 @@ terceros**, porque son cuentas de otro que nadie puede abrir por vos:
 | Qué | Dónde | Para qué |
 |---|---|---|
 | Hosting y base | hPanel de Hostinger | `DATABASE_URL` y el deploy (DEPLOY.md) |
-| Dominio | tu registrador | `NEXT_PUBLIC_SITE_URL` — el wizard ya lo escribe, falta apuntarlo |
+| Dominio | tu registrador | `NEXT_PUBLIC_SITE_URL` — el wizard ya lo escribe, falta apuntarlo. Con el DNS en Cloudflare, **"DNS only"** (nube gris), nunca proxeado (DEPLOY.md § "Cloudflare: sólo DNS (nube gris)") |
 | R2 (Cloudflare) | un bucket por tienda (DEPLOY.md §3b) → `/admin/integraciones` | fotos, comprobantes de pago y copias de seguridad (§4a-ter) |
 | Pagopar | el comercio → `/admin/integraciones` | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
 | Datos bancarios | `/admin/banco`, con la tienda arriba | a dónde transfieren (§4a) |
@@ -1104,14 +1104,16 @@ avisa si alguno de la lista deja de aparecer en `src/`.
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test
-pnpm preflight     # qué falta para cobrar plata (banco, cron, modo Pagopar)
+pnpm preflight     # qué falta para cobrar plata (banco, cron, modo Pagopar, Cloudflare proxeado)
 pnpm reconcile     # control de caja: totales e invariantes entre tablas
 ```
 
 Deploy: el runbook completo está en **[DEPLOY.md](./DEPLOY.md)** — el flujo git
 de Hostinger, las trampas del SSH, la base de datos, el cron cada 15 minutos
 contra `/api/cron/vencer-pedidos` y la prueba de humo. Acordate además de
-registrar la URL de respuesta de Pagopar.
+registrar la URL de respuesta de Pagopar. `pnpm start` ya trae el control de
+instancia única (no se configura nada en el hPanel); si los redeploys dejan
+procesos colgados, DEPLOY.md § "Procesos que se apilan".
 
 ### 7. Google Shopping y el catálogo de Meta (después del lanzamiento)
 
