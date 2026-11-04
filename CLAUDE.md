@@ -37,7 +37,7 @@ leé:
 | Maquinaria — no se toca por tienda | Piel — libre de rediseñar |
 |---|---|
 | `src/domain/**` (estados del pedido, stock, plata, Pagopar) | `site-header`, `site-footer`, home, `product-card`, categorías |
-| `src/lib/**` (sesión, seguridad, guaraníes) | tokens de `globals.css`, tipografía, imágenes |
+| `src/lib/**` (sesión, seguridad, guaraníes) | el tema (`tema` en `tienda.ts`, `src/themes/`), `src/themes/custom.css`, tipografía, imágenes |
 | checkout y sus rutas API, `src/app/actions` | textos y copy |
 | `/admin` (lógica; el markup se puede repintar) | `src/config/tienda.ts` (marca, hero, flags) |
 
