@@ -25,6 +25,35 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Kit de temas: la piel como configuración** (`src/themes/`, NEW-STORE.md §5).
+  Migración: no. Una tienda no tiene que hacer nada: sin el campo `tema` en su
+  `tienda.ts` se ve exactamente como antes (`clasico`, que es el `neutro` de
+  siempre), y un `globals.css` viejo que importa `src/styles/temas/<x>.css`
+  sigue andando.
+  - Un tema es datos (`src/themes/presets/*.ts`): colores en claro y oscuro,
+    radio, escala de la vidriera (espaciado, ancho, letra), variante de header
+    (`clasico` | `centrado`) y de pie (`columnas` | `compacto`) y orden de las
+    secciones de la home. Cuatro presets: `clasico` (default, el base),
+    `vitrina` (nuevo: logo al centro, pie compacto, destacados primero, más
+    aire), `calido` y `oscuro-vivo`. Se elige con `tema` en
+    `src/config/tienda.ts` o `pnpm nueva-tienda --tema <x>` (`neutro` sigue
+    valiendo como alias).
+  - `pnpm temas:css` genera `src/themes/temas.css` (todos los temas, cada uno
+    bajo `<html data-tema>`) y mantiene al día los archivos de
+    `src/styles/temas/`; `temas.test.ts` falla si quedó viejo.
+  - `src/themes/custom.css`: retoques de CSS de la tienda, cargado último.
+    `template:sync` no lo pisa nunca (`DE_LA_TIENDA` en
+    `scripts/template-shared.ts`), aunque la tienda no lo haya tocado.
+  - La vidriera ya no escribe colores a mano: estrellas, descuento, favorito
+    y el velo de la portada y los modales leen semánticos (`--estrella`,
+    `--oferta`, `--favorito`, `--velo`, `--sobre-velo`) con default en
+    `src/themes/semanticos.css` (los mismos valores de antes).
+    `tests/unit/piel-sin-colores.test.ts` bloquea un color nuevo escrito a
+    mano en un componente de la tienda.
+  - Para una tienda con `globals.css` propio (productos): si quiere `vitrina`
+    o un preset nuevo, cambia su `@import "../styles/temas/<x>.css";` por
+    `@import "../themes/temas.css";` y suma `@import "../themes/custom.css";`
+    al final (NEW-STORE.md §5, "Tiendas de antes del kit"). Si no, nada.
 - **Importación del catálogo como función del panel, y una sola planilla
   para export, panel y CLI** (docs/CATALOGO-CSV.md). Columnas canónicas en
   orden fijo (SKU, Producto, Categoría, Variante, Precio (₲), Stock,

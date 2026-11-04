@@ -1,0 +1,22 @@
+/*
+ * Retoques de ESTA tienda — el último CSS que se carga, así que gana.
+ *
+ * Este archivo es de la tienda: `pnpm template:sync` no lo pisa nunca (está
+ * en `DE_LA_TIENDA`, `scripts/template-shared.ts`). El template lo trae
+ * vacío. Acá va lo que el tema elegido en `src/config/tienda.ts` no resuelve:
+ *
+ *   :root {
+ *     --primary: oklch(0.55 0.2 260);   (un color de un tema)
+ *     --radius: 0.5rem;
+ *     --estrella: oklch(0.7 0.15 80);   (los semánticos: src/themes/semanticos.css)
+ *   }
+ *
+ *   [data-site-header] { --spacing: 0.3rem; }   (escala de la vidriera)
+ *
+ * Las variables son las de `src/themes/tipos.ts`. Un `:root { … }` acá le
+ * gana al tema sin `!important` (ver `src/themes/css.ts`). El color de marca
+ * cargado en `/admin/ajustes` → Identidad le gana a todo, también a esto.
+ *
+ * Para algo más grande que un retoque —otro header, otro orden de la home—
+ * no es acá: es un tema propio (NEW-STORE.md §5).
+ */

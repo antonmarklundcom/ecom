@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { t, tPlural } from "@/i18n/client";
 import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
+// Los colores semánticos (`--estrella`, `--velo`…) con su default: ver el archivo.
+import "@/themes/semanticos.css";
 
 /** Los mismos topes que el dominio (`src/domain/reviews.ts`); el servidor los re-chequea. */
 const BODY_MAX = 2000;
@@ -142,7 +144,7 @@ function SingleReviewForm({
                 className={cn(
                   "peer-focus-visible:ring-ring rounded peer-focus-visible:ring-2",
                   value <= rating
-                    ? "text-amber-500"
+                    ? "text-(--estrella)"
                     : "text-muted-foreground/40"
                 )}
               >

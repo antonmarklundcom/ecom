@@ -14,6 +14,8 @@ import {
   wishlistSubscribe,
   wishlistToggle,
 } from "@/lib/wishlist-store";
+// Los colores semánticos (`--estrella`, `--velo`…) con su default: ver el archivo.
+import "@/themes/semanticos.css";
 
 /**
  * El corazón de favoritos. Dos formas, mismo componente:
@@ -105,7 +107,9 @@ export function WishlistButton({
         className
       )}
     >
-      <Heart className={cn("size-4", saved && "fill-current text-red-500")} />
+      <Heart
+        className={cn("size-4", saved && "fill-current text-(--favorito)")}
+      />
     </button>
   );
 }

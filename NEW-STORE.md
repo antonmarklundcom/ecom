@@ -189,9 +189,9 @@ pnpm nueva-tienda --dry-run  # muestra qué haría, no escribe nada
 ```
 
 Pregunta seis cosas —nombre, título del navegador, meta description, tagline
-del pie, WhatsApp y dominio— y con eso:
+del pie, WhatsApp y dominio— más el tema (§5 "El kit de temas"), y con eso:
 
-- reescribe los campos de marca de [`src/config/tienda.ts`](./src/config/tienda.ts);
+- reescribe los campos de marca y el `tema` de [`src/config/tienda.ts`](./src/config/tienda.ts);
 - genera `SESSION_SECRET`, `CRON_SECRET` y `SETUP_SECRET` con
   `crypto.randomBytes` (no con `openssl`, que en Windows no existe) y los
   escribe en `.env.local` junto con el WhatsApp y el dominio;
@@ -213,7 +213,7 @@ el script falla diciéndolo si falta alguna:
 pnpm nueva-tienda --nombre "Lencería Guaraní" \
   --titulo "Lencería Guaraní — Comprá online en Paraguay" \
   --descripcion "…" --tagline "…" \
-  --whatsapp 0981123456 --dominio lenceria.com.py
+  --whatsapp 0981123456 --dominio lenceria.com.py --tema clasico
 ```
 
 Lo que el wizard **no** hace, a propósito: no toca la base, no sube nada a
@@ -923,58 +923,108 @@ docs se queda esperándolo (no corre): mergealo como admin, o no marques
 
 #### El kit de temas
 
-El template trae **tres temas** listos, cada uno un archivo en
-`src/styles/temas/` con los mismos tokens de shadcn (oklch) en `:root` y en
-`.dark`:
+La piel de una tienda es, primero, **configuración**: un tema es un objeto de
+datos en [`src/themes/presets/`](./src/themes/presets) con
 
-| Tema | Para quién | Fuentes sugeridas | Redondeo |
+- los **tokens**: los 19 colores de shadcn (oklch) en claro y en oscuro, el
+  radio (`--radius`), y opcionalmente la **escala** de la vidriera —unidad de
+  espaciado, ancho del contenido y tamaños de letra— y los colores semánticos
+  (`--estrella`, `--oferta`, `--favorito`, `--velo`, `--sobre-velo`);
+- la **variante de header** (`clasico` | `centrado`) y la **de pie**
+  (`columnas` | `compacto`), que dibujan los mismos `data-testid`;
+- el **orden de las secciones de la home** (`hero`, `categorias`,
+  `destacados`; la que no está, no se dibuja).
+
+| Tema | Para quién | Header / pie / home | Fuentes sugeridas |
 |---|---|---|---|
-| `neutro` (default) | el comercio sin identidad de color definida — fotos y logo hacen el trabajo | `Geist` / `Geist Mono` (las de hoy, sin tocar `layout.tsx`) | `0.625rem` |
-| `calido` | rubros cálidos/artesanales: comida, cuero, decoración, "de campo" | `Fraunces` (títulos) + `Figtree` (cuerpo) | `1rem` |
-| `oscuro-vivo` | tech, gaming, indumentaria urbana — fondo oscuro **fijo** (no depende del modo del celular) con acento saturado | `Sora` (títulos) + `Inter` (cuerpo) | `0.25rem` |
+| `clasico` (default, el base) | el comercio sin identidad de color definida — fotos y logo hacen el trabajo. Es la tienda de siempre, byte a byte | clásico / columnas / portada → categorías → destacados | `Geist` / `Geist Mono` (las de hoy) |
+| `vitrina` | boutiques, moda, joyería, regalos: pocas categorías y mucha foto. Papel y tinta con un verde profundo, más aire y letra más grande | logo al centro / compacto / portada → destacados → categorías | `Playfair Display` + `DM Sans` |
+| `calido` | rubros cálidos/artesanales: comida, cuero, decoración, "de campo". Redondeo grande | los del base | `Fraunces` + `Figtree` |
+| `oscuro-vivo` | tech, gaming, indumentaria urbana — fondo oscuro **fijo** con acento saturado, redondeo chico | los del base | `Sora` + `Inter` |
 
-`src/app/globals.css` no define los colores: importa uno solo de estos
-archivos (`@import "../styles/temas/neutro.css";`). **Elegir un tema es
-cambiar esa línea**, a mano o con el wizard:
+(`neutro`, el nombre de antes del kit, sigue valiendo: es `clasico`.)
+
+**Elegir un tema** es una línea en [`src/config/tienda.ts`](./src/config/tienda.ts):
+`tema: "vitrina"`. El wizard la escribe:
 
 ```bash
-pnpm nueva-tienda --tema calido        # sin terminal interactiva (CI, script)
-pnpm nueva-tienda                      # interactivo: pregunta "¿Tema?" con lo que ya hay como default
+pnpm nueva-tienda --tema vitrina       # sin terminal interactiva (CI, script)
+pnpm nueva-tienda                      # interactivo: lista los temas y pregunta, con el de hoy como default
 ```
 
-Sin `--tema` y sin terminal interactiva (el caso de `pnpm bootstrap:repo` o
-un script), el default es el tema que `globals.css` ya tenía importado —
-`neutro` si todavía no importaba ninguno. El wizard es idempotente: pedir el
-mismo tema dos veces no reescribe el archivo.
+Cómo llega al navegador: `src/app/globals.css` importa
+[`src/themes/temas.css`](./src/themes/temas.css), que trae **todos** los temas
+—el base en `:root`, cada otro bajo `<html data-tema="…">`— y `layout.tsx`
+pone `data-tema` con el de `tienda.ts`. `temas.css` es **generado** desde los
+presets (`pnpm temas:css`; Tailwind v4 necesita el CSS estático) y
+`tests/unit/temas.test.ts` falla si quedó viejo. Header, pie y home leen la
+variante y el orden con `temaActivo()` (`src/themes/index.ts`), sólo en el
+servidor. El color de marca de `/admin/ajustes` → Identidad le sigue ganando
+al `--primary` del tema.
 
-Cada archivo de tema lleva en su cabecera para quién es, el par de fuentes
-sugerido y las dos líneas exactas de `src/app/layout.tsx` que hay que
-cambiar para usarlas (las fuentes **siguen viviendo ahí**, vía
-`next/font/google` — el tema sólo trae la sugerencia en un comentario, no
-las cablea).
+**Qué es de cada tienda y qué es del template:**
 
-**Crear un cuarto tema:**
+| De la tienda — `template:sync` no lo pisa | Del template — llega solo con `template:sync` |
+|---|---|
+| `tema` en `src/config/tienda.ts` | `src/themes/tipos.ts`, `css.ts`, `index.ts`, los presets y `temas.css` (piel común: si la tienda los cambió quedan los suyos, si no se actualizan) |
+| **`src/themes/custom.css`**: retoques de CSS, cargado último. El template lo trae vacío y **nunca** lo pisa, aunque la tienda no lo haya tocado (`DE_LA_TIENDA` en `scripts/template-shared.ts`) | `scripts/temas-css.ts` y los tests (maquinaria) |
+| textos (`tienda.ts`, `src/i18n/es-PY.ts`), fotos, logo, favicon, fuentes en `layout.tsx` | `src/themes/semanticos.css` (los defaults de los colores semánticos) |
+| un preset propio en `src/themes/presets/` | |
 
-1. Copiar `src/styles/temas/neutro.css` a `src/styles/temas/<nombre>.css`.
-2. Cambiar los valores de `:root` y `.dark` — las **mismas** 19 variables
-   (más `--radius`, sólo en `:root`) tienen que estar en los dos bloques;
-   `tests/unit/temas.test.ts` lo verifica leyendo los `.css`, no confía en
-   memoria, así que un tema con una variable de menos hace fallar el test
-   en vez de dejar un botón invisible en producción.
-3. Escribir la cabecera (para quién, fuentes sugeridas, líneas de
-   `layout.tsx`) — el test también la exige.
-4. **Sólo en el template**, y sólo si querés que el wizard lo ofrezca:
-   agregar `<nombre>` a la lista `TEMAS` de `scripts/nueva-tienda.ts`. En una
-   tienda no hace falta —ni conviene: ese archivo es maquinaria—.
-   `tests/unit/temas.test.ts` revisa **todos** los `.css` de
-   `src/styles/temas/`, esté o no el nombre en `TEMAS`.
-5. `pnpm nueva-tienda --tema <nombre>` para probarlo, y `pnpm build` una vez
-   con el `@import` apuntando a ese archivo (después volver a dejar el tema
-   que la tienda usa).
+**Retocar sin tema nuevo** — `src/themes/custom.css`:
 
-Nada de esto se lee en runtime: es CSS puro y una línea de `@import`. Ningún
-componente importa el nombre del tema ni cambia de comportamiento según
-cuál esté activo.
+```css
+:root {
+  --primary: oklch(0.55 0.2 260);
+  --radius: 0.5rem;
+  --estrella: oklch(0.7 0.15 80);
+}
+[data-site-header] { --spacing: 0.3rem; }
+```
+
+Un `:root { … }` ahí le gana al tema sin `!important`: los temas usan
+`:root:where([data-tema="…"])`, que pesa lo mismo que `:root`, y
+`custom.css` va último.
+
+**Crear un tema nuevo:**
+
+1. Copiar `src/themes/presets/vitrina.ts` a `src/themes/presets/<nombre>.ts`,
+   cambiarle el `id` y lo que quieras: hereda del base todo lo que no
+   escribas (`extenderTema`).
+2. Registrarlo en `TEMAS` de `src/themes/presets.ts` (sin esa línea no existe:
+   `tienda.ts` no compila con su nombre y el CSS no lo trae).
+3. `pnpm temas:css` y commitear `src/themes/temas.css`.
+4. `tema: "<nombre>"` en `tienda.ts` y `pnpm dev` para verlo.
+
+`tests/unit/temas.test.ts` verifica que cada preset tenga los 19 colores en
+claro y en oscuro, que las variantes y secciones existan y que el CSS
+commiteado sea el que sale de los presets. Una variante de header o de pie
+nueva se arma en `site-header.tsx` / `site-footer.tsx` con las mismas piezas
+(`MarcaLink`, `Acciones`, `MenuCategorias`…) y se suma a `VARIANTES_HEADER` /
+`VARIANTES_FOOTER` de `src/themes/tipos.ts`;
+`src/components/__tests__/tema-variantes.test.tsx` prueba los `data-testid` de
+**todas** las variantes.
+
+**Los colores salen de los tokens, nunca escritos a mano.** En la vidriera
+(`src/components/**` y `src/app/**` menos `/admin`) un `text-red-500`, un
+`bg-white` o un `#25D366` no cambian con el tema y en `oscuro-vivo` dejan un
+texto invisible: `tests/unit/piel-sin-colores.test.ts` los bloquea. Se usa un
+token (`bg-primary`, `text-muted-foreground`…) o un semántico
+(`text-(--estrella)`, `bg-(--velo)/45`); quien use un semántico importa
+`@/themes/semanticos.css`, para que el default llegue también a una tienda con
+su propio `globals.css`. Las excepciones de verdad (el verde de WhatsApp, el
+fondo blanco del QR, la imagen de Open Graph) están en la lista `PERMITIDOS`
+del test, cada una con su motivo.
+
+**Tiendas de antes del kit.** `src/styles/temas/{neutro,calido,oscuro-vivo}.css`
+siguen existiendo (los mantiene `pnpm temas:css` desde los presets): un
+`globals.css` que todavía dice `@import "../styles/temas/<x>.css";` sigue
+andando, y el wizard sigue reescribiendo esa línea para los temas que tienen
+archivo ahí. Para usar `vitrina` o un tema propio hay que pasar al formato del
+kit: cambiar esa línea por `@import "../themes/temas.css";` y agregar
+`@import "../themes/custom.css";` al final de `globals.css`. Un `tienda.ts`
+sin el campo `tema` dibuja el header, el pie y la home del default, como
+siempre.
 
 #### Del mockup al código
 
@@ -985,16 +1035,17 @@ esa traducción, para no volver a deducirla en cada sesión:
 
 | Lo que ves en el mockup | Dónde vive en el código | Nota |
 |---|---|---|
-| Paleta: fondo, texto, color principal, bordes | `src/styles/temas/<tema>.css` → `:root` y `.dark` (`globals.css` sólo importa uno) | Tokens de shadcn en **oklch**. Tres temas listos (§5 "El kit de temas") + `pnpm nueva-tienda --tema`; cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
-| Modo oscuro | mismo archivo, bloque `.dark` | Si sólo tocás `:root`, la tienda queda linda de día y rota de noche. Cambiá los dos o ninguno |
-| Redondeo de botones, cards, inputs | `--radius` en `src/styles/temas/<tema>.css` | Un solo número por tema; `--radius-sm/md/lg/xl` salen de ahí (`globals.css` los mapea en `@theme inline`) |
+| Paleta: fondo, texto, color principal, bordes | `tema` en `src/config/tienda.ts` (uno de `src/themes/presets/`) y, para retocar, `src/themes/custom.css` | Tokens de shadcn en **oklch**. Cuatro temas listos (§5 "El kit de temas") + `pnpm nueva-tienda --tema`; cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
+| Modo oscuro | `oscuro` del preset, o `.dark` en `custom.css` | Si sólo tocás el claro, la tienda queda linda de día y rota de noche. Cambiá los dos o ninguno |
+| Redondeo de botones, cards, inputs | `radio` del preset, o `--radius` en `custom.css` | Un solo número por tema; `--radius-sm/md/lg/xl` salen de ahí (`globals.css` los mapea en `@theme inline`) |
+| Aire y tamaño de letra del header, el pie y la home | `escala` del preset (`espaciado`, `ancho`, `texto`) | Pisa `--spacing`, `--container-6xl` y `--text-*` de Tailwind **sólo** ahí: checkout, ficha y panel no cambian de tamaño |
 | Tipografía (títulos y cuerpo) | `src/app/layout.tsx` | Fuentes de `next/font/google`. Reemplazá `Geist`/`Geist_Mono` manteniendo las variables `--font-geist-sans` / `--font-geist-mono`, que es lo que `globals.css` mapea en `@theme inline` |
-| Barra de arriba: logo, buscador, carrito, menú de categorías | `src/components/site-header.tsx` | Libre. Lo único que no conviene sacar es `CartButton` |
+| Barra de arriba: logo, buscador, carrito, menú de categorías | `header` del preset (`clasico` / `centrado`); a medida, `src/components/site-header.tsx` | Libre. Lo único que no conviene sacar es `CartButton`; una variante nueva se arma con las piezas del archivo |
 | Portada / hero de la home | `hero` en `src/config/tienda.ts`, y si no alcanza `src/components/home-hero.tsx` | Ver abajo: una portada de temporada no necesita tocar código |
-| Resto de la home: grilla de destacados, categorías, secciones nuevas | `src/app/page.tsx` | Es de la tienda entera |
+| Resto de la home: grilla de destacados, categorías, secciones nuevas | orden: `home` del preset; markup y secciones nuevas: `src/app/page.tsx` | Es de la tienda entera. Una sección nueva lleva un id en `SECCIONES_HOME` (`src/themes/tipos.ts`) |
 | Ficha de producto en la grilla | `src/components/product-card.tsx` | El precio "desde" y el badge de stock salen de `price-tag.tsx` y `stock-badge.tsx` |
 | Foto de producto y sus placeholders | `src/components/product-image.tsx`, `public/placeholders/` | Cuatro placeholders dibujados, uno por categoría del seed; cualquier otra categoría cae en `categoria.svg` con su nombre en texto (no en el mismo dibujo de "producto sin foto") |
-| Pie: columnas, contacto, WhatsApp | `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
+| Pie: columnas, contacto, WhatsApp | `footer` del preset (`columnas` / `compacto`); a medida, `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
 | Botón flotante de WhatsApp | `src/components/whatsapp-fab.tsx` | El número sale del entorno (`src/lib/comercio.ts`) |
 | Nombre, título del navegador, tagline, meta description | `src/config/tienda.ts` | **Nunca** en un componente: `tests/unit/marca-centralizada.test.ts` lo bloquea |
 | Imagen que se ve al compartir el link | `src/app/opengraph-image.tsx` | Se dibuja sola con el nombre y el tagline. No hay que subir nada |
@@ -1005,8 +1056,8 @@ Dos cosas que el mockup va a mostrar y **no** son piel: el checkout
 repinta con cuidado, ver la tabla de abajo) y `/admin`, que se puede repintar
 pero no rediseñar en su lógica.
 
-Orden que funciona: tokens de `globals.css` → tipografía en `layout.tsx` →
-header y footer → home → `product-card`. Los dos primeros pasos ya mueven el
+Orden que funciona: el tema (`tienda.ts`) y sus retoques (`custom.css`) →
+tipografía en `layout.tsx` → header y footer → home → `product-card`. Los dos primeros pasos ya mueven el
 80% de lo que se ve, y hacerlos antes evita retocar a mano colores que las
 variables iban a resolver solas.
 
@@ -1016,10 +1067,9 @@ un título, una bajada y un botón. Con `hero: null` (el default) sale la portad
 del template. Es lo que le permite al comercio cambiar su banner de temporada
 solo; todo lo demás de la home se rediseña editando `src/app/page.tsx`.
 
-Todo el color y el radio viven en `src/styles/temas/<tema>.css` (`:root` y
-`.dark`, tokens de shadcn en oklch; `globals.css` sólo importa el archivo
-activo) y se consumen vía Tailwind. Cambiar la paleta = elegir un tema
-(§5 "El kit de temas") o editar esas variables directamente, nada más. La
+Todo el color y el radio salen del tema (`src/themes/`, tokens de shadcn en
+oklch) y se consumen vía Tailwind. Cambiar la paleta = elegir un tema (§5 "El
+kit de temas") o pisar esas variables en `src/themes/custom.css`, nada más. La
 tipografía se cambia en `src/app/layout.tsx` (fuentes de
 `next/font/google`).
 
@@ -1028,7 +1078,7 @@ Qué se puede redibujar libremente y qué no:
 | Piel — rediseñá lo que quieras | Maquinaria — no la bifurques por tienda |
 |---|---|
 | `site-header`, `site-footer`, home, `product-card`, páginas de categoría | `src/domain/**` (estados del pedido, stock, plata, Pagopar) |
-| tokens de `globals.css`, tipografía, imágenes | checkout y sus rutas API |
+| `tema` de `tienda.ts`, `src/themes/custom.css`, presets, tipografía, imágenes | checkout y sus rutas API |
 | textos y copy | `/admin` completo |
 | | `src/lib/**` (sesión, seguridad, guaraníes) |
 
