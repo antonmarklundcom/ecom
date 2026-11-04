@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -139,7 +139,7 @@ describe.skipIf(!hasTestDb)("scripts/importar-productos.ts", () => {
     expect(yerba.onHand).toBe(50);
   }, 120_000);
 
-  it("un SKU que ya es de otro producto frena la corrida entera", async () => {
+  it("un SKU que ya es de otro producto frena su lote (acá, el único)", async () => {
     const ajeno = `${ENCABEZADO}\nYER-1;Otro producto;Almacén;Único;99000;1\n`;
     const { stderr, code } = await importar(ajeno, "--aplicar");
 
@@ -154,6 +154,30 @@ describe.skipIf(!hasTestDb)("scripts/importar-productos.ts", () => {
       await db.select().from(variants).where(eq(variants.sku, "YER-1"))
     )[0]!;
     expect(yerba.pricePyg).toBe(38000);
+  }, 120_000);
+
+  it("el catálogo de ejemplo: con posibles repetidos, --aplicar pide --revisado", async () => {
+    await resetTables();
+    const db = getTestDb();
+    await db.insert(categories).values({ slug: "hogar", name: "Hogar" });
+    const hogar = (await db.select().from(categories))[0]!;
+    await db.insert(products).values({
+      slug: "hamaca-vieja",
+      name: "Hamaca paraguaya de algodón",
+      categoryId: hogar.id,
+    });
+    const fixture = readFileSync("scripts/fixtures/catalogo-demo.csv", "utf8");
+
+    const sinRevisar = await importar(fixture, "--aplicar");
+    expect(sinRevisar.code).not.toBe(0);
+    expect(sinRevisar.stdout).toContain("Posibles productos repetidos");
+    expect(sinRevisar.stderr).toContain("--revisado");
+    expect(await db.select().from(products)).toHaveLength(1);
+
+    const revisado = await importar(fixture, "--aplicar", "--revisado");
+    expect(revisado.code).toBe(0);
+    expect(revisado.stdout).toContain("Lote 1/1: 20 productos · 32 variantes");
+    expect(await db.select().from(products)).toHaveLength(21);
   }, 120_000);
 
   it("una planilla con errores sale con código 1 y los lista con línea", async () => {

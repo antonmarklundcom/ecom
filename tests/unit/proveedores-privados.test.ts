@@ -42,6 +42,12 @@ const PERMITIDOS = new Set(
     'src/domain/admin-products.ts',
     // Duplicar copia el enlace de compra (y no las ofertas).
     'src/domain/admin-bulk.ts',
+    // La planilla del catálogo (docs/CATALOGO-CSV.md): sus columnas de
+    // proveedor se leen y se escriben sólo con el flag, desde el panel o la CLI.
+    'src/domain/catalog-import.ts',
+    'src/domain/catalog-import-plan.ts',
+    'src/domain/catalog-duplicates.ts',
+    'src/domain/catalog-export.ts',
     // El backup vuelca todas las tablas: un backup sin proveedores no restaura la tienda.
     'src/domain/backup.ts',
     // Las acciones del panel, detrás del guard de staff y del flag.

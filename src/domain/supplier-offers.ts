@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "@/db";
@@ -285,4 +285,144 @@ export async function deleteSupplierOffer(
         eq(supplierOffers.variantId, input.variantId)
       )
     );
+}
+
+/**
+ * La igualdad de nombres de proveedor de la planilla: sin mayúsculas, acentos
+ * ni espacios de más. "Mayorista del Centro" y "mayorista del centro " son la
+ * misma oferta, igual que lo serían para la colación de la base.
+ */
+export function claveProveedor(source: string | null | undefined): string {
+  return (source ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Lo que trae una fila de la planilla (`OfertaPlanilla` de catalog-import). */
+export type OfertaImportada = {
+  source: string;
+  /** `undefined` = columna ausente (no se toca); `null` = vacía (se borra). */
+  unitCostPyg?: number | null;
+  supplierStock?: number | null;
+};
+
+export type ResultadoOfertaImportada = "nueva" | "actualizada" | "igual";
+
+/**
+ * La oferta de una fila de la planilla, dentro de la transacción del lote
+ * (`applyCatalogImportPlan`). Quien llama ya tiene bloqueados producto y
+ * variante (`upsertCatalogProducts`).
+ *
+ * **Idempotente por (variante, nombre de proveedor)**: la fila actualiza la
+ * oferta de esa variante con ese nombre (`claveProveedor`), o crea una si no
+ * hay. Reimportar el mismo archivo no duplica nada, y las demás ofertas de la
+ * variante (alternativas cargadas en el panel) quedan como están.
+ *
+ * Una oferta con costo queda como **la preferida** —activa y confirmada: la
+ * planilla del dueño dice "a éste se lo compro y a tanto"— y desmarca la que
+ * lo era. Sin costo no puede ser preferida (la regla de
+ * `SupplierOfferInputSchema`), así que si lo era deja de serlo.
+ */
+export async function upsertImportedSupplierOffer(
+  tx: Executor,
+  variantId: number,
+  oferta: OfertaImportada
+): Promise<ResultadoOfertaImportada> {
+  const actuales = await tx
+    .select()
+    .from(supplierOffers)
+    .where(eq(supplierOffers.variantId, variantId))
+    .orderBy(asc(supplierOffers.id));
+  const clave = claveProveedor(oferta.source);
+  const actual = actuales.find(
+    (fila) => claveProveedor(fila.source) === clave
+  );
+
+  const unitCostPyg =
+    oferta.unitCostPyg === undefined
+      ? (actual?.unitCostPyg ?? null)
+      : oferta.unitCostPyg;
+  const supplierStock =
+    oferta.supplierStock === undefined
+      ? (actual?.supplierStock ?? null)
+      : oferta.supplierStock;
+  const preferida = unitCostPyg !== null;
+
+  let resultado: ResultadoOfertaImportada;
+  let id: number;
+  if (!actual) {
+    const [insertada] = await tx.insert(supplierOffers).values({
+      variantId,
+      source: oferta.source,
+      sourceType: "other",
+      unitCostPyg,
+      supplierStock,
+      isConfirmed: true,
+      isActive: true,
+      isPreferred: preferida,
+    });
+    id = Number(insertada.insertId);
+    resultado = "nueva";
+  } else {
+    id = actual.id;
+    const cambios = {
+      unitCostPyg,
+      supplierStock,
+      isPreferred: preferida,
+      ...(preferida ? { isConfirmed: true, isActive: true } : {}),
+    };
+    const igual =
+      actual.unitCostPyg === cambios.unitCostPyg &&
+      actual.supplierStock === cambios.supplierStock &&
+      actual.isPreferred === cambios.isPreferred &&
+      (!preferida || (actual.isConfirmed && actual.isActive));
+    if (!igual)
+      await tx
+        .update(supplierOffers)
+        .set(cambios)
+        .where(eq(supplierOffers.id, actual.id));
+    resultado = igual ? "igual" : "actualizada";
+  }
+
+  if (preferida) {
+    const otraPreferida = actuales.some(
+      (fila) => fila.id !== id && fila.isPreferred
+    );
+    if (otraPreferida) {
+      await tx
+        .update(supplierOffers)
+        .set({ isPreferred: false })
+        .where(
+          and(
+            eq(supplierOffers.variantId, variantId),
+            ne(supplierOffers.id, id)
+          )
+        );
+      if (resultado === "igual") resultado = "actualizada";
+    }
+  }
+  return resultado;
+}
+
+/** La oferta preferida de cada variante, para el export del catálogo. Sólo panel. */
+export async function listPreferredSupplierOffers(
+  variantIds: readonly number[],
+  executor?: Executor
+): Promise<Map<number, SupplierOffer>> {
+  if (variantIds.length === 0) return new Map();
+  const tx = executor ?? getDb();
+  const filas = await tx
+    .select()
+    .from(supplierOffers)
+    .where(
+      and(
+        inArray(supplierOffers.variantId, [...variantIds]),
+        eq(supplierOffers.isPreferred, true)
+      )
+    )
+    .orderBy(asc(supplierOffers.id));
+  return new Map(filas.map((fila) => [fila.variantId, fila]));
 }

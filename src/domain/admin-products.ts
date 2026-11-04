@@ -226,6 +226,8 @@ function productWhere(options: AdminProductFilters) {
 }
 
 export type ExportVariantRow = {
+  productId: number;
+  variantId: number;
   saleMode: "stock" | "enquiry" | "showcase";
   showPrice: boolean;
   sku: string;
@@ -239,6 +241,11 @@ export type ExportVariantRow = {
   description: string | null;
   brand: string | null;
   ivaRate: number;
+  /**
+   * El enlace privado de compra. Lo baja sólo el export del catálogo con los
+   * proveedores prendidos (`listCatalogExportRows` lo vacía si no).
+   */
+  supplierUrl: string | null;
 };
 
 /**
@@ -258,6 +265,8 @@ export async function listVariantsForExport(
 
   return tx
     .select({
+      productId: products.id,
+      variantId: variants.id,
       sku: variants.sku,
       saleMode: products.saleMode,
       showPrice: products.showPrice,
@@ -271,12 +280,21 @@ export async function listVariantsForExport(
       description: products.description,
       brand: products.brand,
       ivaRate: products.ivaRate,
+      supplierUrl: products.supplierUrl,
     })
     .from(variants)
     .innerJoin(products, eq(variants.productId, products.id))
     .innerJoin(categories, eq(products.categoryId, categories.id))
     .where(productWhere(options))
-    .orderBy(asc(products.name), asc(variants.position), asc(variants.id))
+    // Por nombre y, a igual nombre, por slug: las filas de un producto quedan
+    // juntas (las Fotos van en la primera) y el orden no depende de ids, que
+    // cambian de una tienda a otra.
+    .orderBy(
+      asc(products.name),
+      asc(products.slug),
+      asc(variants.position),
+      asc(variants.id)
+    )
     .limit(limit);
 }
 

@@ -14,10 +14,14 @@ import {
   setProductImageProvenance,
   updateProduct,
 } from "@/domain/admin-products";
+import { MAX_FILAS_PLANILLA } from "@/domain/catalog-csv";
 import {
-  applyCatalogFotos,
-  applyCatalogImportPlan,
+  CATALOG_IMPORT_LOTE,
+  applyCatalogImportLote,
   buildCatalogImportPlan,
+  firmaRevision,
+  huellaPlanilla,
+  verificarFirmaRevision,
   type CatalogFotoFallida,
   type CatalogImportPlan,
 } from "@/domain/catalog-import-plan";
@@ -514,14 +518,18 @@ export async function removeProductImage(
 
 // ---------------------------------------------------------------------------
 // Carga masiva por planilla (CSV/Excel) — `pnpm importar:productos` desde el
-// panel.
+// panel. El formato es docs/CATALOGO-CSV.md.
 //
-// Dos acciones, no una: `previewCatalogImport` es el ensayo (cuenta y muestra
-// errores, no escribe nada — el default de la CLI sin `--aplicar`) y
-// `applyCatalogImport` recién escribe cuando el dueño confirma. El checkbox
-// "pisar stock" es el equivalente de `--pisar-stock`: apagado por defecto,
-// porque pisar en silencio el stock real de una variante que ya existe es
-// justo el tipo de sorpresa que una planilla de semanas no debería poder dar.
+// Dos pasos, no uno: `previewCatalogImport` es el ensayo (cuenta, muestra
+// errores, avisos y posibles duplicados; no escribe nada — el default de la
+// CLI sin `--aplicar`) y `applyCatalogImport` recién escribe cuando el dueño
+// confirma, **un lote por llamada** (`CATALOG_IMPORT_LOTE` productos, cada uno
+// en su transacción). Es el navegador el que pide los lotes en orden: así ve
+// el avance, y si se corta la conexión sabe qué lotes quedaron confirmados.
+// El checkbox "pisar stock" es el equivalente de `--pisar-stock`: apagado por
+// defecto, porque pisar en silencio el stock real de una variante que ya
+// existe es justo el tipo de sorpresa que una planilla de semanas no debería
+// poder dar.
 // ---------------------------------------------------------------------------
 
 const MAX_CATALOG_FILE_BYTES = 10 * 1024 * 1024;
@@ -540,10 +548,23 @@ export type CatalogImportSummary = {
   stockCambiaria: number;
   /** Quien está importando no puede aplicar estos cambios (`precios.masivo`). */
   requiereDuenio: boolean;
+  /** Columnas ignoradas y otros avisos que no frenan. */
+  advertencias: string[];
+  /** Posibles productos repetidos: hay que marcarlos como revisados. */
+  duplicados: string[];
+  /** Con proveedores prendidos (y `precios`): ofertas que se crean / cambian. */
+  proveedores: boolean;
+  ofertasNuevas: number;
+  ofertasActualizar: number;
+  lotes: number;
+  tamLote: number;
+  /** Se manda de vuelta con cada lote (`firmaRevision`). */
+  revision: string;
 };
 
 export type CatalogImportPreviewResult =
-  ({ ok: true } & CatalogImportSummary) | { ok: false; errores: string[] };
+  | ({ ok: true } & CatalogImportSummary)
+  | { ok: false; errores: string[]; advertencias?: string[] };
 
 async function readCatalogFile(
   formData: FormData
@@ -567,9 +588,19 @@ async function readCatalogFile(
   }
 }
 
+/**
+ * ¿Esta persona maneja datos de proveedores? El flag de la tienda **y** la
+ * capacidad `precios` —un costo de compra es plata—, lo mismo que pide el
+ * editor de ofertas. Si no, las columnas de proveedor se ignoran con aviso.
+ */
+function importaProveedores(role: UserRole): boolean {
+  return proveedoresHabilitados() && can(role, "precios");
+}
+
 function planSummary(
   plan: CatalogImportPlan,
   pisaStock: boolean,
+  revision: string,
   role?: UserRole
 ): CatalogImportSummary {
   const cambiaEnMasa =
@@ -587,6 +618,14 @@ function planSummary(
     // La vista previa avisa antes; la escritura lo vuelve a verificar.
     requiereDuenio:
       cambiaEnMasa && role !== undefined && !can(role, "precios.masivo"),
+    advertencias: plan.advertencias,
+    duplicados: plan.duplicados,
+    proveedores: plan.proveedores,
+    ofertasNuevas: plan.ofertasNuevas,
+    ofertasActualizar: plan.ofertasActualizar,
+    lotes: plan.lotes,
+    tamLote: CATALOG_IMPORT_LOTE,
+    revision,
   };
 }
 
@@ -604,10 +643,28 @@ export async function previewCatalogImport(
     if (!leido.ok) return { ok: false, errores: leido.errores };
 
     const pisaStock = formData.get("pisarStock") === "true";
-    const plan = await buildCatalogImportPlan(leido.csvText);
-    if (plan.errores.length > 0) return { ok: false, errores: plan.errores };
+    const proveedores = importaProveedores(actor.role);
+    const plan = await buildCatalogImportPlan(leido.csvText, {
+      proveedores,
+      maxFilas: MAX_FILAS_PLANILLA,
+    });
+    if (plan.errores.length > 0)
+      return {
+        ok: false,
+        errores: plan.errores,
+        advertencias: plan.advertencias,
+      };
 
-    return { ok: true, ...planSummary(plan, pisaStock, actor.role) };
+    const revision = firmaRevision({
+      huella: plan.huella,
+      duplicados: plan.duplicados,
+      proveedores,
+      actorUserId: actor.userId,
+    });
+    return {
+      ok: true,
+      ...planSummary(plan, pisaStock, revision, actor.role),
+    };
   } catch (error) {
     const result = adminActionError("previewCatalogImport", error);
     return { ok: false, errores: [result.error] };
@@ -615,20 +672,32 @@ export async function previewCatalogImport(
 }
 
 export type CatalogImportApplyResult =
-  | ({ ok: true } & CatalogImportSummary & {
-        variantesEscritas: number;
-        fotosSubidas: number;
-        fotosOmitidas: number;
-        fotosFallidas: CatalogFotoFallida[];
-      })
+  | {
+      ok: true;
+      lote: number;
+      lotes: number;
+      productos: number;
+      variantesEscritas: number;
+      ofertasNuevas: number;
+      ofertasActualizadas: number;
+      fotosSubidas: number;
+      fotosOmitidas: number;
+      fotosFallidas: CatalogFotoFallida[];
+    }
   | { ok: false; errores: string[] };
 
 /**
- * Escribe. Vuelve a parsear y a chequear conflictos de SKU contra la base
- * **en este momento** — no reutiliza el plan del ensayo — porque entre la
- * vista previa y la confirmación pudo haber pasado cualquier cosa (otra
- * persona cargando productos, por ejemplo) y aplicar un plan viejo sería
- * escribir sobre un estado que ya no es el real.
+ * Escribe **un lote** (`lote` en el form, 0, 1, …). Vuelve a parsear y a
+ * planificar ese lote contra la base **en este momento** — no reutiliza el
+ * plan del ensayo — porque entre la vista previa y la confirmación pudo haber
+ * pasado cualquier cosa (otra persona cargando productos, el lote anterior) y
+ * aplicar un plan viejo sería escribir sobre un estado que ya no es el real.
+ *
+ * `revision` ata el lote a la vista previa de **este** archivo y de estos
+ * avisos de duplicados (`verificarFirmaRevision`); con avisos, además, tiene
+ * que venir `duplicadosRevisados`. El lote 0 vuelve a revisar la planilla
+ * entera —errores y duplicados— antes de escribir nada: si algo cambió desde
+ * la vista previa, no escribe y pide volver a Revisar.
  */
 export async function applyCatalogImport(
   formData: FormData
@@ -640,25 +709,62 @@ export async function applyCatalogImport(
     if (!leido.ok) return { ok: false, errores: leido.errores };
 
     const pisaStock = formData.get("pisarStock") === "true";
-    const plan = await buildCatalogImportPlan(leido.csvText);
-    if (plan.errores.length > 0) return { ok: false, errores: plan.errores };
+    const proveedores = importaProveedores(actor.role);
+    const lote = Number(formData.get("lote") ?? 0);
+    if (!Number.isInteger(lote) || lote < 0)
+      return { ok: false, errores: [t("adminError.importar.loteInvalido")] };
 
-    // Todo o nada, con el dueño de cada SKU verificado bajo lock, y precios o
-    // stock en masa sólo con `precios.masivo` (docs/TEMPLATE-IMPROVEMENT-PLAN.md
-    // C1, C4, C6). Lo nuevo entra como borrador (C5) y cada cambio de precio o
-    // stock queda auditado con quién lo hizo (C7).
-    const { variantesEscritas } = await applyCatalogImportPlan(plan, {
-      resetStock: pisaStock,
-      allowPriceChanges: can(actor.role, "precios.masivo"),
-      actor: actorLabel(actor),
+    const huella = huellaPlanilla(leido.csvText);
+    const firma = verificarFirmaRevision(String(formData.get("revision") ?? ""), {
+      huella,
+      proveedores,
       actorUserId: actor.userId,
     });
+    if (!firma)
+      return { ok: false, errores: [t("adminError.importar.otroArchivo")] };
+    if (firma.duplicados > 0 && formData.get("duplicadosRevisados") !== "true")
+      return { ok: false, errores: [t("adminError.importar.faltaRevision")] };
+
+    if (lote === 0) {
+      const completo = await buildCatalogImportPlan(leido.csvText, {
+        proveedores,
+        maxFilas: MAX_FILAS_PLANILLA,
+      });
+      if (completo.errores.length > 0)
+        return { ok: false, errores: completo.errores };
+      const vigente = firmaRevision({
+        huella,
+        duplicados: completo.duplicados,
+        proveedores,
+        actorUserId: actor.userId,
+      });
+      if (vigente !== formData.get("revision"))
+        return { ok: false, errores: [t("adminError.importar.faltaRevision")] };
+    }
+
+    // Cada lote todo o nada, con el dueño de cada SKU verificado bajo lock, y
+    // precios o stock en masa sólo con `precios.masivo`
+    // (docs/TEMPLATE-IMPROVEMENT-PLAN.md C1, C4, C6). Lo nuevo entra como
+    // borrador (C5) y cada cambio de precio o stock queda auditado con quién
+    // lo hizo (C7). Las fotos del lote suben después de su commit: una que
+    // falla no tumba productos y precios que ya se guardaron.
+    const result = await applyCatalogImportLote(
+      leido.csvText,
+      lote,
+      { proveedores, maxFilas: MAX_FILAS_PLANILLA },
+      {
+        resetStock: pisaStock,
+        allowPriceChanges: can(actor.role, "precios.masivo"),
+        actor: actorLabel(actor),
+        actorUserId: actor.userId,
+      }
+    );
+    if (!result.ok) return { ok: false, errores: result.errores };
 
     // "Avisame cuando haya stock" (O6): una importación con `pisarStock` es la
     // otra forma en que `on_hand` sube sin pasar por `adjustStock`. Se dispara
     // el barrido —que ya sabe qué variantes tienen suscripciones pendientes y
-    // disponibilidad— y no un aviso por variante: la planilla puede traer
-    // doscientas filas y sólo un puñado interesa a alguien.
+    // disponibilidad— y no un aviso por variante.
     //
     // Después del commit, sin `await` que demore y sin poder fallar: quien
     // acaba de importar el catálogo no espera por Meta.
@@ -668,20 +774,19 @@ export async function applyCatalogImport(
       });
     }
 
-    // Las fotos van después del commit del catálogo: una que falla (URL
-    // caída, Cloudinary con hipo) no puede tumbar productos y precios que ya
-    // se guardaron. Se juntan los fallos en `fotosFallidas` en vez de tirar.
-    const fotos = await applyCatalogFotos(plan.productos);
-
     revalidatePath("/admin/productos");
     revalidarVidriera();
     return {
       ok: true,
-      ...planSummary(plan, pisaStock),
-      variantesEscritas,
-      fotosSubidas: fotos.fotosSubidas,
-      fotosOmitidas: fotos.fotosOmitidas,
-      fotosFallidas: fotos.fotosFallidas,
+      lote: result.lote,
+      lotes: result.lotes,
+      productos: result.productos,
+      variantesEscritas: result.variantesEscritas,
+      ofertasNuevas: result.ofertasNuevas,
+      ofertasActualizadas: result.ofertasActualizadas,
+      fotosSubidas: result.fotosSubidas,
+      fotosOmitidas: result.fotosOmitidas,
+      fotosFallidas: result.fotosFallidas,
     };
   } catch (error) {
     const result = adminActionError("applyCatalogImport", error);

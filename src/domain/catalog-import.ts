@@ -14,6 +14,14 @@ import {
 } from "@/lib/product-attributes";
 import { stripStamps } from "@/lib/verification-stamps";
 
+import {
+  CAMPOS_PROVEEDOR,
+  mapaDeEncabezados,
+  normalizarEncabezado,
+  type CampoCatalogo,
+} from "./catalog-csv";
+import { enlaceProveedor } from "./supplier-offers";
+
 /**
  * La planilla de productos → un catálogo validado (`pnpm importar:productos`).
  *
@@ -22,9 +30,10 @@ import { stripStamps } from "@/lib/verification-stamps";
  * de precios en una planilla; este módulo la entiende.
  *
  * El formato es **el mismo que baja el export del panel** (una fila por
- * variante, encabezados en español) más columnas opcionales que el export no
- * tiene: Descripción, Marca, IVA, Precio antes, Slug y Fotos. Así el ciclo
- * exportar → tocar en Excel → importar funciona sin convertir nada.
+ * variante, encabezados en español): las columnas, su orden y sus alias viven
+ * en `catalog-csv.ts` y están documentadas en docs/CATALOGO-CSV.md. Así el
+ * ciclo exportar → tocar en Excel → importar funciona sin convertir nada, en
+ * la misma tienda o en otra.
  *
  * **Fotos** es URLs separadas por `|`, un espacio o un salto de línea —
  * normalmente sólo en la primera fila de cada producto, porque las fotos son
@@ -64,6 +73,22 @@ export type CatalogoVariante = {
   /** `null` = celda vacía en una columna presente: se borra. */
   compareAtPyg?: number | null;
   onHand?: number;
+  /**
+   * La oferta de proveedor de la fila (columnas Proveedor, Costo proveedor y
+   * Stock proveedor). Sólo existe con los proveedores prendidos y un nombre
+   * en Proveedor; ver `upsertImportedSupplierOffer`.
+   */
+  oferta?: OfertaPlanilla;
+};
+
+/**
+ * Lo que la planilla dice del proveedor de una variante. `undefined` en un
+ * campo = columna ausente (no se toca); `null` = celda vacía (se borra).
+ */
+export type OfertaPlanilla = {
+  source: string;
+  unitCostPyg?: number | null;
+  supplierStock?: number | null;
 };
 
 export type CatalogoProducto = {
@@ -84,6 +109,11 @@ export type CatalogoProducto = {
   brand?: string | null;
   /** `undefined` = sin columna o vacío: no se toca (10 sólo al insertar). */
   ivaRate?: IvaRate;
+  /**
+   * URL proveedor → `products.supplier_url`, el enlace privado de compra.
+   * `undefined` = columna ausente o proveedores apagados; `null` = vacía.
+   */
+  supplierUrl?: string | null;
   variants: CatalogoVariante[];
   /**
    * Unión sin duplicados, en orden, de las URLs de la columna Fotos de todas
@@ -97,88 +127,33 @@ export type CatalogoImportado = {
   productos: CatalogoProducto[];
   /** Con número de línea. Si hay al menos uno, `productos` no sirve. */
   errores: string[];
+  /**
+   * Lo que no frena pero hay que saber: columnas que no son del formato, o de
+   * proveedor en una tienda que no los usa. Se muestran en la vista previa.
+   */
+  advertencias: string[];
 };
 
-/**
- * Encabezado de la planilla → campo. Se normaliza sin acentos, en minúsculas
- * y sin el `(₲)` decorativo, así "Categoría", "categoria" y "CATEGORIA" son
- * la misma columna. Los nombres canónicos son los que escribe
- * `exportProductsCsv` (i18n `csv.producto.*`).
- */
-const COLUMNAS: Record<string, keyof FilaCruda> = {
-  "ficha tecnica json": "specifications",
-  specifications: "specifications",
-  "proveedor json": "supplierDetails",
-  supplier_details: "supplierDetails",
-  "atributos variante json": "attributes",
-  attributes: "attributes",
-  "identificadores json": "identifiers",
-  identifiers: "identifiers",
-  "titulo seo": "seoTitle",
-  seo_title: "seoTitle",
-  "descripcion seo": "seoDescription",
-  seo_description: "seoDescription",
-  "modo de venta": "saleMode",
-  sale_mode: "saleMode",
-  "mostrar precio": "showPrice",
-  show_price: "showPrice",
-  sku: "sku",
-  producto: "producto",
-  nombre: "producto",
-  categoria: "categoria",
-  variante: "variante",
-  precio: "precio",
-  stock: "stock",
-  descripcion: "descripcion",
-  marca: "marca",
-  iva: "iva",
-  "precio antes": "precioAntes",
-  slug: "slug",
-  fotos: "fotos",
-  imagenes: "fotos",
-  imagen: "fotos",
-  foto: "fotos",
+export type OpcionesParseo = {
+  /**
+   * `proveedoresHabilitados()` (y, en el panel, la capacidad `precios`). El
+   * parser no lee el flag: lo decide quien llama. Apagado, las columnas de
+   * proveedor se ignoran con una advertencia.
+   */
+  proveedores?: boolean;
+  /** Techo de filas de datos (el panel usa `MAX_FILAS_PLANILLA`). */
+  maxFilas?: number;
 };
 
-type FilaCruda = {
-  specifications: string;
-  supplierDetails: string;
-  attributes: string;
-  identifiers: string;
-  seoTitle: string;
-  seoDescription: string;
-  saleMode: string;
-  showPrice: string;
-  sku: string;
-  producto: string;
-  categoria: string;
-  variante: string;
-  precio: string;
-  stock: string;
-  descripcion: string;
-  marca: string;
-  iva: string;
-  precioAntes: string;
-  slug: string;
-  fotos: string;
-};
-
-const REQUERIDAS: ReadonlyArray<keyof FilaCruda> = [
+const REQUERIDAS: ReadonlyArray<CampoCatalogo> = [
   "sku",
   "producto",
   "categoria",
   "precio",
 ];
 
-function normalizarEncabezado(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\(.*?\)/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+/** El techo de `INT UNSIGNED`, la columna de `supplier_offers.supplier_stock`. */
+const INT_UNSIGNED_MAX = 4_294_967_295;
 
 /**
  * `"1.234.567"`, `"₲ 285.000"` o `"285000"` → guaraníes enteros.
@@ -221,6 +196,7 @@ const LARGO_MAXIMO = {
   marca: 120,
   slug: 160,
   categoria: 120,
+  proveedor: 200,
 } as const;
 
 /** Tope de fotos por producto (mismo criterio que la carga manual: sin límite no tiene sentido). */
@@ -254,37 +230,79 @@ function parseFotosCelda(raw: string): { urls: string[]; invalidas: string[] } {
   return { urls, invalidas };
 }
 
-export function parseCatalogo(text: string): CatalogoImportado {
+export function parseCatalogo(
+  text: string,
+  opciones: OpcionesParseo = {}
+): CatalogoImportado {
   const filas = parseCsv(text);
   const errores: string[] = [];
+  const advertencias: string[] = [];
+  const conProveedores = opciones.proveedores === true;
 
   const primeraFila = filas[0];
   if (!primeraFila) {
-    return { productos: [], errores: ["La planilla está vacía."] };
+    return {
+      productos: [],
+      errores: ["La planilla está vacía."],
+      advertencias,
+    };
+  }
+
+  const filasDeDatos = filas.length - 1;
+  if (opciones.maxFilas !== undefined && filasDeDatos > opciones.maxFilas) {
+    return {
+      productos: [],
+      errores: [
+        `La planilla trae ${filasDeDatos} filas y el máximo por archivo es ${opciones.maxFilas}. Partila en dos archivos (por categoría, por ejemplo) e importalos de a uno.`,
+      ],
+      advertencias,
+    };
   }
 
   // --- Encabezado ---------------------------------------------------------
-  const encabezado = primeraFila.map(normalizarEncabezado);
-  const indice = new Map<keyof FilaCruda, number>();
-  for (const [col, nombre] of encabezado.entries()) {
-    const campo = COLUMNAS[nombre];
-    if (campo && !indice.has(campo)) indice.set(campo, col);
+  const mapa = mapaDeEncabezados();
+  const indice = new Map<CampoCatalogo, number>();
+  const desconocidas: string[] = [];
+  const deProveedor: string[] = [];
+  for (const [col, crudo] of primeraFila.entries()) {
+    const nombre = normalizarEncabezado(crudo);
+    if (nombre === "") continue;
+    const campo = mapa.get(nombre);
+    if (!campo) {
+      desconocidas.push(crudo.trim());
+      continue;
+    }
+    if (CAMPOS_PROVEEDOR.has(campo) && !conProveedores) {
+      deProveedor.push(crudo.trim());
+      continue;
+    }
+    if (!indice.has(campo)) indice.set(campo, col);
   }
   for (const campo of REQUERIDAS) {
     if (!indice.has(campo)) {
       errores.push(
-        `Falta la columna "${campo}" en el encabezado. Las obligatorias son: SKU, Producto, Categoría y Precio (₲); el resto — Variante, Stock, Descripción, Marca, IVA, Precio antes (₲), Slug, Fotos — es opcional.`
+        `Falta la columna "${campo}" en el encabezado. Las obligatorias son: SKU, Producto, Categoría y Precio (₲); el resto — Variante, Stock, Descripción, Marca, IVA, Precio antes (₲), Slug, Fotos, Modo de venta, Mostrar precio y las de proveedor — es opcional (docs/CATALOGO-CSV.md).`
       );
     }
   }
-  if (errores.length > 0) return { productos: [], errores };
+  if (errores.length > 0) return { productos: [], errores, advertencias };
+  if (deProveedor.length > 0) {
+    advertencias.push(
+      `La planilla trae columnas de proveedor (${deProveedor.join(", ")}) y en esta tienda los datos de proveedores no se manejan: se ignoran, no se escribe nada de ellas.`
+    );
+  }
+  if (desconocidas.length > 0) {
+    advertencias.push(
+      `Columnas que no son del formato y se ignoran: ${desconocidas.join(", ")}. Revisá que no sea un encabezado mal escrito (docs/CATALOGO-CSV.md).`
+    );
+  }
 
-  const celda = (fila: string[], campo: keyof FilaCruda): string => {
+  const celda = (fila: string[], campo: CampoCatalogo): string => {
     const col = indice.get(campo);
     return col === undefined ? "" : (fila[col] ?? "").trim();
   };
   /** ¿Vino la columna? Ausente no es lo mismo que vacía (C2). */
-  const trae = (campo: keyof FilaCruda): boolean => indice.has(campo);
+  const trae = (campo: CampoCatalogo): boolean => indice.has(campo);
 
   // --- Filas → variantes agrupadas por producto ---------------------------
   const porSlug = new Map<
@@ -429,13 +447,68 @@ export function parseCatalogo(text: string): CatalogoImportado {
       fotosFila = urls;
     }
 
+    // --- Proveedor (sólo con el flag; si no, sus columnas no se indexaron) --
+    let supplierUrl: string | null | undefined;
+    if (trae("urlProveedor")) {
+      try {
+        supplierUrl = enlaceProveedor(celda(fila, "urlProveedor"));
+      } catch {
+        errores.push(
+          `Línea ${linea}: la URL de proveedor tiene que ser un enlace https:// sin usuario ni contraseña (vacía = se borra).`
+        );
+        continue;
+      }
+    }
+    const proveedor = celda(fila, "proveedor");
+    const costoCrudo = celda(fila, "costoProveedor");
+    const stockProveedorCrudo = celda(fila, "stockProveedor");
+    if (proveedor.length > LARGO_MAXIMO.proveedor) {
+      errores.push(
+        `Línea ${linea}: el proveedor tiene ${proveedor.length} caracteres; el máximo es ${LARGO_MAXIMO.proveedor}.`
+      );
+      continue;
+    }
+    if (!proveedor && (costoCrudo !== "" || stockProveedorCrudo !== "")) {
+      errores.push(
+        `Línea ${linea}: el costo o el stock de proveedor necesitan el nombre en la columna Proveedor.`
+      );
+      continue;
+    }
+    const costoProveedor = costoCrudo === "" ? null : parseGs(costoCrudo);
+    if (costoCrudo !== "" && costoProveedor === null) {
+      errores.push(
+        `Línea ${linea}: el costo de proveedor "${costoCrudo}" no es un monto en guaraníes enteros.`
+      );
+      continue;
+    }
+    const stockProveedor =
+      stockProveedorCrudo === "" ? null : parseGs(stockProveedorCrudo);
+    if (
+      stockProveedorCrudo !== "" &&
+      (stockProveedor === null || stockProveedor > INT_UNSIGNED_MAX)
+    ) {
+      errores.push(
+        `Línea ${linea}: el stock de proveedor "${stockProveedorCrudo}" no es un entero (vacío = no se sabe).`
+      );
+      continue;
+    }
+    const oferta: OfertaPlanilla | undefined = proveedor
+      ? {
+          source: proveedor,
+          ...(trae("costoProveedor") ? { unitCostPyg: costoProveedor } : {}),
+          ...(trae("stockProveedor")
+            ? { supplierStock: stockProveedor }
+            : {}),
+        }
+      : undefined;
+
     let metadata: Pick<
       CatalogoProducto,
       "specifications" | "supplierDetails" | "seoTitle" | "seoDescription"
     >;
     let variantMetadata: Pick<CatalogoVariante, "attributes" | "identifiers">;
     try {
-      const readJson = <T>(key: keyof FilaCruda, schema: z.ZodType<T>) => {
+      const readJson = <T>(key: CampoCatalogo, schema: z.ZodType<T>) => {
         const raw = celda(fila, key);
         if (!raw) return undefined;
         try {
@@ -490,6 +563,7 @@ export function parseCatalogo(text: string): CatalogoImportado {
       pricePyg: precio,
       ...(compareAtPyg === undefined ? {} : { compareAtPyg }),
       ...(stock === undefined ? {} : { onHand: stock }),
+      ...(oferta === undefined ? {} : { oferta }),
     };
     const descripcion = trae("descripcion")
       ? celda(fila, "descripcion") || null
@@ -515,6 +589,7 @@ export function parseCatalogo(text: string): CatalogoImportado {
         categoryName: categoria,
         ...(marca === undefined ? {} : { brand: marca }),
         ...(iva === undefined ? {} : { ivaRate: iva as IvaRate }),
+        ...(supplierUrl === undefined ? {} : { supplierUrl }),
         variants: [variante],
         fotos,
         primeraLinea: linea,
@@ -589,6 +664,9 @@ export function parseCatalogo(text: string): CatalogoImportado {
     ) {
       conflictos.push(`IVA (${existente.ivaRate} vs ${iva})`);
     }
+    if (supplierUrl && existente.supplierUrl && supplierUrl !== existente.supplierUrl) {
+      conflictos.push("URL de proveedor");
+    }
     if (conflictos.length > 0) {
       errores.push(
         `Línea ${linea}: el producto "${slug}" (línea ${existente.primeraLinea}) ya venía con otro ${conflictos.join(", ")}.`
@@ -600,6 +678,8 @@ export function parseCatalogo(text: string): CatalogoImportado {
     if (existente.description === null && descripcion)
       existente.description = descripcion;
     if (existente.brand === null && marca) existente.brand = marca;
+    if (existente.supplierUrl === null && supplierUrl)
+      existente.supplierUrl = supplierUrl;
     if (existente.ivaRate === undefined && iva !== undefined)
       existente.ivaRate = iva as IvaRate;
     existente.fotos = fotosUnion;
@@ -619,5 +699,6 @@ export function parseCatalogo(text: string): CatalogoImportado {
       return producto;
     }),
     errores,
+    advertencias,
   };
 }

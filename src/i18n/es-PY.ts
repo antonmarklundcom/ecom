@@ -832,7 +832,13 @@ export const esPY = {
   "adminError.importar.skuAjeno":
     'El SKU "{sku}" ya es del producto "{dueno}", no de "{producto}": una planilla no muda una variante a otro producto. Cambiá el SKU o el slug. No se escribió nada.',
   "adminError.importar.preciosSoloDuenio":
-    "Esta planilla cambia precios o pisa stock, y un cambio en masa de precios o de inventario lo aplica sólo el dueño. Pedile que la importe, o sacá esas columnas. No se escribió nada.",
+    "Esta planilla cambia precios o pisa stock, y un cambio en masa de precios o de inventario lo aplica sólo el dueño. Pedile que la importe, o sacá esas columnas. No se escribió nada de este lote.",
+  "adminError.importar.faltaRevision":
+    "La planilla tiene posibles duplicados sin revisar, o cambiaron desde la vista previa. Volvé a Revisar y marcá que los revisaste.",
+  "adminError.importar.otroArchivo":
+    "El archivo no es el mismo que se revisó. Volvé a Revisar antes de importar.",
+  "adminError.importar.loteInvalido":
+    "Ese lote no existe en esta planilla. Volvé a Revisar.",
   "adminError.producto.precioCero":
     'La variante "{sku}" no tiene precio: para venderla con stock el precio tiene que ser mayor a ₲0. Mientras no lo tenga, dejá el producto sin publicar, la variante apagada o el producto en modo consulta.',
   "adminError.stock.sinMotivo":
@@ -966,6 +972,11 @@ export const esPY = {
   "csv.producto.descripcion": "Descripción",
   "csv.producto.marca": "Marca",
   "csv.producto.iva": "IVA",
+  "csv.producto.fotos": "Fotos",
+  "csv.producto.proveedor": "Proveedor",
+  "csv.producto.urlProveedor": "URL proveedor",
+  "csv.producto.costoProveedor": "Costo proveedor",
+  "csv.producto.stockProveedor": "Stock proveedor",
   "csv.cliente.nombre": "Nombre",
   "csv.cliente.email": "Email",
   "csv.cliente.acepto": "Aceptó el",
@@ -1563,7 +1574,7 @@ export const esPY = {
 
   "panel.productos.importar.titulo": "Cargar planilla",
   "panel.productos.importar.ayuda":
-    "CSV o Excel, una fila por variante — el mismo formato que baja el botón de arriba. Una columna que no está no se toca; una celda vacía en Descripción, Marca o Precio antes lo borra. Primero se revisa; recién se escribe cuando confirmás, y entra todo o nada.",
+    "CSV o Excel (primera hoja), una fila por variante — el mismo formato que baja el botón de arriba, también desde otra tienda (docs/CATALOGO-CSV.md). Una columna que no está no se toca; una celda vacía en Descripción, Marca o Precio antes lo borra. Primero se revisa; recién se escribe cuando confirmás, por lotes que entran enteros o no entran.",
   "panel.productos.importar.revisar": "Revisar",
   "panel.productos.importar.confirmar": "Confirmar e importar",
   "panel.productos.importar.aplicando": "Importando…",
@@ -1604,6 +1615,44 @@ export const esPY = {
     "Listo: {productos} productos, {variantes} variantes escritas.",
   "panel.productos.importar.listoConFotos":
     "Listo: {productos} productos, {variantes} variantes y {fotos} fotos.",
+  "panel.productos.importar.advertencias": "Avisos (no frenan la importación)",
+  "panel.productos.importar.duplicados.titulo":
+    "Posibles productos repetidos: revisalos antes de importar",
+  "panel.productos.importar.duplicados.ayuda":
+    "Son avisos, no errores: dos productos distintos pueden parecerse. Compará modelo, medidas y proveedor. Si es el mismo producto, poné en la columna Slug el slug del que ya existe para que se actualice en vez de crear otro.",
+  "panel.productos.importar.duplicados.revisados":
+    "Los revisé y quiero importar igual",
+  "panel.productos.importar.duplicado.mismoNombre":
+    'Posible repetido: "{a}" y "{b}" tienen el mismo nombre con distinto slug ({slugA} / {slugB}).',
+  "panel.productos.importar.duplicado.nombreParecido":
+    'Posible repetido: "{a}" y "{b}" tienen nombres muy parecidos en la misma categoría.',
+  "panel.productos.importar.duplicado.slugExistente":
+    '"{a}" (slug {slug}) ya existe en la tienda y ninguno de sus SKU coincide con los de la planilla: sus variantes se van a sumar a ese producto.',
+  "panel.productos.importar.duplicado.fotoCompartida":
+    'Posible repetido: "{a}" y "{b}" comparten una foto.',
+  "panel.productos.importar.duplicado.mismoProveedor":
+    'Posible repetido: "{a}" y "{b}" tienen la misma URL de proveedor.',
+  "panel.productos.importar.duplicado.mas":
+    "{n} coincidencias más: revisá el catálogo completo antes de confirmar.",
+  "panel.productos.importar.ofertasNuevas.uno": "{n} oferta de proveedor nueva",
+  "panel.productos.importar.ofertasNuevas.varios":
+    "{n} ofertas de proveedor nuevas",
+  "panel.productos.importar.ofertasActualizar.uno":
+    "{n} oferta de proveedor a actualizar",
+  "panel.productos.importar.ofertasActualizar.varios":
+    "{n} ofertas de proveedor a actualizar",
+  "panel.productos.importar.lotes.uno":
+    "Se escribe en {n} lote de hasta {tam} productos: entra entero o no entra.",
+  "panel.productos.importar.lotes.varios":
+    "Se escribe en {n} lotes de hasta {tam} productos: cada lote entra entero o no entra.",
+  "panel.productos.importar.progreso":
+    "Guardando el lote {lote} de {lotes}… No cierres esta pestaña.",
+  "panel.productos.importar.loteListo":
+    "Lote {lote} de {lotes} guardado: {productos} productos, {variantes} variantes.",
+  "panel.productos.importar.loteFallo":
+    "El lote {lote} de {lotes} no se guardó: nada de ese lote quedó escrito. Los {previos} productos de los lotes anteriores sí quedaron guardados. Corregí lo que dice abajo y volvé a Revisar: reimportar la planilla no duplica lo que ya entró.",
+  "panel.productos.importar.conexionCortada":
+    "Se cortó la conexión mientras se guardaba el lote {lote} de {lotes}. Los lotes anteriores quedaron guardados ({previos} productos); del lote {lote} no se puede saber si entró o no. Mirá el catálogo y volvé a Revisar la planilla antes de reintentar: reimportarla no duplica nada.",
 
   "panel.clientes.meta": "Clientes",
   "panel.clientes.titulo": "Clientes",
