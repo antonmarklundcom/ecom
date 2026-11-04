@@ -1075,7 +1075,7 @@ sigue siendo el endpoint abierto y sigue sin decir ni una versión.
 - **Cloudinary** for everything. Product images public with `f_auto,q_auto` transformations; receipts in a **private/authenticated** folder, admin views them via signed URLs.
 - Do **not** store uploads on the Hostinger filesystem — a git-based redeploy can wipe them.
 - Blur placeholders stored in `product_images.blur_data_url`; `next/image` with `unoptimized` (Cloudinary already does the work) and long cache headers.
-- Catalog pages use ISR (`revalidate`); only live availability is fetched client-side.
+- Catalog pages use ISR (`revalidate`) with on-demand invalidation on every write that changes the storefront — see "Caché de la vidriera" below. Availability on a cached page can be up to 5 minutes old; the server decides (cart revalidation + reservation in the checkout transaction).
 - Budget: LCP < 2.5 s on Slow-4G.
 - **Client JS, measured (S12, 2026-09-06 — Next 16.3.4/Turbopack, `next build && next start`, real gz bytes of same-origin `<script>` responses, no fallback):**
 
@@ -1099,6 +1099,62 @@ sigue siendo el endpoint abierto y sigue sin decir ni una versión.
   enum a un archivo sin `drizzle-orm`) está fuera de los límites de las
   fases Sonnet — queda para una fase con permiso sobre `src/db/**`.
 - MySQL pool `connectionLimit: 8` — Hostinger caps concurrent connections per user; a bigger pool causes random `ER_CON_COUNT_ERROR` under load.
+
+### Caché de la vidriera (ISR + invalidación desde el panel)
+
+La home, `/categoria/<slug>` y `/producto/<slug>` se arman una vez y se sirven
+armadas desde la caché de Next (`next start`, un solo proceso en Hostinger: la
+caché vive en memoria y en `.next/`, sin Redis ni CDN). El build lo muestra:
+
+```
+┌ ○ /                          5m   1y
+├   /categoria/[slug]
+│ ├ ● /categoria/electronica   5m   1y   (las categorías activas al buildear)
+├ ƒ /categoria/[slug]/con-parametros
+├ ○ /producto/[slug]                     (cada ficha se arma en la primera visita)
+├ ƒ /producto/[slug]/con-parametros
+├ ○ /sitemap.xml               5m   1y
+```
+
+- **Cada página cacheada** es `dynamic = "force-static"` + `revalidate = 300`
+  (`tests/unit/vidriera-cache.test.ts`). `force-static` deja vacíos los
+  `headers()` del layout —el componente de GA4/Pixel los lee para el nonce—:
+  sin él, prender los medidores volvía dinámica la vidriera entera sin avisar.
+  Ninguna de estas páginas lee cookies ni sesión; el carrito, los favoritos y
+  "vistos recientemente" son del navegador.
+- **Con parámetros no sale de la caché.** Una página de ISR es una por URL
+  limpia, y `?marca=…&orden=…` o `?variante=AZUL-M` no son la misma página.
+  `src/proxy.ts` (`destinoVidriera()` de `src/lib/vidriera-cache.ts`)
+  reescribe esas requests —sin cambiar la URL del navegador— a la gemela
+  `…/<slug>/con-parametros`, que renderiza **la misma** `page.tsx` por
+  request con `conParametros` (lo único que le hace leer `searchParams`; leerlo
+  en la ruta cacheada la volvería dinámica). La gemela lleva nonce, `noindex`
+  donde corresponde y redirige un slug viejo **con** su variante. Abierta a
+  mano da 404. Los parámetros de campañas (`utm_*`, `fbclid`, `gclid`,
+  `srsltid`…) no cambian la página: salen de la caché, con `X-Robots-Tag:
+  noindex, follow` (el canonical ya apunta a la URL limpia).
+- **CSP:** las rutas cacheadas van sin nonce y con `'unsafe-inline'` (ver
+  `src/proxy.ts`); son catálogo público, sin sesión ni plata. La gemela y todo
+  lo demás siguen con nonce y `'strict-dynamic'`.
+- **Invalidación:** `revalidarVidriera()` (`src/lib/revalidar-vidriera.ts`,
+  `revalidatePath("/", "layout")`) es la única forma de tirar la caché, y la
+  llama, una vez y después de guardar, cada escritura que cambia algo visible:
+  catálogo (producto, variante, stock, fotos, planilla, masivas, categorías),
+  ajustes e identidad, integraciones, reseñas, devoluciones, y el stock que
+  mueven los pedidos (checkout, cancelar/aprobar/editar desde el panel,
+  revivir un pago, el cron que vence). No regenera nada en el momento: cada
+  página se rearma la próxima vez que alguien la pide. Nunca tira (un fallo al
+  invalidar no deshace lo guardado). `tests/unit/vidriera-cache.test.ts` falla
+  si una acción del panel nueva no la llama ni figura como excepción.
+- **El stock de una página cacheada no vende de más.** Lo que se ve puede
+  tener hasta 5 minutos (una reserva que vence sola, un pago de Pagopar que
+  revive un pedido); lo que decide es el servidor: el carrito se revalida
+  contra la base y el checkout reserva en una transacción (`src/domain/stock.ts`). El peor caso
+  es "se veía disponible y al pagar dice que no queda", nunca un pedido sin
+  stock.
+- `Cache-Control: s-maxage=300` es lo que Next manda en esas páginas: si algún
+  día hay un CDN adelante, puede servir hasta 5 minutos una página que la
+  tienda ya invalidó.
 
 ---
 

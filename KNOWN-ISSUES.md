@@ -124,3 +124,37 @@ produce un `RENAME COLUMN` sobre una columna JSON, reescribir esa sentencia
 como `CHANGE … JSON NULL` antes de commitear la migración y probarla contra
 MariaDB (`.github/workflows/mariadb.yml`). La causa exacta en MariaDB no se
 investigó más allá de reproducirla.
+
+## La ficha cacheada: dos `Location` en la primera visita a un slug viejo — 2026-11-04
+
+Desde que `/producto/<slug>` es ISR (ARCH.md §6, "Caché de la vidriera"), la
+**primera** visita a un slug viejo (`product_slug_redirects`) responde el 308
+con el header `Location` repetido, las dos veces con el mismo valor; desde la
+caché sale uno solo. Es de Next 16.4 (la respuesta de un `permanentRedirect()`
+recién renderizado en ISR), no de este código: el proxy no toca `Location`.
+Chromium, Firefox y los crawlers aceptan copias idénticas, así que el redirect
+anda; `tests/e2e/catalogue-inheritance.spec.ts` compara los valores sin
+repetidos. Con `?variante=` no pasa (va por la gemela por request). Si Next lo
+corrige, el spec sigue pasando igual.
+
+## Caché de la vidriera: lo que no se invalida solo — 2026-11-04
+
+`revalidarVidriera()` tira la caché en cada escritura del panel, el checkout y
+el cron de vencimientos. Lo que cambia sin pasar por ahí se ve con hasta 5
+minutos de atraso (`revalidate = 300`): una reserva que vence entre corridas
+del cron, un pago tardío de Pagopar que revive un pedido (el webhook no
+invalida a propósito: es la ruta más sensible del sitio y el atraso es sólo
+visual — el checkout revalida el stock), un cambio hecho a mano en la base o
+por un script (`pnpm importar:productos`, `pnpm db:seed`). El dato que decide
+una compra nunca sale de la caché.
+
+Dos consecuencias de ISR que conviene saber:
+
+- La fecha de una categoría en el sitemap es la del último producto publicado
+  suyo que cambió: `categories` no tiene `updated_at`, así que editar sólo el
+  texto de la categoría no la mueve. Agregar la columna es una migración; no
+  se hizo para no sumarle una a esta fase.
+- Un slug que no existe también se cachea (el 404, 5 minutos): un bot que
+  recorre URLs inventadas deja una entrada por URL en la caché de Next
+  (memoria y `.next/`). Crear el producto con ese slug invalida todo, así que
+  no hay 404 viejos; lo que crece es la caché, y se vacía en cada deploy.
