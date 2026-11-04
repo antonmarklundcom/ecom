@@ -1,0 +1,36 @@
+{
+  "descripcion": "`pagado: false` (con un `cancelado: true` de ruido) sobre un pedido que ya estaba cobrado: posible reversión. El pedido no se toca solo; la ruta lo deja en el log como error para que lo vea el dueño.",
+  "origen": "sintetico",
+  "contentType": "application/json",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pagado",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpo": {
+    "respuesta": true,
+    "resultado": [
+      {
+        "hash_pedido": "b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3",
+        "pagado": false,
+        "monto": "150000",
+        "forma_pago": "TARJETA",
+        "numero_pedido": "PY-000123",
+        "cancelado": true
+      }
+    ]
+  },
+  "esperado": {
+    "parseo": {
+      "hashPedido": "b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3",
+      "pagado": false,
+      "montoPyg": 150000
+    },
+    "ruta": {
+      "status": 200,
+      "pedido": "pagado",
+      "eventos": 1,
+      "logError": true
+    }
+  }
+}

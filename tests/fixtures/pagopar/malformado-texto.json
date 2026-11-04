@@ -1,0 +1,19 @@
+{
+  "descripcion": "Texto que no es JSON ni formulario → 400.",
+  "origen": "sintetico",
+  "contentType": "text/plain",
+  "token": "query",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpoCrudo": "pago ok",
+  "esperado": {
+    "parseo": "error",
+    "ruta": {
+      "status": 400,
+      "pedido": "pendiente_pago",
+      "eventos": 0
+    }
+  }
+}

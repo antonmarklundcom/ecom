@@ -1,7 +1,9 @@
 import { pagoparPrivateKey } from "@/domain/pagopar/config";
 import { tokensMatch, webhookGuardToken } from "@/domain/pagopar/hash";
 import {
+  PagoparProtocolError,
   parseWebhookEvent,
+  readWebhookBody,
   webhookErrorBody,
   webhookResponseBody,
   type PagoparWebhookEvent,
@@ -25,6 +27,20 @@ import { cargarIntegraciones } from '@/lib/integraciones-store';
  * Aviso de pago de Pagopar (PLAN.md 5.2, ARCH.md §4).
  *
  *   POST /api/webhooks/pagopar?token=sha1(PRIVATE_KEY + hash_pedido)
+ *
+ * El token se acepta en el querystring (como lo armó el PR #5) **o** en el
+ * campo `token` del pedido dentro del cuerpo. La URL de respuesta se registra
+ * una sola vez en el panel de Pagopar y el token depende de cada
+ * `hash_pedido`, así que no puede venir fijo en esa URL; dónde lo pone
+ * Pagopar no está confirmado contra la doc vigente (ARCH.md §4.2). Aceptar las
+ * dos no afloja nada: en los dos lados es el mismo digest, comparado en
+ * tiempo constante.
+ *
+ * Contrato de respuestas (ARCH.md §4.2): 200 = recibido y no hay que reintentar
+ * (aplicado, repetido, no pagado, estado final, sin stock); 400 = cuerpo que no
+ * se puede interpretar; 401 = firma; 404 = pedido desconocido (a propósito
+ * reintentable); 409 = monto; 429 = rate limit; 503 = sin clave; 500 = falla
+ * nuestra (reintentable). Ningún 4xx toca la base.
  *
  * Esta ruta es pública y mueve pedidos a `pagado`. Lo único que la separa de
  * cualquiera en internet es esa firma, así que el orden importa: firma →
@@ -75,14 +91,19 @@ export async function POST(request: Request): Promise<Response> {
 
   let event: PagoparWebhookEvent;
   try {
-    event = parseWebhookEvent(await request.json());
-  } catch {
-    // El cuerpo no se loguea: trae datos del comprador.
-    log.warn('pagopar: aviso con un cuerpo que no pude interpretar');
+    // JSON con o sin sobre, form-encoded, BOM: todo termina en una sola forma
+    // o en un PagoparProtocolError (protocol.ts).
+    event = parseWebhookEvent(await readWebhookBody(request));
+  } catch (error) {
+    // El cuerpo no se loguea: trae datos del comprador. El motivo sí — los
+    // mensajes de PagoparProtocolError son fijos y no repiten valores.
+    log.warn('pagopar: aviso con un cuerpo que no pude interpretar', {
+      motivo: error instanceof PagoparProtocolError ? error.message : 'cuerpo ilegible',
+    });
     return json(webhookErrorBody("invalid_payload"), 400);
   }
 
-  if (!guardMatches(request, privateKey, event.hashPedido)) {
+  if (!guardMatches(request, privateKey, event)) {
     // Un solo mensaje: distinguir "falta el token" de "el token está mal" ya
     // es información gratis. No se loguea ni el valor recibido ni el esperado.
     log.warn('pagopar: aviso con firma inválida, descartado');
@@ -103,7 +124,18 @@ export async function POST(request: Request): Promise<Response> {
         log.info('pagopar: aviso repetido, sin cambios');
         break;
       case "no_pagado":
-        log.info("pagopar: aviso de pago no acreditado", { pedido: outcome.orderNumber });
+        if (YA_COBRADO.has(outcome.status)) {
+          // "No pagado" sobre un pedido que ya cobramos: puede ser una
+          // reversión hecha en Pagopar. El pedido no se toca solo —la política
+          // es la misma que con el pago tardío: decide una persona—, pero el
+          // dueño tiene que enterarse.
+          log.error("pagopar: aviso de pago no acreditado sobre un pedido ya cobrado — revisar a mano", {
+            pedido: outcome.orderNumber,
+            estado: outcome.status,
+          });
+        } else {
+          log.info("pagopar: aviso de pago no acreditado", { pedido: outcome.orderNumber });
+        }
         break;
       case "sin_stock":
         // El peor caso que el sistema puede manejar solo: cobrado, sin
@@ -151,17 +183,43 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
+/** Estados en los que el pedido ya cuenta como cobrado. */
+const YA_COBRADO: ReadonlySet<string> = new Set([
+  "pagado",
+  "preparando",
+  "enviado",
+  "entregado",
+]);
+
 /**
  * `sha1(PRIVATE_KEY + hash_pedido)`, comparado en tiempo constante contra el
- * token del querystring.
+ * token que vino en el querystring y/o en el campo `token` del cuerpo.
+ *
+ * Alcanza con que uno coincida: los dos son el mismo digest, así que aceptar
+ * cualquiera de los dos lugares no le da a nadie una forma de pasar sin la
+ * clave privada. Cada candidato se compara entero (`tokensMatch` no corta en
+ * el primer byte distinto).
  *
  * Es una entrada distinta a la del token de `iniciar-transaccion` — dos
  * helpers separados a propósito (ver `domain/pagopar/hash.ts`).
  */
-function guardMatches(request: Request, privateKey: string, hashPedido: string): boolean {
-  const presented = new URL(request.url).searchParams.get("token") ?? "";
-  if (presented === "") return false;
-  return tokensMatch(webhookGuardToken(privateKey, hashPedido), presented);
+function guardMatches(
+  request: Request,
+  privateKey: string,
+  event: PagoparWebhookEvent
+): boolean {
+  const expected = webhookGuardToken(privateKey, event.hashPedido);
+  const candidates = [
+    (new URL(request.url).searchParams.get("token") ?? "").trim(),
+    event.bodyToken ?? "",
+  ].filter((token) => token !== "");
+
+  let ok = false;
+  for (const presented of candidates) {
+    // Sin cortocircuito: se comparan todos aunque el primero ya coincida.
+    if (tokensMatch(expected, presented)) ok = true;
+  }
+  return ok;
 }
 
 function json(body: unknown, status: number): Response {
