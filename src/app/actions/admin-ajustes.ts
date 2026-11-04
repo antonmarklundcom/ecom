@@ -84,7 +84,7 @@ export async function subirImagenPortada(formData: FormData): Promise<AdminActio
   try {
     const actor = await requireOwnerSession();
 
-    if (!formData.has("jpeg")) {
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
       return { ok: false, error: t("adminError.ajustes.elegiImagen") };
     }
 
@@ -139,7 +139,7 @@ export async function subirImagenMarca(formData: FormData): Promise<AdminActionR
     const tipo = TipoImagenMarca.safeParse(formData.get("tipo"));
     if (!tipo.success) return { ok: false, error: t("adminError.revisaDatos") };
 
-    if (!formData.has("jpeg")) {
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
       return { ok: false, error: t("adminError.ajustes.elegiImagen") };
     }
 

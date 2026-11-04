@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * reimporta el módulo con el entorno ya puesto para probar las dos puntas.
  */
 
-const REF = 'r2:p1/qr-banco-0123456789@900x900';
+const REF = 'r2:p1/qr-banco-0123456789@1200x1200';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -24,7 +24,7 @@ describe('bankQrUrl', () => {
     // Recortar un QR lo rompe: deja de escanear, y del otro lado hay alguien
     // parado frente a la app del banco que no puede pagar. Las cajas de p1
     // nunca recortan; el QR usa la más grande.
-    expect(bankQrUrl(REF)).toBe('https://img.tienda.test/p1/qr-banco-0123456789-900.webp');
+    expect(bankQrUrl(REF)).toBe('https://img.tienda.test/p1/qr-banco-0123456789-1200.webp');
   });
 
   it('sin base pública devuelve null en vez de un <img> roto', async () => {

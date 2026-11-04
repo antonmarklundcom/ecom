@@ -325,6 +325,10 @@ export async function uploadProductImage(
       return { ok: false, error: t("adminError.productoInvalido") };
     }
 
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
+      return { ok: false, error: t("adminError.elegiFoto") };
+    }
+
     const [producto] = await getDb()
       .select({ slug: products.slug })
       .from(products)

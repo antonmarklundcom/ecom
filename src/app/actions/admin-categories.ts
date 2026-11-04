@@ -185,6 +185,10 @@ export async function uploadCategoryImage(
       return { ok: false, error: t("adminError.categoria.noExiste") };
     }
 
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
+      return { ok: false, error: t("adminError.elegiFoto") };
+    }
+
     const [categoria] = await getDb()
       .select({ slug: categories.slug })
       .from(categories)

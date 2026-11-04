@@ -55,9 +55,10 @@ export async function GET(): Promise<Response> {
       description: markdownToText(product.description),
       brand: product.brand,
       categoryName: product.categoryName,
-      // Ni ilustrativas ni, si la tienda lo pide, sin procedencia (E2).
+      // Ni ilustrativas ni, si la tienda lo pide, sin procedencia (E2). El
+      // JPEG de respaldo y no el WebP: es lo que aceptan todos los catálogos.
       images: outsideImages(product.images)
-        .map((image) => productImageUrl(image.imageRef, "detail"))
+        .map((image) => productImageUrl(image.imageRef, "og"))
         .filter((src): src is string => src !== null),
       variants: product.variants,
     })),

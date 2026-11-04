@@ -77,7 +77,7 @@ export async function subirQrBancario(formData: FormData): Promise<AdminActionRe
   try {
     const actor = await requireOwnerSession();
 
-    if (!formData.has("jpeg")) {
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
       return { ok: false, error: t("adminError.banco.elegiQr") };
     }
 

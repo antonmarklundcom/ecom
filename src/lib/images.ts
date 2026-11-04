@@ -42,10 +42,8 @@ let baseDelDocumento: string | null | undefined;
  * usó el servidor, así el primer render del cliente da lo mismo que el HTML.
  */
 export function basePublicaImagenes(): string | null {
-  const lector = (globalThis as { [LECTOR_BASE_PUBLICA]?: () => string | null })[
-    LECTOR_BASE_PUBLICA
-  ];
-  if (lector) return normalizarBasePublica(lector());
+  // En el navegador manda el `<meta>`, siempre: aunque algún módulo cliente
+  // haya cargado `integraciones.ts` (y su lector), ahí no hay foto ni entorno.
   if (typeof document !== "undefined") {
     if (baseDelDocumento === undefined) {
       const meta = document.querySelector<HTMLMetaElement>(
@@ -57,6 +55,10 @@ export function basePublicaImagenes(): string | null {
     }
     return baseDelDocumento;
   }
+  const lector = (globalThis as { [LECTOR_BASE_PUBLICA]?: () => string | null })[
+    LECTOR_BASE_PUBLICA
+  ];
+  if (lector) return normalizarBasePublica(lector());
   if (typeof process === "undefined") return null;
   return normalizarBasePublica(process.env.R2_PUBLIC_URL);
 }
