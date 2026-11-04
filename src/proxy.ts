@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { analyticsConfig } from "@/lib/analytics";
 import { USER_ROLES } from "@/lib/roles";
 import { sessionOptions, type AdminSession } from "@/lib/session";
+import { HEADER_CON_PARAMETROS, destinoVidriera } from "@/lib/vidriera-cache";
 
 /**
  * Proxy — el ex `middleware.ts`, renombrado en Next 16 (PLAN.md 4.1 y 4.9).
@@ -29,21 +30,24 @@ export const config = {
 };
 
 /**
- * Las rutas cuyo HTML se cachea (ISR) en vez de renderizarse en cada request.
+ * Las rutas cuyo HTML se cachea (ISR) en vez de renderizarse en cada request:
+ * la home, `/categoria/<slug>` y `/producto/<slug>` — exactamente esos
+ * niveles; la gemela `…/<slug>/con-parametros` se renderiza por request.
  *
  * **Tiene que coincidir con los `export const revalidate` de `src/app`**, y hay
  * un test que lo verifica (`tests/unit/csp-isr.test.ts`): si alguien cachea una
  * pantalla nueva y se olvida de agregarla acá, esa pantalla se queda sin
  * JavaScript en producción, y no se nota hasta que un cliente no puede comprar.
  */
-export const RUTAS_CACHEADAS = ["/"] as const;
+export const RUTAS_CACHEADAS = ["/", "/categoria/[slug]", "/producto/[slug]"] as const;
+
+const PATRONES_CACHEADOS = RUTAS_CACHEADAS.map(
+  (ruta) => new RegExp(`^${ruta.replace(/\[[^\]]+\]/g, "[^/]+")}$`)
+);
 
 /** ¿El HTML de esta ruta sale de la caché de ISR? */
 export function esRutaCacheada(pathname: string): boolean {
-  return RUTAS_CACHEADAS.some(
-    (ruta) =>
-      pathname === ruta || (ruta !== "/" && pathname.startsWith(`${ruta}/`))
-  );
+  return PATRONES_CACHEADOS.some((patron) => patron.test(pathname));
 }
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
@@ -62,7 +66,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     <script> sin el atributo y el HTML cacheado sigue siendo válido dentro de un
     mes. Su CSP se arma sin nonce, abajo.
   */
-  const cacheada = esRutaCacheada(request.nextUrl.pathname);
+  // Con filtros o `?variante=`, la categoría y la ficha no salen de la caché:
+  // van a su gemela por request (`src/lib/vidriera-cache.ts`), con nonce.
+  const destino = destinoVidriera(
+    request.nextUrl.pathname,
+    request.nextUrl.searchParams
+  );
+  const cacheada =
+    destino.tipo !== "con-parametros" &&
+    esRutaCacheada(request.nextUrl.pathname);
 
   // `btoa`, no `Buffer`: esto corre en el runtime edge, donde las APIs de
   // Node no existen.
@@ -85,6 +97,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (nonce) requestHeaders.set("x-nonce", nonce);
   // Que no se cuele uno de afuera: `x-nonce` lo pone este proxy y nadie más.
   else requestHeaders.delete("x-nonce");
+  // Lo mismo con la marca de la gemela: abierta a mano, `…/con-parametros`
+  // da 404 (sería la misma ficha en otra URL).
+  requestHeaders.delete(HEADER_CON_PARAMETROS);
+
+  if (destino.tipo === "con-parametros") {
+    requestHeaders.set(HEADER_CON_PARAMETROS, "1");
+    const gemela = request.nextUrl.clone();
+    gemela.pathname = destino.pathname;
+    return withSecurityHeaders(
+      NextResponse.rewrite(gemela, { request: { headers: requestHeaders } }),
+      nonce,
+      false,
+      reqId
+    );
+  }
 
   const isAdmin = request.nextUrl.pathname.startsWith("/admin");
   const isLogin = request.nextUrl.pathname === "/admin/login";
@@ -120,6 +147,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
+  // Una ficha o categoría cacheada pedida con `?utm_…`/`?fbclid=…`: misma
+  // página, pero esa URL no se indexa (el canonical ya apunta a la limpia).
+  if (destino.tipo === "cacheada" && destino.noindex) {
+    response.headers.set("X-Robots-Tag", "noindex, follow");
+  }
   return withSecurityHeaders(response, nonce, isAdmin, reqId);
 }
 
@@ -189,16 +221,16 @@ function withSecurityHeaders(
     "default-src 'self'",
     /*
       Con nonce —todo lo que se renderiza por request: panel, checkout, cuenta,
-      pedido, buscador, ficha de producto— 'strict-dynamic' hace que los
-      scripts que carga un script con nonce hereden la confianza, que es lo que
-      necesita el chunking de Next.
+      pedido, buscador, y la categoría o la ficha con parámetros—
+      'strict-dynamic' hace que los scripts que carga un script con nonce
+      hereden la confianza, que es lo que necesita el chunking de Next.
 
-      Sin nonce —la home y las categorías, que se cachean— hay que permitir el
-      inline: los <script> con los datos del render que Next mete en el HTML no
+      Sin nonce —la home, las categorías y las fichas, que se cachean— hay que
+      permitir el inline: los <script> con los datos del render que Next mete en el HTML no
       tienen un hash estable entre builds con el que firmarlos. 'strict-dynamic'
       no va en ese caso: anularía el 'unsafe-inline' que necesitamos.
 
-      Es un CSP más flojo y por eso vale sólo en esas dos pantallas, que no
+      Es un CSP más flojo y por eso vale sólo en esas tres pantallas, que no
       tienen sesión, ni plata, ni datos de nadie: catálogo público y nada más.
       Todo lo que sí los tiene sigue con el nonce. El agujero que este permiso
       abriría —texto del catálogo inyectado en el JSON-LD— se tapa aparte, en

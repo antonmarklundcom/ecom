@@ -27,6 +27,7 @@ import {
   rateLimit,
 } from "@/lib/rate-limit";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 
 /**
  * Server action del checkout.
@@ -162,6 +163,10 @@ export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
       pedido aunque todavía no esté pagado, y el método viaja en el texto.
     */
     // Owner notices move to createOrder's committed outbox with customer notices.
+
+    // La reserva ya está escrita: la vidriera cacheada tiene que dejar de
+    // ofrecer lo que se acaba de reservar (src/lib/revalidar-vidriera.ts).
+    revalidarVidriera();
 
     if (parsed.data.paymentMethod === "tarjeta") {
       // El pedido y la reserva de stock (45 min, RESERVATION_TTL_MINUTES.tarjeta)

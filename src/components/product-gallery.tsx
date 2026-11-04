@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { useState } from "react";
 import {
   Dialog,
@@ -50,7 +51,7 @@ export function ProductGallery({
                 fill
                 priority={selected === 0}
                 unoptimized={current.src.startsWith("https://")}
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 55vw, 720px"
+                sizes={IMAGE_SIZES.detail}
                 className="product-gallery-image"
               />
               <span className="product-gallery-zoom-label">Ampliar imagen</span>
@@ -86,7 +87,7 @@ export function ProductGallery({
               src={current.src}
               alt={current.alt}
               fill
-              sizes="95vw"
+              sizes={IMAGE_SIZES.zoom}
               unoptimized={current.src.startsWith("https://")}
               className="object-contain"
             />
@@ -126,7 +127,7 @@ export function ProductGallery({
                 src={item.src}
                 alt=""
                 fill
-                sizes="(max-width: 640px) 20vw, 110px"
+                sizes={IMAGE_SIZES.thumb}
                 unoptimized={item.src.startsWith("https://")}
                 className="product-gallery-image"
               />

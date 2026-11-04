@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import {
@@ -41,9 +42,9 @@ import { t } from "@/i18n";
  * categoría vieja es el bug que después se reporta como "no me tomó el cambio".
  */
 
-function revalidarVidriera(): void {
+function revalidarCategorias(): void {
   revalidatePath("/admin/categorias");
-  revalidatePath("/", "layout");
+  revalidarVidriera();
 }
 
 const CreateSchema = z.object({
@@ -95,7 +96,7 @@ export async function crearCategoria(
       imageAlt: parsed.data.imageAlt,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true, id: created.id };
   } catch (error) {
     // Los errores de la categoría van al campo que los causa (F1).
@@ -149,7 +150,7 @@ export async function editarCategoria(
       imageAlt: parsed.data.imageAlt,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     // Los errores de la categoría van al campo que los causa (F1).
@@ -228,7 +229,7 @@ export async function uploadCategoryImage(
       }
     }
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     if (error instanceof AdminCategoryError)
@@ -257,7 +258,7 @@ export async function cambiarEstadoCategoria(
       isActive: parsed.data.isActive,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     if (error instanceof AdminCategoryError)
@@ -286,7 +287,7 @@ export async function moverCategoria(
       direction: parsed.data.direction,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     if (error instanceof AdminCategoryError)

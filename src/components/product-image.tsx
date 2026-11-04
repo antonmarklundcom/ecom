@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 
 import { t } from "@/i18n/client";
 import {
@@ -88,7 +89,7 @@ export function ProductImage({
             fill
             aria-hidden
             priority={priority}
-            sizes={sizes ?? "(max-width: 640px) 50vw, 300px"}
+            sizes={sizes ?? IMAGE_SIZES.card}
             className="object-cover"
           />
           <span className="text-muted-foreground bg-background/80 absolute inset-x-3 bottom-3 truncate rounded px-2 py-1 text-center text-xs font-medium">
@@ -105,7 +106,7 @@ export function ProductImage({
           alt={t("catalogo.sinFoto", { nombre: alt })}
           fill
           priority={priority}
-          sizes={sizes ?? "(max-width: 640px) 50vw, 300px"}
+          sizes={sizes ?? IMAGE_SIZES.card}
           className="object-cover"
         />
       </div>
@@ -120,7 +121,7 @@ export function ProductImage({
         fill
         unoptimized
         priority={priority}
-        sizes={sizes ?? "(max-width: 640px) 50vw, 300px"}
+        sizes={sizes ?? IMAGE_SIZES.card}
         className="object-cover"
         placeholder={image?.blurDataUrl ? "blur" : "empty"}
         blurDataURL={image?.blurDataUrl ?? undefined}

@@ -125,7 +125,7 @@ describe("proxy() — CSP con y sin nonce", () => {
     expect(scriptSrc(response)).not.toContain("'unsafe-inline'");
   });
 
-  it.each(["/"])(
+  it.each(["/", "/categoria/remeras", "/producto/remera-azul"])(
     "%s se cachea: sin nonce, con unsafe-inline y sin strict-dynamic",
     async (ruta) => {
       const response = await proxy(pedido(ruta));
@@ -163,6 +163,81 @@ describe("proxy() — CSP con y sin nonce", () => {
     const response = await proxy(pedido("/admin/pedidos"));
 
     expect(csp(response)).toContain("default-src 'self'");
+  });
+});
+
+describe("proxy() — la vidriera cacheada y su gemela con parámetros", () => {
+  /** Adónde reescribió el proxy (vacío: no reescribió). */
+  function reescritaA(response: Response): string {
+    const destino = response.headers.get("x-middleware-rewrite");
+    return destino ? new URL(destino).pathname + new URL(destino).search : "";
+  }
+
+  it.each([
+    ["/producto/remera-azul?variante=AZUL-M", "/producto/remera-azul/con-parametros?variante=AZUL-M"],
+    ["/categoria/remeras?orden=precio-asc", "/categoria/remeras/con-parametros?orden=precio-asc"],
+    ["/categoria/remeras?page=2&utm_source=ig", "/categoria/remeras/con-parametros?page=2&utm_source=ig"],
+  ])("%s va por request a la gemela, con nonce", async (url, destino) => {
+    const response = await proxy(pedido(url));
+
+    expect(reescritaA(response)).toBe(destino);
+    expect(
+      response.headers.get("x-middleware-request-x-vidriera-con-parametros")
+    ).toBe("1");
+    const nonce = response.headers.get("x-nonce");
+    expect(nonce).toBeTruthy();
+    expect(scriptSrc(response)).toContain(`'nonce-${nonce}'`);
+    expect(scriptSrc(response)).toContain("'strict-dynamic'");
+  });
+
+  it("los parámetros de campañas no sacan de la caché, pero esa URL no se indexa", async () => {
+    const response = await proxy(
+      pedido("/producto/remera-azul?utm_source=instagram&fbclid=abc&srsltid=x")
+    );
+
+    expect(reescritaA(response)).toBe("");
+    expect(response.headers.get("x-nonce")).toBeNull();
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
+  });
+
+  it("la URL limpia se indexa", async () => {
+    const response = await proxy(pedido("/producto/remera-azul"));
+    expect(response.headers.get("X-Robots-Tag")).toBeNull();
+  });
+
+  it("el `_rsc` de las navegaciones de Next no cuenta como parámetro", async () => {
+    const response = await proxy(pedido("/categoria/remeras?_rsc=1x2y3"));
+
+    expect(reescritaA(response)).toBe("");
+    expect(response.headers.get("X-Robots-Tag")).toBeNull();
+  });
+
+  it("la marca de la gemela no se puede mandar de afuera", async () => {
+    const response = await proxy(
+      pedido("/producto/remera-azul/con-parametros", undefined, {
+        "x-vidriera-con-parametros": "1",
+      })
+    );
+
+    expect(reescritaA(response)).toBe("");
+    // Se borra del request: la gemela abierta a mano da 404.
+    expect(
+      response.headers.get("x-middleware-request-x-vidriera-con-parametros")
+    ).toBeNull();
+    expect(response.headers.get("x-middleware-override-headers")).toContain(
+      "x-request-id"
+    );
+    expect(
+      response.headers.get("x-middleware-override-headers")
+    ).not.toContain("x-vidriera-con-parametros");
+    // Y no es una ruta cacheada: lleva nonce como cualquier render por request.
+    expect(response.headers.get("x-nonce")).toBeTruthy();
+  });
+
+  it("la home con parámetros sigue saliendo de la caché", async () => {
+    const response = await proxy(pedido("/?utm_source=ig"));
+    expect(reescritaA(response)).toBe("");
+    expect(response.headers.get("x-nonce")).toBeNull();
   });
 });
 

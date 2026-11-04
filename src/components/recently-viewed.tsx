@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -139,7 +140,7 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
                   alt={url ? (item.imageAlt ?? item.name) : ""}
                   fill
                   unoptimized={Boolean(url)}
-                  sizes="(max-width: 640px) 50vw, 300px"
+                  sizes={IMAGE_SIZES.card}
                   className="object-cover"
                 />
                 {url && item.imageIllustrative ? (

@@ -3,6 +3,7 @@
 import { safeError } from "@/lib/safe-error";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import {
@@ -66,10 +67,6 @@ import { parseEs, zodFieldErrors } from "@/lib/field-errors";
  */
 function sinSellos<T extends z.ZodType>(schema: T) {
   return z.preprocess(stripStamps, schema.nullable().optional());
-}
-
-function revalidarVidriera() {
-  revalidatePath("/", "layout");
 }
 
 /**

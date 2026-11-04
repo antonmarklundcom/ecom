@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
@@ -21,8 +22,14 @@ import { t, tPlural } from "@/i18n";
 import { productImageUrl } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
 import { parsePriceRange } from "@/lib/price-ranges";
-import { breadcrumbJsonLd, itemListJsonLd, jsonLdScript } from "@/lib/seo";
+import {
+  breadcrumbJsonLd,
+  categoryTrail,
+  itemListJsonLd,
+  jsonLdScript,
+} from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
+import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
 import {
   categoryHasPrices,
   getBrands,
@@ -32,7 +39,20 @@ import {
   isCatalogSort,
 } from "@/db/queries";
 
-export const dynamic = "force-dynamic";
+/**
+ * ISR, como la home y la ficha (ARCH.md §6, "Caché de la vidriera"): la
+ * categoría sin parámetros —la que se abre desde el menú y la que indexa
+ * Google— sale armada de la caché y se rearma cuando el panel cambia algo o
+ * entra un pedido (`revalidarVidriera()`), o a los 5 minutos como mucho.
+ *
+ * Con filtros, orden o página (`?marca=`, `?orden=`, `?page=`…) no: cada
+ * combinación es una página distinta con conteos en vivo, y `src/proxy.ts`
+ * la manda a `con-parametros/`, que reusa esta misma página por request y le
+ * pasa `conParametros`. Sin eso, `searchParams` no se toca
+ * (`parametrosDeLaUrl`): esperarlo volvería dinámica la ruta cacheada.
+ */
+export const dynamic = "force-static";
+export const revalidate = 300;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type Params = Promise<{ slug: string }>;
@@ -52,9 +72,12 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
   searchParams,
+  conParametros,
 }: {
   params: Params;
   searchParams: SearchParams;
+  /** Lo pasa la gemela `con-parametros/`: ver `parametrosDeLaUrl`. */
+  conParametros?: boolean;
 }): Promise<Metadata> {
   const { slug } = await params;
   const category = await loadCategory(slug);
@@ -71,7 +94,7 @@ export async function generateMetadata({
   // Cada página sin filtros tiene su canonical. Las combinaciones de filtros
   // quedan fuera del índice y apuntan a la categoría base.
   const origin = siteOrigin();
-  const query = await searchParams;
+  const query = await parametrosDeLaUrl({ searchParams, conParametros });
   const parsedPage = Number(first(query.page));
   const page =
     Number.isSafeInteger(parsedPage) && parsedPage > 1 ? parsedPage : 1;
@@ -100,12 +123,15 @@ function first(value: string | string[] | undefined): string | undefined {
 export default async function CategoryPage({
   params,
   searchParams,
+  conParametros,
 }: {
   params: Params;
   searchParams: SearchParams;
+  /** Lo pasa la gemela `con-parametros/`: ver `parametrosDeLaUrl`. */
+  conParametros?: boolean;
 }) {
   const { slug } = await params;
-  const query = await searchParams;
+  const query = await parametrosDeLaUrl({ searchParams, conParametros });
 
   const category = await loadCategory(slug);
   // Ver la nota en producto/[slug]: el 404 tiene que decidirse acá, y por eso
@@ -124,7 +150,13 @@ export default async function CategoryPage({
       ? requestedPage
       : 1;
 
-  const { vidriera } = await getStoreSettings();
+  const [{ vidriera }, categorias] = await Promise.all([
+    getStoreSettings(),
+    getCategories(),
+  ]);
+  // Las madres de esta categoría (`categories.parent_id`), de la raíz para
+  // abajo y sin ella misma: la última miga es la página actual.
+  const madres = categoryTrail(categorias, slug).slice(0, -1);
   // Los mismos filtros condicionan el listado y cada conteo de las opciones
   // (docs/TEMPLATE-IMPROVEMENT-PLAN.md F4).
   const filtros = {
@@ -169,6 +201,10 @@ export default async function CategoryPage({
   const jsonLd = [
     breadcrumbJsonLd(origin, [
       { name: t("nav.inicio"), path: "/" },
+      ...madres.map((madre) => ({
+        name: madre.name,
+        path: `/categoria/${madre.slug}`,
+      })),
       { name: category.name, path: `/categoria/${slug}` },
     ]),
     itemListJsonLd(origin, result.products, {
@@ -188,6 +224,17 @@ export default async function CategoryPage({
         <Link href="/" className="hover:text-foreground">
           {t("nav.inicio")}
         </Link>
+        {madres.map((madre) => (
+          <span key={madre.id}>
+            <span aria-hidden> / </span>
+            <Link
+              href={`/categoria/${madre.slug}`}
+              className="hover:text-foreground"
+            >
+              {madre.name}
+            </Link>
+          </span>
+        ))}
         <span aria-hidden> / </span>
         <span className="text-foreground">{category.name}</span>
       </nav>
@@ -214,7 +261,7 @@ export default async function CategoryPage({
                 fill
                 unoptimized
                 priority
-                sizes="(max-width: 1024px) 100vw, 1152px"
+                sizes={IMAGE_SIZES.hero}
                 className="object-cover"
               />
             </div>
