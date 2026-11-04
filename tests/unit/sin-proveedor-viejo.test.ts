@@ -16,7 +16,9 @@ import { describe, expect, it } from 'vitest';
  * - `CLAUDE.md` y `.env.example`, que esta fase no edita (reglas del repo);
  * - los nombres de columnas SQL históricos (`cloudinary_id`,
  *   `image_cloudinary_id`, `qr_cloudinary_id`), que no se renombran para no
- *   migrar, y el nombre del comando de migración en la documentación.
+ *   migrar, el nombre del comando de migración en la documentación, y el alias
+ *   deprecado `cloudinaryId` de la foto del hero (para que el `tienda.ts` de
+ *   una tienda, que `template:sync` nunca pisa, siga compilando).
  *
  * Cualquier otra mención es código o documentación que quedó vieja.
  */
@@ -35,7 +37,7 @@ const PERMITIDOS = [
 ];
 
 /** Lo que sí se puede nombrar en cualquier lado. */
-const TOLERADOS = /(?:image_|qr_)?cloudinary_id|fotos[:-]migrar-cloudinary/gi;
+const TOLERADOS = /(?:image_|qr_)?cloudinary_id|fotos[:-]migrar-cloudinary|\bcloudinaryId\b/gi;
 
 describe('el proveedor de imágenes anterior no aparece fuera de la migración y el historial', () => {
   it('ningún archivo versionado lo menciona', async () => {

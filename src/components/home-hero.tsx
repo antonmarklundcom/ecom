@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ImagenR2 } from "@/components/imagen-r2";
 import { Button } from "@/components/ui/button";
 import type { Hero } from "@/config/tienda";
+import { refDeHeroImagen } from "@/lib/hero-imagen";
 import { productImageSources } from "@/lib/images";
 
 /**
@@ -21,7 +22,7 @@ export function HomeHero({ hero }: { hero: Hero }) {
   // `null` sin base pública de R2 o con una referencia que no es de R2: el
   // hero se dibuja igual, con el fondo de siempre, en vez de con un
   // rectángulo roto.
-  const fuentes = productImageSources(imagen?.imageRef, "hero");
+  const fuentes = productImageSources(refDeHeroImagen(imagen), "hero");
   const src = fuentes !== null;
 
   return (

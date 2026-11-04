@@ -74,7 +74,16 @@ export type Hero = {
    * con una referencia que no es de R2, el hero se dibuja sin foto y con el
    * fondo de siempre — nunca con un rectángulo roto.
    */
-  imagen?: { imageRef: string; alt: string } | null;
+  imagen?: {
+    imageRef?: string;
+    /**
+     * @deprecated Nombre de antes del cambio a R2: usá `imageRef`. Se sigue
+     * aceptando para que un `tienda.ts` que no se renombró compile igual; un
+     * valor que no es una referencia `r2:` se dibuja como el hero sin foto.
+     */
+    cloudinaryId?: string;
+    alt: string;
+  } | null;
   titulo: string;
   /** Una o dos líneas abajo del título. */
   texto?: string;

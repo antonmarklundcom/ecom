@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PAGINAS_DEFAULT } from "@/config/paginas-default";
 import { TIENDA } from "@/config/tienda";
+import { refDeHeroImagen } from "@/lib/hero-imagen";
 import { DEFAULT_REORDER_POINT } from "@/domain/admin-products";
 import { readStoreSettings } from "@/domain/store-settings";
 import {
@@ -135,7 +136,7 @@ function MarcaSection({ settings }: { settings: StoreSettings }) {
     cta: { label: t("home.hero.cta"), href: "" },
   };
   const efectivo = heroEfectivo({ ...m, heroActivo: true }, base);
-  const imagenUrl = productImageUrl(efectivo?.imagen?.imageRef, "card");
+  const imagenUrl = productImageUrl(refDeHeroImagen(efectivo?.imagen), "card");
 
   const campos: Record<string, TipoCampo> = {
     tagline: "texto",

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { and, eq, isNotNull, like, not } from "drizzle-orm";
 
 import { TIENDA } from "../src/config/tienda";
+import { refDeHeroImagen } from "../src/lib/hero-imagen";
 import { closePool, getDb } from "../src/db";
 import {
   bankDetails,
@@ -188,7 +189,7 @@ async function recolectar(): Promise<{ publicas: Pendiente[]; comprobantes: (Pen
   ] as const) {
     if (ref && !esRefR2(ref)) publicas.push({ tipo: "ajuste", id: campo, ref, nombre });
   }
-  const heroConfig = TIENDA.hero?.imagen?.imageRef;
+  const heroConfig = refDeHeroImagen(TIENDA.hero?.imagen);
   if (heroConfig && !esRefR2(heroConfig)) {
     publicas.push({ tipo: "tienda.ts", id: "hero", ref: heroConfig, nombre: "portada" });
   }
@@ -303,7 +304,7 @@ async function main(): Promise<void> {
         hechas.set(`${pendiente.nombre}\u0000${pendiente.ref}`, ref);
       }
       if (pendiente.tipo === "tienda.ts") {
-        console.log(`  ! src/config/tienda.ts → hero.imagen.imageRef: "${ref}" (cambialo a mano)`);
+        console.log(`  ! src/config/tienda.ts → hero.imagen.imageRef: "${ref}" (cambialo a mano; \`cloudinaryId\` se sigue aceptando pero está deprecado)`);
       } else {
         await aplicarPublica(pendiente, ref);
       }

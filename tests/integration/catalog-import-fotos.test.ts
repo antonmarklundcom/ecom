@@ -34,6 +34,9 @@ function csvConFotos(fotos: string): string {
   return `${ENCABEZADO}\nFOT-1;Producto con fotos;Hogar;Único;100000;5;${fotos}\n`;
 }
 
+/** El DNS de los tests: todo nombre resuelve a una IP pública de documentación. */
+const dnsPublico = async () => ["203.0.113.10"];
+
 let jpeg: Uint8Array;
 beforeAll(async () => {
   jpeg = new Uint8Array(
@@ -121,7 +124,7 @@ describe.skipIf(!hasTestDb)("applyCatalogFotos", () => {
       await db.select().from(products).where(eq(products.slug, "producto-con-fotos"))
     )[0]!;
 
-    const primeraSubida = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl });
+    const primeraSubida = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl, resolver: dnsPublico });
     expect(primeraSubida).toEqual({ fotosSubidas: 2, fotosOmitidas: 0, fotosFallidas: [] });
 
     const imagenes = await db
@@ -148,7 +151,7 @@ describe.skipIf(!hasTestDb)("applyCatalogFotos", () => {
     // Reimportar la misma planilla: el producto ya tiene fotos, no se tocan.
     const plan2 = await buildCatalogImportPlan(csv);
     expect(plan2.fotosNuevas).toBe(0);
-    const segundaSubida = await applyCatalogFotos(plan2.productos, undefined, { cliente, fetchImpl });
+    const segundaSubida = await applyCatalogFotos(plan2.productos, undefined, { cliente, fetchImpl, resolver: dnsPublico });
     expect(segundaSubida).toEqual({ fotosSubidas: 0, fotosOmitidas: 0, fotosFallidas: [] });
     expect(
       await db.select().from(productImages).where(eq(productImages.productId, producto.id))
@@ -163,7 +166,7 @@ describe.skipIf(!hasTestDb)("applyCatalogFotos", () => {
       csvConFotos("https://cdn.test/rota.jpg|https://cdn.test/html.jpg|https://cdn.test/buena.jpg")
     );
 
-    const resultado = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl });
+    const resultado = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl, resolver: dnsPublico });
     expect(resultado.fotosSubidas).toBe(1);
     expect(resultado.fotosOmitidas).toBe(0);
     expect(resultado.fotosFallidas.map((f) => [f.url, f.motivo])).toEqual([
@@ -180,7 +183,7 @@ describe.skipIf(!hasTestDb)("applyCatalogFotos", () => {
     const cliente = crearClienteR2(CONFIG_FALSA, { fetchImpl });
     const plan = await cargarCatalogo(csvConFotos("https://cdn.test/uno.jpg"));
 
-    const resultado = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl });
+    const resultado = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl, resolver: dnsPublico });
     expect(resultado.fotosSubidas).toBe(0);
     expect(resultado.fotosFallidas).toHaveLength(1);
     expect(resultado.fotosFallidas[0]!.motivo).toContain("HTTP 400");
@@ -201,7 +204,7 @@ describe.skipIf(!hasTestDb)("applyCatalogFotos", () => {
       csvConFotos("r2:p1/producto-con-fotos-0123456789@1200x750|r2:p1/otra-foto-abcdefabcd@800x800")
     );
 
-    const resultado = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl });
+    const resultado = await applyCatalogFotos(plan.productos, undefined, { cliente, fetchImpl, resolver: dnsPublico });
     expect(resultado.fotosSubidas).toBe(1);
     expect(resultado.fotosFallidas.map((f) => f.url)).toEqual(["r2:p1/otra-foto-abcdefabcd@800x800"]);
     const filas = await getTestDb().select().from(productImages);

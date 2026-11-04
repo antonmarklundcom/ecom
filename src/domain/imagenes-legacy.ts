@@ -1,6 +1,7 @@
 import { and, isNotNull, not, like, sql } from "drizzle-orm";
 
 import { TIENDA } from "@/config/tienda";
+import { refDeHeroImagen } from "@/lib/hero-imagen";
 import { getDb } from "@/db";
 import { bankDetails, categories, productImages, receipts } from "@/db/schema";
 import { esRefR2 } from "@/lib/imagenes-r2";
@@ -55,7 +56,7 @@ export async function contarRefsLegacy(executor?: Executor): Promise<RefsLegacy>
     settings.identidad.faviconId,
   ].filter((ref): ref is string => typeof ref === "string" && ref.trim() !== "" && !esRefR2(ref));
 
-  const heroConfig = TIENDA.hero?.imagen?.imageRef;
+  const heroConfig = refDeHeroImagen(TIENDA.hero?.imagen);
 
   return {
     productImages: await contar(

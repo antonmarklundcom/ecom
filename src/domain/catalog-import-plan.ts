@@ -12,7 +12,7 @@ import { slugify } from "@/lib/slug";
 import { decoded } from "@/lib/product-attributes";
 import { sameContent } from "@/lib/verification-stamps";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
-import { DescargaError, descargarImagen } from "@/lib/descarga-segura";
+import { DescargaError, descargarImagen, type Resolver } from "@/lib/descarga-segura";
 import { jpegKeyFor, parseRef } from "@/lib/imagenes-r2";
 import {
   clienteR2,
@@ -308,6 +308,7 @@ const FOTOS_CONCURRENCIA = 2;
 export type CatalogFotosOpciones = {
   cliente?: ClienteR2;
   fetchImpl?: typeof fetch;
+  resolver?: Resolver;
 };
 
 /** Un motivo escrito acá: se puede mostrar tal cual. */
@@ -345,7 +346,7 @@ async function fotoDeLaPlanilla(
   cliente: ClienteR2,
   url: string,
   slug: string,
-  fetchImpl: typeof fetch | undefined
+  opciones: CatalogFotosOpciones
 ): Promise<string> {
   if (url.startsWith("r2:")) {
     const ref = parseRef(url);
@@ -354,7 +355,10 @@ async function fotoDeLaPlanilla(
     if (!existe) throw new FotoError("esa foto no está en el bucket (¿faltó `pnpm fotos:subir`?)");
     return url;
   }
-  const original = await descargarImagen(url, { fetchImpl });
+  const original = await descargarImagen(url, {
+    fetchImpl: opciones.fetchImpl,
+    resolver: opciones.resolver,
+  });
   try {
     const set = await prepararDesdeOriginal(original);
     return await subirSetImagen(cliente, set, slug, "producto");
@@ -451,7 +455,7 @@ export async function applyCatalogFotos(
             cliente,
             url,
             grupo.slug,
-            opciones.fetchImpl
+            opciones
           );
           await addProductImage(
             {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Hero } from "@/config/tienda";
+import { refDeHeroImagen } from "@/lib/hero-imagen";
 import { t } from "@/i18n";
 import { normalizePhonePY } from "@/lib/py";
 
@@ -523,9 +524,18 @@ export function heroEfectivo(
   const href = linkSeguro(marca.heroCtaHref) ?? base.cta?.href ?? null;
   const cta = label && href ? { label, href } : undefined;
 
-  const imageRef = marca.heroImagenId ?? base.imagen?.imageRef ?? null;
+  const imageRef = marca.heroImagenId ?? refDeHeroImagen(base.imagen);
+  // Las dos claves: `imageRef` para el `Hero` de hoy y `cloudinaryId` (el
+  // nombre viejo) para el `tienda.ts` o la portada rediseñada de una tienda
+  // que todavía los usa — así su markup viejo recibe la referencia de R2.
+  // Variable y no literal: con el `Hero` viejo de la tienda (sin `imageRef`)
+  // un literal fallaría por propiedad de más.
   const imagen = imageRef
-    ? { imageRef, alt: marca.heroImagenAlt ?? base.imagen?.alt ?? titulo }
+    ? {
+        imageRef,
+        cloudinaryId: imageRef,
+        alt: marca.heroImagenAlt ?? base.imagen?.alt ?? titulo,
+      }
     : null;
 
   return { titulo, texto, cta, imagen };
