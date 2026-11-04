@@ -34,6 +34,11 @@ export type OpcionesDescarga = {
   maxBytes?: number;
   timeoutMs?: number;
   maxRedirects?: number;
+  /**
+   * Qué contenido se acepta (por los bytes). Por defecto, una imagen JPEG,
+   * PNG, WebP o GIF; la migración de comprobantes acepta también PDF.
+   */
+  validar?: { acepta: (bytes: Uint8Array) => boolean; motivo: string };
 };
 
 export const DESCARGA_MAX_BYTES = 15 * 1024 * 1024;
@@ -152,7 +157,11 @@ export async function descargarImagen(
       offset += trozo.byteLength;
     }
     if (bytes.byteLength === 0) throw new DescargaError("VACIA", "vino vacía");
-    if (!infoImagen(bytes)) throw new DescargaError("FORMATO", "no es una imagen JPG, PNG, WebP o GIF");
+    const validar = opciones.validar ?? {
+      acepta: (b: Uint8Array) => infoImagen(b) !== null,
+      motivo: "no es una imagen JPG, PNG, WebP o GIF",
+    };
+    if (!validar.acepta(bytes)) throw new DescargaError("FORMATO", validar.motivo);
     return bytes;
   }
 }

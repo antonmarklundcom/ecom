@@ -1,6 +1,6 @@
 # ARCH.md — Tienda PY: Technical Architecture
 
-**Stack:** Next.js 16 (App Router, TS) · **Hostinger Node.js** · **Hostinger MySQL + Drizzle ORM** · Cloudinary (images + receipts) · Tailwind + shadcn/ui · Zustand · Zod
+**Stack:** Next.js 16 (App Router, TS) · **Hostinger Node.js** · **Hostinger MySQL + Drizzle ORM** · Cloudflare R2 over its S3 API (images, receipts, backups) · Tailwind + shadcn/ui · Zustand · Zod
 **Currency:** PYG only, stored as `BIGINT` integers. No decimals anywhere in the money path.
 **Timezone:** all business logic in `America/Asuncion`; all timestamps stored UTC (`timezone: "Z"` on the pool).
 **Language:** Spanish (Paraguayan voseo) UI, `dd/mm/yyyy`.
@@ -188,7 +188,7 @@ MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaran�
 │────────────────────│◄───────│───────────────────│───────►│──────────────────────│
 │ id PK              │        │ id PK             │        │ id PK                │
 │ product_id FK      │        │ slug UQ           │        │ product_id FK        │
-│ cloudinary_id      │        │ name              │        │ sku UQ               │
+│ cloudinary_id *    │        │ name              │        │ sku UQ               │
 │ blur_data_url      │        │ description TEXT  │        │ label ("Talle M")    │
 │ alt                │        │ category_id FK    │        │ price_pyg BIGINT     │
 │ position           │        │ brand             │        │ compare_at_pyg NULL  │
@@ -246,7 +246,7 @@ MySQL 8, InnoDB, `utf8mb4`. All money columns `BIGINT UNSIGNED` (integer guaran�
 │────────────────────────────│           │      payment_events        │
 │ id PK                      │           │────────────────────────────│
 │ order_id FK                │           │ id PK                      │
-│ cloudinary_id (private)    │           │ provider                   │
+│ cloudinary_id * (private)  │           │ provider                   │
 │ mime / bytes               │           │ event_key                  │
 │ uploaded_at                │           │ payload JSON               │
 │ review: pending|approved|  │           │ received_at                │
@@ -448,9 +448,8 @@ relaciones nuevas:
   posición de categoría y nombre) — **no** "los más nuevos" a secas, para que
   una tienda que recién trae la migración no vea moverse su portada.
 - **`categories.description` / `image_cloudinary_id` / `image_alt`**: texto y
-  foto opcionales de la página de categoría (`f_auto,q_auto`, folder
-  `categorias/` bajo el prefijo de Cloudinary de la tienda). Sin ninguno de
-  los tres, la página es bit a bit la de antes.
+  foto opcionales de la página de categoría (una referencia `r2:p1/…`, ver §6).
+  Sin ninguno de los tres, la página es bit a bit la de antes.
 - **`variants.reorder_point`** (`int unsigned` NULL): umbral de "stock bajo"
   por variante; `NULL` usa el default global (3). `lowStockVariants` lo
   respeta con `COALESCE` en el SQL — y con `CAST(... AS SIGNED)` en la
@@ -585,8 +584,8 @@ cuenta a medias es peor que ninguna**:
   tipeado no rompe nada de este lado: rompe la transferencia de otra persona, en
   el banco.
 
-El QR del SPI se sube a un folder **público** de Cloudinary (`banco/`), nunca a
-`comprobantes/`, que es `authenticated` y sólo se sirve firmado. El tipo de
+El QR del SPI se sube a R2 como una foto **pública** más (`p1/`), nunca a
+`comprobantes/`, que es privado y sólo se sirve con URL prefirmada. Cada
 archivo se valida por los bytes, igual que las fotos de producto.
 
 `pnpm preflight` sigue siendo env-only y **no toca la base a propósito** (se
@@ -868,7 +867,7 @@ refund, and pretending the order is alive would be worse than saying nothing.
 
 1. Order created → `pendiente_pago`, `reserved_until = NOW() + 24h`.
 2. Confirmation page shows: Banco, Titular, RUC, nro. de cuenta, **the exact ₲ total with a copy button**, and the SPI QR image. Copy buttons on every field — typing an account number on a phone is where orders die.
-3. Buyer uploads the comprobante → server validates MIME + size → uploads to a **private Cloudinary folder** (signed delivery URLs only) → `receipts` row → `esperando_verificacion`.
+3. Buyer uploads the comprobante → server validates MIME + size → uploads to R2 under `comprobantes/<128-bit random>/` (private: the public domain blocks that prefix; the admin views it through a 2-minute presigned GET) → `receipts` row → `esperando_verificacion`.
 4. One-tap WhatsApp button: `https://wa.me/595XXXXXXXXX?text=` + `encodeURIComponent(message)`. Message contains order number, total, and the tokenized order URL. Keep under ~1500 chars — long deeplinks truncate on iOS.
 5. Owner checks the receipt against the bank statement in `/admin`, clicks **Aprobar** → `transitionOrder(→ pagado)`, which also writes the `payments` row (below).
 
@@ -1050,10 +1049,14 @@ ordenada por dependencia: restaurar en ese orden nunca choca contra una FK, y
 una tabla nueva que nadie decidió incluir hace fallar un test en vez de quedar
 afuera en silencio.
 
-Sube a Cloudinary como `raw` + **`authenticated`**: un backup en una carpeta
-pública es la base de datos entera del comercio servida por CDN a quien adivine
-la URL. Retención de 14 días, porque una cuenta llena deja de aceptar la copia
-de hoy. Si falla, el dueño recibe un WhatsApp — un backup que falla en silencio
+Sube a R2 bajo `backups/backup-<fecha>-<128 bits aleatorios>/`, **privado**
+(el dominio público bloquea `/backups/*`; `pnpm preflight` lo prueba): un
+backup público es la base de datos entera del comercio servida a quien adivine
+la URL. **Un objeto por tabla** (`orders.jsonl.gz`, …) y un `manifest.json`
+con filas y hashes de cada uno, escrito **último**: un set sin manifiesto es
+una corrida que no terminó, y `pnpm restore` rechaza cualquier set con un
+objeto de menos o un conteo/hash que no coincide (formato 3; el archivo único
+de formato 2 se sigue aceptando). Retención de 14 días. Si falla, el dueño recibe un WhatsApp — un backup que falla en silencio
 da la tranquilidad sin dar la copia.
 
 `scripts/restore-backup.ts` **sólo corre contra una base cuyo nombre contenga
@@ -1072,9 +1075,13 @@ sigue siendo el endpoint abierto y sigue sin decir ni una versión.
 
 ## 6. Images & performance on PY mobile networks
 
-- **Cloudinary** for everything. Product images public with `f_auto,q_auto` transformations; receipts in a **private/authenticated** folder, admin views them via signed URLs.
+- **Cloudflare R2** for everything, through its S3-compatible HTTPS API from Node (`aws4fetch`; `src/lib/r2.ts`). One bucket per store with a public custom domain. Credentials only through `src/lib/integraciones.ts` (panel > env > off); the secret is encrypted and never reaches the browser.
+- **Public photos, format `p1`** (`src/lib/imagenes-r2.ts`): the DB stores a reference `r2:p1/<slug>-<hash10>@WxH`; objects are one WebP per box (240/480/800/1200, never upscaled, never cropped) plus a JPEG fallback (`p1/<base>.jpg`, also used for Open Graph). The hash is of the content, so keys are immutable (`Cache-Control: immutable`, written with `If-None-Match: *`). Rendered as `<picture>` with a WebP `srcset` and the caller's `sizes` (`src/components/imagen-r2.tsx`). Anything that is not a valid `r2:` reference renders as the placeholder, never as a broken URL.
+- **Uploads**: the panel prepares the set in the browser (`src/lib/preparar-imagen.ts`, ≤ 1200 px, ≤ 900 KB in total); the server action verifies every file **by its bytes** (format + header dimensions + the exact set of boxes, `verificarSetPreparado`), writes the objects, and only **then** inserts the row. The CSV import and the bulk/migration scripts download originals server-side (https only, timeouts, byte cap, counted redirects, content sniffing; `src/lib/descarga-segura.ts`) and derive the same set with `sharp`. Removing a photo never deletes bytes.
+- **Private objects**: receipts (`comprobantes/`) and backups (`backups/`) live in the same bucket under keys with a 128-bit random component; the public domain must block both prefixes with a WAF rule (DEPLOY.md), and `pnpm preflight` writes a canary and fails if the public domain serves it.
+- SQL column names (`cloudinary_id`, `image_cloudinary_id`, `qr_cloudinary_id`, marked `*` above) are historical and were not renamed; the TypeScript properties are `imageRef` / `storageKey` / `qrImageRef`.
 - Do **not** store uploads on the Hostinger filesystem — a git-based redeploy can wipe them.
-- Blur placeholders stored in `product_images.blur_data_url`; `next/image` with `unoptimized` (Cloudinary already does the work) and long cache headers.
+- `next/image` stays `unoptimized` (the files are already sized; the optimizer would only burn the slot's CPU); placeholders are committed SVGs.
 - Catalog pages use ISR (`revalidate`); only live availability is fetched client-side.
 - Budget: LCP < 2.5 s on Slow-4G.
 - **Client JS, measured (S12, 2026-09-06 — Next 16.3.4/Turbopack, `next build && next start`, real gz bytes of same-origin `<script>` responses, no fallback):**

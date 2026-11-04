@@ -27,23 +27,6 @@ no lo va a ver. Al escribir una resta así, castear los operandos sin signo a
 (`tests/global-setup.ts` mira `SELECT VERSION()`): con ese aviso, el verde local
 no dice nada sobre estas restas.
 
-## El backup se sube como un solo archivo — fase O8
-
-`/api/cron/backup` sube el dump entero como **un** `.jsonl.gz`. Cloudinary
-limita el tamaño por archivo según el plan (10 MB en el free), así que una
-tienda con muchísimos pedidos podría llegar a un punto en que la subida falle
-—y ahí sí se entera, porque el aviso de backup fallido le llega al dueño por
-WhatsApp y queda el motivo en `job_runs.last_error`.
-
-No se arregló partiendo el dump en un archivo por tabla, que es lo que sugiere
-plan-operacion §5.4 A como alternativa: hoy ninguna tienda está cerca de ese
-tamaño, y partirlo agrega una forma nueva de fallar a medias (tres tablas
-subidas y dos no, sin nada que diga que ese backup está incompleto). Arreglo,
-cuando alguna tienda se acerque: un archivo por tabla **más** un manifiesto con
-la lista y el conteo de filas de cada uno, y que `restore` se niegue a correr
-si falta alguno. Mientras tanto, el dump comprimido de una tienda con miles de
-pedidos entra cómodo en 10 MB.
-
 ## `eslint` 10 no anda con `eslint-plugin-react` — fase S19
 
 `eslint-config-next@16.3.4` declara el peer como `eslint: ">=9.0.0"` (acepta
