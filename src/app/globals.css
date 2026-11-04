@@ -66,13 +66,18 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Kit de piel (plan-crecimiento §6.2): `:root`/`.dark` viven en
- * `src/styles/temas/<nombre>.css`, no acá. Elegir tema = cambiar esta línea
- * (o correr `pnpm nueva-tienda --tema <nombre>`, que la reescribe sola).
- * Los tres temas del template: `neutro`, `calido`, `oscuro-vivo` — ver
- * NEW-STORE.md §5 para cómo crear un cuarto.
+ * Kit de temas (NEW-STORE.md §5): `:root`/`.dark` no viven acá. `temas.css`
+ * trae todos los temas, cada uno bajo su `<html data-tema>`; cuál se ve lo
+ * decide `tema` en `src/config/tienda.ts` (o `pnpm nueva-tienda --tema
+ * <nombre>`). Es generado: los temas son datos en `src/themes/presets/` y se
+ * vuelven CSS con `pnpm temas:css`. Los retoques de la tienda van en
+ * `src/themes/custom.css`, que se importa al final de este archivo.
+ *
+ * (Antes del kit esta línea era `@import "../styles/temas/<nombre>.css";`.
+ * Esos archivos siguen existiendo y un `globals.css` viejo que los importa
+ * sigue andando.)
  */
-@import "../styles/temas/neutro.css";
+@import "../themes/temas.css";
 
 @theme inline {
   --color-background: var(--background);
@@ -179,3 +184,9 @@ body:has([data-admin-panel]) [data-whatsapp-fab],
 body:has([data-admin-panel]) [data-announcement-bar] {
   display: none;
 }
+
+/*
+ * Los retoques de esta tienda, últimos para que ganen. `custom.css` es de la
+ * tienda: `template:sync` no lo pisa nunca (ver el archivo).
+ */
+@import "../themes/custom.css";

@@ -1,0 +1,33 @@
+/*
+ * Colores con significado de la vidriera — el default de todos los temas
+ * (`SEMANTICOS` en `src/themes/tipos.ts`).
+ *
+ * Son los valores de Tailwind que los componentes tenían escritos a mano
+ * antes del kit (`text-amber-500`, `text-emerald-700`, `text-red-500`,
+ * `bg-black`, `text-white`), así que una tienda que no los toca se ve igual
+ * que antes. Un tema los pisa en su preset y una tienda en `custom.css`.
+ *
+ * `:where()` deja estos selectores sin especificidad: cualquier `:root` o
+ * `.dark` de un tema o de `custom.css` les gana, venga antes o después.
+ *
+ * No lo importa `globals.css` sino cada componente que usa uno de estos
+ * colores (`import "@/themes/semanticos.css"`): así llegan también a la
+ * tienda que tiene su propio `globals.css` y recibe el componente nuevo por
+ * `template:sync`. Next junta los imports repetidos en un solo archivo.
+ */
+
+:where(:root) {
+  /* Estrellas de las reseñas (`rating-stars.tsx`, `review-form.tsx`). */
+  --estrella: oklch(76.9% 0.188 70.08);
+  /* El "−20%" al lado del precio tachado (`price-tag.tsx`). */
+  --oferta: oklch(50.8% 0.118 165.612);
+  /* El corazón de favoritos marcado (`wishlist-button.tsx`). */
+  --favorito: oklch(63.7% 0.237 25.331);
+  /* El velo sobre una foto o detrás de un modal, y el texto encima. */
+  --velo: #000;
+  --sobre-velo: #fff;
+}
+
+:where(.dark) {
+  --oferta: oklch(76.5% 0.177 163.223);
+}
