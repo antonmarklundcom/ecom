@@ -32,7 +32,7 @@ el ruteo de correo.
    `workers/` ni `vite.config.ts` a `ecom`, y `template:sync` no los trae.
 2. **Cloudflare provee, y sólo provee:**
    - **DNS en modo "DNS only" (nube gris)**, nunca proxied. Ver DEPLOY.md
-     § Cloudflare: el proxy se mete entre Pagopar y el webhook, cambia la IP de
+     § "Cloudflare: sólo DNS (nube gris)": el proxy se mete entre Pagopar y el webhook, cambia la IP de
      origen que usa el rate limit, cachea respuestas que no deben cachearse y
      agrega un segundo TLS que Hostinger no ve. `pnpm preflight` avisa si
      detecta el proxy.
@@ -57,7 +57,8 @@ el ruteo de correo.
 - Hostinger limita los procesos por cuenta (productos.new registró un techo
   compartido de ~200 y 429s cuando un redeploy dejó procesos huérfanos). El
   arranque del template se protege contra eso (guardia de instancia única y
-  cierre ordenado del pool de MySQL, DEPLOY.md).
+  cierre ordenado del pool de MySQL, DEPLOY.md § "Procesos que se apilan
+  (429 en toda la cuenta)").
 - Sin el proxy de Cloudflare no hay CDN delante del HTML: el rendimiento sale
   de páginas de catálogo cacheables (ISR con revalidación desde el panel) y de
   fotos servidas desde R2 con tamaños correctos.
