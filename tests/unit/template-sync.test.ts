@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Commit } from '../../scripts/template-shared';
+import { DE_LA_TIENDA, esDeLaTienda, esMaquinaria } from '../../scripts/template-shared';
 import {
   decidirArchivo,
   esTest,
@@ -55,8 +56,14 @@ describe('decidirArchivo', () => {
   // base = template en el baseline, tienda = HEAD de la tienda, template = objetivo.
   const v = (base: string | null, tienda: string | null, template: string | null) => ({ base, tienda, template });
 
-  it('fable/, Dependabot, tiendas.json y el baseline nunca viajan', () => {
-    for (const ruta of ['fable/plan.md', '.github/dependabot.yml', 'tiendas.json', '.template-baseline']) {
+  it('fable/, Renovate, Dependabot, tiendas.json y el baseline nunca viajan', () => {
+    for (const ruta of [
+      'fable/plan.md',
+      '.github/renovate.json',
+      '.github/dependabot.yml',
+      'tiendas.json',
+      '.template-baseline',
+    ]) {
       expect(decidirArchivo(ruta, v('a', 'a', 'b')), ruta).toBe('ignorar');
       expect(decidirArchivo(ruta, v(null, null, 'b')), ruta).toBe('ignorar');
     }
@@ -107,6 +114,27 @@ describe('decidirArchivo', () => {
   it('maquinaria que la tienda no tiene vuelve; la que el template borró y la tienda cambió es un conflicto', () => {
     expect(decidirArchivo('src/lib/spreadsheet.ts', v('a', null, 'b'))).toBe('restaurar');
     expect(decidirArchivo('src/lib/spreadsheet.ts', v('a', 'x', null))).toBe('conflicto');
+  });
+
+  it('src/themes/custom.css es de la tienda: el template no lo pisa nunca', () => {
+    const ruta = 'src/themes/custom.css';
+    expect(DE_LA_TIENDA).toContain(ruta);
+    expect(esDeLaTienda(ruta)).toBe(true);
+    expect(esDeLaTienda('src/themes/temas.css')).toBe(false);
+    expect(esMaquinaria(ruta)).toBe(false);
+    // Lo cambió la tienda y el template también: queda el de la tienda.
+    expect(decidirArchivo(ruta, v('a', 'x', 'b'))).toBe('conservar');
+    // La tienda nunca lo tocó y el template cambió su versión vacía: igual
+    // queda el de la tienda (para piel común, esto sería 'tomar-template').
+    expect(decidirArchivo(ruta, v('a', 'a', 'b'))).toBe('conservar');
+    expect(decidirArchivo('src/themes/temas.css', v('a', 'a', 'b'))).toBe('tomar-template');
+    // El template lo borró: el de la tienda se queda.
+    expect(decidirArchivo(ruta, v('a', 'x', null))).toBe('conservar');
+    // La tienda no lo tiene: llega el del template, porque `globals.css` lo
+    // importa y sin él no hay build. Nuevo → se trae; borrado a mano → vuelve.
+    expect(decidirArchivo(ruta, v(null, null, 'b'))).toBe('tomar-template');
+    expect(decidirArchivo(ruta, v('a', null, 'b'))).toBe('restaurar');
+    expect(decidirArchivo(ruta, v('a', 'b', 'b'))).toBe('al-dia');
   });
 
   it('pnpm-lock.yaml se decide aparte, al final', () => {

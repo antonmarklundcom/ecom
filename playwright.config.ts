@@ -69,13 +69,17 @@ export default defineConfig({
       // this browser server only, never used for a real upload: the receipt
       // spec sends an invalid file that validation rejects before any upload.
       // Real values from the environment win.
-      CLOUDINARY_CLOUD_NAME:
-        process.env.CLOUDINARY_CLOUD_NAME || "disposable-gallery-fixture",
-      CLOUDINARY_API_KEY:
-        process.env.CLOUDINARY_API_KEY || "disposable-browser-fixture-key",
-      CLOUDINARY_API_SECRET:
-        process.env.CLOUDINARY_API_SECRET ||
+      // The public base is a reserved `.test` host that the gallery spec
+      // intercepts with `page.route`: no request ever leaves the machine.
+      R2_ACCOUNT_ID:
+        process.env.R2_ACCOUNT_ID || "0123456789abcdef0123456789abcdef",
+      R2_ACCESS_KEY_ID:
+        process.env.R2_ACCESS_KEY_ID || "disposablebrowserfixturekey",
+      R2_SECRET_ACCESS_KEY:
+        process.env.R2_SECRET_ACCESS_KEY ||
         "disposable-browser-fixture-secret",
+      R2_BUCKET: process.env.R2_BUCKET || "disposable-browser-fixture",
+      R2_PUBLIC_URL: process.env.R2_PUBLIC_URL || "https://imagenes.fixture.test",
     },
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer:

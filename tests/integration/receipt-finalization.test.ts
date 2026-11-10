@@ -30,7 +30,7 @@ import { createOrder, createVariant, getStatus } from "../helpers/factories";
 function subida(orderId: number) {
   return {
     orderId,
-    cloudinaryId: `comprobantes/${randomBytes(6).toString("hex")}`,
+    storageKey: `comprobantes/${randomBytes(6).toString("hex")}`,
     mime: "image/jpeg",
     bytes: 12_345,
   };
@@ -163,6 +163,35 @@ describe.skipIf(!hasTestDb)("finalizar un comprobante subido", () => {
       expect(sigue).toBeLessThan(Date.now());
       expect(Math.abs(sigue - vencida.getTime())).toBeLessThanOrEqual(1_000);
     });
+
+    // F1 (fable/REVIEW-2026-11-10.md): `MIN(uploaded_at)` volvía como texto y
+    // `new Date(texto)` lo leía en la hora del proceso. Con el proceso en UTC
+    // (CI) no se veía; en un servidor o una PC en otra zona, la ventana se
+    // corría su desfase. Se fuerza una zona lejos de UTC para que el test
+    // falle igual en CI si vuelve.
+    it.each(["America/Asuncion", "Asia/Tokyo"])(
+      "la ventana no depende de la zona horaria del proceso (%s)",
+      async (zona) => {
+        const antes = process.env.TZ;
+        process.env.TZ = zona;
+        try {
+          const variantId = await createVariant({ onHand: 1 });
+          const orderId = await createOrder();
+          await reserveStock(orderId, [{ variantId, qty: 1 }], {
+            expiresAt: new Date(Date.now() + 60_000),
+          });
+          const primera = Date.now();
+          await finalizeUploadedReceipt(subida(orderId));
+          const ventana = RECEIPT_REVIEW.holdHours * 3_600_000;
+          const tope = (await holdUntil(orderId)).getTime();
+          expect(tope).toBeGreaterThanOrEqual(primera + ventana - 5_000);
+          expect(tope).toBeLessThanOrEqual(Date.now() + ventana + 5_000);
+        } finally {
+          if (antes === undefined) delete process.env.TZ;
+          else process.env.TZ = antes;
+        }
+      }
+    );
   });
 
   it("revisar y finalizar a la vez sobre el mismo pedido no se traban (mismo orden de locks)", async () => {

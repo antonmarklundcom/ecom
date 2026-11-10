@@ -10,9 +10,10 @@ import { TESTIDS } from "./testids";
 /**
  * El CSP de verdad, en un navegador de verdad (fable/plan.md §6.1, spec 3).
  *
- * Recorre las rutas cacheadas (home, categoría — sin nonce, `'unsafe-inline'`
- * de `src/proxy.ts`) y las que se renderizan por request (producto, checkout,
- * admin/login — con nonce y `'strict-dynamic'`) y no tiene que aparecer
+ * Recorre las rutas cacheadas (home, categoría, producto — sin nonce,
+ * `'unsafe-inline'` de `src/proxy.ts`) y las que se renderizan por request
+ * (producto con `?variante=`, checkout, admin/login — con nonce y
+ * `'strict-dynamic'`) y no tiene que aparecer
  * **ningún** mensaje de violación en la consola, con una sola excepción
  * documentada.
  *
@@ -21,7 +22,7 @@ import { TESTIDS } from "./testids";
  * `next/image` sin el atributo `nonce`, y el navegador lo bloquea — una
  * violación por pantalla, siempre un chunk suelto de `_next/static/chunks/`.
  * Las fotos igual cargan porque el `<img>` sale renderizado del servidor.
- * Cualquier otra violación —dos en la misma pantalla, o en home/categoría
+ * Cualquier otra violación —dos en la misma pantalla, o en las cacheadas
  * donde no debería haber ninguna— es un bug real.
  *
  * El texto exacto del mensaje **no** es estable entre versiones de Chromium
@@ -88,7 +89,7 @@ test.afterAll(async () => {
   await closePool();
 });
 
-test("home y categoría (cacheadas): CSP sin ninguna violación", async ({
+test("home, categoría y producto (cacheadas): CSP sin ninguna violación", async ({
   page,
 }) => {
   const mensajes = await collectConsole(page);
@@ -97,16 +98,21 @@ test("home y categoría (cacheadas): CSP sin ninguna violación", async ({
   await page.waitForLoadState("networkidle");
   await page.goto(`/categoria/${categoriaSlug}`);
   await page.waitForLoadState("networkidle");
+  await page.goto(`/producto/${productoSlug}`);
+  await page.waitForLoadState("networkidle");
 
   expect(violacionesReales(mensajes), mensajes.join("\n")).toEqual([]);
 });
 
-test("producto y admin/login (con nonce): sólo la violación documentada del chunk de next/image", async ({
+test("categoría filtrada, producto con variante y admin/login (con nonce): sólo la violación documentada del chunk de next/image", async ({
   page,
 }) => {
   const mensajes = await collectConsole(page);
 
-  await page.goto(`/producto/${productoSlug}`);
+  // Con parámetros, `src/proxy.ts` las manda a la gemela por request.
+  await page.goto(`/categoria/${categoriaSlug}?orden=precio-asc`);
+  await page.waitForLoadState("networkidle");
+  await page.goto(`/producto/${productoSlug}?variante=no-existe`);
   await page.waitForLoadState("networkidle");
   await page.goto("/admin/login");
   await page.waitForLoadState("networkidle");

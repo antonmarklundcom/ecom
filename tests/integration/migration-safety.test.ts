@@ -32,6 +32,7 @@ import { tablesForMigration } from "@/domain/backup-format";
 import { recordJobRun } from "@/domain/job-runs";
 import { inspectBackup } from "@/domain/restore-backup";
 import { resetRateLimits } from "@/lib/rate-limit";
+import { ENV_R2_FALSO } from "../helpers/r2-falso";
 
 import {
   TEST_DATABASE_URL,
@@ -100,6 +101,7 @@ async function conexionA(base: string): Promise<mysql.Connection> {
     multipleStatements: true,
   });
 }
+
 
 describe.skipIf(!hasTestDb)("estado de las migraciones (B2)", () => {
   beforeEach(() => {
@@ -316,10 +318,10 @@ describe.skipIf(!hasTestDb)("el health ve un backup parado (B5)", () => {
   });
   afterAll(closeTestDb);
 
-  function conCloudinary(configurado: boolean): void {
-    vi.stubEnv("CLOUDINARY_CLOUD_NAME", configurado ? "fixture-cloud" : "");
-    vi.stubEnv("CLOUDINARY_API_KEY", configurado ? "fixture-key" : "");
-    vi.stubEnv("CLOUDINARY_API_SECRET", configurado ? "fixture-secret" : "");
+  function conR2(configurado: boolean): void {
+    for (const [name, value] of Object.entries(ENV_R2_FALSO)) {
+      vi.stubEnv(name, configurado ? value : "");
+    }
   }
 
   async function health(): Promise<Record<string, unknown>> {
@@ -328,7 +330,7 @@ describe.skipIf(!hasTestDb)("el health ve un backup parado (B5)", () => {
   }
 
   it("con backups configurados, uno de hace 30 horas es backup:false; uno de hoy, true", async () => {
-    conCloudinary(true);
+    conR2(true);
     const ahora = Date.now();
     await recordJobRun("backup", {
       ok: true,
@@ -344,12 +346,12 @@ describe.skipIf(!hasTestDb)("el health ve un backup parado (B5)", () => {
   });
 
   it("nunca corrió con backups configurados: false", async () => {
-    conCloudinary(true);
+    conR2(true);
     expect((await health()).backup).toBe(false);
   });
 
   it("sin backups configurados no hay nada que exigir: true", async () => {
-    conCloudinary(false);
+    conR2(false);
     expect((await health()).backup).toBe(true);
   });
 });

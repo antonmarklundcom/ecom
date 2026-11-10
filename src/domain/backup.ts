@@ -1,4 +1,5 @@
 import { safeError } from "@/lib/safe-error";
+import { createHash, randomBytes } from "node:crypto";
 import { createGzip } from "node:zlib";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -8,13 +9,20 @@ import { sql } from "drizzle-orm";
 
 import { getPool } from "@/db";
 import * as schema from "@/db/schema";
-import { backupManifest, rowDigest } from "./backup-format";
+import {
+  backupManifest,
+  rowDigest,
+  type BackupManifest,
+  type BackupSetManifest,
+  type BackupSetObject,
+} from "./backup-format";
 import { BACKUP_TABLES, type BackupTable } from "@/db/schema";
 import {
-  carpetaBackups,
-  cloudinary,
-  cloudinaryConfigured,
-} from "@/lib/cloudinary";
+  PREFIJO_BACKUPS,
+  clienteR2,
+  r2Configurado,
+  type ClienteR2,
+} from "@/lib/r2";
 import { log } from "@/lib/log";
 import { PY_TIMEZONE } from "@/lib/py";
 
@@ -46,15 +54,26 @@ import type { Executor } from "./executor";
  * ### El formato
  *
  * JSON Lines comprimido: una línea por fila, `{"table":"orders","row":{…}}`.
- * El formato 2 agrega manifiesto de versión y un cierre con conteos y checksum.
- * Un archivo incompleto se rechaza antes de restaurar. La lectura usa una sola
- * conexión con snapshot consistente; la carga sólo acepta una base de recuperación vacía.
+ *
+ * - **Formato 3 (el del cron, en R2)**: un set bajo `backups/<id>/`, con **un
+ *   objeto por tabla** (`orders.jsonl.gz`, …) y un `manifest.json` que lista
+ *   cada objeto con su cantidad de filas y sus hashes, más el total. El
+ *   manifiesto se escribe **último**: un set sin manifiesto es una corrida que
+ *   no terminó, y `pnpm restore` rechaza cualquier set con un objeto de menos
+ *   o un conteo o hash que no coincide. Partirlo así saca el techo de "un solo
+ *   archivo" y una tabla grande no frena a las demás.
+ * - **Formato 2 (un archivo)**: manifiesto de versión, las filas y un cierre
+ *   con conteos y checksum, en un solo `.jsonl.gz` (`dumpDatabase`). Lo sigue
+ *   aceptando `pnpm restore`.
+ *
+ * La lectura usa una sola conexión con snapshot consistente; la carga sólo
+ * acepta una base de recuperación vacía.
  */
 
 /** Cuántas filas por consulta. Ver la decisión 2. */
 export const PAGE_SIZE = 1_000;
 
-/** Cuántos días se conservan las copias en Cloudinary. */
+/** Cuántos días se conservan las copias en R2. */
 export const RETAIN_DAYS = 14;
 
 export type DumpStats = { tables: number; rows: number };
@@ -226,8 +245,8 @@ export function dumpDatabase(executor?: Executor): {
   return { stream, stats };
 }
 
-/** El nombre del archivo: la fecha y hora **de Asunción**, que es la que el dueño lee. */
-export function backupPublicId(now: Date = new Date()): string {
+/** La fecha y hora **de Asunción**, que es la que el dueño lee: `2026-08-12T0300`. */
+export function backupFecha(now: Date = new Date()): string {
   const partes = new Intl.DateTimeFormat("sv-SE", {
     timeZone: PY_TIMEZONE,
     year: "numeric",
@@ -237,134 +256,209 @@ export function backupPublicId(now: Date = new Date()): string {
     minute: "2-digit",
     hour12: false,
   }).format(now);
-  // `sv-SE` da `2026-08-12 03:00`; se normaliza a algo que sea un `public_id`
-  // válido y que ordene alfabéticamente igual que cronológicamente.
-  return `backup-${partes.replace(" ", "T").replace(":", "")}`;
+  // `sv-SE` da `2026-08-12 03:00`; se normaliza a algo que sirva de nombre y
+  // que ordene alfabéticamente igual que cronológicamente.
+  return partes.replace(" ", "T").replace(":", "");
 }
 
-export type UploadResult = { publicId: string; bytes: number };
+/**
+ * El nombre del set: `backup-<fecha de Asunción>-<32 hex aleatorios>`. La
+ * fecha para que se ordenen solos y el dueño encuentre el de anoche; el
+ * aleatorio para que la clave no se adivine aunque alguien sepa la fecha.
+ */
+export function backupSetId(now: Date = new Date(), aleatorio = randomBytes(16).toString("hex")): string {
+  return `backup-${backupFecha(now)}-${aleatorio}`;
+}
+
+/** `backup-2026-08-12T0300-<32 hex>`: lo único que la retención toca. */
+export const BACKUP_SET_RE = /^backup-\d{4}-\d{2}-\d{2}T\d{4}-[0-9a-f]{32}$/;
+
+/** Los nombres de los objetos de un set. */
+export const MANIFIESTO_SET = "manifest.json";
+export const objetoDeTabla = (table: string) => `${table}.jsonl.gz`;
+
+/** Escribe un objeto del set (nombre relativo al set). */
+export type SubirObjeto = (nombre: string, bytes: Uint8Array, contentType: string) => Promise<void>;
+
+/** Un stream de texto → gzip → bytes, sin armar el texto entero en memoria. */
+async function gzipDe(lineas: AsyncIterable<string>): Promise<Buffer> {
+  const trozos: Buffer[] = [];
+  // El último paso es un consumidor: `pipeline` termina recién cuando gzip
+  // vació todo, cierre del stream incluido.
+  await pipeline(Readable.from(lineas), createGzip(), async (comprimido: AsyncIterable<Buffer>) => {
+    for await (const trozo of comprimido) trozos.push(trozo);
+  });
+  return Buffer.concat(trozos);
+}
 
 /**
- * Sube el stream a Cloudinary.
+ * El dump en formato 3: un objeto por tabla y el manifiesto **al final**.
  *
- * `resource_type: 'raw'` (no es una imagen) y **`type: 'authenticated'`**: un
- * backup en una carpeta pública es la base de datos del comercio servida por
- * CDN a quien adivine la URL. Con `authenticated`, sin firma no se descarga.
+ * Todo sale del mismo snapshot consistente (una conexión, `REPEATABLE READ`
+ * + `CONSISTENT SNAPSHOT`), así que las tablas son de un mismo instante
+ * aunque se suban una por una. Cada tabla se comprime en memoria de a
+ * páginas: lo que se guarda en RAM es el `.gz` de una tabla, no la tabla.
  */
-export async function uploadBackup(
-  stream: NodeJS.ReadableStream,
-  publicId: string
-): Promise<UploadResult> {
-  let subida!: ReturnType<typeof cloudinary.uploader.upload_stream>;
-  let rejectUpload!: (error: Error) => void;
-  const result = new Promise<UploadResult>((resolve, reject) => {
-    rejectUpload = reject;
-    subida = cloudinary.uploader.upload_stream(
-      {
-        resource_type: "raw",
-        type: "authenticated",
-        folder: carpetaBackups(),
-        public_id: publicId,
-        overwrite: false,
-      },
-      (error, result) => {
-        if (error || !result)
-          return reject(error ?? new Error("Cloudinary no devolvió resultado"));
-        resolve({ publicId: result.public_id, bytes: result.bytes ?? 0 });
-      }
-    );
-  });
-  const signal = AbortSignal.timeout(20 * 60_000);
-  const abort = () => rejectUpload(new Error("Backup upload timeout"));
-  signal.addEventListener("abort", abort, { once: true });
+export async function dumpSet(
+  subir: SubirObjeto,
+  executor?: Executor
+): Promise<{ manifest: BackupSetManifest; bytes: number }> {
+  const connection = executor ? null : await getPool().getConnection();
+  let completed = false;
   try {
-    const [uploaded] = await Promise.all([
-      result,
-      pipeline(stream, subida, { signal }),
-    ]);
-    return uploaded;
+    if (connection) {
+      await connection.query("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+      await connection.query("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY");
+      const [engines] = await connection.query(
+        "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' AND ENGINE <> 'InnoDB'"
+      );
+      if ((engines as unknown[]).length) throw new Error("El backup exige tablas InnoDB");
+    }
+    const tx = executor ?? drizzle(connection!, { schema, mode: "default" });
+    const base: BackupManifest = await backupManifest(tx);
+    const tables = base.tables as readonly BackupTable[];
+    const total = rowDigest();
+    const objects: BackupSetObject[] = [];
+    let rows = 0;
+    let bytes = 0;
+
+    for (const table of tables) {
+      const digest = rowDigest();
+      let filas = 0;
+      const gz = await gzipDe(
+        (async function* () {
+          for await (const record of dumpRows(tx, [table])) {
+            const line = `${JSON.stringify(record)}\n`;
+            digest.update(line);
+            total.update(line);
+            filas += 1;
+            yield line;
+          }
+        })()
+      );
+      const name = objetoDeTabla(table);
+      await subir(name, gz, "application/gzip");
+      objects.push({
+        table,
+        name,
+        rows: filas,
+        sha256: digest.digest("hex"),
+        bytes: gz.byteLength,
+        gzSha256: createHash("sha256").update(gz).digest("hex"),
+      });
+      rows += filas;
+      bytes += gz.byteLength;
+    }
+
+    const manifest: BackupSetManifest = {
+      ...base,
+      type: "backup-set",
+      format: 3,
+      objects,
+      rows,
+      sha256: total.digest("hex"),
+    };
+    // Último, siempre: es lo que dice "este set está completo".
+    const json = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
+    await subir(MANIFIESTO_SET, json, "application/json");
+    bytes += json.byteLength;
+
+    if (connection) await connection.commit();
+    completed = true;
+    return { manifest, bytes };
   } catch (error) {
-    subida.destroy(error instanceof Error ? error : new Error("Upload failed"));
+    connection?.destroy();
     throw error;
   } finally {
-    signal.removeEventListener("abort", abort);
+    if (!completed) connection?.destroy();
+    connection?.release();
   }
 }
 
 /**
- * Borra las copias de más de `retainDays` días.
+ * Borra los sets de más de `retainDays` días.
  *
- * Sin esto, la carpeta crece para siempre y la cuenta de Cloudinary se llena
- * — y cuando se llena, deja de aceptar **la copia de hoy**, que es la que
- * importa. La retención no es prolijidad: es lo que hace que el backup siga
- * funcionando dentro de un año.
+ * Sin esto, el bucket crece para siempre — y la retención no es prolijidad:
+ * es lo que hace que el backup siga siendo barato y ordenado dentro de un
+ * año. Un set se considera viejo por su objeto **más nuevo**, así que un set
+ * a medio subir de anoche no se borra antes de tiempo. Sólo toca prefijos con
+ * la forma de un set (`BACKUP_SET_RE`): nada más bajo `backups/`.
  */
 export async function pruneBackups(
+  cliente: ClienteR2,
   retainDays = RETAIN_DAYS,
   now: Date = new Date()
 ): Promise<number> {
-  const limite = new Date(now.getTime() - retainDays * 24 * 3600_000);
+  const limite = now.getTime() - retainDays * 24 * 3600_000;
+  const listado = await cliente.listarTodo(PREFIJO_BACKUPS);
 
-  const listado = await cloudinary.api.resources({
-    resource_type: "raw",
-    type: "authenticated",
-    prefix: `${carpetaBackups()}/`,
-    max_results: 500,
-  });
+  const sets = new Map<string, { keys: string[]; ultimo: number }>();
+  for (const objeto of listado) {
+    const resto = objeto.key.slice(PREFIJO_BACKUPS.length);
+    const corte = resto.indexOf("/");
+    if (corte < 0) continue;
+    const id = resto.slice(0, corte);
+    if (!BACKUP_SET_RE.test(id)) continue;
+    const set = sets.get(id) ?? { keys: [], ultimo: 0 };
+    set.keys.push(objeto.key);
+    set.ultimo = Math.max(set.ultimo, objeto.lastModified?.getTime() ?? now.getTime());
+    sets.set(id, set);
+  }
 
-  const viejos = (listado.resources ?? [])
-    .filter((recurso: { created_at?: string }) =>
-      recurso.created_at ? new Date(recurso.created_at) < limite : false
-    )
-    .map((recurso: { public_id: string }) => recurso.public_id);
-
-  if (viejos.length === 0) return 0;
-
-  await cloudinary.api.delete_resources(viejos, {
-    resource_type: "raw",
-    type: "authenticated",
-  });
-
-  return viejos.length;
+  let borrados = 0;
+  for (const set of sets.values()) {
+    if (set.ultimo >= limite) continue;
+    // El manifiesto primero: si el borrado se corta a mitad, lo que queda es
+    // un set sin manifiesto, que `restore` ya rechaza por incompleto.
+    const orden = [
+      ...set.keys.filter((key) => key.endsWith(`/${MANIFIESTO_SET}`)),
+      ...set.keys.filter((key) => !key.endsWith(`/${MANIFIESTO_SET}`)),
+    ];
+    for (const key of orden) await cliente.delete(key);
+    borrados += 1;
+  }
+  return borrados;
 }
 
 export type BackupResult = {
-  publicId: string;
+  /** El nombre del set (no sale en la respuesta HTTP: ver la ruta del cron). */
+  setId: string;
   bytes: number;
   tables: number;
   rows: number;
   pruned: number;
 };
 
-/** ¿Esta tienda puede sacar copias automáticas? Sin Cloudinary, no. */
+/** ¿Esta tienda puede sacar copias automáticas? Sin R2, no. */
 export function backupsEnabled(): boolean {
-  return cloudinaryConfigured();
+  return r2Configurado();
 }
 
-/** El backup completo: dump → subida → retención. */
+/** El backup completo: dump en un set → manifiesto → retención. */
 export async function runBackup(
-  options: { now?: Date } = {}
+  options: { now?: Date; cliente?: ClienteR2; executor?: Executor } = {}
 ): Promise<BackupResult> {
-  if (!backupsEnabled()) {
-    throw new Error(
-      "Cloudinary no está configurado: no hay dónde guardar la copia"
-    );
+  if (!options.cliente && !backupsEnabled()) {
+    throw new Error("R2 no está configurado: no hay dónde guardar la copia");
   }
+  const cliente = options.cliente ?? clienteR2();
 
-  const publicId = backupPublicId(options.now);
-  const { stream, stats } = dumpDatabase();
-
-  const [subida, { tables, rows }] = await Promise.all([
-    uploadBackup(stream, publicId),
-    stats,
-  ]);
+  const setId = backupSetId(options.now);
+  const prefijo = `${PREFIJO_BACKUPS}${setId}/`;
+  const { manifest, bytes } = await dumpSet(async (nombre, contenido, contentType) => {
+    await cliente.put(`${prefijo}${nombre}`, contenido, {
+      contentType,
+      cacheControl: "private, no-store",
+      soloSiNoExiste: true,
+    });
+  }, options.executor);
 
   // La retención va **después** de subir la de hoy, y su fallo no invalida el
-  // backup: se prefiere una carpeta con una copia de más que una corrida
-  // marcada como fallida cuando la copia de hoy ya está guardada.
+  // backup: se prefiere un set de más que una corrida marcada como fallida
+  // cuando la copia de hoy ya está guardada.
   let pruned = 0;
   try {
-    pruned = await pruneBackups(RETAIN_DAYS, options.now);
+    pruned = await pruneBackups(cliente, RETAIN_DAYS, options.now);
   } catch (error) {
     log.warn("no se pudieron borrar los backups viejos", {
       error: safeError(error).message,
@@ -372,10 +466,10 @@ export async function runBackup(
   }
 
   return {
-    publicId: subida.publicId,
-    bytes: subida.bytes,
-    tables,
-    rows,
+    setId,
+    bytes,
+    tables: manifest.objects.length,
+    rows: manifest.rows,
     pruned,
   };
 }
@@ -409,6 +503,7 @@ export const PRIMARY_KEY: Record<BackupTable, string | null> = {
   product_slug_redirects: "slug",
   product_images: "id",
   variants: "id",
+  supplier_offers: "id",
   stock_alerts: "id",
   price_adjustments: "id",
   stock_adjustments: "id",

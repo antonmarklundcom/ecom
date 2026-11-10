@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
   copyFile,
@@ -5,6 +6,7 @@ import {
   mkdir,
   readFile,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,6 +20,8 @@ import { getPool } from "@/db";
 import { BACKUP_TABLES } from "@/db/schema";
 import { applySchemaExtras } from "@/db/extras";
 import { descifrarSecreto } from "@/lib/secret-box";
+import { PREFIJO_BACKUPS, type ClienteR2 } from "@/lib/r2";
+import { BACKUP_SET_RE, MANIFIESTO_SET, objetoDeTabla } from "./backup";
 import { reconcile } from "./reconciliation";
 import * as schema from "@/db/schema";
 import {
@@ -27,6 +31,7 @@ import {
   rowDigest,
   type BackupManifest,
   type BackupEnd,
+  type BackupSetManifest,
 } from "./backup-format";
 
 type Row = { table: string; row: Record<string, unknown> };
@@ -37,8 +42,8 @@ export type RestoreOptions = {
   legacy?: boolean;
 };
 
-/** Stream errors reject the iterator; nothing touches the database in this pass. */
-async function* records(file: string): AsyncGenerator<RecordLine> {
+/** Las líneas de un `.jsonl.gz`. Un error del stream rechaza el iterador. */
+async function* lineasGz(file: string): AsyncGenerator<string> {
   const input = createReadStream(file);
   const unzip = createGunzip();
   const done = pipeline(input, unzip);
@@ -54,17 +59,181 @@ async function* records(file: string): AsyncGenerator<RecordLine> {
       while ((index = pending.indexOf("\n")) !== -1) {
         const line = pending.slice(0, index).trim();
         pending = pending.slice(index + 1);
-        if (line) yield parseRecord(line);
+        if (line) yield line;
       }
     }
     pending += decoder.end();
-    if (pending.trim()) yield parseRecord(pending.trim());
+    if (pending.trim()) yield pending.trim();
     await done;
   } finally {
     input.destroy();
     unzip.destroy();
   }
 }
+
+async function esDirectorio(source: string): Promise<boolean> {
+  try {
+    return (await stat(source)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+const HEX64 = /^[0-9a-f]{64}$/;
+const entero = (n: unknown) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+
+/**
+ * Verifica un set de formato 3 (un directorio con `manifest.json` y un
+ * `<tabla>.jsonl.gz` por tabla) **antes** de tocar la base. Rechaza:
+ *
+ * - un set sin manifiesto (la corrida no terminó: se escribe último);
+ * - un objeto que falta, o que no pesa / no hashea lo que dice el manifiesto;
+ * - una tabla cuyas filas no cuentan o no hashean lo declarado;
+ * - un total de filas o un hash general que no coincide.
+ *
+ * Lee cada objeto entero una vez; no carga nada en la base.
+ */
+export async function verificarSet(dir: string): Promise<BackupSetManifest> {
+  let crudo: string;
+  try {
+    crudo = await readFile(path.join(dir, MANIFIESTO_SET), "utf8");
+  } catch {
+    throw new Error(
+      `Backup incompleto: falta ${MANIFIESTO_SET} (la corrida no terminó o la descarga quedó a medias)`
+    );
+  }
+  if (crudo.length > 1024 * 1024) throw new Error("Manifiesto inválido");
+  const manifest = JSON.parse(crudo) as BackupSetManifest;
+  if (
+    !manifest ||
+    manifest.type !== "backup-set" ||
+    manifest.format !== 3 ||
+    !Array.isArray(manifest.tables) ||
+    new Set(manifest.tables).size !== manifest.tables.length ||
+    manifest.tables.some((table) => !(BACKUP_TABLES as readonly string[]).includes(table)) ||
+    !Array.isArray(manifest.objects) ||
+    manifest.objects.length !== manifest.tables.length ||
+    !entero(manifest.rows) ||
+    typeof manifest.sha256 !== "string" ||
+    !HEX64.test(manifest.sha256)
+  )
+    throw new Error("Manifiesto inválido");
+
+  const total = rowDigest();
+  let filasTotales = 0;
+  for (const [index, table] of manifest.tables.entries()) {
+    const objeto = manifest.objects[index];
+    if (
+      !objeto ||
+      objeto.table !== table ||
+      objeto.name !== objetoDeTabla(table) ||
+      !entero(objeto.rows) ||
+      !entero(objeto.bytes) ||
+      !HEX64.test(objeto.sha256) ||
+      !HEX64.test(objeto.gzSha256)
+    )
+      throw new Error("Manifiesto inválido");
+
+    const archivo = path.join(dir, objeto.name);
+    let gz: Buffer;
+    try {
+      gz = await readFile(archivo);
+    } catch {
+      throw new Error(`Backup incompleto: falta ${objeto.name}`);
+    }
+    if (
+      gz.byteLength !== objeto.bytes ||
+      createHash("sha256").update(gz).digest("hex") !== objeto.gzSha256
+    )
+      throw new Error(`El objeto ${objeto.name} no coincide con el manifiesto`);
+
+    const digest = rowDigest();
+    let filas = 0;
+    for await (const line of lineasGz(archivo)) {
+      const record = parseRecord(line);
+      if (!("table" in record) || record.table !== table)
+        throw new Error(`El objeto ${objeto.name} trae filas de otra tabla`);
+      const normalizada = `${JSON.stringify(record)}\n`;
+      digest.update(normalizada);
+      total.update(normalizada);
+      filas++;
+    }
+    if (filas !== objeto.rows || digest.digest("hex") !== objeto.sha256)
+      throw new Error(`Los conteos o el checksum de ${objeto.name} no coinciden`);
+    filasTotales += filas;
+  }
+  if (filasTotales !== manifest.rows || total.digest("hex") !== manifest.sha256)
+    throw new Error("Backup incompleto o checksum inválido");
+  return manifest;
+}
+
+/** La vista de formato 2 de un set: así `inspectBackup` y la carga no cambian. */
+function manifiestoComoFormato2(manifest: BackupSetManifest): BackupManifest {
+  return {
+    type: "manifest",
+    format: 2,
+    createdAt: manifest.createdAt,
+    migration: manifest.migration,
+    server: manifest.server,
+    app: manifest.app,
+    tables: manifest.tables,
+    keyCheck: manifest.keyCheck,
+  };
+}
+
+/** Stream errors reject the iterator; nothing touches the database in this pass. */
+async function* records(source: string): AsyncGenerator<RecordLine> {
+  if (await esDirectorio(source)) {
+    const manifest = await verificarSet(source);
+    yield manifiestoComoFormato2(manifest);
+    for (const objeto of manifest.objects)
+      for await (const line of lineasGz(path.join(source, objeto.name)))
+        yield parseRecord(line);
+    yield {
+      type: "end",
+      counts: Object.fromEntries(manifest.objects.map((o) => [o.table, o.rows])),
+      rows: manifest.rows,
+      sha256: manifest.sha256,
+    };
+    return;
+  }
+  for await (const line of lineasGz(source)) yield parseRecord(line);
+}
+
+/**
+ * Baja un set de R2 a `dir` (los objetos de `backups/<setId>/`). No verifica:
+ * eso lo hace `verificarSet` cuando se restaura, sobre lo que quedó en disco.
+ */
+export async function descargarSet(
+  cliente: ClienteR2,
+  setId: string,
+  dir: string
+): Promise<number> {
+  if (!BACKUP_SET_RE.test(setId)) throw new Error("Nombre de set de backup inválido");
+  const prefijo = `${PREFIJO_BACKUPS}${setId}/`;
+  const objetos = await cliente.listarTodo(prefijo);
+  if (objetos.length === 0) throw new Error("Ese set de backup no existe en R2");
+  for (const objeto of objetos) {
+    const nombre = objeto.key.slice(prefijo.length);
+    if (!/^[a-z0-9_]+\.jsonl\.gz$|^manifest\.json$/.test(nombre)) continue;
+    const bytes = await cliente.get(objeto.key);
+    if (!bytes) throw new Error(`Backup incompleto: falta ${nombre}`);
+    await writeFile(path.join(dir, nombre), bytes);
+  }
+  return objetos.length;
+}
+
+/** El set completo (con manifiesto) más nuevo de R2, o `null`. */
+export async function ultimoSetCompleto(cliente: ClienteR2): Promise<string | null> {
+  const objetos = await cliente.listarTodo(PREFIJO_BACKUPS);
+  const completos = objetos
+    .map((objeto) => objeto.key.slice(PREFIJO_BACKUPS.length).split("/"))
+    .filter(([id, nombre]) => id && BACKUP_SET_RE.test(id) && nombre === MANIFIESTO_SET)
+    .map(([id]) => id!)
+    .sort();
+  return completos.at(-1) ?? null;
+}
+
 function parseRecord(line: string): RecordLine {
   const record = JSON.parse(line);
   if (!record || typeof record !== "object" || Array.isArray(record))

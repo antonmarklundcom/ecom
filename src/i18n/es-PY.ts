@@ -595,6 +595,8 @@ export const esPY = {
     "Ya subiste {maximo} comprobantes para este pedido. Escribinos por WhatsApp.",
   "error.comprobante.sinMotivo":
     "Escribí el motivo del rechazo: el comprador lo ve y necesita saber qué corregir.",
+  "adminError.comprobante.legado":
+    "Este comprobante se subió antes del cambio de almacenamiento a R2 y no se puede abrir desde acá. Migralo con el script de migración de fotos (NEW-STORE.md) o pedile a la compradora que lo vuelva a mandar.",
   "error.comprobante.noExiste": "No encontramos ese comprobante.",
   "error.comprobante.yaAprobado": "Ese comprobante ya estaba aprobado.",
   "error.comprobante.yaRechazado": "Ese comprobante ya estaba rechazado.",
@@ -832,7 +834,13 @@ export const esPY = {
   "adminError.importar.skuAjeno":
     'El SKU "{sku}" ya es del producto "{dueno}", no de "{producto}": una planilla no muda una variante a otro producto. Cambiá el SKU o el slug. No se escribió nada.',
   "adminError.importar.preciosSoloDuenio":
-    "Esta planilla cambia precios o pisa stock, y un cambio en masa de precios o de inventario lo aplica sólo el dueño. Pedile que la importe, o sacá esas columnas. No se escribió nada.",
+    "Esta planilla cambia precios o pisa stock, y un cambio en masa de precios o de inventario lo aplica sólo el dueño. Pedile que la importe, o sacá esas columnas. No se escribió nada de este lote.",
+  "adminError.importar.faltaRevision":
+    "La planilla tiene posibles duplicados sin revisar, o cambiaron desde la vista previa. Volvé a Revisar y marcá que los revisaste.",
+  "adminError.importar.otroArchivo":
+    "El archivo no es el mismo que se revisó. Volvé a Revisar antes de importar.",
+  "adminError.importar.loteInvalido":
+    "Ese lote no existe en esta planilla. Volvé a Revisar.",
   "adminError.producto.precioCero":
     'La variante "{sku}" no tiene precio: para venderla con stock el precio tiene que ser mayor a ₲0. Mientras no lo tenga, dejá el producto sin publicar, la variante apagada o el producto en modo consulta.',
   "adminError.stock.sinMotivo":
@@ -844,6 +852,19 @@ export const esPY = {
   "adminError.foto.vacia": "El archivo está vacío.",
   "adminError.foto.pesada": "La foto no puede pesar más de 5 MB.",
   "adminError.foto.formato": "Subí una foto en JPG, PNG o WebP.",
+  "panel.foto.preparar.elegi": "Elegí una foto JPG, PNG o WebP de hasta 25 MB.",
+  "panel.foto.preparar.noSePudoLeer":
+    "No se pudo leer la foto. Elegí otro JPG, PNG o WebP y volvé a intentar.",
+  "panel.foto.preparar.demasiadoGrande":
+    "La foto es demasiado grande. Reducí sus dimensiones y volvé a intentar.",
+  "panel.foto.preparar.sinWebp":
+    "Tu navegador no puede convertir fotos a WebP. Probá con un navegador actualizado.",
+  "panel.foto.preparar.pesada":
+    "La foto sigue pesando demasiado después de achicarla. Recortala o elegí otra.",
+  "adminError.foto.sinPreparar":
+    "La foto no llegó preparada. Recargá la página y volvé a elegirla (hace falta un navegador actualizado).",
+  "adminError.foto.sinAlmacenamiento":
+    "Para subir fotos falta configurar R2 en /admin/integraciones.",
 
   "adminError.pago.yaDevuelto":
     "Ese pago ya está marcado como devuelto: no corresponde revivir el pedido.",
@@ -966,6 +987,11 @@ export const esPY = {
   "csv.producto.descripcion": "Descripción",
   "csv.producto.marca": "Marca",
   "csv.producto.iva": "IVA",
+  "csv.producto.fotos": "Fotos",
+  "csv.producto.proveedor": "Proveedor",
+  "csv.producto.urlProveedor": "URL proveedor",
+  "csv.producto.costoProveedor": "Costo proveedor",
+  "csv.producto.stockProveedor": "Stock proveedor",
   "csv.cliente.nombre": "Nombre",
   "csv.cliente.email": "Email",
   "csv.cliente.acepto": "Aceptó el",
@@ -1563,7 +1589,7 @@ export const esPY = {
 
   "panel.productos.importar.titulo": "Cargar planilla",
   "panel.productos.importar.ayuda":
-    "CSV o Excel, una fila por variante — el mismo formato que baja el botón de arriba. Una columna que no está no se toca; una celda vacía en Descripción, Marca o Precio antes lo borra. Primero se revisa; recién se escribe cuando confirmás, y entra todo o nada.",
+    "CSV o Excel (primera hoja), una fila por variante — el mismo formato que baja el botón de arriba, también desde otra tienda (docs/CATALOGO-CSV.md). Una columna que no está no se toca; una celda vacía en Descripción, Marca o Precio antes lo borra. Primero se revisa; recién se escribe cuando confirmás, por lotes que entran enteros o no entran.",
   "panel.productos.importar.revisar": "Revisar",
   "panel.productos.importar.confirmar": "Confirmar e importar",
   "panel.productos.importar.aplicando": "Importando…",
@@ -1596,7 +1622,7 @@ export const esPY = {
   "panel.productos.importar.fotosNuevas.uno": "{n} foto a subir",
   "panel.productos.importar.fotosNuevas.varios": "{n} fotos a subir",
   "panel.productos.importar.fotosOmitidas":
-    "{n} fotos NO se subieron: Cloudinary no está configurado.",
+    "{n} fotos NO se subieron: falta configurar R2 en /admin/integraciones.",
   "panel.productos.importar.fotosFallidas.uno": "{n} foto no se pudo subir.",
   "panel.productos.importar.fotosFallidas.varios":
     "{n} fotos no se pudieron subir.",
@@ -1604,6 +1630,44 @@ export const esPY = {
     "Listo: {productos} productos, {variantes} variantes escritas.",
   "panel.productos.importar.listoConFotos":
     "Listo: {productos} productos, {variantes} variantes y {fotos} fotos.",
+  "panel.productos.importar.advertencias": "Avisos (no frenan la importación)",
+  "panel.productos.importar.duplicados.titulo":
+    "Posibles productos repetidos: revisalos antes de importar",
+  "panel.productos.importar.duplicados.ayuda":
+    "Son avisos, no errores: dos productos distintos pueden parecerse. Compará modelo, medidas y proveedor. Si es el mismo producto, poné en la columna Slug el slug del que ya existe para que se actualice en vez de crear otro.",
+  "panel.productos.importar.duplicados.revisados":
+    "Los revisé y quiero importar igual",
+  "panel.productos.importar.duplicado.mismoNombre":
+    'Posible repetido: "{a}" y "{b}" tienen el mismo nombre con distinto slug ({slugA} / {slugB}).',
+  "panel.productos.importar.duplicado.nombreParecido":
+    'Posible repetido: "{a}" y "{b}" tienen nombres muy parecidos en la misma categoría.',
+  "panel.productos.importar.duplicado.slugExistente":
+    '"{a}" (slug {slug}) ya existe en la tienda y ninguno de sus SKU coincide con los de la planilla: sus variantes se van a sumar a ese producto.',
+  "panel.productos.importar.duplicado.fotoCompartida":
+    'Posible repetido: "{a}" y "{b}" comparten una foto.',
+  "panel.productos.importar.duplicado.mismoProveedor":
+    'Posible repetido: "{a}" y "{b}" tienen la misma URL de proveedor.',
+  "panel.productos.importar.duplicado.mas":
+    "{n} coincidencias más: revisá el catálogo completo antes de confirmar.",
+  "panel.productos.importar.ofertasNuevas.uno": "{n} oferta de proveedor nueva",
+  "panel.productos.importar.ofertasNuevas.varios":
+    "{n} ofertas de proveedor nuevas",
+  "panel.productos.importar.ofertasActualizar.uno":
+    "{n} oferta de proveedor a actualizar",
+  "panel.productos.importar.ofertasActualizar.varios":
+    "{n} ofertas de proveedor a actualizar",
+  "panel.productos.importar.lotes.uno":
+    "Se escribe en {n} lote de hasta {tam} productos: entra entero o no entra.",
+  "panel.productos.importar.lotes.varios":
+    "Se escribe en {n} lotes de hasta {tam} productos: cada lote entra entero o no entra.",
+  "panel.productos.importar.progreso":
+    "Guardando el lote {lote} de {lotes}… No cierres esta pestaña.",
+  "panel.productos.importar.loteListo":
+    "Lote {lote} de {lotes} guardado: {productos} productos, {variantes} variantes.",
+  "panel.productos.importar.loteFallo":
+    "El lote {lote} de {lotes} no se guardó: nada de ese lote quedó escrito. Los {previos} productos de los lotes anteriores sí quedaron guardados. Corregí lo que dice abajo y volvé a Revisar: reimportar la planilla no duplica lo que ya entró.",
+  "panel.productos.importar.conexionCortada":
+    "Se cortó la conexión mientras se guardaba el lote {lote} de {lotes}. Los lotes anteriores quedaron guardados ({previos} productos); del lote {lote} no se puede saber si entró o no. Mirá el catálogo y volvé a Revisar la planilla antes de reintentar: reimportarla no duplica nada.",
 
   "panel.clientes.meta": "Clientes",
   "panel.clientes.titulo": "Clientes",
@@ -1941,7 +2005,7 @@ export const esPY = {
   "panel.productos.destacadoChip": "Destacado",
   "panel.filtros.destacados": "Sólo destacados",
 
-  // Foto de categoría (B): antes era un ID de Cloudinary pegado a mano.
+  // Foto de categoría (B): antes era un ID pegado a mano.
   "panel.categoria.foto.vacia": "Todavía no tiene foto.",
   "panel.categoria.foto.subida": "Foto actualizada.",
 
@@ -2159,8 +2223,8 @@ export const esPY = {
   "panel.ajustes.marca.imagenSubida": "Foto de portada cargada.",
   "panel.ajustes.marca.imagenQuitar": "Quitar foto",
   "panel.ajustes.marca.imagenQuitada": "Foto de portada quitada.",
-  "panel.ajustes.marca.sinCloudinary":
-    "Para subir fotos falta configurar Cloudinary (CLOUDINARY_* en el entorno).",
+  "panel.ajustes.marca.sinAlmacenamiento":
+    "Para subir fotos falta configurar R2 en /admin/integraciones (o R2_* en el entorno).",
   "panel.ajustes.anuncio.titulo": "Barra de anuncio",
   "panel.ajustes.anuncio.bajada":
     "Una línea arriba de todo en la tienda: una promo, un feriado, un aviso de envíos.",
@@ -2286,7 +2350,7 @@ export const esPY = {
   "panel.integraciones.meta": "Integraciones",
   "panel.integraciones.titulo": "Integraciones",
   "panel.integraciones.bajada":
-    "Cloudinary, WhatsApp, Pagopar, medición y reporte de errores, sin tocar el hPanel ni redeployar. Lo que cargues acá manda sobre las variables de entorno; vacío, vuelve a mandar el entorno, y sin ninguno de los dos la función queda apagada.",
+    "Imágenes (R2), WhatsApp, Pagopar, medición y reporte de errores, sin tocar el hPanel ni redeployar. Lo que cargues acá manda sobre las variables de entorno; vacío, vuelve a mandar el entorno, y sin ninguno de los dos la función queda apagada.",
   "panel.integraciones.sinClave":
     "No se puede leer ni guardar nada acá: SESSION_SECRET no está configurado en el hosting (o es el de ejemplo, o mide menos de 32 caracteres). Es la clave con la que se cifran estos datos. Mientras tanto, todo sale de las variables de entorno.",
   "panel.integraciones.estado.panel": "Activa · desde el panel",
@@ -2312,9 +2376,9 @@ export const esPY = {
     "¿Borrar todo lo cargado en el panel para esta integración? Vuelven a mandar las variables de entorno (o queda apagada si no hay).",
   "panel.integraciones.vueltoAlEntorno": "Listo: vuelve a mandar el entorno.",
   "panel.integraciones.actualizado": "Guardado en el panel el {fecha}",
-  "panel.integraciones.cloudinary.titulo": "Cloudinary",
-  "panel.integraciones.cloudinary.bajada":
-    "Fotos de producto, comprobantes de pago (carpeta privada) y copias de seguridad. Sin esto la compradora no puede subir el comprobante.",
+  "panel.integraciones.r2.titulo": "Imágenes y archivos (Cloudflare R2)",
+  "panel.integraciones.r2.bajada":
+    "Fotos de producto, comprobantes de pago y copias de seguridad, en un bucket de R2 de esta tienda. Los comprobantes y las copias son privados: el dominio público tiene que bloquear /comprobantes/* y /backups/* (DEPLOY.md). Sin esto no se pueden subir fotos y la compradora no puede subir el comprobante.",
   "panel.integraciones.whatsapp.titulo": "WhatsApp",
   "panel.integraciones.whatsapp.bajada":
     "El número del comercio (a donde llegan los avisos al dueño) y la WhatsApp Cloud API de Meta con sus plantillas aprobadas. Cada plantilla vacía apaga sólo ese aviso.",
@@ -2327,11 +2391,12 @@ export const esPY = {
   "panel.integraciones.errores.titulo": "Reporte de errores",
   "panel.integraciones.errores.bajada":
     "Un webhook https propio (Slack, Discord, n8n) que recibe los errores del servidor. Sin datos de compradoras. Vacío, nada sale de la máquina.",
-  "panel.integraciones.campo.cloudName": "Cloud name",
-  "panel.integraciones.campo.apiKey": "API key",
-  "panel.integraciones.campo.apiSecret": "API secret",
-  "panel.integraciones.campo.folderPrefix":
-    "Prefijo de carpetas (sólo si varias tiendas comparten la cuenta; no lo cambies con fotos subidas)",
+  "panel.integraciones.campo.accountId": "Account ID de Cloudflare (32 caracteres)",
+  "panel.integraciones.campo.accessKeyId": "Access Key ID (token de R2)",
+  "panel.integraciones.campo.secretAccessKey": "Secret Access Key (token de R2)",
+  "panel.integraciones.campo.bucket": "Nombre del bucket",
+  "panel.integraciones.campo.publicUrl":
+    "Dominio público del bucket (https://…, sin barra final)",
   "panel.integraciones.campo.numeroComercio":
     "WhatsApp del comercio (avisos al dueño)",
   "panel.integraciones.campo.phoneNumberId": "Phone number ID (Cloud API)",
@@ -2373,10 +2438,11 @@ export const esPY = {
   "panel.integraciones.campo.reportUrl": "URL del webhook (https://…)",
   "panel.integraciones.prueba.incompleta":
     "Faltan datos para probar: {faltan}.",
-  "panel.integraciones.prueba.cloudinaryOk":
-    "Cloudinary respondió: las credenciales andan.",
-  "panel.integraciones.prueba.cloudinaryError":
-    "Cloudinary rechazó la prueba: {detalle}",
+  "panel.integraciones.prueba.r2Ok":
+    "R2 respondió: se pudo escribir, leer y borrar un archivo de prueba privado en el bucket {bucket}.",
+  "panel.integraciones.prueba.r2Error": "R2 rechazó la prueba: {detalle}",
+  "panel.integraciones.prueba.r2Publico":
+    "Las credenciales andan, pero el archivo de prueba privado se puede leer por el dominio público ({host}). Bloqueá /comprobantes/* y /backups/* en ese dominio antes de recibir comprobantes (DEPLOY.md).",
   "panel.integraciones.prueba.whatsappOk":
     "Meta respondió: número {numero} ({nombre}).",
   "panel.integraciones.prueba.whatsappError":
@@ -2513,7 +2579,7 @@ export const esPY = {
     "En el hosting: base de datos (DATABASE_URL), sesiones (SESSION_SECRET), dirección pública HTTPS (NEXT_PUBLIC_SITE_URL) y cron protegido (CRON_SECRET). SETUP_SECRET se usa sólo para inicializar: después borrala del hosting y hacé Redeploy.",
   "setup.optionalTitle": "Integraciones según lo que necesites",
   "setup.optionalHelp":
-    "Desde Integraciones en el panel podés configurar Cloudinary para subir fotos y comprobantes, WhatsApp para contacto y avisos, Pagopar para tarjetas, analítica y reportes de errores. No necesitás estas cuentas para inicializar. Cada función se habilita cuando la configurás.",
+    "Desde Integraciones en el panel podés configurar R2 para subir fotos, comprobantes y copias de seguridad, WhatsApp para contacto y avisos, Pagopar para tarjetas, analítica y reportes de errores. No necesitás estas cuentas para inicializar. Cada función se habilita cuando la configurás.",
   "setup.nextTitle": "Después de inicializar",
   "setup.nextCatalog":
     "Entrá al panel, cargá los productos reales y revisá precios y stock. Quitá los ejemplos si elegiste el catálogo de prueba.",
@@ -2522,4 +2588,61 @@ export const esPY = {
   "setup.nextLaunch":
     "Revisá identidad, contacto e integraciones, comprobá el cron del hosting y hacé una compra de prueba antes de abrir al público.",
   "setup.preflight": "Lo que falta para cobrar de verdad:",
+
+  // -------------------------------------------------------------------------
+  // Proveedores (`proveedores` en src/config/tienda.ts) y orden de destacados.
+  // Todo esto es panel: los datos de proveedores no llegan nunca a la vidriera.
+  // -------------------------------------------------------------------------
+  "panel.producto.ordenDestacado": "Orden en destacados",
+  "panel.producto.ordenDestacadoAyuda":
+    "Más chico, más adelante en la portada. Con el mismo número, va primero el publicado más reciente.",
+  "panel.producto.enlaceCompra": "Enlace de compra (privado)",
+  "panel.producto.enlaceCompraAyuda":
+    "Dónde se repone este producto: la página del proveedor o de dropshipping. Lo ve sólo el panel, nunca la tienda.",
+  "panel.producto.proveedores": "Proveedores y costos (privado)",
+  "panel.proveedores.ayuda":
+    "A quién se le compra cada variante y a cuánto. El stock del proveedor es lo que declaró al mirarlo: no cambia el stock que vendés. Nada de esto se ve en la tienda.",
+  "panel.proveedores.agregar": "Agregar proveedor",
+  "panel.proveedores.sinOfertas": "Todavía no hay proveedores para esta variante.",
+  "panel.proveedores.preferido": "Preferido · usado para el margen",
+  "panel.proveedores.confirmado": "Mismo producto confirmado",
+  "panel.proveedores.pendiente": "Pendiente de comparar",
+  "panel.proveedores.inactivo": "Inactivo",
+  "panel.proveedores.margen": "Margen bruto: {margen} · recargo: {recargo}",
+  "panel.proveedores.stockDeclarado":
+    "Stock del proveedor: {stock} · mirado el {fecha}",
+  "panel.proveedores.enlaceProducto": "Producto en el sitio del proveedor",
+  "panel.proveedores.enlaceProveedor": "Sitio o contacto del proveedor",
+  "panel.proveedores.editar": "Editar",
+  "panel.proveedores.borrar": "Borrar",
+  "panel.proveedores.borrarConfirmar":
+    "¿Borrar esta oferta de proveedor? No se puede deshacer.",
+  "panel.proveedores.borrada": "Oferta borrada.",
+  "panel.proveedores.guardada": "Oferta guardada.",
+  "panel.proveedores.guardar": "Guardar oferta",
+  "panel.proveedores.cancelar": "Cancelar",
+  "panel.proveedores.origen": "Proveedor",
+  "panel.proveedores.tipo": "Tipo",
+  "panel.proveedores.tipo.dropi": "Dropi (dropshipping)",
+  "panel.proveedores.tipo.local": "Proveedor local",
+  "panel.proveedores.tipo.import": "Importación",
+  "panel.proveedores.tipo.other": "Otro",
+  "panel.proveedores.costo": "Costo unitario (₲); vacío = no se sabe",
+  "panel.proveedores.stock": "Stock del proveedor; vacío = no se sabe",
+  "panel.proveedores.fecha": "Mirado el",
+  "panel.proveedores.notas": "Notas: modelo, presentación, flete, dudas",
+  "panel.proveedores.confirmar": "Confirmé que es el mismo producto y variante",
+  "panel.proveedores.activa": "Oferta activa",
+  "panel.proveedores.elegir":
+    "Usar como proveedor preferido (tiene que estar activa, confirmada y con costo)",
+  "adminError.proveedores.apagado":
+    "Esta tienda no tiene los proveedores prendidos (src/config/tienda.ts).",
+  "adminError.proveedores.enlaceInvalido":
+    "Usá un enlace https:// sin usuario ni contraseña.",
+  "adminError.proveedores.noExiste": "Esa oferta no existe en esta variante.",
+  "adminError.proveedores.invalida": "Revisá los datos de la oferta.",
+  "adminError.proveedores.sinNombre": "Poné el nombre del proveedor.",
+  "adminError.proveedores.costoEntero": "El costo va en guaraníes enteros.",
+  "adminError.proveedores.preferidoIncompleto":
+    "El proveedor preferido tiene que estar activo, confirmado y con costo.",
 } as const satisfies Record<string, string>;

@@ -1,5 +1,7 @@
 import "../src/lib/load-env";
 
+import { promises as dns } from "node:dns";
+
 import { safeError } from "../src/lib/safe-error";
 
 import { closePool } from "../src/db";
@@ -8,10 +10,18 @@ import {
   shippingMethodsWithoutZones,
 } from "../src/domain/admin-shipping-methods";
 import { preflight, type PreflightCheck } from "../src/domain/preflight";
+import { revisarCloudflare } from "../src/domain/preflight-cloudflare";
 import { listShippingZones } from "../src/domain/shipping";
 import { readBankDetails } from "../src/domain/admin-bank";
 import { readStoreSettings } from "../src/domain/store-settings";
 import { leerIntegracionesDelPanel } from "../src/lib/integraciones-store";
+import { publicarFoto } from "../src/lib/integraciones";
+import { clienteR2, r2Configurado } from "../src/lib/r2";
+import { probarCanariosPrivados } from "../src/domain/preflight-r2";
+import {
+  contarRefsLegacy,
+  totalRefsLegacy,
+} from "../src/domain/imagenes-legacy";
 
 /**
  * `pnpm preflight` — ¿podemos cobrar plata de verdad?
@@ -29,7 +39,9 @@ import { leerIntegracionesDelPanel } from "../src/lib/integraciones-store";
  * lo avisa y sigue con el entorno. Después de imprimirlo, y sólo después,
  * hay un bloque aparte que **sí lee la base** (los métodos de envío) porque no
  * hay forma de saberlo desde el entorno. Es de sólo lectura, nunca bloquea, y
- * si la base no contesta lo dice y sigue.
+ * si la base no contesta lo dice y sigue. Y al final, el único control que
+ * sale a la red: si un Cloudflare proxeado está delante del sitio
+ * (`src/domain/preflight-cloudflare.ts`).
  *
  * Nunca imprime el valor de un secreto: sólo si está y si tiene el largo
  * mínimo.
@@ -104,6 +116,109 @@ async function revisarMetodosDeEnvio(): Promise<void> {
   }
 }
 
+/**
+ * R2 contra la red: que el dominio público **no** sirva los prefijos privados
+ * (canario en `comprobantes/` y `backups/`), y cuántas referencias de imagen
+ * quedaron del almacenamiento anterior.
+ *
+ * El canario sí cambia el código de salida: un comprobante bancario que se
+ * baja por el dominio público es una filtración, no una advertencia. Las
+ * referencias viejas sólo avisan: se ven como placeholder, no rompen nada.
+ */
+async function revisarR2(): Promise<void> {
+  console.log("Imágenes y archivos en R2 (se conecta; el canario sí bloquea)\n");
+
+  if (!r2Configurado()) {
+    console.log("  · Prefijos privados");
+    console.log("      R2 no está configurado: no hay nada que probar todavía (ver arriba)");
+  } else {
+    try {
+      const resultados = await probarCanariosPrivados(clienteR2());
+      for (const resultado of resultados) {
+        if (resultado.estado === "bloqueado") {
+          console.log(`  ✓ /${resultado.prefijo}* no se sirve por el dominio público`);
+        } else if (resultado.estado === "publico") {
+          console.log(`  ✗ /${resultado.prefijo}* SE PUEDE LEER por el dominio público`);
+          console.log(
+            "      agregá la regla de Cloudflare que bloquea /comprobantes/* y /backups/* en el " +
+              "dominio del bucket (DEPLOY.md) antes de recibir un solo comprobante"
+          );
+          process.exitCode = 1;
+        } else {
+          console.log(`  ! /${resultado.prefijo}*`);
+          console.log(`      no se pudo probar (${resultado.motivo})`);
+        }
+      }
+    } catch (error) {
+      console.log("  ! Prefijos privados");
+      console.log(`      no se pudo probar (${safeError(error).message})`);
+    }
+  }
+
+  try {
+    const refs = await contarRefsLegacy();
+    const total = totalRefsLegacy(refs);
+    if (total === 0) {
+      console.log("  ✓ Referencias de imagen: todas son de R2");
+    } else {
+      console.log("  ! Referencias de imagen del almacenamiento anterior");
+      console.log(
+        `      ${total} (fotos ${refs.productImages}, categorías ${refs.categories}, ` +
+          `QR ${refs.bankQr}, ajustes ${refs.storeSettings}, tienda.ts ${refs.tiendaConfig}, ` +
+          `comprobantes ${refs.receipts}). Se ven como placeholder: migralas con el script de ` +
+          "migración de fotos (NEW-STORE.md)"
+      );
+    }
+  } catch (error) {
+    console.log("  · Referencias de imagen");
+    console.log(`      no se pudo revisar (${safeError(error).message})`);
+  }
+}
+
+/**
+ * ¿Hay un Cloudflare proxeado delante? (DEPLOY.md § "Cloudflare: sólo DNS
+ * (nube gris)"). Es el único control que sale a la red: un DNS y un HEAD al
+ * sitio, con timeout corto. Lo que no se pudo ver se dice y no bloquea; un
+ * dominio que resuelve a IPs de Cloudflare sí bloquea (sale con código 1).
+ */
+async function revisarProxyCloudflare(): Promise<void> {
+  console.log("Cloudflare (sale a la red: DNS y un HEAD al sitio)\n");
+
+  const resultado = await revisarCloudflare(process.env.NEXT_PUBLIC_SITE_URL, {
+    fetch: (url, init) => fetch(url, init),
+    resolver: async (host) => {
+      const [v4, v6] = await Promise.allSettled([
+        dns.resolve4(host),
+        dns.resolve6(host),
+      ]);
+      const direcciones = [
+        ...(v4.status === "fulfilled" ? v4.value : []),
+        ...(v6.status === "fulfilled" ? v6.value : []),
+      ];
+      if (direcciones.length === 0 && v4.status === "rejected") throw v4.reason;
+      return direcciones;
+    },
+  });
+
+  if (resultado.estado === "no_aplica" || resultado.estado === "inconcluso") {
+    console.log("  · Cloudflare sólo DNS (nube gris)");
+    console.log(
+      resultado.estado === "no_aplica"
+        ? `      no aplica: ${resultado.detalle}`
+        : `      no se pudo revisar (${resultado.detalle}); no bloquea. Revisalo a mano en Cloudflare → DNS`
+    );
+    return;
+  }
+
+  const { check } = resultado;
+  console.log(`  ${ICON[check.severity]} ${check.title}`);
+  console.log(`      ${check.detail}`);
+  if (check.severity === "bloquea") {
+    console.error("\n✗ Cloudflare está proxeando la tienda. No deployees a producción así.");
+    process.exitCode = 1;
+  }
+}
+
 async function main(): Promise<void> {
   // Lo cargado en /admin/integraciones manda sobre el entorno: se lee (sólo
   // lectura) para que el reporte diga lo que la tienda usa de verdad y de
@@ -161,10 +276,18 @@ async function main(): Promise<void> {
     process.exitCode = 1;
   }
 
-  // Aparte y al final, porque es el único que se conecta: lo que salga de acá
-  // no cambia el código de salida que ya quedó decidido arriba.
+  // Aparte y al final, porque son los que se conectan. Los métodos de envío
+  // no cambian el código de salida; el canario privado de R2 sí, y el de
+  // Cloudflare (red) sólo lo cambia si es concluyente —IPs de Cloudflare—;
+  // sin red no bloquea nunca.
+  console.log("");
+  // Lo del panel manda: el cliente de R2 lee la foto de integraciones.
+  if (panel.lectura === "ok") publicarFoto(panel.filas);
+  await revisarR2();
   console.log("");
   await revisarMetodosDeEnvio();
+  console.log("");
+  await revisarProxyCloudflare();
   console.log("");
 }
 

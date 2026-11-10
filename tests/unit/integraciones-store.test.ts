@@ -67,6 +67,8 @@ const baseDeMentira: any = {
 
 vi.mock('@/db', () => ({ getDb: () => baseDeMentira }));
 
+import { CONFIG_FALSA, crearR2Falso } from '../helpers/r2-falso';
+
 const { resetIntegracionesForTests, CAMPOS, INTEGRACIONES } = await import('../../src/lib/integraciones');
 const store = await import('../../src/lib/integraciones-store');
 const { probarIntegracion, sanearDetalle } = await import('../../src/lib/integraciones-probar');
@@ -75,7 +77,7 @@ const { pagoparPrivateKey, isPagoparConfigured } = await import('../../src/domai
 const SESSION = 'x'.repeat(20) + 'session-secret-de-los-tests-123';
 const CLAVE_PRIVADA = 'pagopar-privada-SUPERSECRETA-9876';
 const TOKEN = 'EAAG-token-de-meta-SUPERSECRETO-5555';
-const API_SECRET = 'cloudinary-api-secret-SUPERSECRETO-4321';
+const API_SECRET = CONFIG_FALSA.secretAccessKey;
 const SECRETOS = [CLAVE_PRIVADA, TOKEN, API_SECRET];
 
 let lineas: string[] = [];
@@ -105,6 +107,22 @@ afterEach(() => {
 
 function sinSecretos(texto: string): void {
   for (const secreto of SECRETOS) expect(texto).not.toContain(secreto);
+}
+
+async function guardarR2(): Promise<void> {
+  await store.guardarIntegracion(
+    'r2',
+    {
+      valores: {
+        accountId: CONFIG_FALSA.accountId,
+        accessKeyId: CONFIG_FALSA.accessKeyId,
+        secretAccessKey: API_SECRET,
+        bucket: CONFIG_FALSA.bucket,
+        publicUrl: CONFIG_FALSA.publicUrl,
+      },
+    },
+    { userId: 1 },
+  );
 }
 
 async function guardarPagopar(): Promise<void> {
@@ -225,11 +243,7 @@ describe('el secreto nunca sale', () => {
       { valores: { phoneNumberId: '1234567', accessToken: TOKEN, numeroComercio: '0981123123' } },
       { userId: 1 },
     );
-    await store.guardarIntegracion(
-      'cloudinary',
-      { valores: { cloudName: 'nube', apiKey: '1234', apiSecret: API_SECRET } },
-      { userId: 1 },
-    );
+    await guardarR2();
     await store.cargarIntegraciones({ forzar: true });
 
     const panel = await store.estadoParaPanel();
@@ -268,23 +282,62 @@ describe('el secreto nunca sale', () => {
     expect(JSON.stringify(init.headers)).toContain(TOKEN);
   });
 
-  it('Cloudinary: un 200 del ping es "las credenciales andan"', async () => {
-    await store.guardarIntegracion(
-      'cloudinary',
-      { valores: { cloudName: 'nube', apiKey: '1234', apiSecret: API_SECRET } },
-      { userId: 1 },
-    );
-    const fetchFalso = vi.fn<(url: string) => Promise<Response>>(async () => new Response('{"status":"ok"}', { status: 200 }));
-    const resultado = await probarIntegracion('cloudinary', fetchFalso as unknown as typeof fetch);
+  it('R2: escribe, lee y borra un archivo privado de prueba, y mira que el dominio público no lo sirva', async () => {
+    await guardarR2();
+    await store.cargarIntegraciones({ forzar: true });
+    const r2 = crearR2Falso();
+    const resultado = await probarIntegracion('r2', r2.fetch);
     expect(resultado.ok).toBe(true);
-    expect(String(fetchFalso.mock.calls[0]?.[0])).toBe('https://api.cloudinary.com/v1_1/nube/ping');
+    expect(resultado.mensaje).toContain(CONFIG_FALSA.bucket);
+    const metodos = r2.pedidos.map((pedido) => pedido.method);
+    expect(metodos).toEqual(['PUT', 'GET', 'GET', 'DELETE']);
+    // El archivo de prueba es una clave privada con 32 hex aleatorios, y no queda.
+    expect(r2.pedidos[0]!.url).toMatch(/\/comprobantes\/[0-9a-f]{32}\/\.prueba-conexion\.txt$/);
+    expect(r2.objetos.size).toBe(0);
+    // La firma viaja en el header, nunca el secreto.
+    for (const pedido of r2.pedidos) sinSecretos(JSON.stringify([...pedido.headers]) + pedido.url);
+    sinSecretos(resultado.mensaje);
+  });
+
+  it('R2: si el dominio público sirve la clave privada, la prueba falla y dice qué bloquear', async () => {
+    await guardarR2();
+    await store.cargarIntegraciones({ forzar: true });
+    const r2 = crearR2Falso({ publicoSirvePrivados: true });
+    const resultado = await probarIntegracion('r2', r2.fetch);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.mensaje).toContain('img.tienda.test');
+    expect(resultado.mensaje).toContain('/comprobantes/*');
+    expect(r2.objetos.size).toBe(0);
+  });
+
+  it('R2: un error de R2 se informa sin el secreto', async () => {
+    await guardarR2();
+    await store.cargarIntegraciones({ forzar: true });
+    const fetchFalso = vi.fn(async () => new Response('<Error><Code>InvalidAccessKeyId</Code></Error>', { status: 403 }));
+    const resultado = await probarIntegracion('r2', fetchFalso as unknown as typeof fetch);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.mensaje).toContain('HTTP 403');
+    expect(resultado.mensaje).toContain('InvalidAccessKeyId');
+    sinSecretos(resultado.mensaje);
   });
 
   it('sin credenciales, la prueba dice qué falta y no llama a nadie', async () => {
     const fetchFalso = vi.fn();
-    const resultado = await probarIntegracion('cloudinary', fetchFalso as unknown as typeof fetch);
+    const resultado = await probarIntegracion('r2', fetchFalso as unknown as typeof fetch);
     expect(resultado.ok).toBe(false);
+    expect(resultado.mensaje).toContain('R2_ACCOUNT_ID');
     expect(fetchFalso).not.toHaveBeenCalled();
+  });
+
+  it('el dominio público se guarda normalizado y sólo https', async () => {
+    await expect(
+      store.guardarIntegracion('r2', { valores: { publicUrl: 'http://img.tienda.test' } }, { userId: 1 }),
+    ).rejects.toThrow();
+    await store.guardarIntegracion('r2', { valores: { publicUrl: 'https://img.tienda.test/' } }, { userId: 1 });
+    await store.cargarIntegraciones({ forzar: true });
+    const panel = await store.estadoParaPanel();
+    const r2 = panel.estados.find((estado) => estado.integracion === 'r2')!;
+    expect(r2.campos.find((campo) => campo.campo === 'publicUrl')?.valorPanel).toBe('https://img.tienda.test');
   });
 
   it('sanearDetalle borra el secreto y recorta', () => {

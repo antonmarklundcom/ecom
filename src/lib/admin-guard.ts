@@ -114,7 +114,7 @@ export type AdminActionResult<T = unknown> =
  *
  * Los errores de dominio (`InvalidTransitionError`, `ReceiptError`) tienen
  * mensajes escritos para el dueño y se muestran tal cual. Cualquier otra cosa
- * —un error de MySQL, un timeout de Cloudinary— sale como un mensaje genérico
+ * —un error de MySQL, un timeout de R2— sale como un mensaje genérico
  * y el detalle queda en el log del servidor: un stack trace en pantalla es una
  * filtración de la estructura interna, y al dueño no le sirve de nada.
  */
@@ -170,6 +170,8 @@ const KNOWN_DOMAIN_ERRORS = [
   "PaymentRecoveryError",
   "MoneyError",
   "AdminInputError",
+  // Ofertas de proveedores (`src/domain/supplier-offers.ts`).
+  "SupplierOfferError",
   "AdminBankError",
   "AdminShippingMethodError",
   // O5: la nota vacía, el pedido que no existe y el usuario desactivado

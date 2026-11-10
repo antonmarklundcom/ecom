@@ -8,7 +8,10 @@ import { AddToCart } from "@/components/add-to-cart";
 import { FunnelEvent } from "@/components/funnel-event";
 import { ProductDescription } from "@/components/product-description";
 import { ProductImage } from "@/components/product-image";
-import { ProductGallery } from "@/components/product-gallery";
+import {
+  ProductGallery,
+  type GalleryImage,
+} from "@/components/product-gallery";
 import { CatalogueEditorial } from "@/components/catalogue-editorial";
 import { CATALOGUE } from "@/config/catalogue";
 import { getProductSlugRedirect } from "@/domain/product-slugs";
@@ -18,32 +21,81 @@ import { RatingStars, formatRating } from "@/components/rating-stars";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { StickyBuyBar } from "@/components/sticky-buy-bar";
 import { WishlistButton } from "@/components/wishlist-button";
-import { getProductBySlug, getRelatedProducts } from "@/db/queries";
+import {
+  getCatalog,
+  getCategories,
+  getProductBySlug,
+  getRelatedProducts,
+} from "@/db/queries";
 import { getProductRatingSummary, listApprovedReviews } from "@/domain/reviews";
 import { stockAlertsEnabled } from "@/domain/stock-alerts";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
 import { waLinkPublico, whatsappPublico } from "@/lib/comercio";
-import { OG_IMAGE_SIZE, productImageUrl } from "@/lib/images";
+import {
+  OG_IMAGE_SIZE,
+  productImageSources,
+  productImageUrl,
+} from "@/lib/images";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { outsideImages } from "@/lib/image-provenance";
 import { nombreTienda } from "@/lib/marca";
 import { TIENDA } from "@/config/tienda";
 import { markdownToText } from "@/lib/markdown";
 import { formatGs, lowestChargeablePrice } from "@/lib/money";
 import { formatDatePY } from "@/lib/py";
-import { jsonLdScript, productJsonLd } from "@/lib/seo";
+import {
+  breadcrumbJsonLd,
+  categoryTrail,
+  jsonLdScript,
+  productJsonLd,
+} from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
+import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
 import { TESTIDS } from "@/lib/testids";
 
 /**
  * Ficha de producto.
  *
- * `dynamic`: la disponibilidad es lo que decide la compra, y una reserva
- * ajena de hace treinta segundos ya la cambió. El resto del catálogo sí usa
- * ISR — acá preferimos el dato fresco.
+ * ISR, como la home y la categoría (ARCH.md §6, "Caché de la vidriera"): el
+ * HTML se arma una vez y se sirve armado, que en una red móvil paraguaya es
+ * la diferencia entre ver la foto en un segundo o en cuatro. Se rearma:
+ *
+ * - en cuanto el panel cambia algo de la vidriera, o entra o vence un pedido
+ *   (`revalidarVidriera()`, `src/lib/revalidar-vidriera.ts`);
+ * - y si no, a los 5 minutos como mucho (`revalidate`), por lo que cambia sin
+ *   que nadie escriba, como una reserva que vence sola.
+ *
+ * La disponibilidad que se ve puede tener así unos minutos; la que **decide**
+ * es la del servidor: el carrito se revalida contra la base y el checkout
+ * reserva en una transacción (ARCH.md §2). Una ficha vieja nunca vende de más.
+ *
+ * Los links con parámetros (`?variante=`…) no salen de esta caché:
+ * `src/proxy.ts` los manda a `con-parametros/`, que reusa esta misma página
+ * renderizada por request y le pasa `conParametros`. Acá `searchParams` no se
+ * toca nunca sin eso (`parametrosDeLaUrl`): esperarlo la volvería dinámica.
+ * `force-static` además deja vacíos los `headers()` del layout (el de los
+ * medidores), que si no la volverían dinámica sin avisar.
  */
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
+export const revalidate = 300;
+
+/**
+ * En el build se arman sólo los destacados de la home (hasta 8): son las fichas
+ * a las que más se entra. Todas las demás se generan la primera vez que alguien
+ * las pide y desde ahí quedan en caché —armarlas todas haría el deploy más
+ * lento por cada producto—. `dynamicParams` sigue en `true`, que es lo que lo
+ * permite. Sin base en el build (CI), ninguna: no es un error.
+ */
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  try {
+    const destacados = await getCatalog({ featured: true, limit: 8 });
+    return destacados.map((producto) => ({ slug: producto.slug }));
+  } catch {
+    return [];
+  }
+}
 
 type Params = Promise<{ slug: string }>;
 type Search = Promise<Record<string, string | string[] | undefined>>;
@@ -57,9 +109,12 @@ const loadProduct = cache(async (slug: string) => getProductBySlug(slug));
 export async function generateMetadata({
   params,
   searchParams,
+  conParametros,
 }: {
   params: Params;
   searchParams: Search;
+  /** Lo pasa la gemela `con-parametros/`: ver `parametrosDeLaUrl`. */
+  conParametros?: boolean;
 }): Promise<Metadata> {
   const { slug } = await params;
   const product = await loadProduct(slug);
@@ -82,10 +137,12 @@ export async function generateMetadata({
       : product.name);
 
   // La primera foto que puede salir afuera (ni ilustrativa ni, si la tienda
-  // lo pide, sin procedencia: docs/TEMPLATE-IMPROVEMENT-PLAN.md E2),
-  // recortada a la caja que espera WhatsApp.
-  const sharePhoto = outsideImages(product.images)[0];
-  const ogImage = productImageUrl(sharePhoto?.cloudinaryId, "og");
+  // lo pide, sin procedencia: docs/TEMPLATE-IMPROVEMENT-PLAN.md E2) y que
+  // sea de R2: el JPEG de respaldo, que es lo que entienden todos los chats.
+  const sharePhoto = outsideImages(product.images).find(
+    (image) => productImageSources(image.imageRef, "og") !== null
+  );
+  const ogFuentes = productImageSources(sharePhoto?.imageRef, "og");
 
   // == S17 == Mismo criterio que `categoria/[slug]`: canonical a la URL
   // limpia del producto, y sólo si hay origen configurado (`siteOrigin()`,
@@ -97,7 +154,7 @@ export async function generateMetadata({
     ? new URL(`/producto/${product.slug}`, origin).toString()
     : undefined;
 
-  const query = await searchParams;
+  const query = await parametrosDeLaUrl({ searchParams, conParametros });
   return {
     robots: Object.keys(query).length
       ? { index: false, follow: true }
@@ -116,11 +173,11 @@ export async function generateMetadata({
       siteName: await nombreTienda(),
       locale: TIENDA.ogLocale,
       images: [
-        ogImage
+        ogFuentes
           ? {
-              url: ogImage,
-              width: OG_IMAGE_SIZE.width,
-              height: OG_IMAGE_SIZE.height,
+              url: ogFuentes.jpeg,
+              width: ogFuentes.width,
+              height: ogFuentes.height,
               alt: sharePhoto?.alt ?? product.name,
             }
           : {
@@ -137,12 +194,15 @@ export async function generateMetadata({
 export default async function ProductPage({
   params,
   searchParams,
+  conParametros,
 }: {
   params: Params;
   searchParams: Search;
+  /** Lo pasa la gemela `con-parametros/`: ver `parametrosDeLaUrl`. */
+  conParametros?: boolean;
 }) {
   const { slug } = await params;
-  const query = await searchParams;
+  const query = await parametrosDeLaUrl({ searchParams, conParametros });
   const product = await loadProduct(slug);
   // El notFound() va acá y no en generateMetadata: lanzado desde el metadata,
   // Next dibuja el 404 pero responde 200. Por lo mismo esta ruta no tiene
@@ -190,11 +250,24 @@ export default async function ProductPage({
 
   // Reseñas verificadas: sólo las aprobadas (`src/domain/reviews.ts`). Sin
   // ninguna, no se dibuja nada — ni estrellas vacías ni "sé la primera".
-  const [rating, reviews, ajustes] = await Promise.all([
+  const [rating, reviews, ajustes, categorias] = await Promise.all([
     getProductRatingSummary(product.id),
     listApprovedReviews(product.id),
     getStoreSettings(),
+    getCategories(),
   ]);
+  // La miga de pan: la categoría con sus madres (`categories.parent_id`).
+  // Sin la lista —no debería pasar: el producto sólo se ve con su categoría
+  // activa— queda la categoría sola, como antes.
+  const trail = categoryTrail(categorias, product.categorySlug);
+  const migas = (
+    trail.length > 0
+      ? trail
+      : [{ slug: product.categorySlug, name: product.categoryName }]
+  ).map((categoria) => ({
+    name: categoria.name,
+    path: `/categoria/${categoria.slug}`,
+  }));
 
   // Al WhatsApp **público** (`/admin/ajustes`, o `WHATSAPP_NUMBER`).
   const waHref =
@@ -228,7 +301,7 @@ export default async function ProductPage({
     brand: product.brand,
     images: outsideImages(product.images)
       .slice(0, 5)
-      .map((image) => productImageUrl(image.cloudinaryId, "detail"))
+      .map((image) => productImageUrl(image.imageRef, "detail"))
       .filter((src): src is string => src !== null),
     variants: product.variants,
     saleMode: product.saleMode,
@@ -245,45 +318,59 @@ export default async function ProductPage({
     })),
   });
 
+  // La misma miga de pan que se dibuja abajo, más el producto al final.
+  const breadcrumb = breadcrumbJsonLd(origin, [
+    { name: t("nav.inicio"), path: "/" },
+    ...migas,
+    { name: product.name, path: `/producto/${product.slug}` },
+  ]);
+
+  // Una referencia que no es de R2 (o sin base pública) no entra a la
+  // galería: nunca una foto rota. Sin ninguna, el placeholder.
+  const galeria: GalleryImage[] = product.images.flatMap((image) => {
+    const fuentes = productImageSources(image.imageRef, "detail");
+    return fuentes
+      ? [
+          {
+            src: fuentes.jpeg,
+            fuentes,
+            alt: image.alt || product.name,
+            illustrative: image.provenance === "illustrative",
+          },
+        ]
+      : [];
+  });
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumb) }}
+      />
 
       <nav className="text-muted-foreground text-sm">
         <Link href="/" className="hover:text-foreground">
           {t("nav.inicio")}
         </Link>
-        <span aria-hidden> / </span>
-        <Link
-          href={`/categoria/${product.categorySlug}`}
-          className="hover:text-foreground"
-        >
-          {product.categoryName}
-        </Link>
+        {migas.map((miga) => (
+          <span key={miga.path}>
+            <span aria-hidden> / </span>
+            <Link href={miga.path} className="hover:text-foreground">
+              {miga.name}
+            </Link>
+          </span>
+        ))}
       </nav>
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">
         <div>
-          {product.images.length ? (
+          {galeria.length ? (
             <ProductGallery
-              images={product.images
-                .map((image) => ({
-                  src: productImageUrl(image.cloudinaryId, "detail"),
-                  alt: image.alt || product.name,
-                  illustrative: image.provenance === "illustrative",
-                }))
-                .filter(
-                  (
-                    image
-                  ): image is {
-                    src: string;
-                    alt: string;
-                    illustrative: boolean;
-                  } => image.src !== null
-                )}
+              images={galeria}
             />
           ) : (
             <ProductImage
@@ -292,7 +379,7 @@ export default async function ProductPage({
               categorySlug={product.categorySlug}
               size="detail"
               priority
-              sizes="(max-width: 1024px) 100vw, 550px"
+              sizes={IMAGE_SIZES.detail}
             />
           )}
         </div>
@@ -504,7 +591,8 @@ export default async function ProductPage({
             pricePyg: cheapest ?? null,
             // La primera foto que no es ilustrativa; si todas lo son, la
             // primera, con su leyenda (F6).
-            imageCloudinaryId: recentPhoto?.cloudinaryId ?? null,
+            imageRef: recentPhoto?.imageRef ?? null,
+            imageFuentes: productImageSources(recentPhoto?.imageRef, "card"),
             imageAlt: recentPhoto?.alt ?? null,
             imageIllustrative: recentPhoto?.provenance === "illustrative",
           }}

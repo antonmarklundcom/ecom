@@ -1,9 +1,13 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { ImagenR2 } from "@/components/imagen-r2";
 import { Button } from "@/components/ui/button";
 import type { Hero } from "@/config/tienda";
-import { productImageUrl } from "@/lib/images";
+import { refDeHeroImagen } from "@/lib/hero-imagen";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
+import { productImageSources } from "@/lib/images";
+// Los colores semánticos (`--estrella`, `--velo`…) con su default: ver el archivo.
+import "@/themes/semanticos.css";
 
 /**
  * La portada de la home (PLAN.md FASE 2, PR O).
@@ -18,20 +22,22 @@ import { productImageUrl } from "@/lib/images";
  */
 export function HomeHero({ hero }: { hero: Hero }) {
   const imagen = hero.imagen ?? null;
-  // `null` cuando falta `CLOUDINARY_CLOUD_NAME`: el hero se dibuja igual, con
-  // el fondo de siempre, en vez de con un rectángulo roto.
-  const src = productImageUrl(imagen?.cloudinaryId, "hero");
+  // `null` sin base pública de R2 o con una referencia que no es de R2: el
+  // hero se dibuja igual, con el fondo de siempre, en vez de con un
+  // rectángulo roto.
+  const fuentes = productImageSources(refDeHeroImagen(imagen), "hero");
+  const src = fuentes !== null;
 
   return (
     <section className="border-border relative isolate overflow-hidden rounded-2xl border">
-      {src ? (
+      {fuentes ? (
         <>
-          <Image
-            src={src}
+          <ImagenR2
+            fuentes={fuentes}
             alt={imagen?.alt ?? ""}
             fill
             priority
-            sizes="(max-width: 1152px) 100vw, 1152px"
+            sizes={IMAGE_SIZES.hero}
             className="object-cover"
           />
           {/*
@@ -40,14 +46,14 @@ export function HomeHero({ hero }: { hero: Hero }) {
             exactamente lo que no se puede saber desde acá. `aria-hidden`
             porque no aporta nada a quien no ve la foto.
           */}
-          <div className="absolute inset-0 -z-0 bg-black/45" aria-hidden />
+          <div className="absolute inset-0 -z-0 bg-(--velo)/45" aria-hidden />
         </>
       ) : null}
 
       <div className={`relative p-6 sm:p-10 ${src ? "min-h-[280px] sm:min-h-[360px]" : "bg-muted/30"}`}>
         <h1
           className={`max-w-2xl text-2xl font-semibold tracking-tight sm:text-4xl ${
-            src ? "text-white" : ""
+            src ? "text-(--sobre-velo)" : ""
           }`}
         >
           {hero.titulo}
@@ -56,7 +62,7 @@ export function HomeHero({ hero }: { hero: Hero }) {
         {hero.texto ? (
           <p
             className={`mt-3 max-w-xl text-sm sm:text-base ${
-              src ? "text-white/90" : "text-muted-foreground"
+              src ? "text-(--sobre-velo)/90" : "text-muted-foreground"
             }`}
           >
             {hero.texto}

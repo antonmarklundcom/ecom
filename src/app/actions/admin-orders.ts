@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import { ORDER_STATUSES } from "@/db/schema";
@@ -110,6 +111,8 @@ export async function advanceOrder(input: unknown): Promise<AdminActionResult> {
     revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);
     revalidatePath("/admin/pedidos");
     revalidatePath("/admin");
+    // Cancelar, aprobar o rechazar mueve stock que se ve en la vidriera.
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("advanceOrder", error);
@@ -145,6 +148,8 @@ export async function decideReceipt(
     revalidatePath(`/admin/pedidos/${result.orderId}`);
     revalidatePath("/admin/pedidos");
     revalidatePath("/admin");
+    // Cancelar, aprobar o rechazar mueve stock que se ve en la vidriera.
+    revalidarVidriera();
     return { ok: true };
   } catch (error) {
     return adminActionError("decideReceipt", error);
@@ -260,6 +265,8 @@ export async function editPendingOrderAction(
     revalidatePath(`/admin/pedidos/${parsed.data.orderId}`);
     revalidatePath("/admin/pedidos");
     revalidatePath("/admin/actividad");
+    // Cambiar ítems de un pedido sin pagar cambia lo que tiene reservado.
+    revalidarVidriera();
 
     return {
       ok: true,

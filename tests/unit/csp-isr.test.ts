@@ -70,7 +70,7 @@ describe("CSP y las páginas cacheadas", () => {
       .filter((pagina) => /export const revalidate\s*=/.test(pagina.source))
       .map((pagina) => rutaConcreta(pagina.ruta));
 
-    // Hoy son la home y las categorías. Si aparece otra, o va en
+    // Hoy son la home, la categoría y la ficha. Si aparece otra, o va en
     // RUTAS_CACHEADAS o se le saca el revalidate.
     expect(cacheadas.length).toBeGreaterThan(0);
     for (const ruta of cacheadas) {
@@ -107,9 +107,13 @@ describe("CSP y las páginas cacheadas", () => {
     }
   });
 
-  it("la home se cachea; las categorías consultan reservas en vivo", () => {
+  it("la home, la categoría y la ficha se cachean; sus gemelas con parámetros no", () => {
     expect(esRutaCacheada("/")).toBe(true);
-    expect(esRutaCacheada("/categoria/electronica")).toBe(false);
+    expect(esRutaCacheada("/categoria/electronica")).toBe(true);
+    expect(esRutaCacheada("/producto/remera-azul")).toBe(true);
+    expect(esRutaCacheada("/categoria/electronica/con-parametros")).toBe(false);
+    expect(esRutaCacheada("/producto/remera-azul/con-parametros")).toBe(false);
+    expect(esRutaCacheada("/categoria")).toBe(false);
   });
 
   it("no confunde una ruta que sólo empieza igual", () => {

@@ -1,6 +1,8 @@
 import { t } from "@/i18n/client";
 import { formatGs, isChargeablePrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
+// Los colores semánticos (`--estrella`, `--velo`…) con su default: ver el archivo.
+import "@/themes/semanticos.css";
 
 /**
  * Precio en guaraníes. Siempre con la nota de IVA incluido cuando hay lugar:
@@ -47,7 +49,7 @@ export function PriceTag({
             <span className="text-muted-foreground text-sm tabular-nums line-through">
               {formatGs(compareAtPyg)}
             </span>
-            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+            <span className="text-xs font-medium text-(--oferta)">
               −{discount}%
             </span>
           </>

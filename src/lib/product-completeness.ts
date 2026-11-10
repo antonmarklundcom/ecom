@@ -14,7 +14,7 @@ type Input = {
   saleMode?: string;
   showPrice?: boolean;
   images: readonly {
-    cloudinaryId: string;
+    imageRef: string;
     alt?: string | null;
     /** La de cada foto (E2); sin marcar vale la del producto. */
     provenance?: string | null;

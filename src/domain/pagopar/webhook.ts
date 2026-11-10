@@ -35,8 +35,12 @@ export type WebhookOutcome =
   | { kind: "aplicado"; orderId: number; orderNumber: string; changed: boolean }
   /** Ya lo habíamos procesado: no se toca nada. */
   | { kind: "repetido" }
-  /** `pagado: false` — se deja registrado y listo. */
-  | { kind: "no_pagado"; orderId: number; orderNumber: string }
+  /**
+   * `pagado: false` — se deja registrado y listo. `status` es el estado en que
+   * estaba el pedido: si ya estaba cobrado, la ruta lo avisa (¿reversión?),
+   * pero el pedido no se toca.
+   */
+  | { kind: "no_pagado"; orderId: number; orderNumber: string; status: OrderStatus }
   /** El pedido está en un estado que no admite el pago (p. ej. `enviado`). */
   | { kind: "estado_final"; orderId: number; orderNumber: string; status: OrderStatus }
   /**
@@ -132,7 +136,12 @@ export async function processPagoparWebhook(
     if (!event.pagado) {
       // Aviso de un pago que no prosperó. Queda el rastro en payment_events y
       // el pedido sigue su curso normal (lo vence el cron si nadie paga).
-      return { kind: "no_pagado", orderId: order.id, orderNumber: order.orderNumber };
+      return {
+        kind: "no_pagado",
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+      };
     }
 
     await tx

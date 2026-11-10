@@ -112,17 +112,22 @@ export const MIXTOS = [
 /**
  * Lo que sólo tiene sentido en el repo del template y una tienda no debe
  * arrastrar: `fable/` son los planes y revisiones con que se construyó el
- * template (una IA en la tienda los lee como tareas propias), Dependabot
- * abriría PRs de dependencias en cada tienda cuando éstas ya llegan con
- * template:sync, y `tiendas.json` es el registro de tiendas del template (cada
- * tienda nueva heredaba la lista entera). `pnpm nueva-tienda` los borra,
- * `bootstrap:repo` no los copia y `template:sync` nunca los trae (y los saca
- * si una tienda vieja los tiene).
+ * template (una IA en la tienda los lee como tareas propias), la config de
+ * Renovate abriría PRs de dependencias en cada tienda cuando éstas ya llegan
+ * con template:sync (y cada PR son minutos de CI), y `tiendas.json` es el
+ * registro de tiendas del template (cada tienda nueva heredaba la lista
+ * entera). `pnpm nueva-tienda` los borra, `bootstrap:repo` no los copia y
+ * `template:sync` nunca los trae (y los saca si una tienda vieja los tiene).
+ *
+ * `.github/dependabot.yml` ya no existe en el template (lo reemplazó
+ * Renovate), pero sigue en la lista para que `template:sync` se lo saque a una
+ * tienda vieja que lo heredó.
  *
  * Una entrada que termina en `/` es una carpeta entera.
  */
 export const SOLO_TEMPLATE = [
   "fable/",
+  ".github/renovate.json",
   ".github/dependabot.yml",
   "tiendas.json",
 ] as const;
@@ -150,6 +155,26 @@ export const DOCS_DEL_TEMPLATE = [
   // Describe la maquinaria, no la tienda: una tienda no tiene nada suyo ahí.
   "docs/ENV-OPCIONAL.md",
 ] as const;
+
+/**
+ * Archivos que son **de la tienda** aunque el template traiga uno: el template
+ * los ofrece como punto de partida y nunca más los pisa. `template:sync` los
+ * conserva siempre que la tienda tenga el suyo —aunque nunca lo haya tocado
+ * y el template haya cambiado el de él—, y los trae sólo si a la tienda le
+ * faltan (`globals.css` los importa: sin el archivo, el build se cae).
+ *
+ * La diferencia con la piel común: un archivo de piel que la tienda nunca
+ * tocó se actualiza con el del template. Éstos no, porque estar "sin tocar"
+ * no quiere decir que la tienda no lo quiera así.
+ *
+ * `src/themes/custom.css` son los retoques de CSS de la tienda, cargados
+ * últimos (NEW-STORE.md §5): el template lo trae vacío y comentado.
+ */
+export const DE_LA_TIENDA = ["src/themes/custom.css"] as const;
+
+export function esDeLaTienda(ruta: string): boolean {
+  return (DE_LA_TIENDA as readonly string[]).includes(ruta);
+}
 
 export const BASELINE_FILE = ".template-baseline";
 

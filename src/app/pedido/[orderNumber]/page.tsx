@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -14,7 +15,7 @@ import { RECEIPT_MAX_PER_ORDER, countReceipts } from "@/domain/receipts";
 import { REVIEWABLE_ORDER_STATUS, listReviewableItems } from "@/domain/reviews";
 import { t } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
-import { cloudinaryConfigured } from "@/lib/cloudinary";
+import { r2Configurado } from "@/lib/r2";
 import { getDatosBancarios, waLinkPublico } from "@/lib/comercio";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 import { formatGs, formatGsPlain } from "@/lib/money";
@@ -132,6 +133,7 @@ export default async function OrderPage({
                       alt={t("pedido.banco.qrAlt")}
                       fill
                       className="object-contain p-2"
+                      sizes={IMAGE_SIZES.qr}
                       unoptimized
                     />
                   </div>
@@ -162,7 +164,7 @@ export default async function OrderPage({
           orderNumber={order.orderNumber}
           token={token}
           remaining={RECEIPT_MAX_PER_ORDER - receiptCount}
-          storageReady={cloudinaryConfigured()}
+          storageReady={r2Configurado()}
           waHref={comprobanteWaHref}
         />
       ) : null}

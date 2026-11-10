@@ -12,7 +12,7 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 1. GitHub → **Use this template** → repo **privado** nuevo para la tienda.
 2. `git clone` · `pnpm install` · `git remote add template https://github.com/antonmarklundcom/ecom.git`
 3. `pnpm setup:doctor` → `pnpm nueva-tienda` (marca, WhatsApp **real**, dominio,
-   tema; borra `fable/`, Dependabot y `tiendas.json`, que son del template) → commit + push.
+   tema; borra `fable/`, la config de Renovate y `tiendas.json`, que son del template) → commit + push.
 4. En el repo nuevo: crear el label `ci-completo` (Issues → Labels) para pedir
    el e2e cuando haga falta. Ver § "CI y minutos de Actions".
 5. Base, catálogo y dueño (§4) · diseño (§5) · cuentas de terceros (tabla de
@@ -81,8 +81,8 @@ terceros**, porque son cuentas de otro que nadie puede abrir por vos:
 | Qué | Dónde | Para qué |
 |---|---|---|
 | Hosting y base | hPanel de Hostinger | `DATABASE_URL` y el deploy (DEPLOY.md) |
-| Dominio | tu registrador | `NEXT_PUBLIC_SITE_URL` — el wizard ya lo escribe, falta apuntarlo |
-| Cloudinary | cloudinary.com → `/admin/integraciones` | fotos de producto y comprobantes de pago (§4a-ter) |
+| Dominio | tu registrador | `NEXT_PUBLIC_SITE_URL` — el wizard ya lo escribe, falta apuntarlo. Con el DNS en Cloudflare, **"DNS only"** (nube gris), nunca proxeado (DEPLOY.md § "Cloudflare: sólo DNS (nube gris)") |
+| R2 (Cloudflare) | un bucket por tienda (DEPLOY.md §3b) → `/admin/integraciones` | fotos, comprobantes de pago y copias de seguridad (§4a-ter) |
 | Pagopar | el comercio → `/admin/integraciones` | sólo si va con tarjeta; sin credenciales el checkout no la ofrece |
 | Datos bancarios | `/admin/banco`, con la tienda arriba | a dónde transfieren (§4a) |
 | Fotos y favicon | el comercio | `src/app/favicon.ico` y `/admin/productos` |
@@ -189,9 +189,9 @@ pnpm nueva-tienda --dry-run  # muestra qué haría, no escribe nada
 ```
 
 Pregunta seis cosas —nombre, título del navegador, meta description, tagline
-del pie, WhatsApp y dominio— y con eso:
+del pie, WhatsApp y dominio— más el tema (§5 "El kit de temas"), y con eso:
 
-- reescribe los campos de marca de [`src/config/tienda.ts`](./src/config/tienda.ts);
+- reescribe los campos de marca y el `tema` de [`src/config/tienda.ts`](./src/config/tienda.ts);
 - genera `SESSION_SECRET`, `CRON_SECRET` y `SETUP_SECRET` con
   `crypto.randomBytes` (no con `openssl`, que en Windows no existe) y los
   escribe en `.env.local` junto con el WhatsApp y el dominio;
@@ -213,7 +213,7 @@ el script falla diciéndolo si falta alguna:
 pnpm nueva-tienda --nombre "Lencería Guaraní" \
   --titulo "Lencería Guaraní — Comprá online en Paraguay" \
   --descripcion "…" --tagline "…" \
-  --whatsapp 0981123456 --dominio lenceria.com.py
+  --whatsapp 0981123456 --dominio lenceria.com.py --tema clasico
 ```
 
 Lo que el wizard **no** hace, a propósito: no toca la base, no sube nada a
@@ -273,8 +273,7 @@ ausentes, cada una apaga su feature.
 | `SESSION_SECRET` | **lo genera el wizard.** Uno nuevo por tienda, nunca reciclado |
 | `WHATSAPP_NUMBER` | **lo escribe el wizard.** El del comercio |
 | `BANCO_*` | **legacy/fallback.** Podés dejarlos vacíos: los datos bancarios se cargan desde `/admin/banco` con la tienda ya arriba (ver §4a). Si los ponés y la tabla está vacía, mandan éstos |
-| `CLOUDINARY_*` | cuenta de Cloudinary de esta tienda |
-| `CLOUDINARY_FOLDER_PREFIX` | opcional, vacío por defecto. Ponelo **si varias tiendas comparten una cuenta de Cloudinary**: el `public_id` de un comprobante sale del número de pedido, y todas las tiendas acuñan `PY-000123`, así que sin prefijo los comprobantes de las dos terminan mezclados en la misma carpeta. Elegilo al crear la tienda y no lo toques más |
+| `R2_*` | el bucket de R2 de esta tienda (DEPLOY.md §3b). **Un bucket por tienda**: la retención de backups borra lo viejo bajo `backups/`, y dos tiendas en el mismo bucket se borrarían las copias entre sí |
 | `NEXT_PUBLIC_SITE_URL` | **lo escribe el wizard.** El dominio final |
 | `CRON_SECRET` | **lo genera el wizard.** ≥ 16 caracteres, nuevo por tienda |
 | `SETUP_SECRET` | **lo genera el wizard.** Va sólo en el servidor y sólo durante el primer deploy: habilita `/api/setup/init` y después se borra (DEPLOY.md §4) |
@@ -301,54 +300,51 @@ Para una demo mostrable al cliente antes de tener productos reales:
 Los productos reales entran por dos caminos:
 
 - **Pocos, o de a uno:** el panel, `/admin/productos`.
-- **El catálogo entero de una vez:** `pnpm importar:productos lista.csv`. El
-  comercio ya tiene su lista de precios en Excel; las columnas obligatorias son
-  SKU, Producto, Categoría y Precio (₲). Variante y Stock son opcionales:
-  Variante vacía significa variante única y Stock vacío significa 0 al crear,
-  sin tocarlo al reimportar. El formato es el mismo que baja el export del
-  panel (una fila por variante) más columnas opcionales — Descripción, Marca,
-  IVA, Precio antes (₲), Slug y **Fotos**. Separador `;` o `,`, como venga. Sin
-  `--aplicar` es un ensayo que sólo cuenta; los errores salen todos juntos con
-  número de línea. Idempotente: re-importar actualiza precios sin duplicar y
-  **no pisa el stock** de variantes existentes (`--pisar-stock` si de verdad
-  querés eso). Las categorías que no existan se crean al final del menú.
-  Reglas que protegen lo cargado (docs/TEMPLATE-IMPROVEMENT-PLAN.md C1–C7):
-  - **Ausente no es vacío.** Una columna que la planilla no trae no toca lo
-    guardado (la planilla del proveedor con SKU y precio cambia sólo
-    precios). Una celda vacía en Descripción, Marca o Precio antes lo
-    **borra**; Variante, Stock e IVA vacíos no se tocan en lo existente (en
-    un alta son "Único", 0 e IVA 10).
-  - **Todo o nada.** Si algo falla —un SKU que otra persona cargó entre la
-    vista previa y la confirmación, un valor que la base rechaza— no queda
-    nada escrito, tampoco las categorías nuevas.
-  - **Un SKU es de un solo producto**, con la misma igualdad que la base
-    (`ABC-1`, `abc-1` y `ÁBC-1` son el mismo SKU): una planilla no muda una
-    variante a otro producto.
-  - **Lo nuevo entra como borrador**; lo existente no cambia de activo ni de
-    publicado, ni de orden.
-  - **Precios y stock en masa son del dueño** (`precios.masivo`): el personal
-    puede cargar productos y textos, pero una planilla que cambia un precio o
-    pisa un stock se rechaza entera si no la aplica el dueño. Cada precio y
-    cada stock que cambia queda en el registro con quién lo hizo.
-  - **Exportar e importar el mismo archivo no cambia nada**: el export trae
-    Slug, Descripción, Marca, IVA y Precio antes (₲0 incluido), las columnas
-    que la importación necesita para encontrar y conservar cada producto.
-  - **Fotos**: una o más URLs `https://` en la columna Fotos, separadas por
-    `|`, espacio o salto de línea (normalmente sólo en la primera fila de cada
-    producto). Cloudinary va a buscarlas solo — nada se descarga acá — y sólo
-    se suben a un producto que hoy no tiene ninguna foto, para que reimportar
-    la misma planilla no duplique nada. Ejemplo de fila (mismas columnas de
-    siempre + Fotos al final):
+- **El catálogo entero de una vez:** una planilla (CSV o Excel), desde
+  `/admin/productos` → "Cargar planilla" o con `pnpm importar:productos
+  lista.csv`. El formato es **uno solo** para el export del panel, la
+  importación del panel y la CLI, y está documentado en
+  **[docs/CATALOGO-CSV.md](docs/CATALOGO-CSV.md)**: una fila por variante;
+  obligatorias SKU, Producto, Categoría y Precio (₲); el resto opcional
+  (Variante, Stock, Descripción, Marca, IVA, Precio antes, Slug, Fotos, Modo
+  de venta, Mostrar precio y, con proveedores prendidos, Proveedor, URL
+  proveedor, Costo proveedor y Stock proveedor). Un archivo exportado de otra
+  tienda entra sin tocarlo.
 
-    ```
-    SKU;Producto;Categoría;Variante;Precio (₲);Stock;Descripción;Marca;IVA;Precio antes (₲);Slug;Fotos
-    AUR-1;Auriculares TWS;Electrónica;Negro;285000;24;;;;;;https://cdn.tienda.com/aur-1.jpg|https://cdn.tienda.com/aur-1b.jpg
-    ```
+  Para probar con datos de ejemplo (20 productos genéricos, sin fotos):
 
-    Tanto el panel (`/admin/productos`) como la CLI las suben iguales, con la
-    misma regla; sin credenciales de Cloudinary configuradas se avisa y se
-    sigue el resto de la importación sin ellas. Una foto también se puede
-    cargar suelta, a mano, desde `/admin/productos`.
+  ```sh
+  pnpm importar:productos scripts/fixtures/catalogo-demo.csv            # ensayo
+  pnpm importar:productos scripts/fixtures/catalogo-demo.csv --aplicar  # escribe
+  ```
+
+  Lo esencial (el detalle, en docs/CATALOGO-CSV.md):
+  - **Primero se revisa**: sin `--aplicar` (o con "Revisar" en el panel) no
+    se escribe nada; los errores salen todos juntos con número de línea, y
+    los **posibles productos repetidos** (mismo nombre con otro slug, nombres
+    casi iguales, slug que ya existe sin SKU en común) hay que marcarlos como
+    revisados antes de confirmar (`--revisado` en la CLI).
+  - **Por lotes**: se escribe de a 25 productos y cada lote entra entero o no
+    entra; si uno falla o se corta la conexión, los anteriores quedan.
+    Volver a Revisar y reimportar el archivo termina el trabajo sin duplicar.
+  - **Idempotente por SKU y slug**, **ausente no es vacío** (una columna que
+    no viene no toca lo guardado) y **el stock existente no se pisa** salvo
+    "pisar stock" / `--pisar-stock`.
+  - **Lo nuevo entra como borrador**, un SKU es de un solo producto, y los
+    precios o el stock en masa los aplica el dueño (quedan auditados).
+  - **Fotos**: URLs `https://` (o referencias `r2:p1/…`) en la columna Fotos;
+    sólo se suben a un producto que todavía no tiene ninguna. El servidor las
+    baja (sólo `https://`, con tope de tamaño, tiempo y redirecciones, y
+    mirando por los bytes que sean imágenes), las achica y las sube a R2; sin
+    R2 configurado se avisa y se sigue sin ellas. Para cientos de fotos
+    conviene prepararlas antes en tu máquina: `pnpm fotos:preparar -- --csv
+    lista.csv --salida /fuera/del/repo` (baja y achica, deja `review.html`
+    para mirarlas e `import-r2.csv` con las fotos como `r2:p1/…`), `pnpm
+    fotos:subir -- --manifiesto /fuera/del/repo/manifest.private.json
+    --aplicar` (sube) y después importás `import-r2.csv`. `pnpm fotos:reparar`
+    reemplaza la galería de un producto que ya tenía fotos (ver
+    `scripts/fotos-lib.ts`). Una foto también se puede cargar suelta desde
+    `/admin/productos`.
 
 El seed deja un punto de partida que **se termina de ajustar desde el panel**,
 sin volver a tocar código:
@@ -381,8 +377,8 @@ Dos reglas que la pantalla sostiene:
   persona, en el banco.
 
 El QR del SPI es opcional y se sube desde la misma pantalla (JPG/PNG/WebP, hasta
-5 MB). Va a una carpeta **pública** de Cloudinary, separada de la de
-comprobantes. Sin QR, la página muestra los datos con botón de copiar, que es lo
+5 MB; el navegador la achica antes de subirla). Va a R2 como foto **pública**,
+nunca con los comprobantes, que son privados. Sin QR, la página muestra los datos con botón de copiar, que es lo
 que hacía siempre.
 
 **Compatibilidad con lo de antes:** los `BANCO_*` del entorno siguen andando y
@@ -405,7 +401,7 @@ template no trae migración, y una fila vieja o rota se lee con los defaults.
 | Se edita en `/admin/ajustes` | Sigue en el código / el entorno |
 |---|---|
 | Bajada del pie, título y descripción de la home para Google | El **nombre** (`TIENDA.nombre`): también es el `<title>` de cada página y lo verifica `pnpm preflight` |
-| Portada: prendida/apagada, título, texto, botón, foto (se sube a Cloudinary, carpeta `portadas/`) | Una portada distinta (carrusel, vídeo): se escribe en `src/app/page.tsx` |
+| Portada: prendida/apagada, título, texto, botón, foto (se sube a R2) | Una portada distinta (carrusel, vídeo): se escribe en `src/app/page.tsx` |
 | Barra de anuncio arriba de todo | Idioma, `ogLocale`, cuentas de cliente (`tienda.ts`) |
 | WhatsApp **público**, email, dirección, horario, Instagram/Facebook/TikTok | `WHATSAPP_NUMBER`: destino de los avisos al dueño (y el público si el panel está vacío) |
 | Envío y devoluciones para el JSON-LD de Google (días, precio desde, política) | Tarifas y zonas de envío (`/admin/envios`) |
@@ -426,14 +422,14 @@ trae esto por `template:sync` se queda con los suyos: la barra de anuncio, los
 links a las páginas y el contacto nuevo del pie no aparecen hasta sumarlos a
 mano (las páginas en sí sí existen).
 
-### 4a-ter. Integraciones desde el panel: Cloudinary, WhatsApp, Pagopar, medición
+### 4a-ter. Integraciones desde el panel: R2, WhatsApp, Pagopar, medición
 
 **`/admin/integraciones`** (sólo el dueño) carga lo que antes eran variables del
 hPanel, con la tienda ya arriba y sin redeploy:
 
 | Tarjeta | Qué carga | Fallback de entorno |
 |---|---|---|
-| Cloudinary | cloud name, API key, **API secret**, prefijo de carpetas | `CLOUDINARY_*` |
+| R2 | Account ID, Access Key ID, **Secret Access Key**, bucket, dominio público | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` |
 | WhatsApp | número del comercio (avisos al dueño), phone number ID, **token**, versión de la API, las nueve plantillas | `WHATSAPP_NUMBER`, `WHATSAPP_CLOUD_*` |
 | Pagopar | clave pública, **clave privada**, URL de la API | `PAGOPAR_PUBLIC_KEY`, `PAGOPAR_PRIVATE_KEY`, `PAGOPAR_BASE_URL` |
 | Medición | ID de GA4, ID del Pixel | `NEXT_PUBLIC_GA4_ID`, `NEXT_PUBLIC_META_PIXEL_ID` |
@@ -446,15 +442,17 @@ Las reglas, todas en `src/lib/integraciones.ts`:
   sin ninguno de los dos, la función queda apagada (nunca rota). El botón
   "Borrar lo del panel" devuelve una integración entera al entorno.
 - **Las credenciales que van juntas no se mezclan**: si el panel tiene alguna
-  de las de Cloudinary (o de Pagopar, o phone ID + token de WhatsApp), el grupo
-  entero sale del panel. Las plantillas y el prefijo se resuelven de a uno.
+  de las de R2 (cuenta, access key, secret, bucket; o las de Pagopar, o phone
+  ID + token de WhatsApp), el grupo entero sale del panel. Las plantillas y el
+  dominio público se resuelven de a uno.
 - **Los secretos se guardan cifrados** (AES-256-GCM, clave derivada de
   `SESSION_SECRET` por HKDF, una por campo) y **nunca vuelven al navegador**: la
   pantalla muestra "Configurado ••••1234" y sólo deja reemplazar o borrar. Sin
   `SESSION_SECRET` válido no se lee ni se guarda nada. **Cambiar
   `SESSION_SECRET` deja ilegibles los secretos guardados** — la pantalla lo dice
   y hay que volver a cargarlos.
-- **"Probar conexión"** para Cloudinary (ping de la Admin API), WhatsApp (lee
+- **"Probar conexión"** para R2 (escribe, lee y borra un archivo privado de
+  prueba y avisa si el dominio público lo sirve), WhatsApp (lee
   el número en la Graph API, no manda nada) y Pagopar (sólo que el host
   conteste por https: sus claves sólo se verifican con una transacción del
   sandbox). Cada guardado y cada prueba quedan en el log del hPanel con quién y
@@ -482,8 +480,8 @@ editar `src/config/tienda.ts` y el tema en cada tienda clonada:
 | Favicon | la pestaña del navegador | `src/app/favicon.ico` |
 | Color de marca | `--primary` (botones, links, foco); el texto encima se elige solo por contraste | el del tema de `globals.css` |
 
-Logo y favicon van a la carpeta pública `marca/` de Cloudinary (hace falta
-Cloudinary configurado, §4a-ter). El tema completo (tipografía, radios, modo
+Logo y favicon se suben a R2 como fotos públicas (hace falta R2 configurado,
+§4a-ter); el WebP conserva la transparencia. El tema completo (tipografía, radios, modo
 oscuro) sigue siendo piel del código (§5): el panel pisa sólo el color de marca.
 
 **Piel rediseñada:** `site-header.tsx` y `site-footer.tsx` del template ya leen
@@ -527,6 +525,51 @@ concreta: los pedidos que alguien hizo *como invitada* antes de crear su cuenta
 verificar el número dejaría ver el historial de compras de otra persona a
 cualquiera que tipee su número al registrarse. Se habilitan solos cuando el
 teléfono quede verificado (login por OTP).
+
+### 4b-bis. ¿Esta tienda compra a proveedores? (dropshipping, opcional)
+
+**Por defecto no.** Para una tienda que repone por dropshipping (Dropi), a un
+mayorista local o por importación, el panel puede guardar a quién se le compra
+cada variante y a cuánto. Para prenderlo, en `src/config/tienda.ts`:
+
+```ts
+proveedores: true,
+```
+
+y redeploy. Con el flag prendido, la ficha de cada producto en el panel
+(owner y staff: hace falta la capacidad `precios`) suma:
+
+- **Enlace de compra (privado)**: dónde se repone el producto.
+- **Proveedores y costos (privado)**, por variante: proveedor, tipo
+  (Dropi, local, importación, otro), costo unitario en guaraníes, stock que
+  declaró el proveedor y el día en que se miró, enlaces `https://` al producto
+  y al proveedor, notas. Una oferta por variante puede ser la **preferida**
+  (activa, confirmada y con costo) y el panel muestra el margen bruto de cada
+  una contra el precio de venta.
+
+Lo que **no** hace, con el flag como sea:
+
+- Nada de esto llega a la tienda: ni a la ficha, ni al feed de Google, ni al
+  sitemap, ni al JSON-LD (`tests/unit/proveedores-privados.test.ts`).
+- El stock del proveedor es informativo: no cambia el stock que se vende, ni
+  las reservas, ni los pedidos.
+- No toca los modos de venta. "Sólo consulta" (`enquiry`, botón de WhatsApp
+  en vez de "Agregar al carrito") y "muestra" (`showcase`) siguen en el
+  formulario de producto para todas las tiendas, con o sin proveedores.
+
+Apagarlo de nuevo esconde los campos pero **no borra** lo cargado (la tabla
+`supplier_offers` y `products.supplier_url` quedan, y el backup las incluye).
+Duplicar un producto copia el enlace de compra pero no las ofertas: hay que
+volver a confirmar que el proveedor vende lo mismo. Necesita la migración
+`0025` (viene con el template; en una tienda existente, la corre el setup
+después del deploy). La planilla del catálogo trae columnas de proveedor
+(Proveedor, URL proveedor, Costo proveedor, Stock proveedor) que sólo se
+exportan e importan con el flag prendido; apagado, se ignoran con un aviso
+(docs/CATALOGO-CSV.md § "Proveedores").
+
+Una tienda creada antes de este flag no tiene el campo en su `tienda.ts`
+(`template:sync` conserva el suyo): compila igual y queda apagado hasta que
+lo agregue.
 
 ### 4c. ¿Entrar sin contraseña? (opcional, apagado)
 
@@ -744,6 +787,10 @@ del template. Lo que sigue es sólo dónde encontrarlo:
 - **Destacados y categorías con foto.** El toggle "Destacado" del formulario
   de producto elige lo que muestra la home bajo el título "Destacados"; sin
   ninguno elegido, la home sigue mostrando "Novedades" como siempre.
+  **Orden en destacados**, al lado del toggle, los ordena a mano (más chico,
+  más adelante; con el mismo número va primero el publicado más reciente).
+  Está siempre, sin flag: no es dato de proveedores. Dejándolo en 0 la home
+  ordena como siempre.
   `/admin/categorias` acepta una descripción y una foto por categoría —
   aparecen arriba de la grilla en `/categoria/<slug>` cuando están cargadas, y
   la descripción entra también en el `<meta name="description">` de esa
@@ -758,8 +805,8 @@ del template. Lo que sigue es sólo dónde encontrarlo:
   está, con su fila en el ledger de devoluciones (`refunds`, ARCH.md §2).
 - **Backups automáticos y restauración.** Corren solos con la entrada de cron
   del hPanel (DEPLOY.md §5, tercera entrada) — nada que prender a mano más
-  allá de tener Cloudinary configurado. Restaurar una copia es
-  `pnpm restore -- <archivo.jsonl.gz>` (README.md, DEPLOY.md §"Restaurar una
+  allá de tener R2 configurado. Restaurar una copia es
+  `pnpm restore -- --r2 ultimo` (README.md, DEPLOY.md §"Restaurar una
   copia"): sólo corre contra una base cuyo nombre contenga `restore` o `test`.
 
 ### La distribución automática del template (S13)
@@ -837,26 +884,47 @@ los unitarios de cada tienda ya sincronizada. 0 minutos de Actions.
 
 ### CI y minutos de Actions
 
-`ci.yml` viaja a todas las tiendas y cuesta distinto según el repo: en uno
-**público** los runners estándar de GitHub son gratis y sin límite; en uno
-**privado** cada minuto se descuenta de la cuenta (Linux 1x), y diez tiendas
-privadas corriendo todo en cada push se comían el mes en días. Cada job mira
-si el repo es privado y se adapta solo:
+`ci.yml` viaja a todas las tiendas. En un repo **público** los runners
+estándar de GitHub son gratis y sin límite; en uno **privado** cada minuto se
+descuenta de la cuenta (Linux 1x) y **cada job se redondea al minuto entero**.
+En un PR corre lo barato, en los dos. Lo caro (navegador, Lighthouse) corre
+después de cada merge **sólo en un repo público** (el template, gratis); en
+uno privado (una tienda) corre cuando hace falta y no en cada merge.
 
-| Qué | Repo público | Repo privado |
-|---|---|---|
-| `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | cada PR y cada push a `main` | cada PR |
-| `e2e` (Playwright) | cada PR y cada push a `main` | label `ci-completo`, corrida manual (Actions → CI → Run workflow), o un PR de distribución (rama `template/…`) |
-| `lighthouse` | cada push a `main`, o a mano | sólo a mano |
-| `distribuir.yml`, `pnpm-al-dia.yml` | sólo en el repo del template | sólo en el repo del template |
+| Qué | En un PR | Push a `main` (después de mergear) | A mano (Actions → CI → Run workflow) |
+|---|---|---|---|
+| `checks` (drift de `drizzle/`, typecheck, lint, unitarios + integración con MySQL, build) | siempre | sólo en un repo público (en uno privado ya corrió en el PR) | sí |
+| `e2e` (Playwright) | sólo con el label `ci-completo` o en un PR de distribución (rama `template/…`) | sólo en un repo público | sí |
+| `lighthouse` (mobile, nunca bloquea) | nunca | sólo en un repo público, después del `e2e` | sí |
+| `mariadb.yml` (la suite contra MariaDB) | sólo en un repo público | sólo en un repo público | sí |
+| `distribuir.yml`, `pnpm-al-dia.yml` | — | sólo en el repo del template | sólo en el repo del template |
 
-En los dos casos, un PR de sólo docs (`*.md`, `fable/`) no corre nada, y un
-push nuevo al mismo PR cancela la corrida anterior. En un repo privado,
-poner el label `ci-completo` dispara la corrida con e2e al toque (cualquier
-otro label no dispara nada); pedilo siempre que el PR toque checkout,
-`/admin`, o saque/mueva un `data-testid`. El label se crea una vez por repo
-(Issues → Labels → New label, `ci-completo`); en las tiendas lo crea el
-primer PR de distribución.
+- Un cambio de sólo docs (`*.md`, `fable/`) no corre nada, y una corrida nueva
+  del mismo PR (o de `main`) cancela la anterior (`concurrency`).
+- En un PR, poner el label `ci-completo` dispara la corrida con e2e al toque
+  (cualquier otro label no dispara nada, así que el que pone Renovate no
+  cuesta). Pedilo siempre que el PR toque checkout, `/admin`, o saque/mueva un
+  `data-testid`: en una tienda privada no hay otro e2e antes del próximo PR
+  de distribución (en el template, lo ataja `main`, ya mergeado). El label
+  se crea una vez por repo (Issues → Labels → New label, `ci-completo`); en las
+  tiendas lo crea el primer PR de distribución.
+- El PR `template/sync` de cada versión corre el e2e en la tienda **antes** de
+  mergear: es lo que verifica la maquinaria nueva en cada tienda (§ "La
+  distribución automática del template").
+- Lighthouse deja el puntaje de performance de cada página (0–100, meta ≥ 90)
+  en el resumen de la corrida (pestaña **Summary**). Es una alarma: un número
+  bajo no frena nada. Lo que sí bloquea es el presupuesto de JS de
+  `tests/e2e/presupuesto.spec.ts`, dentro del `e2e`.
+- Un e2e que falla en `main` (template) es un aviso para arreglar en el
+  próximo PR, no un bloqueo: el deploy de Hostinger no mira el CI.
+
+Cuánto cuesta, en un repo privado (aprox.: `checks` ~7 min, `e2e` ~9,
+`lighthouse` ~6): un PR común, ~7 min por push (los pushes seguidos se
+cancelan); un merge a `main`, 0; un PR `template/sync`, ~16 (checks + e2e);
+un `ci-completo`, ~9 más. Una tienda con 10 PRs mergeados al mes (~1,5
+pushes cada uno) y un PR de distribución: ~120 min/mes. El template es
+público: lo suyo no se cobra. Con muchas tiendas privadas activas a la vez,
+Billing → Actions desglosa por repo.
 
 El gate de cada día es local y gratis: `pre-commit` corre `typecheck` + `lint`
 y `pre-push` corre `pnpm test:unit` (los unitarios, en paralelo, ~15 s; husky,
@@ -870,64 +938,161 @@ va a recibir cambios por un tiempo: Settings → Actions → Disable actions.
 
 Si en tu repo la protección de `main` exige el check `checks`, un PR de sólo
 docs se queda esperándolo (no corre): mergealo como admin, o no marques
-`checks` como obligatorio.
+`checks` como obligatorio. No marques `e2e` ni `lighthouse` como
+obligatorios: en un PR común no corren.
+
+### Dependencias: Renovate (sólo en el template)
+
+Las dependencias se suben **en el template**, con Renovate
+(`.github/renovate.json`), y le llegan a cada tienda ya probadas, con el PR
+`template/sync` de la versión siguiente. Una tienda no tiene esa config
+(`SOLO_TEMPLATE`: `nueva-tienda` la borra, `template:sync` no la trae) ni
+recibe PRs de dependencias propios.
+
+Qué hace la config:
+
+- **Una ventana por semana**: sábado de 2 a 8 hs (hora de Asunción). Fuera de
+  ella no abre ni rebasea PRs, así no corre `checks` de más durante la semana.
+- **Un solo PR** con todo lo menor y parche (`dependencias menores`), uno con
+  las actions de los workflows, y uno de **lock file maintenance** (refresca
+  las transitivas de `pnpm-lock.yaml`). Una mayor sale en su PR propio;
+  `next` + `eslint-config-next` van juntos, y `react` + `react-dom` +
+  `@types/react*` también. Como mucho 3 PRs abiertos a la vez.
+- **Seguridad, al toque**: un arreglo de una vulnerabilidad sale apenas
+  Renovate lo ve, sin esperar al sábado ni competir con los otros PRs por el
+  límite (label `seguridad`).
+- Una versión recién publicada espera 3 días antes de proponerse (si la
+  retiran o la comprometen, no llega).
+- **Pines**: `eslint` < 10 y `typescript` < 7 (KNOWN-ISSUES.md), `@types/node`
+  en la mayor del runtime (22). `engines.node`, una mayor de pnpm y las
+  imágenes de MySQL/MariaDB del CI no se suben solas: se cambian a mano.
+- No mergea nada solo: una persona mira el CI y mergea.
+
+**Para prenderlo (una vez, una persona con admin en la cuenta):**
+
+1. Instalar la app de Renovate (de Mend) en <https://github.com/apps/renovate>
+   → **Install** (o **Configure** si ya estaba) → la cuenta
+   `antonmarklundcom` → **Only select repositories** → elegir **sólo**
+   `antonmarklundcom/ecom` → Install. *No* elegir "All repositories": en
+   cada tienda abriría un PR de onboarding y después PRs de dependencias que
+   ya llegan por `template/sync`. Como la config ya está en `main`, Renovate
+   no abre PR de onboarding en el template: arranca directo con el issue
+   **Dependency Dashboard**, desde donde se piden las actualizaciones
+   frenadas (una mayor de pnpm, por ejemplo).
+2. En el repo del template, Settings → Code security: dejar **Dependabot
+   alerts** prendido (Renovate las lee para los PRs de seguridad) y **apagar
+   Dependabot security updates**, que abriría un segundo PR por la misma
+   vulnerabilidad. Dependabot ya no tiene config de versiones
+   (`.github/dependabot.yml` se borró): no abre PRs de versión.
+3. Los logs de cada corrida de Renovate están en <https://developer.mend.io>
+   (entrar con GitHub).
 
 ### 5. Diseño
 
 #### El kit de temas
 
-El template trae **tres temas** listos, cada uno un archivo en
-`src/styles/temas/` con los mismos tokens de shadcn (oklch) en `:root` y en
-`.dark`:
+La piel de una tienda es, primero, **configuración**: un tema es un objeto de
+datos en [`src/themes/presets/`](./src/themes/presets) con
 
-| Tema | Para quién | Fuentes sugeridas | Redondeo |
+- los **tokens**: los 19 colores de shadcn (oklch) en claro y en oscuro, el
+  radio (`--radius`), y opcionalmente la **escala** de la vidriera —unidad de
+  espaciado, ancho del contenido y tamaños de letra— y los colores semánticos
+  (`--estrella`, `--oferta`, `--favorito`, `--velo`, `--sobre-velo`);
+- la **variante de header** (`clasico` | `centrado`) y la **de pie**
+  (`columnas` | `compacto`), que dibujan los mismos `data-testid`;
+- el **orden de las secciones de la home** (`hero`, `categorias`,
+  `destacados`; la que no está, no se dibuja).
+
+| Tema | Para quién | Header / pie / home | Fuentes sugeridas |
 |---|---|---|---|
-| `neutro` (default) | el comercio sin identidad de color definida — fotos y logo hacen el trabajo | `Geist` / `Geist Mono` (las de hoy, sin tocar `layout.tsx`) | `0.625rem` |
-| `calido` | rubros cálidos/artesanales: comida, cuero, decoración, "de campo" | `Fraunces` (títulos) + `Figtree` (cuerpo) | `1rem` |
-| `oscuro-vivo` | tech, gaming, indumentaria urbana — fondo oscuro **fijo** (no depende del modo del celular) con acento saturado | `Sora` (títulos) + `Inter` (cuerpo) | `0.25rem` |
+| `clasico` (default, el base) | el comercio sin identidad de color definida — fotos y logo hacen el trabajo. Es la tienda de siempre, byte a byte | clásico / columnas / portada → categorías → destacados | `Geist` / `Geist Mono` (las de hoy) |
+| `vitrina` | boutiques, moda, joyería, regalos: pocas categorías y mucha foto. Papel y tinta con un verde profundo, más aire y letra más grande | logo al centro / compacto / portada → destacados → categorías | `Playfair Display` + `DM Sans` |
+| `calido` | rubros cálidos/artesanales: comida, cuero, decoración, "de campo". Redondeo grande | los del base | `Fraunces` + `Figtree` |
+| `oscuro-vivo` | tech, gaming, indumentaria urbana — fondo oscuro **fijo** con acento saturado, redondeo chico | los del base | `Sora` + `Inter` |
 
-`src/app/globals.css` no define los colores: importa uno solo de estos
-archivos (`@import "../styles/temas/neutro.css";`). **Elegir un tema es
-cambiar esa línea**, a mano o con el wizard:
+(`neutro`, el nombre de antes del kit, sigue valiendo: es `clasico`.)
+
+**Elegir un tema** es una línea en [`src/config/tienda.ts`](./src/config/tienda.ts):
+`tema: "vitrina"`. El wizard la escribe:
 
 ```bash
-pnpm nueva-tienda --tema calido        # sin terminal interactiva (CI, script)
-pnpm nueva-tienda                      # interactivo: pregunta "¿Tema?" con lo que ya hay como default
+pnpm nueva-tienda --tema vitrina       # sin terminal interactiva (CI, script)
+pnpm nueva-tienda                      # interactivo: lista los temas y pregunta, con el de hoy como default
 ```
 
-Sin `--tema` y sin terminal interactiva (el caso de `pnpm bootstrap:repo` o
-un script), el default es el tema que `globals.css` ya tenía importado —
-`neutro` si todavía no importaba ninguno. El wizard es idempotente: pedir el
-mismo tema dos veces no reescribe el archivo.
+Cómo llega al navegador: `src/app/globals.css` importa
+[`src/themes/temas.css`](./src/themes/temas.css), que trae **todos** los temas
+—el base en `:root`, cada otro bajo `<html data-tema="…">`— y `layout.tsx`
+pone `data-tema` con el de `tienda.ts`. `temas.css` es **generado** desde los
+presets (`pnpm temas:css`; Tailwind v4 necesita el CSS estático) y
+`tests/unit/temas.test.ts` falla si quedó viejo. Header, pie y home leen la
+variante y el orden con `temaActivo()` (`src/themes/index.ts`), sólo en el
+servidor. El color de marca de `/admin/ajustes` → Identidad le sigue ganando
+al `--primary` del tema.
 
-Cada archivo de tema lleva en su cabecera para quién es, el par de fuentes
-sugerido y las dos líneas exactas de `src/app/layout.tsx` que hay que
-cambiar para usarlas (las fuentes **siguen viviendo ahí**, vía
-`next/font/google` — el tema sólo trae la sugerencia en un comentario, no
-las cablea).
+**Qué es de cada tienda y qué es del template:**
 
-**Crear un cuarto tema:**
+| De la tienda — `template:sync` no lo pisa | Del template — llega solo con `template:sync` |
+|---|---|
+| `tema` en `src/config/tienda.ts` | `src/themes/tipos.ts`, `css.ts`, `index.ts`, los presets y `temas.css` (piel común: si la tienda los cambió quedan los suyos, si no se actualizan) |
+| **`src/themes/custom.css`**: retoques de CSS, cargado último. El template lo trae vacío y **nunca** lo pisa, aunque la tienda no lo haya tocado (`DE_LA_TIENDA` en `scripts/template-shared.ts`) | `scripts/temas-css.ts` y los tests (maquinaria) |
+| textos (`tienda.ts`, `src/i18n/es-PY.ts`), fotos, logo, favicon, fuentes en `layout.tsx` | `src/themes/semanticos.css` (los defaults de los colores semánticos) |
+| un preset propio en `src/themes/presets/` | |
 
-1. Copiar `src/styles/temas/neutro.css` a `src/styles/temas/<nombre>.css`.
-2. Cambiar los valores de `:root` y `.dark` — las **mismas** 19 variables
-   (más `--radius`, sólo en `:root`) tienen que estar en los dos bloques;
-   `tests/unit/temas.test.ts` lo verifica leyendo los `.css`, no confía en
-   memoria, así que un tema con una variable de menos hace fallar el test
-   en vez de dejar un botón invisible en producción.
-3. Escribir la cabecera (para quién, fuentes sugeridas, líneas de
-   `layout.tsx`) — el test también la exige.
-4. **Sólo en el template**, y sólo si querés que el wizard lo ofrezca:
-   agregar `<nombre>` a la lista `TEMAS` de `scripts/nueva-tienda.ts`. En una
-   tienda no hace falta —ni conviene: ese archivo es maquinaria—.
-   `tests/unit/temas.test.ts` revisa **todos** los `.css` de
-   `src/styles/temas/`, esté o no el nombre en `TEMAS`.
-5. `pnpm nueva-tienda --tema <nombre>` para probarlo, y `pnpm build` una vez
-   con el `@import` apuntando a ese archivo (después volver a dejar el tema
-   que la tienda usa).
+**Retocar sin tema nuevo** — `src/themes/custom.css`:
 
-Nada de esto se lee en runtime: es CSS puro y una línea de `@import`. Ningún
-componente importa el nombre del tema ni cambia de comportamiento según
-cuál esté activo.
+```css
+:root {
+  --primary: oklch(0.55 0.2 260);
+  --radius: 0.5rem;
+  --estrella: oklch(0.7 0.15 80);
+}
+[data-site-header] { --spacing: 0.3rem; }
+```
+
+Un `:root { … }` ahí le gana al tema sin `!important`: los temas usan
+`:root:where([data-tema="…"])`, que pesa lo mismo que `:root`, y
+`custom.css` va último.
+
+**Crear un tema nuevo:**
+
+1. Copiar `src/themes/presets/vitrina.ts` a `src/themes/presets/<nombre>.ts`,
+   cambiarle el `id` y lo que quieras: hereda del base todo lo que no
+   escribas (`extenderTema`).
+2. Registrarlo en `TEMAS` de `src/themes/presets.ts` (sin esa línea no existe:
+   `tienda.ts` no compila con su nombre y el CSS no lo trae).
+3. `pnpm temas:css` y commitear `src/themes/temas.css`.
+4. `tema: "<nombre>"` en `tienda.ts` y `pnpm dev` para verlo.
+
+`tests/unit/temas.test.ts` verifica que cada preset tenga los 19 colores en
+claro y en oscuro, que las variantes y secciones existan y que el CSS
+commiteado sea el que sale de los presets. Una variante de header o de pie
+nueva se arma en `site-header.tsx` / `site-footer.tsx` con las mismas piezas
+(`MarcaLink`, `Acciones`, `MenuCategorias`…) y se suma a `VARIANTES_HEADER` /
+`VARIANTES_FOOTER` de `src/themes/tipos.ts`;
+`src/components/__tests__/tema-variantes.test.tsx` prueba los `data-testid` de
+**todas** las variantes.
+
+**Los colores salen de los tokens, nunca escritos a mano.** En la vidriera
+(`src/components/**` y `src/app/**` menos `/admin`) un `text-red-500`, un
+`bg-white` o un `#25D366` no cambian con el tema y en `oscuro-vivo` dejan un
+texto invisible: `tests/unit/piel-sin-colores.test.ts` los bloquea. Se usa un
+token (`bg-primary`, `text-muted-foreground`…) o un semántico
+(`text-(--estrella)`, `bg-(--velo)/45`); quien use un semántico importa
+`@/themes/semanticos.css`, para que el default llegue también a una tienda con
+su propio `globals.css`. Las excepciones de verdad (el verde de WhatsApp, el
+fondo blanco del QR, la imagen de Open Graph) están en la lista `PERMITIDOS`
+del test, cada una con su motivo.
+
+**Tiendas de antes del kit.** `src/styles/temas/{neutro,calido,oscuro-vivo}.css`
+siguen existiendo (los mantiene `pnpm temas:css` desde los presets): un
+`globals.css` que todavía dice `@import "../styles/temas/<x>.css";` sigue
+andando, y el wizard sigue reescribiendo esa línea para los temas que tienen
+archivo ahí. Para usar `vitrina` o un tema propio hay que pasar al formato del
+kit: cambiar esa línea por `@import "../themes/temas.css";` y agregar
+`@import "../themes/custom.css";` al final de `globals.css`. Un `tienda.ts`
+sin el campo `tema` dibuja el header, el pie y la home del default, como
+siempre.
 
 #### Del mockup al código
 
@@ -938,16 +1103,19 @@ esa traducción, para no volver a deducirla en cada sesión:
 
 | Lo que ves en el mockup | Dónde vive en el código | Nota |
 |---|---|---|
-| Paleta: fondo, texto, color principal, bordes | `src/styles/temas/<tema>.css` → `:root` y `.dark` (`globals.css` sólo importa uno) | Tokens de shadcn en **oklch**. Tres temas listos (§5 "El kit de temas") + `pnpm nueva-tienda --tema`; cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
-| Modo oscuro | mismo archivo, bloque `.dark` | Si sólo tocás `:root`, la tienda queda linda de día y rota de noche. Cambiá los dos o ninguno |
-| Redondeo de botones, cards, inputs | `--radius` en `src/styles/temas/<tema>.css` | Un solo número por tema; `--radius-sm/md/lg/xl` salen de ahí (`globals.css` los mapea en `@theme inline`) |
+| Paleta: fondo, texto, color principal, bordes | `tema` en `src/config/tienda.ts` (uno de `src/themes/presets/`) y, para retocar, `src/themes/custom.css` | Tokens de shadcn en **oklch**. Cuatro temas listos (§5 "El kit de temas") + `pnpm nueva-tienda --tema`; cambiás las variables, no las clases: todo el sitio las consume vía Tailwind |
+| Modo oscuro | `oscuro` del preset, o `.dark` en `custom.css` | Si sólo tocás el claro, la tienda queda linda de día y rota de noche. Cambiá los dos o ninguno |
+| Redondeo de botones, cards, inputs | `radio` del preset, o `--radius` en `custom.css` | Un solo número por tema; `--radius-sm/md/lg/xl` salen de ahí (`globals.css` los mapea en `@theme inline`) |
+| Aire y tamaño de letra del header, el pie y la home | `escala` del preset (`espaciado`, `ancho`, `texto`) | Pisa `--spacing`, `--container-6xl` y `--text-*` de Tailwind **sólo** ahí: checkout, ficha y panel no cambian de tamaño |
 | Tipografía (títulos y cuerpo) | `src/app/layout.tsx` | Fuentes de `next/font/google`. Reemplazá `Geist`/`Geist_Mono` manteniendo las variables `--font-geist-sans` / `--font-geist-mono`, que es lo que `globals.css` mapea en `@theme inline` |
-| Barra de arriba: logo, buscador, carrito, menú de categorías | `src/components/site-header.tsx` | Libre. Lo único que no conviene sacar es `CartButton` |
+| Barra de arriba: logo, buscador, carrito, menú de categorías | `header` del preset (`clasico` / `centrado`); a medida, `src/components/site-header.tsx` | Libre. Lo único que no conviene sacar es `CartButton`; una variante nueva se arma con las piezas del archivo |
 | Portada / hero de la home | `hero` en `src/config/tienda.ts`, y si no alcanza `src/components/home-hero.tsx` | Ver abajo: una portada de temporada no necesita tocar código |
-| Resto de la home: grilla de destacados, categorías, secciones nuevas | `src/app/page.tsx` | Es de la tienda entera |
+| Resto de la home: grilla de destacados, categorías, secciones nuevas | orden: `home` del preset; markup y secciones nuevas: `src/app/page.tsx` | Es de la tienda entera. Una sección nueva lleva un id en `SECCIONES_HOME` (`src/themes/tipos.ts`) |
 | Ficha de producto en la grilla | `src/components/product-card.tsx` | El precio "desde" y el badge de stock salen de `price-tag.tsx` y `stock-badge.tsx` |
 | Foto de producto y sus placeholders | `src/components/product-image.tsx`, `public/placeholders/` | Cuatro placeholders dibujados, uno por categoría del seed; cualquier otra categoría cae en `categoria.svg` con su nombre en texto (no en el mismo dibujo de "producto sin foto") |
-| Pie: columnas, contacto, WhatsApp | `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
+| Ancho de las fotos en la grilla, la ficha y la portada | `src/lib/image-sizes.ts` (`IMAGE_SIZES`) | Si cambiás la grilla (3 columnas, otro contenedor), cambiá el `sizes` ahí. Toda `<Image>` de la vidriera lleva `sizes` (`tests/unit/image-sizes.test.ts`) |
+| Ficha de producto y página de categoría | `src/app/producto/[slug]/page.tsx`, `src/app/categoria/[slug]/page.tsx` | Rediseñá esos archivos; **no** las gemelas `…/con-parametros/page.tsx`, que reusan la misma página para los links con parámetros (§7b). Dejá `export const dynamic`/`revalidate` y no leas `cookies()`/`headers()` ahí |
+| Pie: columnas, contacto, WhatsApp | `footer` del preset (`columnas` / `compacto`); a medida, `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
 | Botón flotante de WhatsApp | `src/components/whatsapp-fab.tsx` | El número sale del entorno (`src/lib/comercio.ts`) |
 | Nombre, título del navegador, tagline, meta description | `src/config/tienda.ts` | **Nunca** en un componente: `tests/unit/marca-centralizada.test.ts` lo bloquea |
 | Imagen que se ve al compartir el link | `src/app/opengraph-image.tsx` | Se dibuja sola con el nombre y el tagline. No hay que subir nada |
@@ -958,21 +1126,20 @@ Dos cosas que el mockup va a mostrar y **no** son piel: el checkout
 repinta con cuidado, ver la tabla de abajo) y `/admin`, que se puede repintar
 pero no rediseñar en su lógica.
 
-Orden que funciona: tokens de `globals.css` → tipografía en `layout.tsx` →
-header y footer → home → `product-card`. Los dos primeros pasos ya mueven el
+Orden que funciona: el tema (`tienda.ts`) y sus retoques (`custom.css`) →
+tipografía en `layout.tsx` → header y footer → home → `product-card`. Los dos primeros pasos ya mueven el
 80% de lo que se ve, y hacerlos antes evita retocar a mano colores que las
 variables iban a resolver solas.
 
 **La portada de la home** se cambia sin tocar código: `hero` en
-[`src/config/tienda.ts`](./src/config/tienda.ts) acepta una foto de Cloudinary,
+[`src/config/tienda.ts`](./src/config/tienda.ts) acepta una foto de R2 (`imageRef`),
 un título, una bajada y un botón. Con `hero: null` (el default) sale la portada
 del template. Es lo que le permite al comercio cambiar su banner de temporada
 solo; todo lo demás de la home se rediseña editando `src/app/page.tsx`.
 
-Todo el color y el radio viven en `src/styles/temas/<tema>.css` (`:root` y
-`.dark`, tokens de shadcn en oklch; `globals.css` sólo importa el archivo
-activo) y se consumen vía Tailwind. Cambiar la paleta = elegir un tema
-(§5 "El kit de temas") o editar esas variables directamente, nada más. La
+Todo el color y el radio salen del tema (`src/themes/`, tokens de shadcn en
+oklch) y se consumen vía Tailwind. Cambiar la paleta = elegir un tema (§5 "El
+kit de temas") o pisar esas variables en `src/themes/custom.css`, nada más. La
 tipografía se cambia en `src/app/layout.tsx` (fuentes de
 `next/font/google`).
 
@@ -981,7 +1148,7 @@ Qué se puede redibujar libremente y qué no:
 | Piel — rediseñá lo que quieras | Maquinaria — no la bifurques por tienda |
 |---|---|
 | `site-header`, `site-footer`, home, `product-card`, páginas de categoría | `src/domain/**` (estados del pedido, stock, plata, Pagopar) |
-| tokens de `globals.css`, tipografía, imágenes | checkout y sus rutas API |
+| `tema` de `tienda.ts`, `src/themes/custom.css`, presets, tipografía, imágenes | checkout y sus rutas API |
 | textos y copy | `/admin` completo |
 | | `src/lib/**` (sesión, seguridad, guaraníes) |
 
@@ -1007,14 +1174,20 @@ avisa si alguno de la lista deja de aparecer en `src/`.
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test
-pnpm preflight     # qué falta para cobrar plata (banco, cron, modo Pagopar)
+pnpm preflight     # qué falta para cobrar plata (banco, cron, modo Pagopar, Cloudflare proxeado)
 pnpm reconcile     # control de caja: totales e invariantes entre tablas
 ```
 
 Deploy: el runbook completo está en **[DEPLOY.md](./DEPLOY.md)** — el flujo git
 de Hostinger, las trampas del SSH, la base de datos, el cron cada 15 minutos
-contra `/api/cron/vencer-pedidos` y la prueba de humo. Acordate además de
-registrar la URL de respuesta de Pagopar.
+contra `/api/cron/vencer-pedidos` y la prueba de humo. Si la tienda cobra con
+tarjeta, acordate además de registrar en el panel de Pagopar la URL de
+respuesta (`https://tu-dominio/api/webhooks/pagopar`) y la de retorno
+(`https://tu-dominio/pedido/pagopar/retorno`); los pasos completos, con el
+test de sandbox y qué mirar en el primer aviso real, están en TASKS.md §21.
+`pnpm start` es `next start` (no se configura nada en el hPanel); si los
+redeploys dejan procesos colgados, DEPLOY.md § "Procesos que se apilan"
+explica el control opcional `pnpm start:guard`.
 
 ### 7. Google Shopping y el catálogo de Meta (después del lanzamiento)
 
@@ -1033,6 +1206,39 @@ vuelven a leer solos:
 Sin `NEXT_PUBLIC_SITE_URL` el feed responde 404 (sin dominio no hay links), y
 un producto sin foto no entra (Google lo rechazaría). No hay nada que
 configurar en la tienda.
+
+### 7b. SEO y caché de la vidriera (no hay nada que configurar)
+
+Lo que la tienda le dice a Google sale solo, de los datos que ya cargó el
+dueño. Nada de esto tiene variables propias:
+
+- **Datos estructurados (JSON-LD)**, armados en `src/lib/seo.ts`:
+  - en todas las páginas, `Organization` (nombre, logo, WhatsApp, email y redes
+    de `/admin/ajustes`) y `WebSite` con el buscador de `/buscar`;
+  - en la ficha, `Product` —o `ProductGroup` si las variantes tienen una
+    dimensión verificada— con precio en PYG, disponibilidad y estrellas sólo de
+    reseñas aprobadas, más `BreadcrumbList`;
+  - en la categoría, `BreadcrumbList` e `ItemList`.
+
+  Con el precio oculto o en modo consulta/vidriera no se publica precio.
+  Sin `NEXT_PUBLIC_SITE_URL` no salen ni `Organization` ni `WebSite`. Para
+  revisarlo: [Rich Results Test](https://search.google.com/test/rich-results)
+  con la URL de una ficha.
+- **`/sitemap.xml`**: home, categorías activas, productos publicados (también
+  los de consulta: su ficha existe y se puede encontrar) y páginas de políticas
+  prendidas, con URLs absolutas y fecha de último cambio. `robots.txt` apunta a
+  él y bloquea panel, checkout, pedido y cuenta. Se carga una vez en Google
+  Search Console → Sitemaps.
+- **Caché**: la home, la categoría y la ficha se sirven ya armadas (ISR,
+  ARCH.md §6 "Caché de la vidriera") y se rearman en cuanto el panel guarda
+  algo o entra/vence un pedido. Si el dueño dice "cambié el precio y no se ve",
+  no es la caché: la primera visita después de guardar ya ve el dato nuevo.
+  Los links con filtros o `?variante=` se renderizan por request (por eso
+  existen las carpetas `con-parametros/`: no las borres ni las rediseñes).
+- **Lighthouse** (`.lighthouserc.json`): celular, performance ≥ 0.9 como
+  advertencia, más accesibilidad, buenas prácticas y SEO. Corre en el CI del
+  template; en una tienda, contra su dominio, con
+  `npx lighthouse https://DOMINIO/producto/<slug> --form-factor=mobile`.
 
 ---
 
@@ -1069,7 +1275,7 @@ la de la tienda y la del template ahora, y decide:
 | Maquinaria que la tienda no tiene y el template cambió | vuelve (la maquinaria no se saca por tienda) |
 | Piel o docs que la tienda cambió o borró (home, `product-card`, `README.md`, `CLAUDE.md`…) | queda lo de la tienda; se lista |
 | Mixtos (`checkout-form.tsx`, `src/app/admin`) que la tienda cambió | queda lo de la tienda; se listan aparte para mirar la lógica nueva a mano |
-| `fable/`, `.github/dependabot.yml`, `tiendas.json` | nunca viajan (y se sacan si una tienda vieja los tiene) |
+| `fable/`, `.github/renovate.json`, `.github/dependabot.yml`, `tiendas.json` | nunca viajan (y se sacan si una tienda vieja los tiene) |
 | `pnpm-lock.yaml` | el del template si las dependencias quedaron iguales; si no, se regenera |
 
 Maquinaria acá es `src/domain`, `src/lib`, `src/db`, `src/app/api`,
@@ -1156,7 +1362,7 @@ esas variables del hPanel (Redeploy), para no dejar dos verdades. Si la tienda
 sincroniza el código antes de migrar, la lectura de la tabla falla en silencio
 (queda en el log) y todo sigue saliendo del entorno.
 
-Sigue valiendo lo de siempre: Dependabot no mueve nada de esto y las columnas
+Sigue valiendo lo de siempre: Renovate no mueve nada de esto y las columnas
 no se agregan a mano en el hPanel — la migración es la única fuente.
 
 ### Migraciones propias de una tienda
@@ -1214,6 +1420,39 @@ transacción abierta ya no cuelga la tienda: falla y se reintenta).
 
 Si algún día son muchas tiendas, recién ahí conviene sacar `src/domain` y
 `src/lib` a un paquete compartido. Antes de eso es complejidad sin pagar.
+
+### Migrar las fotos a R2 (una tienda de antes del cambio)
+
+Desde esta versión, fotos, comprobantes y copias de seguridad viven en
+**Cloudflare R2** (DEPLOY.md §3b). Una tienda que ya tenía fotos en el
+almacenamiento anterior **no se rompe** al traer el cambio: cada referencia
+vieja se dibuja como el placeholder de su categoría (nunca una imagen rota) y
+`pnpm preflight` dice cuántas quedan. Para traerlas, una sola vez:
+
+```bash
+# 1. R2 configurado (DEPLOY.md §3b) y DATABASE_URL apuntando a la tienda.
+# 2. Ensayo: cuenta y lista, no baja ni escribe nada.
+pnpm fotos:migrar-cloudinary -- --cloud <nombre-de-la-cuenta-vieja>
+# 3. De verdad: baja cada original por su URL pública, lo achica, lo sube a R2
+#    y recién después reescribe la referencia.
+pnpm fotos:migrar-cloudinary -- --cloud <nombre-de-la-cuenta-vieja> --aplicar
+```
+
+- Migra fotos de producto, de categoría, el QR del banco y la portada, el logo
+  y el favicon de `/admin/ajustes`. Es **idempotente**: lo que ya es `r2:` no
+  se toca y la misma foto da la misma clave, así que se puede cortar y volver
+  a correr.
+- **Comprobantes** (eran privados): sólo si se agregan `--api-key K
+  --api-secret S` de la cuenta vieja (por la línea de comandos, nunca en un
+  archivo). Sin eso quedan donde estaban y el panel los muestra como "de antes
+  del cambio": los pedidos ya revisados no los necesitan; los que esperan
+  revisión, migralos o pedile el comprobante de nuevo a la compradora.
+- `hero.imagen` de `src/config/tienda.ts` es código: el script sube la foto e
+  imprime la referencia nueva para pegarla a mano (el campo ahora se llama
+  `imageRef`; una tienda que lo tenía cargado tiene que renombrarlo, o
+  typecheck falla).
+- Cuando `pnpm preflight` dice "todas son de R2", la cuenta vieja ya no hace
+  falta para la vidriera.
 
 ## Catalogue inheritance upgrade
 

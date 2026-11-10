@@ -23,6 +23,32 @@ export type BackupEnd = {
   rows: number;
   sha256: string;
 };
+/** Un objeto de un set de formato 3: una tabla. */
+export type BackupSetObject = {
+  table: string;
+  /** Relativo al set: `<tabla>.jsonl.gz`. */
+  name: string;
+  rows: number;
+  /** SHA-256 de las líneas sin comprimir (`{"table":…,"row":…}\n`), en orden. */
+  sha256: string;
+  /** Bytes del `.gz` tal como está guardado. */
+  bytes: number;
+  /** SHA-256 del `.gz`: detecta un objeto cambiado o truncado sin descomprimir. */
+  gzSha256: string;
+};
+/**
+ * El `manifest.json` de un set de formato 3. Lleva todo lo del manifiesto del
+ * formato 2 (versión de migración, servidor, app, tablas, keyCheck) más la
+ * lista de objetos y el total de filas con el hash de todas las líneas en el
+ * orden de `tables`. Se escribe último.
+ */
+export type BackupSetManifest = Omit<BackupManifest, "type" | "format"> & {
+  type: "backup-set";
+  format: 3;
+  objects: BackupSetObject[];
+  rows: number;
+  sha256: string;
+};
 export function backupKeyCheck(): string | null {
   const secret = process.env.SESSION_SECRET;
   if (!validSessionSecret(secret)) return null;

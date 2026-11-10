@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
 import { t } from "@/i18n/client";
-import { categoryPlaceholderSrc, productImageUrl } from "@/lib/images";
+import { ImagenR2 } from "@/components/imagen-r2";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
+import type { FuentesR2 } from "@/lib/imagenes-r2";
 import { formatGs, isChargeablePrice } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
 
@@ -37,7 +39,15 @@ export type RecentlyViewedItem = {
    * dibuja (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1).
    */
   pricePyg: number | null;
-  imageCloudinaryId: string | null;
+  imageRef: string | null;
+  /**
+   * Las URLs de la foto de tarjeta, ya armadas por el servidor
+   * (`productImageSources`). Se guardan así y no se rearman acá para que la
+   * ficha de producto no cargue en el navegador el código que arma URLs de R2
+   * (presupuesto de JS, tests/e2e/presupuesto.spec.ts). Una entrada sin esto
+   * (guardada antes) se dibuja con el placeholder.
+   */
+  imageFuentes?: FuentesR2 | null;
   imageAlt: string | null;
   /**
    * La foto guardada es ilustrativa (no es este producto): se dibuja con su
@@ -58,8 +68,14 @@ function isItem(value: unknown): value is RecentlyViewedItem {
     item.slug !== "" &&
     typeof item.name === "string" &&
     (item.pricePyg === null || Number.isInteger(item.pricePyg)) &&
-    (item.imageCloudinaryId === null ||
-      typeof item.imageCloudinaryId === "string") &&
+    // Las entradas guardadas antes del cambio a R2 no tienen `imageRef`:
+    // siguen valiendo, con el placeholder.
+    (item.imageRef === undefined ||
+      item.imageRef === null ||
+      typeof item.imageRef === "string") &&
+    (item.imageFuentes === undefined ||
+      item.imageFuentes === null ||
+      typeof item.imageFuentes === "object") &&
     (item.imageAlt === null || typeof item.imageAlt === "string") &&
     (item.imageIllustrative === undefined ||
       typeof item.imageIllustrative === "boolean")
@@ -85,6 +101,17 @@ function writeList(items: RecentlyViewedItem[]): void {
     // no se guarda nada, y no es un error — es sólo que esta compradora no
     // tiene "vistos recientemente" hoy.
   }
+}
+
+/**
+ * Lo guardado en `localStorage` se revisa antes de ir a un `src`: sólo URLs
+ * `https://` (React escapa los atributos). Cualquier otra cosa es el
+ * placeholder.
+ */
+function fuentesGuardadas(valor: unknown): FuentesR2 | null {
+  const f = valor as Partial<FuentesR2> | null | undefined;
+  const https = (texto: unknown) => typeof texto === "string" && texto.startsWith("https://");
+  return f && https(f.src) && https(f.jpeg) && https(f.srcSet) ? (f as FuentesR2) : null;
 }
 
 export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
@@ -122,7 +149,7 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {items.map((item) => {
-          const url = productImageUrl(item.imageCloudinaryId, "card");
+          const fuentes = fuentesGuardadas(item.imageFuentes);
           return (
             <Link
               key={item.slug}
@@ -132,17 +159,26 @@ export function RecentlyViewed({ current }: { current: RecentlyViewedItem }) {
               className="group border-border hover:border-foreground/20 focus-visible:ring-ring flex flex-col rounded-xl border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none"
             >
               <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
-                <Image
-                  src={url ?? categoryPlaceholderSrc("generico")}
-                  // El dibujo genérico no es el producto: decorativo, el
-                  // nombre ya está en el título de la tarjeta.
-                  alt={url ? (item.imageAlt ?? item.name) : ""}
-                  fill
-                  unoptimized={Boolean(url)}
-                  sizes="(max-width: 640px) 50vw, 300px"
-                  className="object-cover"
-                />
-                {url && item.imageIllustrative ? (
+                {fuentes ? (
+                  <ImagenR2
+                    fuentes={fuentes}
+                    alt={item.imageAlt ?? item.name}
+                    fill
+                    sizes={IMAGE_SIZES.card}
+                    className="object-cover"
+                  />
+                ) : (
+                  <Image
+                    src="/placeholders/generico.svg"
+                    // El dibujo genérico no es el producto: decorativo, el
+                    // nombre ya está en el título de la tarjeta.
+                    alt=""
+                    fill
+                    sizes={IMAGE_SIZES.card}
+                    className="object-cover"
+                  />
+                )}
+                {fuentes && item.imageIllustrative ? (
                   <span className="bg-background/85 text-foreground absolute inset-x-2 bottom-2 truncate rounded px-2 py-0.5 text-center text-xs">
                     {t("catalogo.imagenIlustrativa")}
                   </span>

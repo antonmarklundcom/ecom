@@ -176,6 +176,13 @@
       "when": 1791388939148,
       "tag": "0024_condemned_franklin_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1793764066332,
+      "tag": "0025_dear_arachne",
+      "breakpoints": true
     }
   ]
 }

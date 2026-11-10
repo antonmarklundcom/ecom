@@ -27,23 +27,6 @@ no lo va a ver. Al escribir una resta así, castear los operandos sin signo a
 (`tests/global-setup.ts` mira `SELECT VERSION()`): con ese aviso, el verde local
 no dice nada sobre estas restas.
 
-## El backup se sube como un solo archivo — fase O8
-
-`/api/cron/backup` sube el dump entero como **un** `.jsonl.gz`. Cloudinary
-limita el tamaño por archivo según el plan (10 MB en el free), así que una
-tienda con muchísimos pedidos podría llegar a un punto en que la subida falle
-—y ahí sí se entera, porque el aviso de backup fallido le llega al dueño por
-WhatsApp y queda el motivo en `job_runs.last_error`.
-
-No se arregló partiendo el dump en un archivo por tabla, que es lo que sugiere
-plan-operacion §5.4 A como alternativa: hoy ninguna tienda está cerca de ese
-tamaño, y partirlo agrega una forma nueva de fallar a medias (tres tablas
-subidas y dos no, sin nada que diga que ese backup está incompleto). Arreglo,
-cuando alguna tienda se acerque: un archivo por tabla **más** un manifiesto con
-la lista y el conteo de filas de cada uno, y que `restore` se niegue a correr
-si falta alguno. Mientras tanto, el dump comprimido de una tienda con miles de
-pedidos entra cómodo en 10 MB.
-
 ## `eslint` 10 no anda con `eslint-plugin-react` — fase S19
 
 `eslint-config-next@16.3.4` declara el peer como `eslint: ">=9.0.0"` (acepta
@@ -63,6 +46,12 @@ libere una versión que declare (y funcione con) `eslint-plugin-react` >= la
 que arregle `getFilename`. Reintentar entonces con `pnpm outdated` +
 `pnpm lint`, no antes.
 
+Sigue bloqueado (noviembre de 2026: `eslint-config-next@16.4.1` todavía trae
+`eslint-plugin-react@7.37.5`), y para que nadie lo suba por accidente está
+pineado en la config de Renovate (`.github/renovate.json`: `eslint`
+`allowedVersions: "<10"`). Cuando se destrabe, se saca esa regla (y su chequeo
+en `tests/unit/ci-minutos.test.ts`) en el mismo PR que sube `eslint`.
+
 ## `typescript` 7 no anda con `typescript-eslint` — fase S19
 
 `tsc --noEmit` pasa limpio con `typescript@7.0.2` (cero errores en todo el
@@ -75,7 +64,11 @@ todavía no se declara compatible, no un error para "adaptar".
 
 Arreglo: reintentar `typescript` 7 cuando `typescript-eslint` cierre el
 issue 10940 y publique una versión que declare soporte para TS >= 7.1 (o la
-serie que sea). Hasta entonces, `typescript` se queda en 5.9.x.
+serie que sea). Hasta entonces, `typescript` se queda en la mayor 6
+(`^6.0.3` en `package.json`, con `typescript-eslint@8.70.0`), pineado en la
+config de Renovate (`.github/renovate.json`: `typescript`
+`allowedVersions: "<7"`). Cuando se destrabe, se saca esa regla (y su chequeo
+en `tests/unit/ci-minutos.test.ts`) en el mismo PR que sube `typescript`.
 
 ## Presupuesto de JS: producto y checkout subieron el techo — 2026-09-23
 
@@ -107,6 +100,20 @@ con el catálogo poblado. Los límites anteriores no se aumentaron. Esto
 resuelve la importación del diccionario completo; los bundles de Next y las
 otras funciones del cliente siguen formando parte del presupuesto.
 
+## Presupuesto de JS: producto subió el techo con las fotos de R2 — 2026-11-04
+
+El cambio a R2 pasó el techo de la ficha de producto por 0,7 KB: 252.7 KB >
+252 (home 239.7 KB y checkout 244.9 KB siguen adentro; las dos crecieron ~4,5
+KB desde la medición del 2026-10-05 sin tocar fotos, así que la ficha ya venía
+justa). Lo nuevo en el cliente de la ficha es la galería con `<picture>` y
+`srcset` (`src/components/imagen-r2.tsx`), que convive con `next/image` para
+las fotos locales. Antes de subir el techo se sacó de la ficha el código que
+arma URLs de R2 (vistos recientemente guarda las URLs que arma el servidor) y
+una clave de texto del panel que viajaba en el catálogo público. Según la
+regla del spec, el techo pasó al valor medido + 10% (278). Candidato para
+recuperar el margen, en una fase aparte: que la galería no importe
+`next/image` cuando todas sus fotos son de R2.
+
 ## MariaDB 10.11 puede rechazar `RENAME COLUMN` de una columna JSON — 2026-10-07
 
 MariaDB guarda una columna `json` como `longtext` con un `CHECK
@@ -124,3 +131,49 @@ produce un `RENAME COLUMN` sobre una columna JSON, reescribir esa sentencia
 como `CHANGE … JSON NULL` antes de commitear la migración y probarla contra
 MariaDB (`.github/workflows/mariadb.yml`). La causa exacta en MariaDB no se
 investigó más allá de reproducirla.
+
+## La planilla sin "Modo de venta" valida el precio como venta con stock — foundation C
+
+`parseCatalogo` es puro y no sabe qué modo de venta tiene guardado cada
+producto. Si el archivo no trae la columna `Modo de venta`, una fila con ₲0 se
+valida como si el producto se vendiera con stock y es un error, aunque en la
+base esté en consulta (`enquiry`) o vidriera (`showcase`). El export siempre
+trae la columna, así que la ida y vuelta no lo sufre; lo sufre una planilla de
+sólo precios armada a mano que incluya esos productos. Arreglo: mover esa
+validación al plan (`buildCatalogImportPlan`), que sí mira la base, y aplicar
+el modo guardado cuando la columna falta. Ver docs/CATALOGO-CSV.md § "Una
+limitación".
+
+## La ficha cacheada: dos `Location` en la primera visita a un slug viejo — 2026-11-04
+
+Desde que `/producto/<slug>` es ISR (ARCH.md §6, "Caché de la vidriera"), la
+**primera** visita a un slug viejo (`product_slug_redirects`) responde el 308
+con el header `Location` repetido, las dos veces con el mismo valor; desde la
+caché sale uno solo. Es de Next 16.4 (la respuesta de un `permanentRedirect()`
+recién renderizado en ISR), no de este código: el proxy no toca `Location`.
+Chromium, Firefox y los crawlers aceptan copias idénticas, así que el redirect
+anda; `tests/e2e/catalogue-inheritance.spec.ts` compara los valores sin
+repetidos. Con `?variante=` no pasa (va por la gemela por request). Si Next lo
+corrige, el spec sigue pasando igual.
+
+## Caché de la vidriera: lo que no se invalida solo — 2026-11-04
+
+`revalidarVidriera()` tira la caché en cada escritura del panel, el checkout y
+el cron de vencimientos. Lo que cambia sin pasar por ahí se ve con hasta 5
+minutos de atraso (`revalidate = 300`): una reserva que vence entre corridas
+del cron, un pago tardío de Pagopar que revive un pedido (el webhook no
+invalida a propósito: es la ruta más sensible del sitio y el atraso es sólo
+visual — el checkout revalida el stock), un cambio hecho a mano en la base o
+por un script (`pnpm importar:productos`, `pnpm db:seed`). El dato que decide
+una compra nunca sale de la caché.
+
+Dos consecuencias de ISR que conviene saber:
+
+- La fecha de una categoría en el sitemap es la del último producto publicado
+  suyo que cambió: `categories` no tiene `updated_at`, así que editar sólo el
+  texto de la categoría no la mueve. Agregar la columna es una migración; no
+  se hizo para no sumarle una a esta fase.
+- Un slug que no existe también se cachea (el 404, 5 minutos): un bot que
+  recorre URLs inventadas deja una entrada por URL en la caché de Next
+  (memoria y `.next/`). Crear el producto con ese slug invalida todo, así que
+  no hay 404 viejos; lo que crece es la caché, y se vacía en cada deploy.

@@ -13,12 +13,14 @@ import {
   esPlaceholder,
   esTema,
   escribirTema,
+  escribirTemaTienda,
   fijarEnv,
   generarSecreto,
   leerCampoTienda,
   leerTemaActual,
   leerValorEnv,
   normalizarDominio,
+  normalizarTema,
   normalizarWhatsApp,
   parseFlags,
   reescribirTienda,
@@ -176,10 +178,10 @@ describe('completar el .env sin pisar lo que ya está', () => {
   });
 
   it('trata el placeholder de .env.example como vacío', () => {
-    const { contenido } = completarEnv('CLOUDINARY_CLOUD_NAME="changeme"\n', {
-      CLOUDINARY_CLOUD_NAME: 'tienda-py',
+    const { contenido } = completarEnv('R2_BUCKET="changeme"\n', {
+      R2_BUCKET: 'tienda-py',
     });
-    expect(leerValorEnv(contenido, 'CLOUDINARY_CLOUD_NAME')).toBe('tienda-py');
+    expect(leerValorEnv(contenido, 'R2_BUCKET')).toBe('tienda-py');
   });
 
   it('agrega la clave que no existe, al final', () => {
@@ -219,7 +221,7 @@ describe('los secretos', () => {
 describe('lo que se pega en el hPanel', () => {
   it('nunca imprime secretos ni URLs de conexión en el bloque de consola', () => {
     const marker = 'private-fixture-value-never-for-console';
-    const keys = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'DATABASE_URL', 'WHATSAPP_CLOUD_ACCESS_TOKEN', 'CLOUDINARY_API_KEY', 'PAGOPAR_PUBLIC_KEY', 'PAGOPAR_PRIVATE_KEY'];
+    const keys = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET', 'DATABASE_URL', 'WHATSAPP_CLOUD_ACCESS_TOKEN', 'R2_SECRET_ACCESS_KEY', 'PAGOPAR_PUBLIC_KEY', 'PAGOPAR_PRIVATE_KEY'];
     const block = bloqueHPanel(Object.fromEntries(keys.map((key) => [key, marker])));
     expect(block).not.toContain(marker);
     for (const key of keys) expect(block).toContain(`${key}=<copiá el valor de .env.local>`);
@@ -349,12 +351,11 @@ describe('fijar lo que la persona acaba de contestar', () => {
 });
 
 /**
- * `globals.css` **del template**, tal como queda después de S18: sólo el
- * `@import` del tema, no todo el archivo (no hace falta para probar el
- * lector/escritor del tema, y así el test no se rompe si `globals.css`
- * gana una regla nueva más abajo).
+ * `globals.css` de **antes del kit de temas**: el tema se elegía con este
+ * `@import`. Las tiendas creadas entonces lo siguen teniendo (es piel y
+ * `template:sync` no se lo cambia), así que el wizard lo sigue entendiendo.
  */
-const GLOBALS_TEMPLATE = `@import "tailwindcss";
+const GLOBALS_VIEJO = `@import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -362,52 +363,110 @@ const GLOBALS_TEMPLATE = `@import "tailwindcss";
 @import "../styles/temas/neutro.css";
 `;
 
-describe('el tema del kit de piel (--tema)', () => {
-  it('los tres temas del plan siempre están presentes y no hay duplicados', () => {
-    expect(TEMAS).toEqual(expect.arrayContaining(['neutro', 'calido', 'oscuro-vivo']));
+/** `globals.css` del kit: trae todos los temas y elige `tienda.ts`. */
+const GLOBALS_KIT = `@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "../themes/temas.css";
+
+@import "../themes/custom.css";
+`;
+
+/** Lo mínimo de `tienda.ts` para leer y escribir el tema. */
+const TIENDA_KIT = `export const TIENDA: Tienda = {
+  nombre: MARCA_PLACEHOLDER,
+  lang: "es-PY",
+  tema: "clasico",
+  hero: null,
+};
+`;
+/** Un `tienda.ts` de antes del kit: sin el campo `tema`. */
+const TIENDA_VIEJO = TIENDA_KIT.replace('  tema: "clasico",\n', '');
+
+describe('el tema del kit (--tema)', () => {
+  it('ofrece los presets del kit, sin duplicados, con el default primero', () => {
+    expect(TEMAS[0]).toBe('clasico');
+    expect(TEMAS).toEqual(expect.arrayContaining(['clasico', 'vitrina', 'calido', 'oscuro-vivo']));
     expect(new Set(TEMAS).size).toBe(TEMAS.length);
   });
 
-  it('esTema distingue lo conocido de lo inventado', () => {
-    expect(esTema('neutro')).toBe(true);
+  it('esTema distingue lo conocido de lo inventado; neutro es un alias de clasico', () => {
+    expect(esTema('clasico')).toBe(true);
+    expect(esTema('vitrina')).toBe(true);
     expect(esTema('calido')).toBe(true);
     expect(esTema('oscuro-vivo')).toBe(true);
     expect(esTema('minimalista')).toBe(false);
+    expect(normalizarTema('neutro')).toBe('clasico');
+    expect(normalizarTema(' vitrina ')).toBe('vitrina');
+    expect(normalizarTema('minimalista')).toBeNull();
   });
 
-  it('lee el tema que globals.css importa hoy', () => {
-    expect(leerTemaActual(GLOBALS_TEMPLATE)).toBe('neutro');
-    expect(leerTemaActual(GLOBALS_TEMPLATE.replace('neutro', 'calido'))).toBe('calido');
+  it('lee el tema de tienda.ts, y si no está, el del globals.css viejo', () => {
+    expect(leerTemaActual(TIENDA_KIT, GLOBALS_KIT)).toBe('clasico');
+    expect(leerTemaActual(TIENDA_KIT.replace('"clasico"', '"vitrina"'), GLOBALS_KIT)).toBe('vitrina');
+    // tienda.ts manda aunque el globals.css diga otra cosa.
+    expect(leerTemaActual(TIENDA_KIT.replace('"clasico"', '"vitrina"'), GLOBALS_VIEJO)).toBe('vitrina');
+    expect(leerTemaActual(TIENDA_VIEJO, GLOBALS_VIEJO)).toBe('clasico');
+    expect(leerTemaActual(TIENDA_VIEJO, GLOBALS_VIEJO.replace('neutro', 'calido'))).toBe('calido');
   });
 
-  it('sin @import reconocible, asume neutro en vez de romper', () => {
-    expect(leerTemaActual('@import "tailwindcss";\n')).toBe('neutro');
+  it('sin nada reconocible, asume el default en vez de romper', () => {
+    expect(leerTemaActual('', '@import "tailwindcss";\n')).toBe('clasico');
   });
 
-  it('escribe el tema pedido', () => {
-    const salida = escribirTema(GLOBALS_TEMPLATE, 'oscuro-vivo');
+  it('escribe el tema en tienda.ts, idempotente', () => {
+    const salida = escribirTemaTienda(TIENDA_KIT, 'vitrina');
+    expect(salida).toContain('  tema: "vitrina",\n');
+    expect(leerTemaActual(salida)).toBe('vitrina');
+    expect(escribirTemaTienda(salida, 'vitrina')).toBe(salida);
+    expect(escribirTemaTienda(TIENDA_KIT, 'clasico')).toBe(TIENDA_KIT);
+  });
+
+  it('un tienda.ts sin el campo: el default o un tema sólo de colores con el globals viejo andan; el resto avisa', () => {
+    expect(escribirTemaTienda(TIENDA_VIEJO, 'clasico')).toBe(TIENDA_VIEJO);
+    expect(escribirTemaTienda(TIENDA_VIEJO, 'calido', GLOBALS_VIEJO)).toBe(TIENDA_VIEJO);
+    // vitrina cambia header, pie y home: sin el campo no se vería.
+    expect(() => escribirTemaTienda(TIENDA_VIEJO, 'vitrina', GLOBALS_VIEJO)).toThrow(/campo `tema`/);
+    // Con el globals del kit, los colores también salen del campo.
+    expect(() => escribirTemaTienda(TIENDA_VIEJO, 'calido', GLOBALS_KIT)).toThrow(/NEW-STORE/);
+  });
+
+  it('con el globals.css del kit, el tema no toca globals.css', () => {
+    for (const tema of TEMAS) expect(escribirTema(GLOBALS_KIT, tema)).toBe(GLOBALS_KIT);
+  });
+
+  it('con el globals.css viejo, reescribe su @import como siempre', () => {
+    const salida = escribirTema(GLOBALS_VIEJO, 'oscuro-vivo');
     expect(salida).toContain('@import "../styles/temas/oscuro-vivo.css";');
-    expect(leerTemaActual(salida)).toBe('oscuro-vivo');
+    expect(leerTemaActual('', salida)).toBe('oscuro-vivo');
+    expect(escribirTema(salida, 'oscuro-vivo')).toBe(salida);
+    // clasico vuelve al archivo de siempre.
+    expect(escribirTema(salida, 'clasico')).toContain('@import "../styles/temas/neutro.css";');
   });
 
-  it('es idempotente: escribir el mismo tema no cambia el archivo', () => {
-    const una = escribirTema(GLOBALS_TEMPLATE, 'calido');
-    expect(escribirTema(una, 'calido')).toBe(una);
+  it('con el globals.css viejo, un tema sin archivo legado dice cómo pasar al kit', () => {
+    expect(() => escribirTema(GLOBALS_VIEJO, 'vitrina')).toThrow(/themes\/temas\.css/);
   });
 
   it('un tema que no existe es un error explícito, no un archivo roto', () => {
     // @ts-expect-error -- justo lo que se prueba: un nombre inventado.
-    expect(() => escribirTema(GLOBALS_TEMPLATE, 'minimalista')).toThrow(/minimalista/);
+    expect(() => escribirTema(GLOBALS_KIT, 'minimalista')).toThrow(/minimalista/);
+    // @ts-expect-error -- ídem.
+    expect(() => escribirTemaTienda(TIENDA_KIT, 'minimalista')).toThrow(/minimalista/);
   });
 
-  it('avisa en vez de escribir cualquier cosa si no encuentra el @import', () => {
+  it('avisa en vez de escribir cualquier cosa si no encuentra ningún @import de tema', () => {
     expect(() => escribirTema('body { color: red; }\n', 'calido')).toThrow(/globals\.css/);
   });
 
-  it('el globals.css real importa un tema que existe en src/styles/temas', () => {
-    // Un tema propio de la tienda (NEW-STORE.md §5) no tiene por qué estar en
-    // TEMAS —esa lista es lo que ofrece el wizard—, pero el archivo sí.
+  it('el globals.css real importa el kit, o un tema que existe en src/styles/temas', () => {
+    // Una tienda con su propio tema en el formato de antes (NEW-STORE.md §5)
+    // no tiene por qué estar en TEMAS, pero el archivo sí tiene que existir.
     const real = readFileSync(path.join('src', 'app', 'globals.css'), 'utf8');
+    if (/@import\s+"\.\.\/themes\/temas\.css";/.test(real)) {
+      expect(existsSync(path.join('src', 'themes', 'temas.css'))).toBe(true);
+      return;
+    }
     const tema = /@import\s+"\.\.\/styles\/temas\/([a-z0-9-]+)\.css";/.exec(real)?.[1];
     expect(tema, 'globals.css no tiene el @import de un tema').toBeDefined();
     expect(existsSync(path.join('src', 'styles', 'temas', `${tema}.css`))).toBe(true);
@@ -437,8 +496,13 @@ describe('el título se sugiere a partir del nombre', () => {
 describe('soloTemplateABorrar', () => {
   const todo = () => true;
 
-  it('en una tienda con nombre propio, borra fable/ y Dependabot si existen', () => {
-    expect(soloTemplateABorrar('La Esquina', todo)).toEqual(['fable', '.github/dependabot.yml', 'tiendas.json']);
+  it('en una tienda con nombre propio, borra fable/, Renovate y Dependabot si existen', () => {
+    expect(soloTemplateABorrar('La Esquina', todo)).toEqual([
+      'fable',
+      '.github/renovate.json',
+      '.github/dependabot.yml',
+      'tiendas.json',
+    ]);
     expect(soloTemplateABorrar('La Esquina', (ruta) => ruta === 'fable')).toEqual(['fable']);
   });
 

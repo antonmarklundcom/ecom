@@ -5,6 +5,7 @@ import { integrationSettings } from "@/db/schema";
 import { DomainError } from "@/domain/errors";
 import { t, type MessageKey, type Params } from "@/i18n";
 import { log, mensajeDe } from "@/lib/log";
+import { normalizarBasePublica } from "@/lib/imagenes-r2";
 import { normalizePhonePY } from "@/lib/py";
 
 import {
@@ -294,9 +295,11 @@ export async function estadoParaPanel(
 
 /** Formato de cada campo no secreto. Vacío siempre vale: es "borrar". */
 const FORMATOS: Record<string, { re: RegExp; clave: MessageKey } | undefined> = {
-  cloudName: { re: /^[A-Za-z0-9_-]{1,100}$/, clave: "adminError.integraciones.formato" },
-  apiKey: { re: /^[A-Za-z0-9_-]{1,100}$/, clave: "adminError.integraciones.formato" },
-  folderPrefix: { re: /^[A-Za-z0-9_/-]{1,60}$/, clave: "adminError.integraciones.formato" },
+  // El Account ID de Cloudflare: 32 hex (es el subdominio del endpoint S3).
+  accountId: { re: /^[a-f0-9]{32}$/, clave: "adminError.integraciones.formato" },
+  accessKeyId: { re: /^[A-Za-z0-9]{16,128}$/, clave: "adminError.integraciones.formato" },
+  // Las reglas de nombre de bucket de R2/S3: minúsculas, números y guiones.
+  bucket: { re: /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, clave: "adminError.integraciones.formato" },
   phoneNumberId: { re: /^\d{5,30}$/, clave: "adminError.integraciones.formato" },
   apiVersion: { re: /^v\d{1,3}\.\d{1,3}$/, clave: "adminError.integraciones.formato" },
   publicKey: { re: /^[A-Za-z0-9_-]{1,200}$/, clave: "adminError.integraciones.formato" },
@@ -325,6 +328,13 @@ export function normalizarCampo(campo: string, crudo: string): string {
     const telefono = normalizePhonePY(valor);
     if (!telefono) throw new IntegracionError("adminError.integraciones.whatsapp");
     return telefono;
+  }
+  if (campo === "publicUrl") {
+    // El dominio público del bucket: https, sin usuario, query ni hash. Se
+    // guarda sin barra final, que es como la usan las URLs de las fotos.
+    const base = normalizarBasePublica(valor);
+    if (!base) throw new IntegracionError("adminError.integraciones.https", { campo: nombreVisible });
+    return base;
   }
   if (campo === "baseUrl" || campo === "reportUrl") {
     let url: URL;

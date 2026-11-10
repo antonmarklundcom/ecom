@@ -1,0 +1,33 @@
+SKU;Producto;Categoría;Variante;Precio (₲);Stock;Descripción;Marca;IVA;Precio antes (₲);Slug;Fotos;Proveedor;URL proveedor;Costo proveedor;Stock proveedor;Modo de venta;Mostrar precio
+YER-TRAD-1K;Yerba mate tradicional 1 kg;Almacén;1 kg;32000;120;Molienda tradicional, con palo. Para mate y tereré.;Molino del Sur;5;35000;;;Distribuidora Central;https://proveedor.example.com/yerba-tradicional;24000;500;stock;sí
+YER-HIER-500;Yerba mate con hierbas 500 g;Almacén;500 g;18500;80;Con menta, cedrón y burrito.;Molino del Sur;5;;;;;;;;stock;sí
+ARR-PAR-1K;Arroz parboil 1 kg;Almacén;1 kg;9500;200;Grano largo, no se pasa.;;5;;;;Distribuidora Central;;7000;;stock;sí
+ALM-MAN-1K;Almidón de mandioca 1 kg;Almacén;1 kg;12000;60;El de la chipa de todos los días.;;5;;;;;;;;stock;sí
+MIE-CAN-500;Miel de caña 500 ml;Almacén;500 ml;15000;45;Hecha en trapiche.;;10;;;;;;;;stock;sí
+TER-INOX-NEG;Termo de acero inoxidable 1 L;Mate;Negro;185000;12;"Doble pared; mantiene el agua fría 24 horas.";;10;210000;;;Importadora Este;https://importadora.example.com/termo-1l;120000;80;stock;sí
+TER-INOX-VER;Termo de acero inoxidable 1 L;Mate;Verde;185000;8;;;;210000;;;Importadora Este;;120000;35;;
+TER-INOX-ROJ;Termo de acero inoxidable 1 L;Mate;Rojo;185000;0;;;;210000;;;;;;;;
+GUA-PSA;Guampa de palo santo;Mate;Único;45000;30;Torneada a mano.;;10;;;;;;;;stock;sí
+BOM-ALP;Bombilla de alpaca;Mate;Único;65000;25;Con filtro desarmable.;;10;;;;;;;;stock;sí
+CAN-CUE;Canasta matera de cuero;Mate;Único;220000;6;Lleva termo, guampa y yerbera.;;10;;;;Taller del Centro;https://taller.example.com/canasta;140000;6;stock;sí
+REM-ALG-S;Remera de algodón;Moda;S;79000;15;Algodón peinado, cuello redondo.;;10;;;;;;;;stock;sí
+REM-ALG-M;Remera de algodón;Moda;M;79000;22;;;;;;;;;;;;
+REM-ALG-L;Remera de algodón;Moda;L;79000;18;;;;;;;;;;;;
+REM-ALG-XL;Remera de algodón;Moda;XL;79000;7;;;;;;;;;;;;
+ZAP-LON-38;Zapatillas de lona;Moda;38;159000;4;Suela de goma, cordones de algodón.;;10;189000;;;;;;;stock;sí
+ZAP-LON-39;Zapatillas de lona;Moda;39;159000;6;;;;189000;;;;;;;;
+ZAP-LON-40;Zapatillas de lona;Moda;40;159000;9;;;;189000;;;;;;;;
+ZAP-LON-41;Zapatillas de lona;Moda;41;159000;5;;;;189000;;;;;;;;
+ZAP-LON-42;Zapatillas de lona;Moda;42;159000;2;;;;189000;;;;;;;;
+CAM-AOP-S;Camisa de ao po'i bordada;Moda;S;245000;3;Bordado a mano en Yataity.;;10;;;;;;;;stock;sí
+CAM-AOP-M;Camisa de ao po'i bordada;Moda;M;245000;5;;;;;;;;;;;;
+CAM-AOP-L;Camisa de ao po'i bordada;Moda;L;245000;2;;;;;;;;;;;;
+SOM-PIR;Sombrero piri;Moda;Único;95000;10;Tejido de fibra natural.;;10;;;;;;;;stock;sí
+HAM-ALG;Hamaca paraguaya de algodón;Hogar;Único;350000;5;Dos plazas, con flecos.;;10;;;;;;;;stock;sí
+MAN-NAN;Mantel de ñandutí 1,5 m;Hogar;Único;280000;3;Encaje tradicional sobre lino.;;10;;;;;;;;stock;sí
+JAR-BAR;Jarra de barro de Itá;Hogar;Único;70000;14;Cerámica cocida a leña.;;10;;;;;;;;stock;sí
+VEN-PIE-18;Ventilador de pie 18 pulgadas;Electrónica;Único;320000;9;Tres velocidades, oscilante.;;10;360000;;;Importadora Este;https://importadora.example.com/ventilador-18;245000;40;stock;sí
+AUR-BT-NEG;Auriculares Bluetooth;Electrónica;Negro;149000;20;Hasta 20 horas de batería.;;10;;;;;;;;stock;sí
+AUR-BT-BLA;Auriculares Bluetooth;Electrónica;Blanco;149000;11;;;;;;;;;;;;
+MES-LAP;Mesa de lapacho a medida;Hogar;Único;2500000;0;"Se hace por encargo; el precio es orientativo para 6 personas.";;10;;;;;;;;enquiry;sí
+CUA-NAN;Cuadro de ñandutí enmarcado;Hogar;Único;;0;Pieza única, para ver en el local.;;10;;;;;;;;showcase;no

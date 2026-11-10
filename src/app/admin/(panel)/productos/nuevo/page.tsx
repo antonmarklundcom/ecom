@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ProductForm } from "@/components/admin/product-form";
 import { listCategories } from "@/domain/admin-products";
 import { requireCapabilityPage } from "@/lib/admin-guard";
+import { can } from "@/lib/permissions";
+import { proveedoresHabilitados } from "@/lib/proveedores";
 import { t } from "@/i18n";
 
 export const metadata: Metadata = { title: t("panel.productoNuevo.meta") };
@@ -11,7 +13,7 @@ export const metadata: Metadata = { title: t("panel.productoNuevo.meta") };
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
-  await requireCapabilityPage("productos");
+  const actor = await requireCapabilityPage("productos");
 
   const categories = await listCategories();
 
@@ -27,6 +29,8 @@ export default async function NewProductPage() {
 
       <div className="mt-6">
         <ProductForm
+          // El enlace de compra, como en la ficha: con el flag y `precios`.
+          proveedores={proveedoresHabilitados() && can(actor.role, "precios")}
           categories={categories.map((category) => ({ id: category.id, name: category.name }))}
           defaults={{
             slug: "",

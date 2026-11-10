@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import { refundPayment, retryOrderRevival } from "@/domain/payment-recovery";
@@ -33,6 +34,8 @@ function revalidatePayment(orderId: number): void {
   revalidatePath("/admin");
   revalidatePath("/admin/pedidos");
   revalidatePath(`/admin/pedidos/${orderId}`);
+  // Revivir un pedido vuelve a reservar su stock, que se ve en la vidriera.
+  revalidarVidriera();
 }
 
 export async function retryPaymentRevival(

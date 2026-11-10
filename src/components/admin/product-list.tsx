@@ -20,8 +20,7 @@ export type ProductListRow = {
   onHand: number;
   isActive: boolean;
   publishedAt: string | null;
-  imageCloudinaryId: string | null;
-  imageUrl: string | null;
+  imageRef: string | null;
   imageAlt: string | null;
   // == S17 == Chip de destacado en el listado.
   isFeatured: boolean;
@@ -104,11 +103,10 @@ export function ProductList({
                   mucho antes que por el nombre, y son 24 filas en un
                   celular. */}
               <ProductImage
-                resolvedUrl={product.imageUrl}
                 image={
-                  product.imageCloudinaryId
+                  product.imageRef
                     ? {
-                        cloudinaryId: product.imageCloudinaryId,
+                        imageRef: product.imageRef,
                         alt: product.imageAlt,
                         blurDataUrl: null,
                       }

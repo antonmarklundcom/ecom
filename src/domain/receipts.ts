@@ -97,13 +97,13 @@ export async function assertCanUpload(orderId: number, executor?: Executor): Pro
 }
 
 export async function recordReceipt(
-  input: { orderId: number; cloudinaryId: string; mime: string; bytes: number },
+  input: { orderId: number; storageKey: string; mime: string; bytes: number },
   executor?: Executor
 ): Promise<void> {
   const tx = executor ?? getDb();
   await tx.insert(receipts).values({
     orderId: input.orderId,
-    cloudinaryId: input.cloudinaryId,
+    storageKey: input.storageKey,
     mime: input.mime,
     bytes: input.bytes,
     review: "pending",
@@ -142,7 +142,7 @@ export async function pendingReceipts(executor?: Executor) {
  */
 export async function finalizeUploadedReceipt(input: {
   orderId: number;
-  cloudinaryId: string;
+  storageKey: string;
   mime: string;
   bytes: number;
 }): Promise<void> {
@@ -201,15 +201,22 @@ export const ACCEPTS_RECEIPT: readonly OrderStatus[] = [
  * ventana de revisión. Nunca las acorta, nunca revive una vencida.
  */
 async function holdStockForReview(tx: Executor, orderId: number): Promise<void> {
+  // `MIN()` llega de mysql2 como texto sin zona ("2026-11-10 21:00:00", UTC).
+  // `.mapWith` lo decodifica igual que la columna (UTC); un `new Date(texto)`
+  // lo leería en la hora del proceso y correría la ventana por su desfase.
   const first = (
     await tx
-      .select({ at: sql<Date>`MIN(${receipts.uploadedAt})` })
+      .select({
+        at: sql<Date | null>`MIN(${receipts.uploadedAt})`.mapWith(
+          receipts.uploadedAt
+        ),
+      })
       .from(receipts)
       .where(eq(receipts.orderId, orderId))
   )[0]?.at;
   if (!first) return;
   const until = new Date(
-    new Date(first).getTime() + RECEIPT_REVIEW.holdHours * 3_600_000
+    first.getTime() + RECEIPT_REVIEW.holdHours * 3_600_000
   );
   const now = new Date();
   await tx

@@ -78,7 +78,7 @@ function feed(product: Partial<FeedProduct> = {}): string {
         description: "",
         brand: null,
         categoryName: "Hogar",
-        images: ["https://res.cloudinary.com/x/a.jpg"],
+        images: ["https://img.tienda.test/p1/a.jpg"],
         variants: dos,
         ...product,
       },

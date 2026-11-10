@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import { t } from "@/i18n";
@@ -20,9 +21,9 @@ import {
 import { log } from "@/lib/log";
 
 /**
- * `/admin/integraciones` (Cloudinary, WhatsApp, Pagopar, medición, errores).
+ * `/admin/integraciones` (R2, WhatsApp, Pagopar, medición, errores).
  * **Todas owner-only**: quien cambia estas credenciales puede mandar los
- * comprobantes a otra cuenta de Cloudinary o cambiar la clave que firma los
+ * comprobantes a otro bucket o cambiar la clave que firma los
  * pagos con tarjeta.
  *
  * Ninguna devuelve un secreto: guardar devuelve los **nombres** de los campos
@@ -44,7 +45,8 @@ function integracionDe(nombre: unknown): Integracion {
 }
 
 function revalidar(): void {
-  revalidatePath("/", "layout");
+  // WhatsApp, R2 (la base de las fotos) y los medidores están en el layout de toda la vidriera.
+  revalidarVidriera();
   revalidatePath("/admin/integraciones");
 }
 

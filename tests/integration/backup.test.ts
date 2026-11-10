@@ -6,7 +6,9 @@ import { orders, payments, products, variants } from "@/db/schema";
 import {
   PAGE_SIZE,
   PRIMARY_KEY,
-  backupPublicId,
+  BACKUP_SET_RE,
+  backupFecha,
+  backupSetId,
   dumpRows,
 } from "@/domain/backup";
 
@@ -164,19 +166,27 @@ describe.skipIf(!hasTestDb)("dumpRows", () => {
   });
 });
 
-describe("backupPublicId", () => {
+describe("backupSetId", () => {
   it("usa la fecha y hora de Asunción", () => {
     // 03:00 de Asunción del 12/08 es 06:00 UTC. Si el nombre saliera en UTC,
     // el backup de las 3 de la mañana aparecería fechado a las 6 y el dueño
-    // buscaría el archivo equivocado.
-    expect(backupPublicId(new Date("2026-08-12T06:00:00Z"))).toBe(
-      "backup-2026-08-12T0300"
+    // buscaría el set equivocado.
+    expect(backupFecha(new Date("2026-08-12T06:00:00Z"))).toBe("2026-08-12T0300");
+    expect(backupSetId(new Date("2026-08-12T06:00:00Z"), "a".repeat(32))).toBe(
+      `backup-2026-08-12T0300-${"a".repeat(32)}`
     );
   });
 
+  it("lleva 128 bits aleatorios: la clave no se adivina sabiendo la fecha", () => {
+    const una = backupSetId(new Date("2026-08-12T06:00:00Z"));
+    const otra = backupSetId(new Date("2026-08-12T06:00:00Z"));
+    expect(una).not.toBe(otra);
+    expect(una).toMatch(BACKUP_SET_RE);
+  });
+
   it("ordena alfabéticamente igual que cronológicamente", () => {
-    const temprano = backupPublicId(new Date("2026-08-12T06:00:00Z"));
-    const tarde = backupPublicId(new Date("2026-08-13T06:00:00Z"));
+    const temprano = backupSetId(new Date("2026-08-12T06:00:00Z"), "f".repeat(32));
+    const tarde = backupSetId(new Date("2026-08-13T06:00:00Z"), "0".repeat(32));
     expect(temprano < tarde).toBe(true);
   });
 });

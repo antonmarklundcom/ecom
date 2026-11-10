@@ -86,7 +86,7 @@ describe("vistos recientemente sin precio", () => {
           slug: "vieja-en-cero",
           name: "Vieja en cero",
           pricePyg: 0,
-          imageCloudinaryId: null,
+          imageRef: null,
           imageAlt: null,
         },
       ])
@@ -98,7 +98,7 @@ describe("vistos recientemente sin precio", () => {
           slug: "actual",
           name: "Actual",
           pricePyg: null,
-          imageCloudinaryId: null,
+          imageRef: null,
           imageAlt: null,
         }}
       />

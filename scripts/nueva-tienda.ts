@@ -10,6 +10,7 @@ import { stdin, stdout } from 'node:process';
 // importarlo daría `nombre` ya resuelto, y este script necesita distinguir
 // "sigue siendo la constante del template" de "la tienda se llama así".
 import { MARCA_PLACEHOLDER } from '../src/config/tienda';
+import { idTema, IDS_TEMAS, TEMA_POR_DEFECTO, TEMAS as PRESETS, type TemaId } from '../src/themes/presets';
 import { BASELINE_FILE, SOLO_TEMPLATE } from './template-shared';
 
 /**
@@ -58,17 +59,24 @@ export type DatosTienda = {
 };
 
 /**
- * Los temas del kit de piel (plan-crecimiento §6.2), en el mismo orden que
- * la pregunta interactiva los ofrece. `src/styles/temas/<nombre>.css` tiene
- * que existir para cada uno — `temas.test.ts` es quien lo verifica, no este
- * script.
+ * Los temas del kit (`src/themes/presets.ts`), en el mismo orden que la
+ * pregunta interactiva los ofrece. El primero es el default. La lista sale de
+ * los presets y no se repite acá: un tema nuevo registrado ahí aparece solo.
  */
-export const TEMAS = ['neutro', 'calido', 'oscuro-vivo'] as const;
-export type Tema = (typeof TEMAS)[number];
+export const TEMAS: readonly TemaId[] = IDS_TEMAS;
+export type Tema = TemaId;
 
-/** ¿`valor` es uno de los temas conocidos? Sirve de type guard para `--tema`. */
+/** ¿`valor` es el id de un tema? (Sin alias: para eso, `normalizarTema`.) */
 export function esTema(valor: string): valor is Tema {
   return (TEMAS as readonly string[]).includes(valor);
+}
+
+/**
+ * El id del tema que nombra `valor`, aceptando los nombres viejos (`neutro`
+ * → `clasico`), o `null` si no es ninguno.
+ */
+export function normalizarTema(valor: string): Tema | null {
+  return idTema(valor);
 }
 
 /**
@@ -222,43 +230,118 @@ async function formatearTienda(archivo: string): Promise<void> {
   }
 }
 
-/** El `@import` de un tema, tal como lo escribe `escribirTema`. */
+/**
+ * El `@import` de un tema en el `globals.css` de antes del kit
+ * (`@import "../styles/temas/<nombre>.css";`). Una tienda creada antes del
+ * kit puede seguir teniéndolo: `globals.css` es piel y `template:sync` no se
+ * lo cambia.
+ */
 const IMPORT_TEMA_REGEX = /@import\s+"\.\.\/styles\/temas\/([a-z0-9-]+)\.css";/;
 
+/** El `@import` del kit: todos los temas, elegidos por `tienda.ts`. */
+const IMPORT_KIT_REGEX = /@import\s+"\.\.\/themes\/temas\.css";/;
+
+/** `tema: "<id>",` adentro de `TIENDA`. */
+const CAMPO_TEMA_REGEX = /(\n[ \t]*tema:\s*)(["'])([^"']*)\2(\s*,)/;
+
 /**
- * El tema que `globals.css` importa hoy, o `'neutro'` si no se puede leer.
- *
- * `'neutro'` como default y no un error a propósito: es el único de los
- * tres que puede faltar sin que nada se rompa (es el que trae el template
- * antes de que esta fase exista), y una tienda que corre el wizard por
- * primera vez sobre un `globals.css` viejo no tiene por qué fallar acá.
+ * El tema de hoy: el `tema` de `tienda.ts`; si no está (un `tienda.ts` de
+ * antes del kit), el que importa el `globals.css` viejo; y si tampoco, el
+ * default. Nunca falla: una tienda que corre el wizard por primera vez sobre
+ * archivos viejos no tiene por qué caerse acá.
  */
-export function leerTemaActual(globalsSource: string): Tema {
-  const match = IMPORT_TEMA_REGEX.exec(globalsSource);
-  const encontrado = match?.[1];
-  return encontrado !== undefined && esTema(encontrado) ? encontrado : 'neutro';
+export function leerTemaActual(tiendaSource: string, globalsSource = ''): Tema {
+  const literal = literalTienda(tiendaSource);
+  const enTienda = literal === null ? undefined : CAMPO_TEMA_REGEX.exec(literal)?.[3];
+  const deTienda = enTienda === undefined ? null : normalizarTema(enTienda);
+  if (deTienda !== null) return deTienda;
+
+  const enGlobals = IMPORT_TEMA_REGEX.exec(globalsSource)?.[1];
+  const deGlobals = enGlobals === undefined ? null : normalizarTema(enGlobals);
+  return deGlobals ?? TEMA_POR_DEFECTO;
 }
 
 /**
- * Reescribe la línea `@import ".../temas/<tema>.css";` de `globals.css`.
+ * Reescribe `tema: "…"` en `TIENDA` (`src/config/tienda.ts`).
  *
- * Idempotente: si ya importa `tema`, devuelve `globalsSource` sin tocar
- * (mismo string, para que quien llama pueda comparar por referencia y no
- * escribir un archivo idéntico). Si el archivo no tiene el `@import`
- * esperado —alguien reescribió `globals.css` a mano—, avisa en vez de
- * escribir cualquier cosa, igual que `reescribirTienda`.
+ * Idempotente: con el mismo tema devuelve `tiendaSource` tal cual.
+ *
+ * Un `tienda.ts` de antes del kit no tiene el campo, y ahí la tienda dibuja
+ * el header, el pie y la home del default. Eso alcanza si el tema pedido es
+ * el default, o si el `globals.css` es también de antes del kit y el tema
+ * sólo cambia colores (`calido`, `oscuro-vivo`: los pone `escribirTema`).
+ * Para cualquier otro es un error que dice qué agregar —inventar el campo
+ * acá dejaría un archivo que no compila, porque el tipo `Tienda` tampoco lo
+ * tiene—.
+ */
+export function escribirTemaTienda(tiendaSource: string, tema: Tema, globalsSource = ''): string {
+  if (!esTema(tema)) {
+    throw new Error(`"${tema}" no es un tema conocido. Elegí uno de: ${TEMAS.join(', ')}.`);
+  }
+  const literal = literalTienda(tiendaSource);
+  if (literal === null || !CAMPO_TEMA_REGEX.test(literal)) {
+    if (alcanzaSinCampo(tema, globalsSource)) return tiendaSource;
+    throw new Error(
+      'src/config/tienda.ts no tiene el campo `tema` (es de antes del kit de temas). ' +
+        `Agregá \`tema: TemaId;\` al tipo \`Tienda\` (import type { TemaId } from "@/themes/presets") ` +
+        `y \`tema: "${tema}",\` a \`TIENDA\` — ver NEW-STORE.md §5.`,
+    );
+  }
+  const nuevo = literal.replace(
+    CAMPO_TEMA_REGEX,
+    (_todo, antes: string, comilla: string, _viejo: string, coma: string) =>
+      `${antes}${comilla}${tema}${comilla}${coma}`,
+  );
+  return nuevo === literal ? tiendaSource : tiendaSource.replace(literal, nuevo);
+}
+
+/** ¿`tema` se ve bien en una tienda cuyo `tienda.ts` no tiene el campo? */
+function alcanzaSinCampo(tema: Tema, globalsSource: string): boolean {
+  if (tema === TEMA_POR_DEFECTO) return true;
+  const pedido = PRESETS[tema];
+  const base = PRESETS[TEMA_POR_DEFECTO];
+  const mismaForma =
+    pedido.header === base.header &&
+    pedido.footer === base.footer &&
+    pedido.home.join() === base.home.join() &&
+    JSON.stringify(pedido.tokens.escala ?? null) === JSON.stringify(base.tokens.escala ?? null);
+  return mismaForma && Boolean(pedido.legado) && IMPORT_TEMA_REGEX.test(globalsSource);
+}
+
+/**
+ * Lo que el tema le pide a `globals.css`.
+ *
+ * Con el `globals.css` del kit (`@import "../themes/temas.css";`) nada: el
+ * tema se elige en `tienda.ts` y el CSS ya trae todos. Con uno de antes del
+ * kit, reescribe la línea `@import "../styles/temas/<x>.css";` como siempre
+ * —si el tema tiene archivo ahí (`legado` en su preset)— y si no, avisa cómo
+ * pasar al formato nuevo en vez de dejar la tienda con el header de un tema y
+ * los colores de otro.
+ *
+ * Idempotente: si no hay nada que cambiar devuelve el mismo string.
  */
 export function escribirTema(globalsSource: string, tema: Tema): string {
   if (!esTema(tema)) {
     throw new Error(`"${tema}" no es un tema conocido. Elegí uno de: ${TEMAS.join(', ')}.`);
   }
+  if (IMPORT_KIT_REGEX.test(globalsSource)) return globalsSource;
   if (!IMPORT_TEMA_REGEX.test(globalsSource)) {
     throw new Error(
-      'No encontré el `@import ".../styles/temas/<tema>.css";` en src/app/globals.css. ' +
-        '¿Lo reescribiste a mano? Cambiá la línea vos y salteá este paso.',
+      'No encontré en src/app/globals.css ni `@import "../themes/temas.css";` ni el ' +
+        '`@import "../styles/temas/<tema>.css";` de antes. ¿Lo reescribiste a mano? ' +
+        'Cambiá la línea vos y salteá este paso.',
     );
   }
-  return globalsSource.replace(IMPORT_TEMA_REGEX, `@import "../styles/temas/${tema}.css";`);
+  const legado = PRESETS[tema].legado;
+  if (!legado) {
+    throw new Error(
+      `El tema "${tema}" necesita el globals.css del kit: en src/app/globals.css cambiá ` +
+        '`@import "../styles/temas/<x>.css";` por `@import "../themes/temas.css";` y agregá ' +
+        '`@import "../themes/custom.css";` al final del archivo (NEW-STORE.md §5).',
+    );
+  }
+  const nuevo = globalsSource.replace(IMPORT_TEMA_REGEX, `@import "../styles/temas/${legado}.css";`);
+  return nuevo === globalsSource ? globalsSource : nuevo;
 }
 
 /**
@@ -290,8 +373,8 @@ export type Respuestas = Partial<DatosTienda> & { tema?: string };
  * tipeado tiene que doler ahora y no cuando el header diga "TiendaPY".
  *
  * `--tema` no se valida acá contra `TEMAS`: el valor crudo se guarda igual
- * (así el mensaje de error, si el nombre está mal, sale de `escribirTema`,
- * que es quien conoce la lista completa y no la duplica).
+ * y lo valida `main` con `normalizarTema`, que acepta también los nombres
+ * viejos (`neutro`).
  */
 export function parseFlags(entrada: readonly string[]): Respuestas {
   // pnpm 11 pasa el `--` de `pnpm <script> -- --flag` tal cual (B6).
@@ -429,13 +512,13 @@ export function fijarEnv(
  * Hostinger las carga de a una, a mano, así que lo que sirve es la lista
  * exacta. Los valores públicos van sin comillas; los secretos se consultan en
  * `.env.local` para que no terminen en logs o artifacts. Se listan sólo las
- * que este script conoce; el resto —Cloudinary, Pagopar, la base— las trae
+ * que este script conoce; el resto —R2, Pagopar, la base— las trae
  * quien tiene esas cuentas, y el script no las va a inventar.
  */
 export function bloqueHPanel(valores: ValoresEnv): string {
   return Object.entries(valores)
     .filter(([, valor]) => valor !== '')
-    .map(([clave, valor]) => `${clave}=${/(?:SECRET|TOKEN|PASSWORD|(?:API|PUBLIC|PRIVATE)_KEY|DATABASE_URL)/i.test(clave) ? '<copiá el valor de .env.local>' : valor}`)
+    .map(([clave, valor]) => `${clave}=${/(?:SECRET|TOKEN|PASSWORD|(?:API|PUBLIC|PRIVATE|ACCESS)_KEY|DATABASE_URL)/i.test(clave) ? '<copiá el valor de .env.local>' : valor}`)
     .join('\n');
 }
 
@@ -538,16 +621,20 @@ async function preguntarTodo(
       dominio: await preguntar('Dominio final', 'dominio'),
     };
 
-    const temaDefault = flags.tema ?? temaInicial;
-    let tema: Tema = esTema(temaDefault) ? temaDefault : temaInicial;
+    let tema: Tema = normalizarTema(flags.tema ?? '') ?? temaInicial;
+    console.log('\n  Temas (src/themes/, NEW-STORE.md §5):');
+    for (const id of TEMAS) {
+      console.log(`    ${id.padEnd(12)} ${PRESETS[id].paraQuien}`);
+    }
     const respuestaTema = (
       await rl.question(`  Tema (${TEMAS.join(' / ')}) (${tema}): `)
     ).trim();
     if (respuestaTema !== '') {
-      if (!esTema(respuestaTema)) {
+      const elegido = normalizarTema(respuestaTema);
+      if (elegido === null) {
         console.log(`  "${respuestaTema}" no es un tema conocido — se deja "${tema}".`);
       } else {
-        tema = respuestaTema;
+        tema = elegido;
       }
     }
 
@@ -566,8 +653,8 @@ async function preguntarTodo(
  * falta escrita en el mensaje.
  *
  * El tema **no** hace fallar nada: sin bandera queda el que ya estaba
- * (`neutro` si `globals.css` no importaba ninguno todavía), y una bandera
- * con un nombre que no existe es un error explícito de `escribirTema`.
+ * (`clasico` si no había ninguno), y una bandera con un nombre que no
+ * existe es un error explícito de `main`.
  */
 function sinTerminal(
   actuales: DatosTienda,
@@ -584,7 +671,7 @@ function sinTerminal(
         '    pnpm nueva-tienda --nombre "Lencería Guaraní" \\\n' +
         '      --titulo "Lencería Guaraní — Comprá online en Paraguay" \\\n' +
         '      --descripcion "…" --tagline "…" \\\n' +
-        '      --whatsapp 0981123456 --dominio lenceria.com.py --tema neutro',
+        '      --whatsapp 0981123456 --dominio lenceria.com.py --tema clasico',
     );
   }
 
@@ -622,7 +709,8 @@ async function main(): Promise<void> {
   // Los defaults salen de lo que ya está escrito: en la primera corrida son
   // los del template, y en la segunda son los de esta tienda — que es lo que
   // hace que repetir el wizard sea "Enter, Enter, Enter". El tema sigue la
-  // misma regla: el default es el que `globals.css` ya importa.
+  // misma regla: el default es el de `tienda.ts` (o el que importa un
+  // `globals.css` de antes del kit).
   const actuales: DatosTienda = {
     nombre: leerCampoTienda(tiendaSource, 'nombre') ?? '',
     titulo: leerCampoTienda(tiendaSource, 'titulo') ?? '',
@@ -631,7 +719,7 @@ async function main(): Promise<void> {
     whatsapp: leerValorEnv(envActual, 'WHATSAPP_NUMBER'),
     dominio: leerValorEnv(envActual, 'NEXT_PUBLIC_SITE_URL'),
   };
-  const temaActual = leerTemaActual(globalsSource);
+  const temaActual = leerTemaActual(tiendaSource, globalsSource);
 
   const crudos = stdin.isTTY
     ? await preguntarTodo(actuales, temaActual, flags, dryRun)
@@ -643,16 +731,21 @@ async function main(): Promise<void> {
     dominio: normalizarDominio(crudos.datos.dominio),
   };
 
-  // --- tienda.ts ----------------------------------------------------------
-  const tiendaNueva = reescribirTienda(tiendaSource, datos);
-  const tiendaCambia = tiendaNueva !== tiendaSource;
-
-  // --- globals.css (tema) ---------------------------------------------------
-  if (!esTema(crudos.tema)) {
+  // --- tema ---------------------------------------------------------------
+  const tema = normalizarTema(crudos.tema);
+  if (tema === null) {
     throw new Error(`"${crudos.tema}" no es un tema conocido. Elegí uno de: ${TEMAS.join(', ')}.`);
   }
-  const globalsNuevo = escribirTema(globalsSource, crudos.tema);
-  const temaCambia = globalsNuevo !== globalsSource;
+
+  // --- tienda.ts (marca y tema) ----------------------------------------------
+  const tiendaConMarca = reescribirTienda(tiendaSource, datos);
+  const tiendaNueva = escribirTemaTienda(tiendaConMarca, tema, globalsSource);
+  const tiendaCambia = tiendaNueva !== tiendaSource;
+  const temaCambia = tema !== temaActual;
+
+  // --- globals.css (sólo si es de antes del kit) ------------------------------
+  const globalsNuevo = escribirTema(globalsSource, tema);
+  const globalsCambia = globalsNuevo !== globalsSource;
 
   // --- .env.local ---------------------------------------------------------
   const generados: ValoresEnv = {};
@@ -676,16 +769,19 @@ async function main(): Promise<void> {
 
   // --- Contarlo antes de hacerlo -----------------------------------------
   console.log('');
-  console.log(`  ${TIENDA_FILE}: ${tiendaCambia ? 'marca actualizada' : 'sin cambios'}`);
+  console.log(
+    `  ${TIENDA_FILE}: ${tiendaCambia ? 'marca actualizada' : 'sin cambios'}` +
+      (temaCambia ? ` (tema → ${tema})` : ` (tema ${tema})`),
+  );
   console.log(
     `  ${ENV_FILE}: ${escritas.length === 0 ? 'sin cambios' : `escribe ${escritas.join(', ')}`}`,
   );
   if (env.conservadas.length > 0) {
     console.log(`     (se conservan los valores ya cargados de ${env.conservadas.join(', ')})`);
   }
-  console.log(
-    `  ${GLOBALS_FILE}: ${temaCambia ? `tema → ${crudos.tema}` : `sin cambios (tema ${crudos.tema})`}`,
-  );
+  if (globalsCambia) {
+    console.log(`  ${GLOBALS_FILE}: tema → ${tema} (globals.css de antes del kit)`);
+  }
   const aBorrar = soloTemplateABorrar(datos.nombre, existsSync);
   if (aBorrar.length > 0) {
     console.log(`  ${aBorrar.join(', ')}: se borra (es del template, no de la tienda)`);
@@ -702,7 +798,7 @@ async function main(): Promise<void> {
     await formatearTienda(TIENDA_FILE);
   }
   writeFileSync(ENV_FILE, env.contenido);
-  if (temaCambia) writeFileSync(GLOBALS_FILE, globalsNuevo);
+  if (globalsCambia) writeFileSync(GLOBALS_FILE, globalsNuevo);
   for (const ruta of aBorrar) rmSync(ruta, { recursive: true, force: true });
 
   imprimirHPanel(env.contenido, aEscribir);
@@ -711,7 +807,7 @@ async function main(): Promise<void> {
   console.log(
     '\n  Falta lo que no depende de este repo (NEW-STORE.md):\n' +
       '    · el favicon (src/app/favicon.ico) — ningún control lo verifica\n' +
-      '    · Cloudinary, la base de Hostinger y, si va con tarjeta, Pagopar\n' +
+      '    · R2 (fotos, comprobantes y backups), la base de Hostinger y, si va con tarjeta, Pagopar\n' +
       '      (variables opcionales, documentadas en docs/ENV-OPCIONAL.md)\n' +
       '    · los datos bancarios, que se cargan desde /admin/banco\n\n' +
       '  Y después, la base:\n\n' +
@@ -721,9 +817,9 @@ async function main(): Promise<void> {
 }
 
 /**
- * Lo de `SOLO_TEMPLATE` (`fable/`, Dependabot) que hay que borrar al volver
+ * Lo de `SOLO_TEMPLATE` (`fable/`, Renovate) que hay que borrar al volver
  * esto una tienda: los planes del template leídos por una IA en la tienda
- * parecen tareas pendientes, y Dependabot abriría PRs (y minutos de CI) que
+ * parecen tareas pendientes, y Renovate abriría PRs (y minutos de CI) que
  * ya llegan por template:sync. Sólo cuando la tienda tiene nombre propio: con
  * el nombre del template sigue siendo el template, y ahí no se borra nada.
  */

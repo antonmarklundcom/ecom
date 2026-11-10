@@ -145,6 +145,11 @@ export type CatalogProductUpsert = {
   categoryId: number;
   brand?: string | null;
   ivaRate?: number;
+  /**
+   * `products.supplier_url` (URL proveedor de la planilla). Sólo llega con
+   * los proveedores prendidos; `undefined` no lo toca.
+   */
+  supplierUrl?: string | null;
   variants: Array<{
     attributes?: VariantAttributes | null;
     /** En `import`, sin sello: sólo pasa si es el mismo que ya está (E1). */
@@ -289,6 +294,9 @@ export async function upsertCatalogProducts(
           ...(product.ivaRate === undefined
             ? {}
             : { ivaRate: product.ivaRate }),
+          ...(product.supplierUrl === undefined
+            ? {}
+            : { supplierUrl: product.supplierUrl }),
           ...(mode === "seed" ? { isActive: true } : {}),
         })
         .where(eq(products.id, current.id));
@@ -303,6 +311,7 @@ export async function upsertCatalogProducts(
         categoryId: product.categoryId,
         brand: product.brand ?? null,
         ivaRate: product.ivaRate ?? 10,
+        supplierUrl: product.supplierUrl ?? null,
         isActive: true,
         publishedAt,
       });

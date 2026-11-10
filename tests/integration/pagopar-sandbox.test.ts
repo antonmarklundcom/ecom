@@ -38,6 +38,12 @@ import { webhookResponseBody, parseWebhookEvent } from "../../src/domain/pagopar
  *      forma de esa respuesta,
  *   d. si difiere: corregir esa función y el test que la fija en
  *      tests/unit/pagopar-protocol.test.ts. Nada más cambia.
+ *
+ * Los pasos completos —dónde cargar las credenciales, qué URLs registrar en
+ * el panel de Pagopar, qué mirar en el primer aviso real y dónde guardarlo—
+ * están en TASKS.md §21; las ambigüedades abiertas, en ARCH.md §4.2.
+ *
+ *   pnpm vitest run --project integration tests/integration/pagopar-sandbox.test.ts
  */
 
 function sandboxConfig(): PagoparConfig | null {

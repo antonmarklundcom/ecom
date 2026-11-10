@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 import { z } from "zod";
 
 import {
@@ -11,7 +12,10 @@ import {
   setCategoryImage,
   updateCategory,
 } from "@/domain/admin-categories";
-import { validateProductImage } from "@/domain/product-images";
+import { subirFotoDelPanel } from "@/domain/product-images";
+import { getDb } from "@/db";
+import { categories } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import {
   adminActionError,
   fieldFor,
@@ -19,8 +23,6 @@ import {
   type AdminActionResult,
 } from "@/lib/admin-guard";
 import { parseEs, zodFieldErrors } from "@/lib/field-errors";
-import { cloudinary, carpetaCategorias } from "@/lib/cloudinary";
-import { log, mensajeDe } from "@/lib/log";
 import { t } from "@/i18n";
 
 /**
@@ -41,9 +43,9 @@ import { t } from "@/i18n";
  * categoría vieja es el bug que después se reporta como "no me tomó el cambio".
  */
 
-function revalidarVidriera(): void {
+function revalidarCategorias(): void {
   revalidatePath("/admin/categorias");
-  revalidatePath("/", "layout");
+  revalidarVidriera();
 }
 
 const CreateSchema = z.object({
@@ -57,7 +59,7 @@ const CreateSchema = z.object({
    * necesita el formulario de hoy (S10 dibuja los campos).
    */
   description: z.string().trim().max(5000).nullish(),
-  imageCloudinaryId: z.string().trim().max(255).nullish(),
+  imageRef: z.string().trim().max(255).nullish(),
   imageAlt: z.string().trim().max(200).nullish(),
 });
 
@@ -91,11 +93,11 @@ export async function crearCategoria(
       name: parsed.data.name,
       slug: parsed.data.slug || null,
       description: parsed.data.description,
-      imageCloudinaryId: parsed.data.imageCloudinaryId,
+      imageRef: parsed.data.imageRef,
       imageAlt: parsed.data.imageAlt,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true, id: created.id };
   } catch (error) {
     // Los errores de la categoría van al campo que los causa (F1).
@@ -119,7 +121,7 @@ const UpdateSchema = z.object({
    * necesita el formulario de hoy (S10 dibuja los campos).
    */
   description: z.string().trim().max(5000).nullish(),
-  imageCloudinaryId: z.string().trim().max(255).nullish(),
+  imageRef: z.string().trim().max(255).nullish(),
   imageAlt: z.string().trim().max(200).nullish(),
 });
 
@@ -145,11 +147,11 @@ export async function editarCategoria(
       name: parsed.data.name,
       slug: parsed.data.slug || null,
       description: parsed.data.description,
-      imageCloudinaryId: parsed.data.imageCloudinaryId,
+      imageRef: parsed.data.imageRef,
       imageAlt: parsed.data.imageAlt,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     // Los errores de la categoría van al campo que los causa (F1).
@@ -164,20 +166,14 @@ export async function editarCategoria(
 /**
  * La foto de una categoría, subida de verdad.
  *
- * Clonada de `uploadProductImage`, con las diferencias de siempre: el folder
- * es `categorias/` (público, igual que `productos/` y nunca `comprobantes/`) y
- * el destino es la columna de la categoría, no una fila de `product_images`.
- * Owner-only como el resto de este archivo: la foto de una categoría es la
- * portada de una sección entera de la vidriera.
+ * Mismo camino que `uploadProductImage` (set preparado en el navegador,
+ * verificado por los bytes, escrito en R2 con claves inmutables) y el destino
+ * es la columna de la categoría, que se actualiza **después** de que los
+ * objetos quedaron escritos. Owner-only como el resto de este archivo: la foto
+ * de una categoría es la portada de una sección entera de la vidriera.
  *
- * El tipo se valida por **los bytes** (`validateProductImage` sniffea la firma
- * y rechaza SVG, que es un documento ejecutable disfrazado de imagen), no por
- * el `Content-Type` ni por la extensión: los dos los elige quien sube.
- *
- * La foto anterior se borra del CDN **después** de que la fila apunte a la
- * nueva, y un fallo ahí no falla la acción: el peor caso es un archivo de más
- * en Cloudinary, y el peor caso de hacerlo al revés es una categoría apuntando
- * a una foto que ya no existe.
+ * La foto anterior **no** se borra de R2: la clave sale del contenido, así
+ * que la misma foto puede estar en un producto o en otra categoría.
  */
 export async function uploadCategoryImage(
   formData: FormData
@@ -190,26 +186,25 @@ export async function uploadCategoryImage(
       return { ok: false, error: t("adminError.categoria.noExiste") };
     }
 
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
+    if (!formData.has("jpeg") && !(formData.get("file") instanceof File)) {
       return { ok: false, error: t("adminError.elegiFoto") };
     }
 
-    const content = Buffer.from(await file.arrayBuffer());
-    const { mime } = validateProductImage({
-      bytes: content.byteLength,
-      content,
-    });
+    const [categoria] = await getDb()
+      .select({ slug: categories.slug })
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .limit(1);
+    if (!categoria) {
+      return { ok: false, error: t("adminError.categoria.noExiste") };
+    }
 
-    const uploaded = await cloudinary.uploader.upload(
-      `data:${mime};base64,${content.toString("base64")}`,
-      { folder: carpetaCategorias(), resource_type: "image", overwrite: false }
-    );
+    const imageRef = await subirFotoDelPanel(formData, categoria.slug, "categoria");
 
     const altRaw = String(formData.get("alt") ?? "").trim();
-    const { previousCloudinaryId } = await setCategoryImage({
+    await setCategoryImage({
       categoryId,
-      imageCloudinaryId: uploaded.public_id,
+      imageRef,
       // Ausente = no se toca el alt que ya había.
       imageAlt: formData.has("alt")
         ? altRaw === ""
@@ -218,17 +213,7 @@ export async function uploadCategoryImage(
         : undefined,
     });
 
-    if (previousCloudinaryId) {
-      try {
-        await cloudinary.uploader.destroy(previousCloudinaryId, {
-          resource_type: "image",
-        });
-      } catch (error) {
-        log.warn("uploadCategoryImage.destroy", { error: mensajeDe(error) });
-      }
-    }
-
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     if (error instanceof AdminCategoryError)
@@ -257,7 +242,7 @@ export async function cambiarEstadoCategoria(
       isActive: parsed.data.isActive,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     if (error instanceof AdminCategoryError)
@@ -286,7 +271,7 @@ export async function moverCategoria(
       direction: parsed.data.direction,
     });
 
-    revalidarVidriera();
+    revalidarCategorias();
     return { ok: true };
   } catch (error) {
     if (error instanceof AdminCategoryError)

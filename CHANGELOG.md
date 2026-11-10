@@ -25,6 +25,203 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **La reserva mientras se revisa un comprobante ya no depende de la zona
+  horaria del servidor** (`src/domain/receipts.ts`, F1 de
+  `fable/REVIEW-2026-11-10.md`). Sin migración. Maquinaria: llega sola por
+  `template:sync`. La hora del primer comprobante se leía en la zona del
+  proceso: en un servidor fuera de UTC la reserva duraba de más o de menos
+  por su desfase. Ahora se decodifica como la columna (UTC).
+- **Decisión de hosting por escrito** (`docs/decisions/0001-hosting.md`). Sin
+  migración, sólo documentación: una tienda que cobra corre en Hostinger
+  Node.js + MySQL; Cloudflare da DNS (sin proxy), R2 y el ruteo de correo; el
+  runtime Workers/D1 de productos.new no entra al template.
+- **Pagopar: el aviso de pago, leído a la defensiva** (ARCH.md §4.2, TASKS.md
+  §21). Sin migración. Maquinaria: llega sola por `template:sync`, la tienda
+  no tiene que hacer nada a mano.
+  - El webhook ya no usa `request.json()`: `readWebhookBody()` +
+    `parseWebhookEvent()` (zod) aceptan el sobre de siempre, el pedido o la
+    lista sin sobre, `resultado` como objeto o string con JSON, números como
+    strings, BOM, `content-type` equivocado y form-encoded, con tope de 64 KiB.
+    Lo que no se puede leer —incluidos un monto ambiguo o varios pedidos
+    distintos en un aviso— contesta 400 sin tocar la base y loguea el motivo,
+    nunca el cuerpo.
+  - El token `sha1(clave + hash_pedido)` se acepta en el querystring **o** en
+    el campo `token` del pedido (mismo digest, tiempo constante): la URL de
+    respuesta es fija y el token cambia por pedido, así que no puede venir
+    fijo en la URL. El token del cuerpo no se guarda en `payment_events` ni se
+    loguea.
+  - Un aviso `pagado: false` sobre un pedido ya cobrado deja un `log.error`
+    (posible reversión); el pedido sigue sin tocarse.
+  - Avisos de prueba en `tests/fixtures/pagopar/` (con README que marca qué es
+    forma del repo, hipótesis o sintético) y dos tests que los recorren.
+  - La doc oficial de Pagopar no se pudo leer desde la sesión: el sobre de la
+    respuesta sigue **sin confirmar** (`WEBHOOK_ENVELOPE_CONFIRMED = false`,
+    preflight igual que antes). TASKS.md §21 tiene los pasos exactos para
+    cuando haya credenciales de sandbox.
+- **CI más barato y dependencias con Renovate.** Sin migración.
+  - `ci.yml`: un PR (público o privado) corre sólo `checks`. En un repo
+    público (el template), `e2e` y `lighthouse` corren después de cada merge
+    (push a `main`, gratis) y ya no en cada PR. En uno privado (una tienda)
+    el push a `main` sigue sin correr nada; el e2e corre con el label
+    `ci-completo`, en el PR `template/sync` de cada versión y a mano, y
+    `lighthouse` sólo a mano. Los minutos de una tienda no cambian (~120 por
+    mes, NEW-STORE.md § "CI y minutos de Actions").
+  - Lighthouse deja el puntaje de performance (mobile, meta ≥ 90) en el
+    resumen de la corrida, sin bloquear (`scripts/ci/resumen-lighthouse.mjs`).
+  - Renovate (`.github/renovate.json`, sólo en el template) reemplaza a
+    Dependabot: sábado a la madrugada, un PR para todo lo menor, seguridad al
+    toque, pines de `eslint` < 10, `typescript` < 7 y `@types/node` 22.
+  - Una tienda no tiene que hacer nada: el PR `template/sync` le trae el
+    `ci.yml` nuevo y le saca `.github/dependabot.yml` si lo tenía. En el
+    template, una persona instala la app de Renovate (NEW-STORE.md §
+    "Dependencias: Renovate").
+- **SEO y caché de la vidriera.** Sin migración. Nada que hacer a mano.
+  - La ficha y la categoría pasan a ISR, como la home (`force-static` +
+    `revalidate = 300`). Se rearman en cuanto el panel guarda algo, entra un
+    pedido o el cron vence uno: `revalidarVidriera()`
+    (`src/lib/revalidar-vidriera.ts`), llamada desde cada escritura. Los
+    ajustes de la tienda ahora también invalidan la vidriera.
+  - Con filtros, orden, página o `?variante=`, `src/proxy.ts` las manda a una
+    gemela por request (`…/con-parametros/`) que reusa la misma `page.tsx`.
+    Los parámetros de campañas (`utm_*`, `fbclid`, `srsltid`…) salen de la
+    caché con `X-Robots-Tag: noindex`.
+  - Arreglo: con GA4 o el Pixel prendidos, el `headers()` del layout volvía
+    dinámica toda la vidriera (la home perdía el ISR sin avisar).
+  - JSON-LD: `Organization` (con logo) y `WebSite` con el buscador pasan al
+    layout de todas las páginas; `BreadcrumbList` en la ficha; la miga de pan
+    sigue `categories.parent_id`.
+  - Sitemap con fecha en categorías y home (la del último producto que
+    cambió).
+  - `sizes` correctos en todas las fotos de la vidriera, desde
+    `src/lib/image-sizes.ts`, con un test que falla si falta.
+  - `.lighthouserc.json`: celular, performance ≥ 0.9 como advertencia, más
+    accesibilidad, buenas prácticas y SEO.
+  - El presupuesto de JS cuenta el JS de la página, no el prefetch de las
+    páginas a las que linkea.
+  - **Una tienda que rediseñó la ficha o la categoría:** su `page.tsx` queda
+    como está (sigue `force-dynamic`, sin caché) hasta que lo pase a ISR:
+    `export const dynamic = "force-static"`, `revalidate = 300` y leer
+    `searchParams` sólo con `parametrosDeLaUrl()` (NEW-STORE.md §7b, ARCH.md
+    §6). `tests/unit/csp-isr.test.ts` lo marca en rojo mientras tanto.
+- **Arranque y apagado del servidor en Hostinger; Cloudflare sólo DNS.** Sin
+  migración. **No hay que tocar nada en el hPanel**: el `start` sigue siendo
+  el script `start`.
+  - `pnpm start` sigue siendo `next start`. El control de instancia única es
+    **opcional** hasta que O27 lo mida en Hostinger: `pnpm start:guard`
+    (`node scripts/start.mjs`, Node pelado, sin tsx) arranca `next start` con
+    los mismos argumentos y `PORT`.
+    - Antes, si la instancia anterior de esta app quedó viva, la cierra
+      (SIGTERM, 15 s, SIGKILL). Sólo si verifica que es suya, con una ficha
+      en `/proc/<pid>/environ`: nunca toca un pid reciclado ni otra tienda de
+      la cuenta.
+    - Reenvía las señales al servidor y sale con su código.
+    - `START_GUARD=off` lo apaga y `START_PIDFILE` mueve el pidfile
+      (docs/ENV-OPCIONAL.md).
+  - Con SIGTERM/SIGINT el servidor termina los requests en curso, cierra el
+    pool de MySQL y sale; a los 10 s sale igual (`src/lib/apagado-ordenado.ts`,
+    sólo en producción).
+  - `pnpm preflight` revisa al final, por DNS y un `HEAD`, si un Cloudflare
+    proxeado está delante. **Una tienda con el dominio proxeado empieza a
+    salir con código 1**: pasar los registros a "DNS only". Sin red no
+    bloquea.
+  - DEPLOY.md: § "Procesos que se apilan" (cómo verlos y matarlos por SSH) y
+    § "Cloudflare: sólo DNS (nube gris)".
+- **Kit de temas: la piel como configuración** (`src/themes/`, NEW-STORE.md §5).
+  Migración: no. Una tienda no tiene que hacer nada: sin el campo `tema` en su
+  `tienda.ts` se ve exactamente como antes (`clasico`, que es el `neutro` de
+  siempre), y un `globals.css` viejo que importa `src/styles/temas/<x>.css`
+  sigue andando.
+  - Un tema es datos (`src/themes/presets/*.ts`): colores en claro y oscuro,
+    radio, escala de la vidriera (espaciado, ancho, letra), variante de header
+    (`clasico` | `centrado`) y de pie (`columnas` | `compacto`) y orden de las
+    secciones de la home. Cuatro presets: `clasico` (default, el base),
+    `vitrina` (nuevo: logo al centro, pie compacto, destacados primero, más
+    aire), `calido` y `oscuro-vivo`. Se elige con `tema` en
+    `src/config/tienda.ts` o `pnpm nueva-tienda --tema <x>` (`neutro` sigue
+    valiendo como alias).
+  - `pnpm temas:css` genera `src/themes/temas.css` (todos los temas, cada uno
+    bajo `<html data-tema>`) y mantiene al día los archivos de
+    `src/styles/temas/`; `temas.test.ts` falla si quedó viejo.
+  - `src/themes/custom.css`: retoques de CSS de la tienda, cargado último.
+    `template:sync` no lo pisa nunca (`DE_LA_TIENDA` en
+    `scripts/template-shared.ts`), aunque la tienda no lo haya tocado.
+  - La vidriera ya no escribe colores a mano: estrellas, descuento, favorito
+    y el velo de la portada y los modales leen semánticos (`--estrella`,
+    `--oferta`, `--favorito`, `--velo`, `--sobre-velo`) con default en
+    `src/themes/semanticos.css` (los mismos valores de antes).
+    `tests/unit/piel-sin-colores.test.ts` bloquea un color nuevo escrito a
+    mano en un componente de la tienda.
+  - Para una tienda con `globals.css` propio (productos): si quiere `vitrina`
+    o un preset nuevo, cambia su `@import "../styles/temas/<x>.css";` por
+    `@import "../themes/temas.css";` y suma `@import "../themes/custom.css";`
+    al final (NEW-STORE.md §5, "Tiendas de antes del kit"). Si no, nada.
+- **Importación del catálogo como función del panel, y una sola planilla
+  para export, panel y CLI** (docs/CATALOGO-CSV.md). Columnas canónicas en
+  orden fijo (SKU, Producto, Categoría, Variante, Precio (₲), Stock,
+  Descripción, Marca, IVA, Precio antes (₲), Slug, Fotos, [Proveedor, URL
+  proveedor, Costo proveedor, Stock proveedor], Modo de venta, Mostrar
+  precio); los encabezados viejos siguen entrando como alias. El **export del
+  panel cambia de formato**: antes bajaba 8 columnas, ahora la planilla
+  completa (con Slug, Descripción, Fotos, etc.), que vuelve a entrar sin
+  cambios en esta tienda o en otra. Vista previa con avisos y **posibles
+  productos repetidos** que hay que marcar como revisados (`--revisado` en la
+  CLI); la escritura va **por lotes de 25 productos**, cada uno atómico (antes
+  era todo el archivo en una transacción), con el avance a la vista y aviso
+  claro si se corta la conexión. Columnas de proveedor sólo con
+  `proveedores` prendido (si no, se ignoran con aviso). La CLI acepta `.xlsx`.
+  Datos de ejemplo: `scripts/fixtures/catalogo-demo.csv`. Migración: no. A
+  mano: nada; quien tenga macros o fórmulas sobre el CSV de productos del
+  panel tiene que revisar las columnas nuevas.
+- **Proveedores (dropshipping) en el panel, opcional y apagado**, y orden
+  manual de destacados. **Migración: sí** (`0025`: tabla `supplier_offers`,
+  `products.supplier_url` y `products.featured_position`, todas aditivas).
+  - `proveedores: true` en `src/config/tienda.ts` suma a la ficha del panel el
+    enlace privado de compra y las ofertas de proveedores por variante (costo,
+    stock declarado, enlaces https, preferida y margen bruto). Owner y staff.
+    Nunca llega a la vidriera, el feed, el sitemap ni el JSON-LD. Ver
+    NEW-STORE.md §4b-bis y ARCH.md § "Proveedores".
+  - Con el flag apagado —el default— el panel y la tienda quedan iguales. No
+    toca los modos de venta (`enquiry`/`showcase`) ni el stock, las reservas o
+    los pedidos.
+  - "Orden en destacados" en la ficha del panel, para todas las tiendas: la
+    home ordena los destacados por ese número y después por fecha de
+    publicación. En 0 (el default) el orden es el de antes.
+  - `/api/health` ahora prueba la consulta de destacados de la home.
+  - Una tienda existente: después del deploy, correr el setup para aplicar la
+    `0025` (como toda migración). Su `tienda.ts` no necesita cambios; el campo
+    `proveedores` es opcional.
+- **R2 reemplaza a Cloudinary para fotos, comprobantes y backups.** Migración:
+  no (las columnas `cloudinary_id` quedan con su nombre; cambian sólo las
+  propiedades de TypeScript: `imageRef`, `storageKey`, `qrImageRef`). **Cada
+  tienda tiene que hacer algo a mano** antes de subir fotos o recibir
+  comprobantes: crear su bucket de R2 con dominio público, la regla de WAF que
+  bloquea `/comprobantes/*` y `/backups/*`, y un token del bucket, y cargarlo en
+  `/admin/integraciones` → R2 (DEPLOY.md §3b). Las que ya tenían fotos en
+  Cloudinary corren una vez `pnpm fotos:migrar-cloudinary -- --cloud <nombre>
+  --aplicar` (NEW-STORE.md § "Migrar las fotos a R2"); hasta entonces cada foto
+  vieja se ve como el placeholder, nunca rota. `TIENDA.hero.imagen.cloudinaryId`
+  pasa a ser `imageRef` en `src/config/tienda.ts`.
+  - Integración R2 (Account ID, access key, secret cifrado, bucket, dominio
+    público; panel > entorno > apagado) y "Probar conexión" que escribe, lee
+    y borra un archivo privado y avisa si el dominio público lo sirve.
+  - Fotos del panel (producto, categoría, portada, logo, favicon, QR):
+    preparadas en el navegador (WebP 240/480/800/1200 + JPEG, ≤ 1200 px),
+    verificadas en el servidor por los bytes, claves inmutables con el hash
+    del contenido, y la fila se inserta recién después de escribir en R2.
+    Se dibujan con `<picture>` y `srcset`.
+  - La importación por planilla baja las fotos en el servidor (https, topes de
+    tiempo, tamaño y redirecciones, contenido mirado por los bytes); nuevos
+    `pnpm fotos:preparar`, `fotos:subir` y `fotos:reparar` para cargas grandes.
+  - Comprobantes privados en `comprobantes/` con URL prefirmada de 2 minutos.
+  - Backup en un set por tabla con un manifiesto escrito al final; `pnpm
+    restore -- --r2 ultimo` y `pnpm restore` rechaza un set incompleto o con un
+    conteo o hash que no coincide (el `.jsonl.gz` de formato 2 sigue andando).
+  - `pnpm preflight` bloquea sin R2, sale con 1 si el dominio público sirve un
+    canario privado, y avisa cuántas referencias de fotos no son de R2.
+  - CSP: `img-src` con el dominio público del bucket (y, en el panel, el
+    endpoint S3 de la cuenta para ver comprobantes). Sale la dependencia
+    `cloudinary`; entran `aws4fetch` y `sharp`.
+
 - **Panel, cuenta y catálogo accesibles** (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   F1–F6). Sin migración.
   - Errores del panel: los formularios de producto, variante, categoría y

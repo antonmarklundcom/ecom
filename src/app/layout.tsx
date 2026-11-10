@@ -14,10 +14,14 @@ import { Toaster } from "@/components/ui/sonner";
 import { getStoreSettings } from "@/domain/store-settings";
 import { linkSeguro } from "@/domain/store-settings-schema";
 import { idiomaActivo } from "@/i18n";
+import { contactoPublico } from "@/lib/comercio";
+import { jsonLdScript, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 import "./globals.css";
+import { META_BASE_IMAGENES, basePublicaImagenes } from "@/lib/images";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 import { marcaEfectiva } from "@/lib/marca";
+import { temaActivo } from "@/themes";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -68,13 +72,33 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // La foto de integraciones (GA4/Pixel, WhatsApp, Cloudinary) fresca para
-  // este render: src/lib/integraciones.ts. Nunca tira.
-  const [{ anuncio }, marca] = await Promise.all([
+  // La foto de integraciones (GA4/Pixel, WhatsApp, R2) fresca para este
+  // render: src/lib/integraciones.ts. Nunca tira.
+  const [{ anuncio }, marca, contacto] = await Promise.all([
     getStoreSettings(),
     marcaEfectiva(),
+    contactoPublico(),
     cargarIntegraciones(),
   ]);
+
+  const baseImagenes = basePublicaImagenes();
+
+  // Quién es la tienda y dónde está su buscador, para Google, en todas las
+  // páginas de la vidriera. Nombre y logo de `/admin/ajustes` → Identidad
+  // (`marcaEfectiva`), contacto y redes de los ajustes. Sin dominio
+  // configurado no sale ninguno de los dos (ver `src/lib/seo.ts`).
+  const origin = siteOrigin();
+  const datosDeLaTienda = [
+    organizationJsonLd({
+      origin,
+      name: marca.nombre,
+      logo: marca.logoUrl,
+      telephone: contacto.whatsapp,
+      email: contacto.email,
+      sameAs: contacto.redes.map((red) => red.url),
+    }),
+    websiteJsonLd({ origin, name: marca.nombre }),
+  ].filter((dato) => dato !== null);
 
   // El idioma **efectivo** y no el que dice el config: si `TIENDA.lang` apunta
   // a un catálogo que no existe, los textos salen en es-PY y el `lang` del
@@ -83,6 +107,10 @@ export default async function RootLayout({
   return (
     <html
       lang={idiomaActivo()}
+      // El tema de `src/config/tienda.ts` (`src/themes/`): elige cuál de los
+      // bloques de `src/themes/temas.css` vale. Sin este atributo se ve el
+      // tema base, que es la tienda de antes del kit.
+      data-tema={temaActivo().id}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       // El color de marca de /admin/ajustes → Identidad pisa `--primary` del
       // tema (ya validado como #RRGGBB, con el texto encima por contraste).
@@ -91,9 +119,22 @@ export default async function RootLayout({
       }
     >
       <body className="flex min-h-full flex-col">
+        {/* La base pública de las fotos (R2) para los componentes cliente:
+            `basePublicaImagenes()` la lee de acá en el navegador, con el
+            mismo valor que usó el servidor (React la sube al <head>). */}
+        {baseImagenes ? (
+          <meta name={META_BASE_IMAGENES} content={baseImagenes} />
+        ) : null}
         <StorefrontShell
           storefrontBefore={
             <>
+              {datosDeLaTienda.map((dato) => (
+                <script
+                  key={String(dato["@type"])}
+                  type="application/ld+json"
+                  dangerouslySetInnerHTML={{ __html: jsonLdScript(dato) }}
+                />
+              ))}
               {anuncio.activo && anuncio.texto ? (
                 <AnnouncementBar
                   texto={anuncio.texto}

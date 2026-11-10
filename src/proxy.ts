@@ -2,8 +2,11 @@ import { getIronSession } from "iron-session";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { analyticsConfig } from "@/lib/analytics";
+import { basePublicaImagenes } from "@/lib/images";
+import { integracion } from "@/lib/integraciones";
 import { USER_ROLES } from "@/lib/roles";
 import { sessionOptions, type AdminSession } from "@/lib/session";
+import { HEADER_CON_PARAMETROS, destinoVidriera } from "@/lib/vidriera-cache";
 
 /**
  * Proxy — el ex `middleware.ts`, renombrado en Next 16 (PLAN.md 4.1 y 4.9).
@@ -29,21 +32,24 @@ export const config = {
 };
 
 /**
- * Las rutas cuyo HTML se cachea (ISR) en vez de renderizarse en cada request.
+ * Las rutas cuyo HTML se cachea (ISR) en vez de renderizarse en cada request:
+ * la home, `/categoria/<slug>` y `/producto/<slug>` — exactamente esos
+ * niveles; la gemela `…/<slug>/con-parametros` se renderiza por request.
  *
  * **Tiene que coincidir con los `export const revalidate` de `src/app`**, y hay
  * un test que lo verifica (`tests/unit/csp-isr.test.ts`): si alguien cachea una
  * pantalla nueva y se olvida de agregarla acá, esa pantalla se queda sin
  * JavaScript en producción, y no se nota hasta que un cliente no puede comprar.
  */
-export const RUTAS_CACHEADAS = ["/"] as const;
+export const RUTAS_CACHEADAS = ["/", "/categoria/[slug]", "/producto/[slug]"] as const;
+
+const PATRONES_CACHEADOS = RUTAS_CACHEADAS.map(
+  (ruta) => new RegExp(`^${ruta.replace(/\[[^\]]+\]/g, "[^/]+")}$`)
+);
 
 /** ¿El HTML de esta ruta sale de la caché de ISR? */
 export function esRutaCacheada(pathname: string): boolean {
-  return RUTAS_CACHEADAS.some(
-    (ruta) =>
-      pathname === ruta || (ruta !== "/" && pathname.startsWith(`${ruta}/`))
-  );
+  return PATRONES_CACHEADOS.some((patron) => patron.test(pathname));
 }
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
@@ -62,7 +68,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     <script> sin el atributo y el HTML cacheado sigue siendo válido dentro de un
     mes. Su CSP se arma sin nonce, abajo.
   */
-  const cacheada = esRutaCacheada(request.nextUrl.pathname);
+  // Con filtros o `?variante=`, la categoría y la ficha no salen de la caché:
+  // van a su gemela por request (`src/lib/vidriera-cache.ts`), con nonce.
+  const destino = destinoVidriera(
+    request.nextUrl.pathname,
+    request.nextUrl.searchParams
+  );
+  const cacheada =
+    destino.tipo !== "con-parametros" &&
+    esRutaCacheada(request.nextUrl.pathname);
 
   // `btoa`, no `Buffer`: esto corre en el runtime edge, donde las APIs de
   // Node no existen.
@@ -85,6 +99,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (nonce) requestHeaders.set("x-nonce", nonce);
   // Que no se cuele uno de afuera: `x-nonce` lo pone este proxy y nadie más.
   else requestHeaders.delete("x-nonce");
+  // Lo mismo con la marca de la gemela: abierta a mano, `…/con-parametros`
+  // da 404 (sería la misma ficha en otra URL).
+  requestHeaders.delete(HEADER_CON_PARAMETROS);
+
+  if (destino.tipo === "con-parametros") {
+    requestHeaders.set(HEADER_CON_PARAMETROS, "1");
+    const gemela = request.nextUrl.clone();
+    gemela.pathname = destino.pathname;
+    return withSecurityHeaders(
+      NextResponse.rewrite(gemela, { request: { headers: requestHeaders } }),
+      nonce,
+      false,
+      reqId
+    );
+  }
 
   const isAdmin = request.nextUrl.pathname.startsWith("/admin");
   const isLogin = request.nextUrl.pathname === "/admin/login";
@@ -120,6 +149,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
+  // Una ficha o categoría cacheada pedida con `?utm_…`/`?fbclid=…`: misma
+  // página, pero esa URL no se indexa (el canonical ya apunta a la limpia).
+  if (destino.tipo === "cacheada" && destino.noindex) {
+    response.headers.set("X-Robots-Tag", "noindex, follow");
+  }
   return withSecurityHeaders(response, nonce, isAdmin, reqId);
 }
 
@@ -138,6 +172,25 @@ export function idDeRequest(recibido: string | null): string {
   const limpio = (recibido ?? "").trim();
   if (/^[A-Za-z0-9_-]{8,64}$/.test(limpio)) return limpio;
   return crypto.randomUUID();
+}
+
+/** ` https://imagenes.tienda.com.py`, o nada si no hay base pública válida. */
+function origenImagenes(): string[] {
+  const base = basePublicaImagenes();
+  if (!base) return [];
+  try {
+    return [` ${new URL(base).origin}`];
+  } catch {
+    return [];
+  }
+}
+
+/** ` https://<account>.r2.cloudflarestorage.com`, o nada sin un Account ID válido. */
+function endpointPrivadoR2(): string[] {
+  const cuenta = integracion("r2").valores.accountId;
+  return cuenta && /^[a-f0-9]{32}$/.test(cuenta)
+    ? [` https://${cuenta}.r2.cloudflarestorage.com`]
+    : [];
 }
 
 /**
@@ -173,6 +226,11 @@ function withSecurityHeaders(
       ? [" https://www.googletagmanager.com https://www.google-analytics.com"]
       : []),
     ...(metaPixelId ? [" https://www.facebook.com"] : []),
+    // El dominio público del bucket de R2 sirve las fotos (panel > entorno).
+    ...origenImagenes(),
+    // El comprobante se muestra en el panel con una URL prefirmada contra el
+    // endpoint S3 de la cuenta: sólo ahí, nunca en la vidriera.
+    ...(isAdmin ? endpointPrivadoR2() : []),
   ].join("");
   const connectHosts = [
     ...(ga4Id
@@ -189,16 +247,16 @@ function withSecurityHeaders(
     "default-src 'self'",
     /*
       Con nonce —todo lo que se renderiza por request: panel, checkout, cuenta,
-      pedido, buscador, ficha de producto— 'strict-dynamic' hace que los
-      scripts que carga un script con nonce hereden la confianza, que es lo que
-      necesita el chunking de Next.
+      pedido, buscador, y la categoría o la ficha con parámetros—
+      'strict-dynamic' hace que los scripts que carga un script con nonce
+      hereden la confianza, que es lo que necesita el chunking de Next.
 
-      Sin nonce —la home y las categorías, que se cachean— hay que permitir el
-      inline: los <script> con los datos del render que Next mete en el HTML no
+      Sin nonce —la home, las categorías y las fichas, que se cachean— hay que
+      permitir el inline: los <script> con los datos del render que Next mete en el HTML no
       tienen un hash estable entre builds con el que firmarlos. 'strict-dynamic'
       no va en ese caso: anularía el 'unsafe-inline' que necesitamos.
 
-      Es un CSP más flojo y por eso vale sólo en esas dos pantallas, que no
+      Es un CSP más flojo y por eso vale sólo en esas tres pantallas, que no
       tienen sesión, ni plata, ni datos de nadie: catálogo público y nada más.
       Todo lo que sí los tiene sigue con el nonce. El agujero que este permiso
       abriría —texto del catálogo inyectado en el JSON-LD— se tapa aparte, en
@@ -223,13 +281,14 @@ function withSecurityHeaders(
     // ejecuta código; el riesgo real es la exfiltración por selectores, muy
     // por debajo de romper el estilo del sitio entero.
     "style-src 'self' 'unsafe-inline'",
-    // Cloudinary sirve las fotos de producto; data: es para los blur
-    // placeholders que guardamos en product_images.
-    `img-src 'self' data: blob: https://res.cloudinary.com${imgHosts}`,
+    // R2 (el dominio público del bucket) sirve las fotos; data: es para los
+    // blur placeholders que guardamos en product_images, y blob: para la
+    // vista previa de una foto que el panel está preparando para subir.
+    `img-src 'self' data: blob:${imgHosts}`,
     "font-src 'self' data:",
     // El navegador sólo habla con este origen (más los medidores de arriba,
-    // si están). Cloudinary se llama desde el servidor, nunca desde el
-    // cliente.
+    // si están). R2 se escribe desde el servidor, nunca desde el
+    // navegador.
     `connect-src 'self'${dev ? " ws: http://localhost:*" : ""}${connectHosts}`,
     "form-action 'self'",
     // Redundante con X-Frame-Options, pero es el que respetan los navegadores

@@ -1,0 +1,35 @@
+{
+  "descripcion": "Token en el querystring y en el cuerpo a la vez.",
+  "origen": "sintetico",
+  "contentType": "application/json",
+  "token": "ambos",
+  "firma": "valida",
+  "estadoInicial": "pendiente_pago",
+  "sembrar": true,
+  "entregas": 1,
+  "cuerpo": {
+    "respuesta": true,
+    "resultado": [
+      {
+        "hash_pedido": "b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3",
+        "pagado": true,
+        "monto": "150000",
+        "forma_pago": "TARJETA",
+        "numero_pedido": "PY-000123",
+        "token": "{{TOKEN}}"
+      }
+    ]
+  },
+  "esperado": {
+    "parseo": {
+      "hashPedido": "b92a3c6e319f08e49500328cbd342db19cf1cf07eab118414716a5f66d20cee3",
+      "pagado": true,
+      "montoPyg": 150000
+    },
+    "ruta": {
+      "status": 200,
+      "pedido": "pagado",
+      "eventos": 1
+    }
+  }
+}

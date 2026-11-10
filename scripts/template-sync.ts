@@ -11,6 +11,7 @@ import {
   type Commit,
   contenidoBaseline,
   DOCS_DEL_TEMPLATE,
+  esDeLaTienda,
   esMaquinaria,
   esMixto,
   esSoloTemplate,
@@ -37,7 +38,8 @@ import {
  *   - maquinaria que la tienda nunca tuvo → se restaura aunque el template no la haya cambiado
  *   - maquinaria cambiada de los dos lados → merge de 3 vías; si choca, conflicto
  *   - piel o docs que la tienda cambió → quedan los de la tienda (se listan)
- *   - `fable/`, Dependabot, `tiendas.json` → nunca viajan
+ *   - de la tienda (`src/themes/custom.css`) → queda el suyo siempre; sólo vuelve si falta
+ *   - `fable/`, Renovate (y el viejo Dependabot), `tiendas.json` → nunca viajan
  *   - `pnpm-lock.yaml`                → el del template, o se regenera
  *
  * Todo termina en **un** commit con el baseline nuevo. Si hubo conflictos,
@@ -135,7 +137,7 @@ export function parseArgs(entrada: string[]): Opciones {
 // ---------------------------------------------------------------------------
 
 export type Accion =
-  /** `fable/`, Dependabot, `tiendas.json`, el propio baseline: nunca viajan. */
+  /** `fable/`, Renovate, `tiendas.json`, el propio baseline: nunca viajan. */
   | 'ignorar'
   /** La tienda ya tiene exactamente lo del template. */
   | 'al-dia'
@@ -159,6 +161,13 @@ export function decidirArchivo(ruta: string, { base, tienda, template }: Version
   if (esSoloTemplate(ruta) || ruta === BASELINE_FILE) return 'ignorar';
   if (tienda === template) return 'al-dia';
   if (ruta === 'pnpm-lock.yaml') return 'lockfile';
+  // De la tienda (`custom.css`): el suyo queda siempre, aunque nunca lo haya
+  // tocado. El del template sólo llega si a la tienda le falta —nuevo, o
+  // borrado a mano—, para que el `@import` de `globals.css` no rompa el build.
+  if (esDeLaTienda(ruta)) {
+    if (tienda !== null) return 'conservar';
+    return base === null ? 'tomar-template' : 'restaurar';
+  }
   if ((DOCS_DEL_TEMPLATE as readonly string[]).includes(ruta)) return 'tomar-template';
   if (tienda === base) return 'tomar-template';
 

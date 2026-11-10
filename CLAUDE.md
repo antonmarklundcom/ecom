@@ -18,8 +18,11 @@ leé:
   `fable/REVIEW-2026-09-13.md` (ya aplicada, #109) y la auditoría del template
   como fábrica de tiendas es `fable/TEMPLATE-REVIEW.md` (2026-09-19, T1–T7, todos
   cerrados). La auditoría de octubre (A–F, PRs #148–#153, todo mergeado) está en
-  `docs/TEMPLATE-IMPROVEMENT-PLAN.md`; **lo que falta y cómo seguir** está en
-  `fable/HANDOFF-2026-10-07.md` — leelo primero si retomás ese trabajo. La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
+  `docs/TEMPLATE-IMPROVEMENT-PLAN.md`. **Lo que falta y cómo seguir** está en
+  `fable/plan-2026-11.md` (fases O22–O31, protocolo §4, una prompt por fase
+  en `fable/prompts/`, log de cada fase en `docs/log/`), que sale de la
+  revisión `fable/REVIEW-2026-11-10.md`; reemplaza al handoff de octubre
+  (`fable/HANDOFF-2026-10-07.md`, hoy historial). La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
   en el template: una tienda no lo tiene (`pnpm nueva-tienda` lo borra).
 - **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
   remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).
@@ -37,7 +40,7 @@ leé:
 | Maquinaria — no se toca por tienda | Piel — libre de rediseñar |
 |---|---|
 | `src/domain/**` (estados del pedido, stock, plata, Pagopar) | `site-header`, `site-footer`, home, `product-card`, categorías |
-| `src/lib/**` (sesión, seguridad, guaraníes) | tokens de `globals.css`, tipografía, imágenes |
+| `src/lib/**` (sesión, seguridad, guaraníes) | el tema (`tema` en `tienda.ts`, `src/themes/`), `src/themes/custom.css`, tipografía, imágenes |
 | checkout y sus rutas API, `src/app/actions` | textos y copy |
 | `/admin` (lógica; el markup se puede repintar) | `src/config/tienda.ts` (marca, hero, flags) |
 
@@ -61,7 +64,7 @@ NEW-STORE.md §5 y `src/lib/testids.ts`.
   Hostinger lo lee y precarga un campo del hPanel por variable. Una variable
   opcional nueva se documenta en `docs/ENV-OPCIONAL.md`, nunca en
   `.env.example` (`tests/unit/env-example.test.ts` lo bloquea).
-- Credenciales de integraciones (Cloudinary, WhatsApp, Pagopar, GA4/Pixel,
+- Credenciales de integraciones (R2, WhatsApp, Pagopar, GA4/Pixel,
   reporte de errores) se leen **sólo** por `src/lib/integraciones.ts`
   (panel `/admin/integraciones` > entorno > apagado), nunca con `process.env`
   directo. Los secretos van cifrados (`src/lib/secret-box.ts`) y no vuelven al

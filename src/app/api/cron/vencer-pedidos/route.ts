@@ -4,6 +4,7 @@ import { runMaintenance } from "@/domain/maintenance";
 import { cronJson, requireCronSecret } from "@/lib/cron-auth";
 import { log, mensajeDe } from "@/lib/log";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
+import { revalidarVidriera } from "@/lib/revalidar-vidriera";
 
 /**
  * Cron de Hostinger (PLAN.md 4.8).
@@ -45,6 +46,11 @@ async function handle(request: Request): Promise<Response> {
 
   try {
     const report = await runMaintenance();
+    // Lo vencido o borrado vuelve a estar disponible: que la vidriera
+    // cacheada lo muestre ya y no a los 5 minutos (src/lib/revalidar-vidriera.ts).
+    if (report.expired.length > 0 || report.reservationsDeleted > 0) {
+      revalidarVidriera();
+    }
     await dispatchOrderNotices();
     // Sólo cantidades. Los ids de pedido son datos del negocio y los logs de
     // Hostinger los ve cualquiera con acceso al hPanel.

@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { products, variants } from "@/db/schema";
 import {
   applyCatalogImport,
+  previewCatalogImport,
   saveProductVariant,
 } from "@/app/actions/admin-products";
 import { closeTestDb, getTestDb, hasTestDb, resetTables } from "../helpers/db";
@@ -72,6 +73,11 @@ describe.skipIf(!hasTestDb)("catalog updates invalidate public pages", () => {
         { type: "text/csv" }
       )
     );
+    // La vista previa firma el archivo; el lote 0 lo escribe con esa firma.
+    const preview = await previewCatalogImport(form);
+    if (!preview.ok) throw new Error(preview.errores.join("\n"));
+    form.set("lote", "0");
+    form.set("revision", preview.revision);
     const result = await applyCatalogImport(form);
     expect(result).toMatchObject({
       ok: true,

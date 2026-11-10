@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
 
 import { CATALOGUE } from "@/config/catalogue";
 import { CatalogueEditorial } from "@/components/catalogue-editorial";
+import { ImagenR2 } from "@/components/imagen-r2";
 import { AttributeFilters } from "@/components/attribute-filters";
 import {
   getCatalogueFacets,
@@ -18,11 +18,18 @@ import { ProductDescription } from "@/components/product-description";
 import { Button } from "@/components/ui/button";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
-import { productImageUrl } from "@/lib/images";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
+import { productImageSources } from "@/lib/images";
 import { markdownToText } from "@/lib/markdown";
 import { parsePriceRange } from "@/lib/price-ranges";
-import { breadcrumbJsonLd, itemListJsonLd, jsonLdScript } from "@/lib/seo";
+import {
+  breadcrumbJsonLd,
+  categoryTrail,
+  itemListJsonLd,
+  jsonLdScript,
+} from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
+import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
 import {
   categoryHasPrices,
   getBrands,
@@ -32,7 +39,20 @@ import {
   isCatalogSort,
 } from "@/db/queries";
 
-export const dynamic = "force-dynamic";
+/**
+ * ISR, como la home y la ficha (ARCH.md §6, "Caché de la vidriera"): la
+ * categoría sin parámetros —la que se abre desde el menú y la que indexa
+ * Google— sale armada de la caché y se rearma cuando el panel cambia algo o
+ * entra un pedido (`revalidarVidriera()`), o a los 5 minutos como mucho.
+ *
+ * Con filtros, orden o página (`?marca=`, `?orden=`, `?page=`…) no: cada
+ * combinación es una página distinta con conteos en vivo, y `src/proxy.ts`
+ * la manda a `con-parametros/`, que reusa esta misma página por request y le
+ * pasa `conParametros`. Sin eso, `searchParams` no se toca
+ * (`parametrosDeLaUrl`): esperarlo volvería dinámica la ruta cacheada.
+ */
+export const dynamic = "force-static";
+export const revalidate = 300;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type Params = Promise<{ slug: string }>;
@@ -52,9 +72,12 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
   searchParams,
+  conParametros,
 }: {
   params: Params;
   searchParams: SearchParams;
+  /** Lo pasa la gemela `con-parametros/`: ver `parametrosDeLaUrl`. */
+  conParametros?: boolean;
 }): Promise<Metadata> {
   const { slug } = await params;
   const category = await loadCategory(slug);
@@ -71,7 +94,7 @@ export async function generateMetadata({
   // Cada página sin filtros tiene su canonical. Las combinaciones de filtros
   // quedan fuera del índice y apuntan a la categoría base.
   const origin = siteOrigin();
-  const query = await searchParams;
+  const query = await parametrosDeLaUrl({ searchParams, conParametros });
   const parsedPage = Number(first(query.page));
   const page =
     Number.isSafeInteger(parsedPage) && parsedPage > 1 ? parsedPage : 1;
@@ -100,21 +123,25 @@ function first(value: string | string[] | undefined): string | undefined {
 export default async function CategoryPage({
   params,
   searchParams,
+  conParametros,
 }: {
   params: Params;
   searchParams: SearchParams;
+  /** Lo pasa la gemela `con-parametros/`: ver `parametrosDeLaUrl`. */
+  conParametros?: boolean;
 }) {
   const { slug } = await params;
-  const query = await searchParams;
+  const query = await parametrosDeLaUrl({ searchParams, conParametros });
 
   const category = await loadCategory(slug);
   // Ver la nota en producto/[slug]: el 404 tiene que decidirse acá, y por eso
   // esta ruta tampoco lleva loading.tsx.
   if (!category) notFound();
 
-  // `null` sin `CLOUDINARY_CLOUD_NAME` o sin foto cargada — la página cae al
-  // encabezado de texto de siempre (plan-operacion §6.3).
-  const categoryImageUrl = productImageUrl(category.imageCloudinaryId, "hero");
+  // `null` sin base pública de R2 o sin foto cargada (o una referencia que no
+  // es de R2) — la página cae al encabezado de texto de siempre
+  // (plan-operacion §6.3).
+  const categoryImage = productImageSources(category.imageRef, "hero");
 
   const sortParam = first(query.orden);
   const { min, max } = parsePriceRange(first(query.precio));
@@ -124,7 +151,13 @@ export default async function CategoryPage({
       ? requestedPage
       : 1;
 
-  const { vidriera } = await getStoreSettings();
+  const [{ vidriera }, categorias] = await Promise.all([
+    getStoreSettings(),
+    getCategories(),
+  ]);
+  // Las madres de esta categoría (`categories.parent_id`), de la raíz para
+  // abajo y sin ella misma: la última miga es la página actual.
+  const madres = categoryTrail(categorias, slug).slice(0, -1);
   // Los mismos filtros condicionan el listado y cada conteo de las opciones
   // (docs/TEMPLATE-IMPROVEMENT-PLAN.md F4).
   const filtros = {
@@ -169,6 +202,10 @@ export default async function CategoryPage({
   const jsonLd = [
     breadcrumbJsonLd(origin, [
       { name: t("nav.inicio"), path: "/" },
+      ...madres.map((madre) => ({
+        name: madre.name,
+        path: `/categoria/${madre.slug}`,
+      })),
       { name: category.name, path: `/categoria/${slug}` },
     ]),
     itemListJsonLd(origin, result.products, {
@@ -188,6 +225,17 @@ export default async function CategoryPage({
         <Link href="/" className="hover:text-foreground">
           {t("nav.inicio")}
         </Link>
+        {madres.map((madre) => (
+          <span key={madre.id}>
+            <span aria-hidden> / </span>
+            <Link
+              href={`/categoria/${madre.slug}`}
+              className="hover:text-foreground"
+            >
+              {madre.name}
+            </Link>
+          </span>
+        ))}
         <span aria-hidden> / </span>
         <span className="text-foreground">{category.name}</span>
       </nav>
@@ -204,17 +252,16 @@ export default async function CategoryPage({
 
       {/* Sin foto ni descripción cargadas (O7, `/admin/categorias`), esta
           página queda exactamente igual que antes de esta sección. */}
-      {categoryImageUrl || category.description ? (
+      {categoryImage || category.description ? (
         <div className="mt-5">
-          {categoryImageUrl ? (
+          {categoryImage ? (
             <div className="bg-muted relative aspect-[16/5] w-full overflow-hidden rounded-xl">
-              <Image
-                src={categoryImageUrl}
+              <ImagenR2
+                fuentes={categoryImage}
                 alt={category.imageAlt ?? category.name}
                 fill
-                unoptimized
                 priority
-                sizes="(max-width: 1024px) 100vw, 1152px"
+                sizes={IMAGE_SIZES.hero}
                 className="object-cover"
               />
             </div>
@@ -222,7 +269,7 @@ export default async function CategoryPage({
           {category.description ? (
             <ProductDescription
               markdown={category.description}
-              className={categoryImageUrl ? "mt-4" : undefined}
+              className={categoryImage ? "mt-4" : undefined}
             />
           ) : null}
         </div>
