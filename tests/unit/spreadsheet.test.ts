@@ -1,7 +1,13 @@
 import ExcelJS from 'exceljs';
+import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 
-import { spreadsheetToCsvText, UnsupportedSpreadsheetError } from '@/lib/spreadsheet';
+import {
+  spreadsheetToCsvText,
+  UnsupportedSpreadsheetError,
+  XLSX_MAX_COLUMNS,
+  XLSX_MAX_ROWS,
+} from '@/lib/spreadsheet';
 
 /**
  * El puente entre el `.xlsx` que sube el comercio y `parseCatalogo`, que sólo
@@ -94,5 +100,66 @@ describe('spreadsheetToCsvText', () => {
       UnsupportedSpreadsheetError,
     );
     await expect(spreadsheetToCsvText('catalogo.xlsx', zipRoto)).rejects.toThrow(/dañado/);
+  });
+
+  // S25: límites que se aplican ANTES de convertir la hoja a CSV.
+  describe('límites de tamaño (S25)', () => {
+    /** ZIP mínimo con una sola entrada: el directorio central declara el tamaño descomprimido. */
+    function zipConUnaEntrada(nombre: string, contenido: Buffer): Buffer {
+      const comprimido = deflateRawSync(contenido);
+      const name = Buffer.from(nombre);
+      const local = Buffer.alloc(30);
+      local.writeUInt32LE(0x04034b50, 0);
+      local.writeUInt16LE(20, 4);
+      local.writeUInt16LE(8, 8);
+      local.writeUInt32LE(comprimido.length, 18);
+      local.writeUInt32LE(contenido.length, 22);
+      local.writeUInt16LE(name.length, 26);
+      const central = Buffer.alloc(46);
+      central.writeUInt32LE(0x02014b50, 0);
+      central.writeUInt16LE(20, 4);
+      central.writeUInt16LE(20, 6);
+      central.writeUInt16LE(8, 10);
+      central.writeUInt32LE(comprimido.length, 20);
+      central.writeUInt32LE(contenido.length, 24);
+      central.writeUInt16LE(name.length, 28);
+      const cuerpo = Buffer.concat([local, name, comprimido]);
+      const dir = Buffer.concat([central, name]);
+      const fin = Buffer.alloc(22);
+      fin.writeUInt32LE(0x06054b50, 0);
+      fin.writeUInt16LE(1, 8);
+      fin.writeUInt16LE(1, 10);
+      fin.writeUInt32LE(dir.length, 12);
+      fin.writeUInt32LE(cuerpo.length, 16);
+      return Buffer.concat([cuerpo, dir, fin]);
+    }
+
+    it('rechaza un .xlsx que descomprime a cientos de MB (zip bomb) sin abrirlo', async () => {
+      const bomba = zipConUnaEntrada('xl/worksheets/sheet1.xml', Buffer.alloc(300 * 1024 * 1024));
+      expect(bomba.length).toBeLessThan(1024 * 1024);
+
+      await expect(spreadsheetToCsvText('catalogo.xlsx', bomba)).rejects.toThrow(UnsupportedSpreadsheetError);
+      await expect(spreadsheetToCsvText('catalogo.xlsx', bomba)).rejects.toThrow(/demasiado grande/);
+    });
+
+    it('rechaza una hoja con más filas que el tope del catálogo', async () => {
+      const filas = Array.from({ length: XLSX_MAX_ROWS + 1 }, (_, i) => [`SKU-${i}`]);
+      const bytes = await libroDePrueba(filas);
+
+      await expect(spreadsheetToCsvText('catalogo.xlsx', bytes)).rejects.toThrow(UnsupportedSpreadsheetError);
+      await expect(spreadsheetToCsvText('catalogo.xlsx', bytes)).rejects.toThrow(/filas/);
+    });
+
+    it('rechaza una hoja con demasiadas columnas', async () => {
+      const bytes = await libroDePrueba([Array.from({ length: XLSX_MAX_COLUMNS + 1 }, (_, i) => `c${i}`)]);
+
+      await expect(spreadsheetToCsvText('catalogo.xlsx', bytes)).rejects.toThrow(/columnas/);
+    });
+
+    it('acepta una hoja justo en el tope de filas', async () => {
+      const filas = Array.from({ length: XLSX_MAX_ROWS }, (_, i) => [`SKU-${i}`]);
+      const csv = await spreadsheetToCsvText('catalogo.xlsx', await libroDePrueba(filas));
+      expect(csv.split('\n')).toHaveLength(XLSX_MAX_ROWS);
+    });
   });
 });
