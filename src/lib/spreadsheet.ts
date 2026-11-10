@@ -15,8 +15,42 @@ export class UnsupportedSpreadsheetError extends Error {
   }
 }
 
+/**
+ * Topes que se aplican ANTES de convertir la hoja a CSV (S25). El tope de
+ * `MAX_FILAS_PLANILLA` (5.000 filas de datos) recién corre después de convertir,
+ * cuando `exceljs` ya armó toda la hoja en memoria.
+ */
+/** Encabezado + 5.000 filas de datos. */
+export const XLSX_MAX_ROWS = 5001;
+export const XLSX_MAX_COLUMNS = 100;
+/** Bytes descomprimidos de todo el ZIP: un catálogo real pesa unos pocos MB. */
+export const XLSX_MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
+const XLSX_MAX_ENTRIES = 500;
+
 const EXTENSIONES_TEXTO = new Set(["csv", "txt"]);
 const EXTENSIONES_EXCEL = new Set(["xlsx"]);
+
+/**
+ * Suma los tamaños descomprimidos que declara el directorio central del ZIP,
+ * sin descomprimir nada. `null` si no se puede leer el directorio (lo resuelve
+ * después `load()` como archivo dañado).
+ */
+function tamanoDescomprimido(bytes: Buffer): { total: number; entradas: number } | null {
+  const minimo = Math.max(0, bytes.length - 22 - 0xffff);
+  for (let i = bytes.length - 22; i >= minimo; i -= 1) {
+    if (bytes.readUInt32LE(i) !== 0x06054b50) continue;
+    const entradas = bytes.readUInt16LE(i + 10);
+    let pos = bytes.readUInt32LE(i + 16);
+    let total = 0;
+    for (let n = 0; n < entradas; n += 1) {
+      if (pos + 46 > bytes.length || bytes.readUInt32LE(pos) !== 0x02014b50) return null;
+      total += bytes.readUInt32LE(pos + 24);
+      pos += 46 + bytes.readUInt16LE(pos + 28) + bytes.readUInt16LE(pos + 30) + bytes.readUInt16LE(pos + 32);
+    }
+    return { total, entradas };
+  }
+  return null;
+}
 
 function celdaATexto(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return "";
@@ -68,6 +102,12 @@ export async function spreadsheetToCsvText(filename: string, bytes: Buffer): Pro
   }
 
   if (EXTENSIONES_EXCEL.has(extension)) {
+    const declarado = tamanoDescomprimido(bytes);
+    if (declarado && (declarado.total > XLSX_MAX_UNCOMPRESSED_BYTES || declarado.entradas > XLSX_MAX_ENTRIES)) {
+      throw new UnsupportedSpreadsheetError(
+        "El archivo Excel es demasiado grande para importarlo. Dividí el catálogo en varios archivos o guardalo como .csv.",
+      );
+    }
     const workbook = new ExcelJS.Workbook();
     // `exceljs` tipa `load()` con un `Buffer` local a su propio `.d.ts` (no el
     // `Buffer` global de Node), incompatible con la definición de ArrayBuffer
@@ -89,6 +129,16 @@ export async function spreadsheetToCsvText(filename: string, bytes: Buffer): Pro
     const sheet = workbook.worksheets[0];
     if (!sheet) {
       throw new UnsupportedSpreadsheetError("El archivo Excel no tiene ninguna hoja con datos.");
+    }
+    if (sheet.rowCount > XLSX_MAX_ROWS) {
+      throw new UnsupportedSpreadsheetError(
+        `La hoja tiene ${sheet.rowCount} filas y el máximo es ${XLSX_MAX_ROWS - 1} filas de datos. Dividí el catálogo en varios archivos.`,
+      );
+    }
+    if ((sheet.actualColumnCount || sheet.columnCount) > XLSX_MAX_COLUMNS) {
+      throw new UnsupportedSpreadsheetError(
+        `La hoja tiene demasiadas columnas (el máximo es ${XLSX_MAX_COLUMNS}). Dejá solo las columnas del catálogo.`,
+      );
     }
     return sheetToCsv(sheet);
   }
