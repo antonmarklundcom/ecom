@@ -56,11 +56,15 @@ el ruteo de correo.
   plata. Una tienda nueva es marca, tema y catálogo.
 - Hostinger limita los procesos por cuenta (productos.new registró un techo
   compartido de ~200 y 429s cuando un redeploy dejó procesos huérfanos). El
-  arranque del template se protege contra eso (guardia de instancia única y
-  cierre ordenado del pool de MySQL, DEPLOY.md § "Procesos que se apilan
-  (429 en toda la cuenta)").
-- Sin el proxy de Cloudflare no hay CDN delante del HTML: el rendimiento sale
-  de páginas de catálogo cacheables (ISR con revalidación desde el panel) y de
-  fotos servidas desde R2 con tamaños correctos.
+  servidor cierra el pool de MySQL en orden al apagarse; la guardia de
+  instancia única (`pnpm start:guard`) es opcional hasta que la fase O27 la
+  mida en Hostinger (DEPLOY.md § "Procesos que se apilan (429 en toda la
+  cuenta)").
+- Sin el proxy de Cloudflare, la única CDN delante del HTML es la propia de
+  Hostinger (DEPLOY.md § "Cloudflare: sólo DNS"). Las páginas de catálogo son
+  cacheables (ISR con revalidación desde el panel) y salen con
+  `Cache-Control: s-maxage=300`: si esa CDN lo respeta, un cambio del panel
+  puede tardar hasta 5 minutos en verse desde afuera. Las fotos se sirven
+  desde R2 con tamaños correctos.
 - Si algún día una tienda necesita otro runtime, es una decisión nueva que
   reemplaza a ésta, no una excepción por tienda.

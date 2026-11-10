@@ -92,16 +92,18 @@ describe("rutaPidfile", () => {
     const a = rutaPidfile({ appDir: "/home/u/tienda-a", env: {}, tmpdir: "/tmp" });
     expect(a).toBe(rutaPidfile({ appDir: "/home/u/tienda-a", env: {}, tmpdir: "/tmp" }));
     expect(a).not.toBe(rutaPidfile({ appDir: "/home/u/tienda-b", env: {}, tmpdir: "/tmp" }));
-    expect(path.dirname(a)).toBe("/tmp");
+    // `path.join("/tmp")` es "/tmp" en Linux y "\tmp" en Windows: la misma
+    // regla en las dos plataformas, sin aflojarla en Linux.
+    expect(path.dirname(a)).toBe(path.join("/tmp"));
   });
 
   it("START_PIDFILE manda; vacía es como no tenerla", () => {
     expect(rutaPidfile({ appDir: "/a", env: { START_PIDFILE: "/home/u/x.pid" }, tmpdir: "/tmp" })).toBe(
-      "/home/u/x.pid"
+      path.resolve("/home/u/x.pid")
     );
-    expect(rutaPidfile({ appDir: "/a", env: { START_PIDFILE: "  " }, tmpdir: "/tmp" })).toMatch(
-      /^\/tmp\/ecom-start-[0-9a-f]{16}\.pid$/
-    );
+    const porDefecto = rutaPidfile({ appDir: "/a", env: { START_PIDFILE: "  " }, tmpdir: "/tmp" });
+    expect(path.dirname(porDefecto)).toBe(path.join("/tmp"));
+    expect(path.basename(porDefecto)).toMatch(/^ecom-start-[0-9a-f]{16}\.pid$/);
   });
 });
 
@@ -268,7 +270,10 @@ function salidaDe(hijo: ChildProcess): Promise<{ code: number | null; signal: st
   });
 }
 
-describe("reenviarSenales (con un hijo de verdad)", () => {
+// Windows no entrega señales POSIX a los handlers de un proceso: `kill()` lo
+// termina sin que corra `process.on("SIGTERM")`. El guard es para Hostinger
+// (Linux); en Windows estas cuatro no prueban nada y se saltean.
+describe.skipIf(process.platform === "win32")("reenviarSenales (con un hijo de verdad)", () => {
   it("SIGTERM llega tal cual", async () => {
     const proceso = new EventEmitter();
     const { hijo, salida } = await lanzarHijo();
@@ -380,9 +385,11 @@ describe.skipIf(process.platform !== "linux" || !fs.existsSync("/proc/self/envir
 );
 
 describe("el arranque de producción", () => {
-  it("`pnpm start` pasa por el guard, en Node pelado", () => {
+  it("`pnpm start` es `next start`; el guard es opcional (`start:guard`), en Node pelado", () => {
     const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
-    expect(pkg.scripts.start).toBe("node scripts/start.mjs");
+    // Opcional hasta que O27 lo mida en Hostinger (fable/plan-2026-11.md §5.1, F2).
+    expect(pkg.scripts.start).toBe("next start");
+    expect(pkg.scripts["start:guard"]).toBe("node scripts/start.mjs");
     for (const archivo of ["scripts/start.mjs", "scripts/start-guard.mjs"]) {
       const codigo = fs.readFileSync(archivo, "utf8");
       expect(codigo).not.toMatch(/from ['"](tsx|@\/|\.\.\/src)/);

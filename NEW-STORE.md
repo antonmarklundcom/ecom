@@ -1185,9 +1185,9 @@ tarjeta, acordate además de registrar en el panel de Pagopar la URL de
 respuesta (`https://tu-dominio/api/webhooks/pagopar`) y la de retorno
 (`https://tu-dominio/pedido/pagopar/retorno`); los pasos completos, con el
 test de sandbox y qué mirar en el primer aviso real, están en TASKS.md §21.
-`pnpm start` ya trae el control de instancia única (no se configura nada en
-el hPanel); si los redeploys dejan procesos colgados, DEPLOY.md § "Procesos
-que se apilan".
+`pnpm start` es `next start` (no se configura nada en el hPanel); si los
+redeploys dejan procesos colgados, DEPLOY.md § "Procesos que se apilan"
+explica el control opcional `pnpm start:guard`.
 
 ### 7. Google Shopping y el catálogo de Meta (después del lanzamiento)
 

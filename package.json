@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/start.mjs",
+    "start": "next start",
+    "start:guard": "node scripts/start.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",

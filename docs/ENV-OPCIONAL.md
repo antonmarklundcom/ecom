@@ -418,17 +418,20 @@ La migración de seguridad cierra las cookies existentes: cada login incorpora
 `session_version`, y cada guard consulta el estado actual de la cuenta. Un
 cambio de rol, desactivación o contraseña revoca las sesiones previas.
 
-## Arranque del servidor (`pnpm start`)
+## Arranque del servidor (`pnpm start:guard`, opcional)
 
 ```dotenv
 START_GUARD=""
 START_PIDFILE=""
 ```
 
-`pnpm start` es `node scripts/start.mjs`: arranca `next start` y, antes, cierra
-la instancia anterior de esta app si quedó viva y se puede verificar que es
-nuestra (DEPLOY.md § "Procesos que se apilan"). **Vacías, es el
-comportamiento de fábrica** y no hay que cargar ninguna.
+`pnpm start` es `next start` y **no lee ninguna de estas dos**. Sólo cuentan
+con `pnpm start:guard` (`node scripts/start.mjs`), que arranca `next start` y,
+antes, cierra la instancia anterior de esta app si quedó viva y se puede
+verificar que es nuestra (DEPLOY.md § "Procesos que se apilan"). El guard es
+**opcional hasta que la fase O27 lo mida en Hostinger**: suma un proceso Node
+por tienda contra el cupo compartido de la cuenta y nunca corrió allá. Con el
+guard puesto y las dos vacías, es su comportamiento por defecto.
 
 - `START_GUARD=off` apaga el control: arranca `next start` pelado, sin
   pidfile y sin cerrar nada. Es la salida de emergencia si algún día molesta,

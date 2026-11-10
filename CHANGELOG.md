@@ -25,6 +25,12 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **La reserva mientras se revisa un comprobante ya no depende de la zona
+  horaria del servidor** (`src/domain/receipts.ts`, F1 de
+  `fable/REVIEW-2026-11-10.md`). Sin migración. Maquinaria: llega sola por
+  `template:sync`. La hora del primer comprobante se leía en la zona del
+  proceso: en un servidor fuera de UTC la reserva duraba de más o de menos
+  por su desfase. Ahora se decodifica como la columna (UTC).
 - **Decisión de hosting por escrito** (`docs/decisions/0001-hosting.md`). Sin
   migración, sólo documentación: una tienda que cobra corre en Hostinger
   Node.js + MySQL; Cloudflare da DNS (sin proxy), R2 y el ruteo de correo; el
@@ -100,8 +106,10 @@ funciones nuevas; **parche** para arreglos.
 - **Arranque y apagado del servidor en Hostinger; Cloudflare sólo DNS.** Sin
   migración. **No hay que tocar nada en el hPanel**: el `start` sigue siendo
   el script `start`.
-  - `pnpm start` es ahora `node scripts/start.mjs` (Node pelado, sin tsx):
-    arranca `next start` con los mismos argumentos y `PORT`.
+  - `pnpm start` sigue siendo `next start`. El control de instancia única es
+    **opcional** hasta que O27 lo mida en Hostinger: `pnpm start:guard`
+    (`node scripts/start.mjs`, Node pelado, sin tsx) arranca `next start` con
+    los mismos argumentos y `PORT`.
     - Antes, si la instancia anterior de esta app quedó viva, la cierra
       (SIGTERM, 15 s, SIGKILL). Sólo si verifica que es suya, con una ficha
       en `/proc/<pid>/environ`: nunca toca un pid reciclado ni otra tienda de

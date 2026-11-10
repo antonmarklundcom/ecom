@@ -16,7 +16,7 @@ En el hPanel, dentro del sitio:
 1. **Websites → tu sitio → Advanced → GIT**: pegá la URL del repo y la rama
    (`main`). Si el repo es privado, copiá la clave pública que muestra
    Hostinger y cargala como _deploy key_ en GitHub (Settings → Deploy keys).
-2. **Node.js**: elegí la versión compatible con `engines`, `.nvmrc` y CI (actualmente Node 22). En los controles reales de hPanel elegí framework **Next.js**, gestor **pnpm**, build **pnpm run build** y salida **.next**. El script `start` del repositorio arranca el servidor: es `node scripts/start.mjs`, que corre `next start` con los mismos argumentos y el mismo `PORT` y además cierra la instancia anterior si quedó viva (§ "Procesos que se apilan"). No hay que cambiar nada en el hPanel por eso. No es una exportación estática.
+2. **Node.js**: elegí la versión compatible con `engines`, `.nvmrc` y CI (actualmente Node 22). En los controles reales de hPanel elegí framework **Next.js**, gestor **pnpm**, build **pnpm run build** y salida **.next**. El script `start` del repositorio arranca el servidor: es `next start`, sin nada en el medio. El control de instancia única (`pnpm start:guard`, § "Procesos que se apilan") es opcional y queda apagado hasta medirlo en Hostinger. No hay que cambiar nada en el hPanel. No es una exportación estática.
 
    Usá la opción disponible en el dropdown, sin asumir campos libres para los tres comandos. Contrastá `packageManager` y los logs completos de instalación **y** build: el pnpm usado por Corepack en `prebuild` también debe coincidir. Un install exitoso no demuestra un build compatible. El repositorio mantiene su pin actual; no copies un pin antiguo de otra tienda ni desactives la verificación de versiones. La validación local no verifica un despliegue en Hostinger.
 
@@ -705,7 +705,15 @@ octubre de 2026.
 
 ### Lo que hace el template
 
-**Al arrancar** (`pnpm start` = `node scripts/start.mjs`):
+**El control de instancia única es opcional** hasta que la fase O27 lo mida en
+Hostinger (`fable/plan-2026-11.md` §5.3). `pnpm start` es `next start` pelado:
+el guard suma un proceso Node más por tienda, para siempre, contra el mismo
+cupo de la cuenta, y Hostinger pide no lanzar procesos hijos de más; además
+dice que los deploys nuevos ya no dejan copias viejas. Nunca corrió en
+Hostinger. Lo de abajo describe `pnpm start:guard`, que sólo se usa si una
+tienda vuelve a ver huérfanos y alguien lo elige a propósito.
+
+**Al arrancar** (`pnpm start:guard` = `node scripts/start.mjs`):
 
 1. Lee el pidfile de la instancia anterior de esta app. Vive en el directorio
    temporal del sistema (`/tmp/ecom-start-<hash de la ruta de la app>.pid`), o
@@ -732,15 +740,15 @@ estaba), `ajena` (el pid es de otro proceso: no se tocó), `no_verificable`
 `NODE_ENV=production`): con SIGTERM o SIGINT, Next deja de aceptar
 conexiones y termina los requests en curso; antes de salir se cierra el pool
 de MySQL. Si en 10 s no terminó (un request colgado), se cierra el pool y se
-sale igual. Esto corre aunque Hostinger lance `next start` directo sin pasar
-por `scripts/start.mjs`.
+sale igual. Esto corre siempre, con `pnpm start` (el de fábrica) o con
+`pnpm start:guard`.
 
 Supuesto: **una sola instancia por app**, que es lo que da Hostinger (el rate
-limit en memoria, `src/lib/rate-limit.ts`, ya lo asume). Dos `pnpm start` desde
+limit en memoria, `src/lib/rate-limit.ts`, ya lo asume). Dos `pnpm start:guard` desde
 el mismo directorio no conviven: el segundo cierra al primero, aunque usen
 puertos distintos.
 
-Si alguna vez el guard molesta, `START_GUARD=off` en las variables del hPanel
+Con el guard puesto, si alguna vez molesta, `START_GUARD=off` en las variables del hPanel
 (y Redeploy) arranca `next start` pelado, sin pidfile y sin cerrar nada. El
 apagado ordenado del servidor sigue igual. Si Hostinger arranca la app desde
 otro directorio en cada deploy, el pidfile del deploy anterior no se
@@ -758,7 +766,7 @@ ps -u "$USER" --no-headers | wc -l     # cuántos procesos tiene la cuenta en to
 ```
 
 El servidor aparece como `next-server (v16…)` (Next le cambia el título) y el
-guard como `node scripts/start.mjs`. Para saber de qué tienda es cada uno:
+guard (si se usa `pnpm start:guard`) como `node scripts/start.mjs`. Para saber de qué tienda es cada uno:
 
 ```bash
 ls -l /proc/<pid>/cwd     # el directorio de la app
