@@ -25,6 +25,8 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+- **Dependencias al día** (S26, rehace #157): 25 subidas menores y parches (next 16.4.3, react 19.3.1, radix, drizzle-orm, mysql2, zod, vitest, playwright…). Sin migración, sin cambios de código; `eslint` sigue en 9. Detalle en `docs/log/s26.md`.
+
 - **La reserva mientras se revisa un comprobante ya no depende de la zona
   horaria del servidor** (`src/domain/receipts.ts`, F1 de
   `fable/REVIEW-2026-11-10.md`). Sin migración. Maquinaria: llega sola por
