@@ -27,8 +27,12 @@ DATABASE_URL="$base/$data_db" pnpm preflight > v-preflight.log 2>&1; echo "prefl
 bloquean=$(grep -E "^\s+✗ " v-preflight.log | sed 's/^\s*✗ //' | paste -sd ',' -)
 [ "$bloquean" = "Imágenes y archivos (R2)" ] && echo "preflight: sólo bloquea R2 (esperado sin bucket)" || echo "preflight: BLOQUEA [$bloquean]"
 grep -A1 "Medios de pago" v-preflight.log | head -2
-pnpm build > v-build.log 2>&1; echo "build $?"
+# El build prerenderiza la vidriera contra DATABASE_URL: tiene que ser la base
+# del navegador ya preparada (como en el CI del template). Contra una base que
+# no existe, la home queda cacheada con "No pude leer el catálogo" hasta que
+# revalida, y los primeros specs fallan por timeout.
 export DATABASE_URL="$base/$e2e_db" TEST_DATABASE_URL="$base/$e2e_db" E2E_PORT=$port
 recrear_db "$e2e_db"
 pnpm db:migrate > v-e2e-migrate.log 2>&1 && pnpm exec tsx scripts/prepare-browser-tests.ts > v-e2e-prepare.log 2>&1; echo "e2e-prepare $?"
+pnpm build > v-build.log 2>&1; echo "build $?"
 timeout 1800 pnpm exec playwright test > v-e2e.log 2>&1; echo "e2e $?"; grep -E "✘|passed|failed|flaky" v-e2e.log | tail -6
