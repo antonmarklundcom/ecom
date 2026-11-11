@@ -62,9 +62,26 @@ m["migration"]["hash"] = "0" * 64
 json.dump(m, open(p, "w", encoding="utf-8"))
 PY
 fi
+# `pnpm restore` imprime sólo el nombre del error (safeError, para no filtrar
+# SQL ni URLs): el motivo lo muestra rechazo.mts, que llama a lo mismo.
+cat > backups-drill/rechazo.mts <<'TS'
+import "../src/lib/load-env";
+import { restaurar } from "../scripts/restore-backup";
+import { closePool } from "../src/db";
+try {
+  await restaurar({ archivo: process.argv[2]!, vaciar: true });
+  console.log("RESTAURÓ (no debería)");
+} catch (error) {
+  console.log(`rechazo: ${(error as Error).message}`);
+} finally {
+  await closePool();
+}
+TS
 recrear_db "$r_no"
-DATABASE_URL="$base/$r_no" pnpm restore -- "$otro" > backups-drill/restore-ajeno.log 2>&1; echo "restore de otra migración: exit $? (esperado ≠ 0)"; grep -iE "migraci|error" backups-drill/restore-ajeno.log | head -2
+DATABASE_URL="$base/$r_no" pnpm restore -- "$otro" > backups-drill/restore-ajeno.log 2>&1; echo "restore de otra migración: exit $? (esperado ≠ 0)"
+DATABASE_URL="$base/$r_no" pnpm exec tsx backups-drill/rechazo.mts "$otro" 2>&1 | tail -1
 echo "tablas en la base tras el rechazo: $(mysql_cli -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$r_no'")"
-DATABASE_URL="$base/$r_set" pnpm restore -- "$set_dir" > backups-drill/restore-llena.log 2>&1; echo "restore sobre base con datos: exit $? (esperado ≠ 0)"; grep -iE "vacía|error" backups-drill/restore-llena.log | head -2
+DATABASE_URL="$base/$r_set" pnpm restore -- "$set_dir" > backups-drill/restore-llena.log 2>&1; echo "restore sobre base con datos: exit $? (esperado ≠ 0)"
+DATABASE_URL="$base/$r_set" pnpm exec tsx backups-drill/rechazo.mts "$set_dir" 2>&1 | tail -1
 "$PY" "$HERE/snapshot.py" "$r_set" backups-drill/post-llena.json backups-drill/pre.json > /dev/null
 "$PY" "$HERE/snapshot.py" --comparar backups-drill/post-set.json backups-drill/post-llena.json
