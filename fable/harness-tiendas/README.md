@@ -1,9 +1,10 @@
-# Arnés de tiendas (O23)
+# Arnés de tiendas (O23, O24)
 
 Dos tiendas desechables creadas desde el template de antes de la auditoría
 (`45f4336`), sincronizadas con el template de hoy y verificadas como las
 verificaría su CI más un deploy. Resultados de la última corrida:
-`docs/log/o23.md`.
+`docs/log/o23.md`. O24 suma la tienda "Oeste" (desde `f9979ce`, con la forma
+de mascota) para `template:adoptar-historial`: `docs/log/o24.md`.
 
 ## Preparar (una vez, ~2 min)
 
@@ -32,12 +33,17 @@ git -C <checkout> push -f $H/stores/tpl.git HEAD:refs/heads/main   # el template
 | Sur, caso 1 | `bash ../h/recover_store.sh sur <tag-propio> <db> <puerto> vendedor` | 8 min |
 | Verificar | `bash ../h/verify_store.sh norte <db> <puerto>` | 20 min |
 | Backup/restore | `bash ../h/backup_drill.sh norte <db> [set-de-sur]` | 2 min |
+| Oeste (O24) | `T0=f9979ce bash ../h/mk_store.sh oeste <flags>`, `customize.sh oeste` | 4 min |
+| Oeste, base | `bash ../h/populate_oeste.sh <db>` (con `HARNESS_MYSQLDUMP`) | 2 min |
+| Oeste, adoptar | `bash ../h/adopt_store.sh oeste <db>` | 2 min |
+| Oeste, sync | `bash ../h/sync_oeste.sh`, después `verify_store.sh oeste <db> <puerto>` | 25 min |
 | Clon limpio | `bash ../h/clean_clone.sh <repo> <rama> <db> <puerto>` | 5 min |
 
 Flags de `pnpm nueva-tienda` (la tienda 45f4336 no tiene `--tema vitrina`):
 
 ```bash
 norte: --nombre "Norte Hogar" --titulo "Norte Hogar — Cocina y casa" --descripcion "Tienda de prueba del arnés" --tagline "Todo para tu cocina" --whatsapp 0981000001 --dominio norte.example.test --tema calido
+oeste: --nombre "Oeste Campo" --titulo "Oeste Campo — Herramientas y ferretería" --descripcion "Tienda de prueba del arnés" --tagline "Todo para el campo" --whatsapp 0981000003 --dominio oeste.example.test
 sur:   --nombre "Sur Deportes" --titulo "Sur Deportes — Ropa y equipo" --descripcion "Tienda de prueba del arnés" --tagline "Equipate para correr" --whatsapp 0981000002 --dominio sur.example.test --tema neutro
 ```
 
