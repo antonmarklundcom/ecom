@@ -220,8 +220,8 @@ export const BASELINE_FILE = ".template-baseline";
  */
 export const HUELLAS_PIEL = "tests/piel-del-template.json";
 
-/** Las carpetas donde vive la piel que una tienda puede rediseñar. */
-export const RAICES_PIEL = ["src/components", "src/app", "src/themes"] as const;
+/** Las carpetas donde vive la piel que una tienda puede rediseñar (`src/styles/temas/`: los temas de antes del kit). */
+export const RAICES_PIEL = ["src/components", "src/app", "src/themes", "src/styles"] as const;
 
 /**
  * Tests de **piel del template**: miran cómo dibuja el template su propia piel
@@ -243,6 +243,7 @@ export const TESTS_DE_PIEL = [
   "src/components/__tests__/hero-compat.test.tsx",
   "src/components/__tests__/tema-variantes.test.tsx",
   "tests/unit/piel-sin-colores.test.ts",
+  "tests/unit/temas.test.ts",
 ] as const;
 
 /**

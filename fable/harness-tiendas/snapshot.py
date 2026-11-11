@@ -38,6 +38,10 @@ if len(sys.argv) > 1 and sys.argv[1] == "--comparar":
 db, dest = sys.argv[1], sys.argv[2]
 prev = json.load(open(sys.argv[3], encoding="utf-8")) if len(sys.argv) > 3 else None
 tables = [r[0] for r in q(db, "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type='BASE TABLE' ORDER BY table_name")]
+# Una base de tienda nunca está vacía acá: una lista vacía es una lectura que
+# falló (O23 la vio una vez en Sur), no una huella. Mejor cortar que comparar contra nada.
+if not tables:
+    raise SystemExit(f"{db}: no leí ninguna tabla; no escribo una huella vacía")
 result = {}
 for t in tables:
     if t == "__drizzle_migrations":
