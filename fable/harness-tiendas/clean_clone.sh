@@ -30,7 +30,9 @@ pid=$!; winpid=$(cat /proc/$pid/winpid 2>/dev/null || echo "")
 for _ in $(seq 1 60); do curl -fsS -o /dev/null "http://127.0.0.1:$port/api/health" 2>/dev/null && break; sleep 2; done
 echo "start: $(head -c 300 c-start.log | tr '\n' ' ' | cut -c1-160)"
 echo "health antes del setup: $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/api/health")"
-curl -s -X POST "http://127.0.0.1:$port/api/setup/init" -H "Authorization: Bearer $SETUP_SECRET" -H "content-type: application/json" -d '{}' > c-setup.json; echo "setup: $(head -c 400 c-setup.json)"
+# En producción el setup exige https; Hostinger termina TLS adelante y manda
+# este header, que es lo que se simula acá.
+curl -s -X POST "http://127.0.0.1:$port/api/setup/init" -H "x-forwarded-proto: https" -H "Authorization: Bearer $SETUP_SECRET" -H "content-type: application/json" -d '{}' > c-setup.json; echo "setup: $(head -c 400 c-setup.json)"
 echo
 curl -s "http://127.0.0.1:$port/api/health" > c-health.json; echo "health: $(cat c-health.json)"
 echo
