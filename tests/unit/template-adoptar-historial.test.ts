@@ -7,8 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   completarPlan,
+  esquemaDeFilas,
   esquemaDeSnapshot,
   evidenciaDeBackup,
+  motorDeVersion,
   hashDeMigracion,
   normalizarDefault,
   normalizarTipo,
@@ -17,6 +19,7 @@ import {
   sentenciaCondicional,
   sentenciasDeDatos,
   type Esquema,
+  type FilasDeEsquema,
   type Historia,
   type Migracion,
   type Snapshot,
@@ -30,7 +33,15 @@ import { journalSinChoque } from "../../scripts/template-migrations";
  * tests/integration/template-adoptar-historial.test.ts.
  */
 
-type Col = { name: string; type: string; notNull?: boolean; default?: unknown; primaryKey?: boolean };
+type Col = {
+  name: string;
+  type: string;
+  notNull?: boolean;
+  default?: unknown;
+  primaryKey?: boolean;
+  autoincrement?: boolean;
+  onUpdate?: boolean;
+};
 
 function snap(id: string, tablas: Record<string, Col[]>): Snapshot {
   return {
@@ -104,7 +115,9 @@ describe("normalizar el esquema", () => {
     expect(normalizarTipo("int(11)", "mariadb")).toBe("int");
     expect(normalizarTipo("bigint(20) unsigned", "mariadb")).toBe("bigint unsigned");
     expect(normalizarTipo("tinyint(3) unsigned", "mariadb")).toBe("tinyint unsigned");
-    expect(normalizarTipo("longtext", "mariadb")).toBe("json");
+    expect(normalizarTipo("longtext", "mariadb", true)).toBe("json");
+    // Sin el CHECK json_valid() es un longtext de verdad.
+    expect(normalizarTipo("longtext", "mariadb")).toBe("longtext");
     expect(normalizarTipo("longtext", "mysql")).toBe("longtext");
     expect(normalizarTipo("enum('RUC','CI')")).toBe("enum('RUC','CI')");
     expect(normalizarTipo("VARCHAR(120)")).toBe("varchar(120)");
@@ -126,6 +139,197 @@ describe("normalizar el esquema", () => {
     expect(normalizarDefault("NULL", "mariadb")).toBeNull();
     expect(normalizarDefault(null, "mysql")).toBeNull();
     expect(normalizarDefault(undefined, "drizzle")).toBeNull();
+  });
+});
+
+/**
+ * Las filas de `information_schema` con la forma que devuelven de verdad
+ * MariaDB 10.11 (la del job "Tests en MariaDB", run 43118996858) y MySQL 8.4
+ * para las mismas columnas del template. Las dos tienen que dar el esquema
+ * del snapshot de drizzle, clave por clave.
+ */
+describe("information_schema de MariaDB 10.11 y de MySQL 8 → el esquema del snapshot", () => {
+  const ESTADOS = "enum('pending','paid','failed','refunded')";
+  const ID_AI: Col = { name: "id", type: "int", notNull: true, autoincrement: true };
+  const SNAP = snap("real", {
+    payments: [
+      ID_AI,
+      { name: "status", type: ESTADOS, notNull: true, default: "'pending'" },
+      { name: "raw_payload", type: "json" },
+      { name: "created_at", type: "timestamp", notNull: true, default: "(now())" },
+      { name: "updated_at", type: "timestamp", notNull: true, default: "(now())", onUpdate: true },
+    ],
+    orders: [
+      ID_AI,
+      { name: "customer_email", type: "varchar(200)" },
+      { name: "times_used", type: "int unsigned", notNull: true, default: 0 },
+      { name: "is_gift", type: "boolean", notNull: true, default: false },
+      { name: "doc_type", type: "enum('RUC','CI','NINGUNO')", notNull: true, default: "'NINGUNO'" },
+    ],
+    shipping_zones: [ID_AI, { name: "cities", type: "json", notNull: true }],
+  });
+
+  type FilaCol = FilasDeEsquema["columnas"][number];
+  const col = (t: string, c: string, tipo: string, nulo: "YES" | "NO", def: string | null, extra = ""): FilaCol => ({
+    t,
+    c,
+    tipo,
+    nulo,
+    def,
+    extra,
+  });
+  const comun = (): Omit<FilasDeEsquema, "columnas" | "checks" | "clausulas"> => ({
+    tablas: [{ t: "payments" }, { t: "orders" }, { t: "shipping_zones" }, { t: "__drizzle_migrations" }],
+    indices: ["payments", "orders", "shipping_zones"].map((t) => ({ t, i: "PRIMARY", nu: 0, c: "id", s: 1, ty: "BTREE" })),
+    reglas: [],
+    columnasFk: [],
+  });
+
+  const MARIADB: FilasDeEsquema = {
+    ...comun(),
+    columnas: [
+      col("payments", "id", "int(11)", "NO", null, "auto_increment"),
+      col("payments", "status", ESTADOS, "NO", "'pending'"),
+      col("payments", "raw_payload", "longtext", "YES", "NULL"),
+      col("payments", "created_at", "timestamp", "NO", "current_timestamp()"),
+      col("payments", "updated_at", "timestamp", "NO", "current_timestamp()", "on update current_timestamp()"),
+      col("orders", "id", "int(11)", "NO", null, "auto_increment"),
+      col("orders", "customer_email", "varchar(200)", "YES", "NULL"),
+      col("orders", "times_used", "int(10) unsigned", "NO", "0"),
+      col("orders", "is_gift", "tinyint(1)", "NO", "0"),
+      col("orders", "doc_type", "enum('RUC','CI','NINGUNO')", "NO", "'NINGUNO'"),
+      col("shipping_zones", "id", "int(11)", "NO", null, "auto_increment"),
+      col("shipping_zones", "cities", "longtext", "NO", null),
+    ],
+    // El CHECK que MariaDB le agrega a cada columna json: se llama como la columna.
+    checks: [
+      { t: "payments", n: "raw_payload" },
+      { t: "shipping_zones", n: "cities" },
+    ],
+    clausulas: [
+      { t: "payments", n: "raw_payload", cl: "json_valid(`raw_payload`)" },
+      { t: "shipping_zones", n: "cities", cl: "json_valid(`cities`)" },
+    ],
+  };
+
+  const MYSQL: FilasDeEsquema = {
+    ...comun(),
+    columnas: [
+      col("payments", "id", "int", "NO", null, "auto_increment"),
+      col("payments", "status", ESTADOS, "NO", "pending"),
+      col("payments", "raw_payload", "json", "YES", null),
+      col("payments", "created_at", "timestamp", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED"),
+      col("payments", "updated_at", "timestamp", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"),
+      col("orders", "id", "int", "NO", null, "auto_increment"),
+      col("orders", "customer_email", "varchar(200)", "YES", null),
+      col("orders", "times_used", "int unsigned", "NO", "0"),
+      col("orders", "is_gift", "tinyint(1)", "NO", "0"),
+      col("orders", "doc_type", "enum('RUC','CI','NINGUNO')", "NO", "NINGUNO"),
+      col("shipping_zones", "id", "int", "NO", null, "auto_increment"),
+      col("shipping_zones", "cities", "json", "NO", null),
+    ],
+    checks: [],
+    clausulas: [],
+  };
+
+  const ordenado = (e: Esquema) => [...e].sort(([a], [b]) => a.localeCompare(b));
+  const conColumnas = (f: FilasDeEsquema, cambios: Record<string, Partial<FilaCol>>): FilasDeEsquema => ({
+    ...f,
+    columnas: f.columnas.map((c) => ({ ...c, ...cambios[`${c.t}.${c.c}`] })),
+  });
+
+  it("las filas de MariaDB y las de MySQL dan el mismo esquema que el snapshot", () => {
+    const esperado = ordenado(esquemaDeSnapshot(SNAP));
+    expect(ordenado(esquemaDeFilas(MARIADB, "mariadb"))).toEqual(esperado);
+    expect(ordenado(esquemaDeFilas(MYSQL, "mysql"))).toEqual(esperado);
+    // Lo que daba antes leer MariaDB como si fuera MySQL (los tres grupos del run rojo).
+    const comoMysql = esquemaDeFilas(MARIADB, "mysql");
+    expect(comoMysql.get("columna orders.customer_email")).toBe("varchar(200) DEFAULT 'NULL'");
+    expect(comoMysql.get("columna payments.status")).toBe(`${ESTADOS} NOT NULL DEFAULT '''pending'''`);
+    expect(comoMysql.get("columna payments.raw_payload")).toBe("longtext DEFAULT 'NULL'");
+  });
+
+  it("grupo NULL: el texto 'NULL' de default no se confunde con no tener default", () => {
+    const conTexto = conColumnas(MARIADB, { "orders.customer_email": { def: "'NULL'" } });
+    expect(esquemaDeFilas(conTexto, "mariadb").get("columna orders.customer_email")).toBe("varchar(200) DEFAULT 'NULL'");
+    // MySQL 8 da el texto sin comillas y la falta de default como NULL de SQL.
+    const conTextoMysql = conColumnas(MYSQL, { "orders.customer_email": { def: "NULL" } });
+    expect(esquemaDeFilas(conTextoMysql, "mysql").get("columna orders.customer_email")).toBe("varchar(200) DEFAULT 'NULL'");
+    expect(normalizarDefault("'NULL'", "mariadb")).toBe("'NULL'");
+    expect(normalizarDefault("NULL", "mysql")).toBe("'NULL'");
+  });
+
+  it("grupo comillas: el texto que trae comillas propias no se confunde con el que no", () => {
+    expect(normalizarDefault("'''pending'''", "mariadb")).toBe("'''pending'''");
+    expect(normalizarDefault("'''pending'''", "mariadb")).not.toBe(normalizarDefault("'pending'", "drizzle"));
+    expect(normalizarDefault("'it''s'", "mariadb")).toBe(normalizarDefault("it's", "mysql"));
+    // Un número de MariaDB va sin comillas; el texto '0' con ellas: los dos son '0', como en drizzle.
+    expect(normalizarDefault("'0'", "mariadb")).toBe("'0'");
+  });
+
+  it("grupo json: sólo el longtext con su CHECK json_valid() es json", () => {
+    const sinCheck: FilasDeEsquema = { ...MARIADB, checks: [], clausulas: [] };
+    const e = esquemaDeFilas(sinCheck, "mariadb");
+    expect(e.get("columna payments.raw_payload")).toBe("longtext");
+    expect(e.get("columna shipping_zones.cities")).toBe("longtext NOT NULL");
+
+    // El CHECK de otra columna no hace json a ésta.
+    const otraColumna: FilasDeEsquema = {
+      ...MARIADB,
+      clausulas: [{ t: "payments", n: "raw_payload", cl: "json_valid(`otra`)" }],
+    };
+    expect(esquemaDeFilas(otraColumna, "mariadb").get("columna payments.raw_payload")).toBe("longtext");
+    // Ni el de otra tabla.
+    const otraTabla: FilasDeEsquema = {
+      ...MARIADB,
+      clausulas: [{ t: "orders", n: "raw_payload", cl: "json_valid(`raw_payload`)" }],
+    };
+    expect(esquemaDeFilas(otraTabla, "mariadb").get("columna payments.raw_payload")).toBe("longtext");
+    // Un CHECK que no es exactamente json_valid(col) tampoco.
+    const otraCondicion: FilasDeEsquema = {
+      ...MARIADB,
+      clausulas: [{ t: "payments", n: "raw_payload", cl: "json_valid(`raw_payload`) or `raw_payload` is null" }],
+    };
+    const conOtra = esquemaDeFilas(otraCondicion, "mariadb");
+    expect(conOtra.get("columna payments.raw_payload")).toBe("longtext");
+    expect(conOtra.get("check payments.raw_payload")).toBe("existe");
+
+    // json_valid() sobre un text no lo hace json, y su CHECK queda como check.
+    const sobreText = conColumnas(MARIADB, { "payments.raw_payload": { tipo: "text" } });
+    const t = esquemaDeFilas(sobreText, "mariadb");
+    expect(t.get("columna payments.raw_payload")).toBe("text");
+    expect(t.get("check payments.raw_payload")).toBe("existe");
+
+    // Un CHECK con nombre propio hace json a la columna pero sigue siendo un check de la tienda.
+    const nombrado: FilasDeEsquema = {
+      ...MARIADB,
+      checks: [...MARIADB.checks.filter((c) => c.n !== "raw_payload"), { t: "payments", n: "pagos_json" }],
+      clausulas: [
+        ...MARIADB.clausulas.filter((c) => c.n !== "raw_payload"),
+        { t: "payments", n: "pagos_json", cl: "json_valid(`raw_payload`)" },
+      ],
+    };
+    const n = esquemaDeFilas(nombrado, "mariadb");
+    expect(n.get("columna payments.raw_payload")).toBe("json");
+    expect(n.get("check payments.pagos_json")).toBe("existe");
+    expect(n.has("check payments.raw_payload")).toBe(false);
+
+    // En MySQL un longtext es siempre longtext.
+    const mysqlLongtext = conColumnas(MYSQL, { "payments.raw_payload": { tipo: "longtext" } });
+    expect(esquemaDeFilas(mysqlLongtext, "mysql").get("columna payments.raw_payload")).toBe("longtext");
+  });
+
+  it("el motor sale de VERSION(); un MariaDB viejo o ilegible se niega", () => {
+    expect(motorDeVersion("8.4.11")).toBe("mysql");
+    expect(motorDeVersion("8.0.36-0ubuntu0.22.04.1")).toBe("mysql");
+    expect(motorDeVersion("10.11.10-MariaDB-ubu2204")).toBe("mariadb");
+    expect(motorDeVersion("10.6.21-MariaDB-log")).toBe("mariadb");
+    expect(motorDeVersion("11.4.3-MariaDB")).toBe("mariadb");
+    expect(motorDeVersion("5.5.5-10.11.6-MariaDB")).toBe("mariadb");
+    expect(motorDeVersion("10.2.7-MariaDB")).toBe("mariadb");
+    expect(() => motorDeVersion("10.2.6-MariaDB")).toThrow(/10\.2\.7/);
+    expect(() => motorDeVersion("10.1.48-MariaDB-0ubuntu0.18.04.1")).toThrow(/10\.2\.7/);
+    expect(() => motorDeVersion("MariaDB")).toThrow(/10\.2\.7/);
   });
 });
 

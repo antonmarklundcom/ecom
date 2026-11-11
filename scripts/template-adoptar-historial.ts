@@ -223,8 +223,15 @@ export type Motor = "mysql" | "mariadb";
 
 const TIPOS_ENTEROS = /^(tinyint|smallint|mediumint|int|integer|bigint)\((\d+)\)/;
 
-/** `boolean` = `tinyint(1)`; sin el ancho de los enteros (MySQL 8 no lo muestra, MariaDB sí). */
-export function normalizarTipo(tipo: string, motor: Motor = "mysql"): string {
+/**
+ * `boolean` = `tinyint(1)`; sin el ancho de los enteros (MySQL 8 no lo muestra, MariaDB sí).
+ *
+ * MariaDB no tiene un tipo `json`: guarda la columna como `longtext` y le
+ * agrega un CHECK `json_valid(col)`. Sólo ese par es `json`
+ * (`validadoComoJson`, lo decide `esquemaDeFilas` con el CHECK de la base);
+ * un `longtext` sin ese CHECK es un `longtext` de verdad y no se confunde.
+ */
+export function normalizarTipo(tipo: string, motor: Motor = "mysql", validadoComoJson = false): string {
   const crudo = tipo.trim().replace(/\s+/g, " ");
   const enumOSet = /^(enum|set)\(/i.exec(crudo);
   if (enumOSet) return enumOSet[1]!.toLowerCase() + crudo.slice(enumOSet[1]!.length);
@@ -235,8 +242,9 @@ export function normalizarTipo(tipo: string, motor: Motor = "mysql"): string {
     base === "tinyint" && ancho === "1" ? completo : base
   );
   if (t.startsWith("integer")) t = "int" + t.slice("integer".length);
-  // MariaDB guarda `json` como `longtext` con un CHECK json_valid().
-  if (motor === "mariadb" && t === "longtext") return "json";
+  // Un `longtext` con CHECK json_valid() hecho a mano es indistinguible de un
+  // `json` (en MariaDB son la misma cosa, y se comportan igual): se lee `json`.
+  if (motor === "mariadb" && t === "longtext" && validadoComoJson) return "json";
   return t;
 }
 
@@ -274,6 +282,12 @@ export function normalizarDefault(
   }
   const s = String(valor);
   if (origen === "mariadb") {
+    // Desde 10.2.7 MariaDB escribe `column_default` como SQL: `NULL` sin
+    // comillas es "sin default" (o DEFAULT NULL, que es lo mismo), un texto
+    // viene entre comillas (`'NULL'` es el texto NULL), un número sin ellas y
+    // una expresión tal cual (`current_timestamp()`). Antes de 10.2.7 el
+    // texto NULL y la falta de default no se distinguen: `motorDeVersion`
+    // se niega a leer esas versiones.
     if (s === "NULL") return null;
     if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) return literal(s.slice(1, -1).replace(/''/g, "'"));
     if (/^-?\d+(\.\d+)?$/.test(s)) return literal(s);
@@ -390,41 +404,135 @@ async function filas<T>(con: Consultable, sql: string, valores?: unknown[]): Pro
   return resultado;
 }
 
-export async function motorDe(con: Consultable): Promise<Motor> {
-  const [fila] = await filas<{ v: string }>(con, "SELECT VERSION() AS v");
-  return /mariadb/i.test(String(fila?.v ?? "")) ? "mariadb" : "mysql";
+/**
+ * El motor sale de `SELECT VERSION()`, nunca de cómo se ven los valores:
+ * `8.4.11` → mysql, `10.11.10-MariaDB-ubu2204` / `10.6.21-MariaDB-log` →
+ * mariadb. Un MariaDB anterior a 10.2.7 escribe `column_default` sin
+ * comillas, y ahí un default de texto `'NULL'` y "sin default" se leen igual:
+ * no se puede decidir sin riesgo, así que se niega (igual que una versión de
+ * MariaDB que no se entiende).
+ */
+export function motorDeVersion(version: string): Motor {
+  if (!/mariadb/i.test(version)) return "mysql";
+  const v = /(\d+)\.(\d+)\.(\d+)-mariadb/i.exec(version);
+  const numero = v ? [Number(v[1]), Number(v[2]), Number(v[3])] : null;
+  const viejo = (n: number[]) => n[0]! < 10 || (n[0] === 10 && (n[1]! < 2 || (n[1] === 2 && n[2]! < 7)));
+  if (!numero || viejo(numero)) {
+    throw new Error(
+      `MariaDB ${version}: antes de 10.2.7 information_schema no distingue un default de texto 'NULL' de una columna sin default, y no adopto sobre una lectura dudosa. Actualizá MariaDB (Hostinger usa 10.6+).`
+    );
+  }
+  return "mariadb";
 }
 
-/** El esquema real de la base de la conexión, con las mismas claves que un snapshot. */
-export async function esquemaVivo(con: Consultable, motor: Motor): Promise<Esquema> {
+export async function motorDe(con: Consultable): Promise<Motor> {
+  const [fila] = await filas<{ v: string }>(con, "SELECT VERSION() AS v");
+  return motorDeVersion(String(fila?.v ?? ""));
+}
+
+/** Las filas de `information_schema` que hacen falta, tal cual las devuelve el motor. */
+export type FilasDeEsquema = {
+  tablas: { t: string }[];
+  columnas: { t: string; c: string; tipo: string; nulo: string; def: string | null; extra: string | null }[];
+  indices: { t: string; i: string; nu: number | string; c: string | null; s: number; ty: string }[];
+  reglas: { t: string; n: string; rt: string; ur: string; dr: string }[];
+  columnasFk: { t: string; n: string; c: string; rc: string }[];
+  checks: { t: string; n: string }[];
+  /** Sólo MariaDB (`check_constraints` con `table_name`): de acá sale qué `longtext` es `json`. */
+  clausulas: { t: string; n: string; cl: string | null }[];
+};
+
+export async function leerFilasDeEsquema(con: Consultable, motor: Motor): Promise<FilasDeEsquema> {
+  return {
+    tablas: await filas(
+      con,
+      "SELECT table_name AS t FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+    ),
+    columnas: await filas(
+      con,
+      `SELECT table_name AS t, column_name AS c, column_type AS tipo, is_nullable AS nulo,
+              column_default AS def, extra AS extra
+         FROM information_schema.columns WHERE table_schema = DATABASE()`
+    ),
+    indices: await filas(
+      con,
+      `SELECT table_name AS t, index_name AS i, non_unique AS nu, column_name AS c,
+              seq_in_index AS s, index_type AS ty
+         FROM information_schema.statistics WHERE table_schema = DATABASE()
+        ORDER BY table_name, index_name, seq_in_index`
+    ),
+    reglas: await filas(
+      con,
+      `SELECT table_name AS t, constraint_name AS n, referenced_table_name AS rt,
+              update_rule AS ur, delete_rule AS dr
+         FROM information_schema.referential_constraints WHERE constraint_schema = DATABASE()`
+    ),
+    columnasFk: await filas(
+      con,
+      `SELECT table_name AS t, constraint_name AS n, column_name AS c, referenced_column_name AS rc
+         FROM information_schema.key_column_usage
+        WHERE table_schema = DATABASE() AND referenced_table_name IS NOT NULL
+        ORDER BY table_name, constraint_name, ordinal_position`
+    ),
+    checks: await filas(
+      con,
+      `SELECT table_name AS t, constraint_name AS n FROM information_schema.table_constraints
+        WHERE constraint_schema = DATABASE() AND constraint_type = 'CHECK'`
+    ),
+    clausulas:
+      motor === "mariadb"
+        ? await filas(
+            con,
+            `SELECT table_name AS t, constraint_name AS n, check_clause AS cl
+               FROM information_schema.check_constraints WHERE constraint_schema = DATABASE()`
+          )
+        : [],
+  };
+}
+
+/** `json_valid(\`payload\`)` → `json_valid(payload)`, para comparar. */
+function clausulaNormalizada(clausula: string): string {
+  let e = clausula.toLowerCase().replace(/[`\s]/g, "");
+  while (e.startsWith("(") && e.endsWith(")")) e = e.slice(1, -1);
+  return e;
+}
+
+/**
+ * Las filas de `information_schema` como un `Esquema`, con las mismas claves
+ * que un snapshot. Pura: los tests le pasan filas con la forma exacta de
+ * MySQL 8 y de MariaDB.
+ */
+export function esquemaDeFilas(f: FilasDeEsquema, motor: Motor): Esquema {
   const esquema: Esquema = new Map();
-  const tablas = await filas<{ t: string }>(
-    con,
-    "SELECT table_name AS t FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
-  );
-  const propias = new Set(tablas.map((f) => f.t).filter((t) => t !== "__drizzle_migrations"));
+  const propias = new Set(f.tablas.map((fila) => fila.t).filter((t) => t !== "__drizzle_migrations"));
   for (const t of propias) esquema.set(claves.tabla(t), "existe");
 
-  const columnas = await filas<{
-    t: string;
-    c: string;
-    tipo: string;
-    nulo: string;
-    def: string | null;
-    extra: string | null;
-  }>(
-    con,
-    `SELECT table_name AS t, column_name AS c, column_type AS tipo, is_nullable AS nulo,
-            column_default AS def, extra AS extra
-       FROM information_schema.columns WHERE table_schema = DATABASE()`
-  );
-  for (const col of columnas) {
+  // MariaDB: el CHECK que agrega a una columna `json` se llama como la
+  // columna y dice `json_valid(col)`. Ese CHECK es parte del tipo, no un
+  // check de la tienda: no va como `check t.col`.
+  const columnasJson = new Set<string>();
+  const checksDeJson = new Set<string>();
+  if (motor === "mariadb") {
+    const longtext = new Set(
+      f.columnas
+        .filter((col) => String(col.tipo).trim().toLowerCase() === "longtext")
+        .map((col) => `${col.t}\0${col.c.toLowerCase()}`)
+    );
+    for (const cl of f.clausulas) {
+      const m = /^json_valid\(([^(),]+)\)$/.exec(clausulaNormalizada(String(cl.cl ?? "")));
+      if (!m || !longtext.has(`${cl.t}\0${m[1]}`)) continue;
+      columnasJson.add(`${cl.t}\0${m[1]}`);
+      if (cl.n.toLowerCase() === m[1]) checksDeJson.add(`${cl.t}\0${m[1]}`);
+    }
+  }
+
+  for (const col of f.columnas) {
     if (!propias.has(col.t)) continue;
     const extra = (col.extra ?? "").toLowerCase();
     esquema.set(
       claves.columna(col.t, col.c),
       definicionDeColumna({
-        tipo: normalizarTipo(String(col.tipo), motor),
+        tipo: normalizarTipo(String(col.tipo), motor, columnasJson.has(`${col.t}\0${col.c.toLowerCase()}`)),
         notNull: col.nulo === "NO",
         porDefecto: normalizarDefault(col.def, motor, extra.includes("default_generated")),
         autoincrement: extra.includes("auto_increment"),
@@ -433,15 +541,8 @@ export async function esquemaVivo(con: Consultable, motor: Motor): Promise<Esque
     );
   }
 
-  const indices = await filas<{ t: string; i: string; nu: number | string; c: string | null; s: number; ty: string }>(
-    con,
-    `SELECT table_name AS t, index_name AS i, non_unique AS nu, column_name AS c,
-            seq_in_index AS s, index_type AS ty
-       FROM information_schema.statistics WHERE table_schema = DATABASE()
-      ORDER BY table_name, index_name, seq_in_index`
-  );
   const porIndice = new Map<string, { t: string; i: string; unico: boolean; tipo: string; columnas: string[] }>();
-  for (const fila of indices) {
+  for (const fila of f.indices) {
     if (!propias.has(fila.t)) continue;
     const clave = `${fila.t}\0${fila.i}`;
     const actual =
@@ -462,22 +563,9 @@ export async function esquemaVivo(con: Consultable, motor: Motor): Promise<Esque
     );
   }
 
-  const reglas = await filas<{ t: string; n: string; rt: string; ur: string; dr: string }>(
-    con,
-    `SELECT table_name AS t, constraint_name AS n, referenced_table_name AS rt,
-            update_rule AS ur, delete_rule AS dr
-       FROM information_schema.referential_constraints WHERE constraint_schema = DATABASE()`
-  );
-  const columnasFk = await filas<{ t: string; n: string; c: string; rc: string }>(
-    con,
-    `SELECT table_name AS t, constraint_name AS n, column_name AS c, referenced_column_name AS rc
-       FROM information_schema.key_column_usage
-      WHERE table_schema = DATABASE() AND referenced_table_name IS NOT NULL
-      ORDER BY table_name, constraint_name, ordinal_position`
-  );
-  for (const r of reglas) {
+  for (const r of f.reglas) {
     if (!propias.has(r.t)) continue;
-    const cols = columnasFk.filter((c) => c.t === r.t && c.n === r.n);
+    const cols = f.columnasFk.filter((c) => c.t === r.t && c.n === r.n);
     esquema.set(
       claves.fk(r.t, r.n),
       definicionDeFk({
@@ -490,15 +578,17 @@ export async function esquemaVivo(con: Consultable, motor: Motor): Promise<Esque
     );
   }
 
-  const checks = await filas<{ t: string; n: string }>(
-    con,
-    `SELECT table_name AS t, constraint_name AS n FROM information_schema.table_constraints
-      WHERE constraint_schema = DATABASE() AND constraint_type = 'CHECK'`
-  );
-  for (const c of checks) {
-    if (propias.has(c.t)) esquema.set(claves.check(c.t, c.n), "existe");
+  for (const c of f.checks) {
+    if (propias.has(c.t) && !checksDeJson.has(`${c.t}\0${c.n.toLowerCase()}`)) {
+      esquema.set(claves.check(c.t, c.n), "existe");
+    }
   }
   return esquema;
+}
+
+/** El esquema real de la base de la conexión, con las mismas claves que un snapshot. */
+export async function esquemaVivo(con: Consultable, motor: Motor): Promise<Esquema> {
+  return esquemaDeFilas(await leerFilasDeEsquema(con, motor), motor);
 }
 
 // ---------------------------------------------------------------------------
@@ -1274,12 +1364,13 @@ export async function adoptarHistorial(entrada: {
 }): Promise<Resultado> {
   const { cwd, con } = entrada;
   const ahora = entrada.ahora ?? new Date();
+  // Primero el motor: uno que no sabemos leer se niega antes de tocar nada.
+  const motor = await motorDe(con);
   const filasLeidas = await leerFilas(con);
   const recuperado = recuperarCorte(cwd, filasLeidas);
 
   const tienda = historiaDeCarpeta(cwd);
   const template = historiaDeGit(cwd, entrada.objetivo);
-  const motor = await motorDe(con);
   const vivo = await esquemaVivo(con, motor);
   const [base] = await filas<{ db: string }>(con, "SELECT DATABASE() AS db");
   const backup = evidenciaDeBackup({
