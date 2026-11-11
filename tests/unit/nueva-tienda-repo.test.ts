@@ -140,7 +140,7 @@ describe('HOSTINGER-CHECKLIST.md', () => {
     // La función no recibe secretos, así que no tiene por dónde incluirlos; se
     // verifica además que lo que escribe no tiene forma de `CLAVE=valor`.
     expect(texto).not.toMatch(/(SECRET|PASSWORD|TOKEN)\s*=\s*\S/);
-    expect(texto).not.toMatch(/mysql:\/\/[^:\s]+:(?!CONTRASEÑA)[^@\s]+@/);
+    expect(texto).not.toMatch(/mysql:\/\//); // ni siquiera una URL de ejemplo con forma de credencial
     expect(texto).toContain('copiá `SESSION_SECRET` de `.env.local`');
     expect(texto).toContain('copiá `CRON_SECRET` de `.env.local`');
     expect(texto).toContain('copiá `SETUP_SECRET` de `.env.local`');
