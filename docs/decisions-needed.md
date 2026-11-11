@@ -3,6 +3,12 @@
 Open items a phase could not decide alone (plan §4.4). Newest first. Close an
 item by deleting it in the PR that acts on it.
 
+## Answered
+
+- Q1: GitHub Actions switched back on for ecom (2026-11-11).
+- Q2: tag v2.0.0: yes (item 1).
+- Q3 / O31: go, productos.com.py moves back onto the template (plan §5.5); start conditions for O31 otherwise unchanged.
+
 ## 4. Distribution token: GitHub App or fine-grained PAT (O28, 2026-11-11 — plan §5.4 item 5)
 
 `distribuir.yml` needs one credential (`secrets.TIENDAS_TOKEN` today) that can clone each
@@ -75,44 +81,16 @@ on a restored copy:
 script per store. Not automated on purpose: it is DDL on a production database,
 which O24 never does. anillos and productos.new were not checked in detail.
 
-## 1. First release tag: v2.0.0 (O23, 2026-11-10 — plan §7 item 4, review Q2)
+## 1. First release tag: v2.0.0 (decided 2026-11-11)
 
-O23 turned `CHANGELOG.md` "Sin publicar" into **v2.0.0 — candidata** (Migración: sí,
-`0014`–`0025`; major because every store must set up R2 and migrate its photos by
-hand). No phase pushes the tag (plan §1.6). When you decide to publish, on an
-up-to-date `main`:
+Decided by Anton on 2026-11-11: tag `v2.0.0` goes on the merge commit of the
+release-notes PR (or a later `main`), pushed by the manager and nobody else.
+The CHANGELOG heading is already `v2.0.0 — 2026-11-11` (Migración: sí, `0014`–`0025`).
 
-```bash
-git fetch origin
-git tag -a v2.0.0 <MERGE_SHA> -m "v2.0.0"
-git push origin v2.0.0
-```
+**Never tag a commit older than O28's merge**: a tag push runs `distribuir.yml` and its
+scripts as they are in the tagged commit, and before O28 that workflow has no rings and
+no pause, so it would send the version to every store in that commit's `tiendas.json`.
 
-`<MERGE_SHA>` = O28's merge commit on `main` (in `docs/log/o28.md`) or a later `main`
-(then move the CHANGELOG heading with it), **never an older commit such as O23's**:
-a tag push runs `distribuir.yml` and its scripts as they are in the tagged commit, and
-before O28 that workflow has no rings and no pause, so it would send the version to
-every store in that commit's `tiendas.json`. A ring-1 run of an older tag would also
-fail (its scripts are missing).
-
-**What it triggers.** The tag push runs `.github/workflows/distribuir.yml`: for each
-active ring-0 (canary) repo in `tiendas.json` it clones the store with
-`secrets.TIENDAS_TOKEN`, runs `template:sync --commitear-conflictos` and opens or
-updates a `template/sync` PR there (draft if it conflicted). Ring 1 only gets the
-version from a manual "Run workflow" naming the tag (O28). Since O28 every listed
-store is paused (item 3), so today the tag would distribute to nobody. A store whose
-sync stops at a precondition (migration guard) is red in its job and gets no PR.
-
-- **Today it triggers nothing**: GitHub Actions is disabled on `ecom` (review Q1).
-  The tag only distributes once Actions is back on, and the job fails without
-  `TIENDAS_TOKEN`.
-- **Expected result if it ran now**: all three real stores have their own
-  migrations or old baselines (review F13), so they would stop at the migration
-  guard; `productos` is dead (review Q4). O23 proved only the easy case (case 1:
-  a store migration never applied anywhere). The real stores need O24
-  (`template:adoptar-historial`) first.
-
-**Recommendation** (review Q2/Q4): before tagging, edit `tiendas.json` to drop
-`productos` and keep only stores that already adopted the template's migration
-history (lenceria first, after O24 and a backup). Or tag now and run nothing until
-then: the tag is harmless while Actions is off.
+**What it triggers today**: `distribuir.yml` runs, but every store in `tiendas.json` is
+`"estado": "pausada"` (item 3), so the run picks zero stores. No `TIENDAS_TOKEN` is set
+(item 4), so it could not clone a store anyway.
