@@ -76,9 +76,11 @@ beforeAll(() => {
     path.join(tienda, "node_modules"),
     "junction"
   );
+  // Con regex y no con el valor del template: en una tienda que ya lo
+  // retocó (Sur) este test tiene que pasar igual.
   const css = readFileSync(path.join(tienda, NEUTRO), "utf8");
-  expect(css).toContain("--radius: 0.625rem;");
-  writeFileSync(path.join(tienda, NEUTRO), css.replace("--radius: 0.625rem;", "--radius: 0.25rem;"));
+  expect(css).toMatch(/--radius: [^;]+;/);
+  writeFileSync(path.join(tienda, NEUTRO), css.replace(/--radius: [^;]+;/, "--radius: 0.25rem;"));
 }, 120_000);
 
 afterAll(() => {
