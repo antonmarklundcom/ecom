@@ -419,7 +419,7 @@ export function motorDeVersion(version: string): Motor {
   const viejo = (n: number[]) => n[0]! < 10 || (n[0] === 10 && (n[1]! < 2 || (n[1] === 2 && n[2]! < 7)));
   if (!numero || viejo(numero)) {
     throw new Error(
-      `MariaDB ${version}: antes de 10.2.7 information_schema no distingue un default de texto 'NULL' de una columna sin default, y no adopto sobre una lectura dudosa. Actualizá MariaDB (Hostinger usa 10.6+).`
+      `MariaDB ${version}: antes de 10.2.7 information_schema no distingue un default de texto 'NULL' de una columna sin default, y no adopto sobre una lectura dudosa. Hace falta MariaDB 10.2.7 o más nuevo.`
     );
   }
   return "mariadb";
