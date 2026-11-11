@@ -59,6 +59,7 @@ beforeAll(() => {
   for (const ruta of [
     "src",
     "scripts/template-shared.ts",
+    "scripts/ci/entorno-sin-git.mjs",
     "scripts/temas-css.ts",
     "tests/helpers",
     "tests/setup",
