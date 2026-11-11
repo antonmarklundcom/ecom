@@ -27,6 +27,7 @@ import {
   remotoExiste,
   SOLO_TEMPLATE,
 } from './template-shared';
+import { envSinGit } from './ci/entorno-sin-git.mjs';
 
 /**
  * `pnpm template:sync` — traer la maquinaria del template con un comando.
@@ -444,6 +445,7 @@ function blobABuffer(cwd: string, blob: string): Buffer {
   return execFileSync('git', ['-C', cwd, 'cat-file', 'blob', blob], {
     maxBuffer: 50 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: envSinGit(),
   });
 }
 
@@ -464,7 +466,7 @@ function fusionar(cwd: string, ruta: string, v: Versiones): { contenido: Buffer;
     const template = escribirLado('template', v.template);
     const args = ['merge-file', '-p', '-L', `${ruta} (tienda)`, '-L', `${ruta} (template, baseline)`, '-L', `${ruta} (template)`, tienda, base, template];
     try {
-      const contenido = execFileSync('git', args, { maxBuffer: 50 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+      const contenido = execFileSync('git', args, { maxBuffer: 50 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: envSinGit() });
       return { contenido, conflictos: 0 };
     } catch (error) {
       const fallo = error as { status?: number | null; stdout?: Buffer };

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { envSinGit } from './ci/entorno-sin-git.mjs';
 
 /**
  * `pnpm setup:doctor` — ¿esta máquina puede correr `pnpm nueva-tienda` ahora mismo?
@@ -26,6 +27,7 @@ function run(cmd: string, args: string[]): string | null {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 10_000,
+      env: envSinGit(),
     }).trim();
   } catch {
     return null;

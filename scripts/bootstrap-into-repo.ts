@@ -17,6 +17,7 @@ import {
   contenidoBaseline,
   esSoloTemplate,
 } from "./template-shared";
+import { envSinGit } from "./ci/entorno-sin-git.mjs";
 
 /**
  * `pnpm bootstrap:repo --destino ../lenceria` — meter el template dentro de un
@@ -295,6 +296,7 @@ function gitSucio(destino: string): boolean | null {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
         timeout: 15_000,
+        env: envSinGit(),
       }
     );
     return salida.trim() !== "";
@@ -328,6 +330,7 @@ function marcarBaselineDelOrigen(origen: string, destino: string): void {
   }
   const sha = execFileSync("git", ["-C", origen, "rev-parse", "HEAD"], {
     encoding: "utf8",
+    env: envSinGit(),
   }).trim();
   writeFileSync(ruta, contenidoBaseline(sha));
   console.log(

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { envSinGit } from "./ci/entorno-sin-git.mjs";
 
 /**
  * Lo que comparten `template-diff.ts` (¿qué falta?) y `template-sync.ts`
@@ -380,6 +381,8 @@ export function gitEn(cwd: string, args: string[]): string {
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
+    // Sin las GIT_* del proceso (un hook exporta GIT_DIR): ver entorno-sin-git.mjs.
+    env: envSinGit(),
   });
 }
 
