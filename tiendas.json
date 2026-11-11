@@ -1,14 +1,20 @@
 [
   {
-    "repo": "antonmarklundcom/productos",
-    "notas": "baseline 4ac6260 (sincronizada 2026-09-24, productos#19); tema propio `productos`"
-  },
-  {
     "repo": "antonmarklundcom/lenceria",
-    "notas": "baseline 7ff178a; src/db/index.ts, src/lib/images.ts y src/lib/seo.ts propios"
+    "anillo": 0,
+    "estado": "pausada",
+    "notas": "canaria cuando adopte la historia de migraciones del template (O24, review F13); baseline 7ff178a; src/db/index.ts, src/lib/images.ts y src/lib/seo.ts propios"
   },
   {
     "repo": "antonmarklundcom/mascota",
-    "notas": "baseline f9979ce; nunca trajo la carga por planilla: el primer sync choca en admin-products.ts"
+    "anillo": 1,
+    "estado": "pausada",
+    "notas": "pausada hasta adoptar la historia de migraciones (O24, review F13); baseline f9979ce; nunca trajo la carga por planilla: el primer sync choca en admin-products.ts"
+  },
+  {
+    "repo": "antonmarklundcom/productos",
+    "anillo": 1,
+    "estado": "pausada",
+    "notas": "repo muerto (review Q4 sin responder): pausada, sacarla de la lista cuando Anton lo confirme; baseline 4ac6260 (sincronizada 2026-09-24, productos#19); tema propio `productos`"
   }
 ]
