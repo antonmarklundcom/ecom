@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PAGINAS_DEFAULT } from "@/config/paginas-default";
-import { TIENDA, type Hero } from "@/config/tienda";
+import { TIENDA } from "@/config/tienda";
 import {
   DEFAULT_STORE_SETTINGS,
   PAGINAS,
@@ -20,6 +20,8 @@ import {
   listaConY,
   reemplazarPlaceholders,
 } from "@/lib/placeholders";
+
+import { heroDelTemplate } from "../helpers/hero";
 
 /**
  * Ajustes de la tienda, la parte pura: el schema de lectura (que nunca tira),
@@ -195,12 +197,14 @@ describe("SECTION_INPUT: escritura", () => {
 });
 
 describe("precedencia: ajuste → tienda.ts / entorno", () => {
-  const base: Hero = {
+  // Con el helper: en una tienda de antes de R2, `Hero` (de su tienda.ts) no
+  // declara `imageRef` y un literal tipado como `Hero` no compila.
+  const base = heroDelTemplate({
     titulo: "Base",
     texto: "Texto base",
     cta: { label: "Ver", href: "/categoria/x" },
     imagen: { imageRef: "portadas/base", alt: "Foto base" },
-  };
+  });
 
   // La foto sale con su referencia también bajo el nombre viejo (deprecado),
   // para el markup de una tienda que todavía lo lee (src/lib/hero-imagen.ts).

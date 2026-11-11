@@ -31,6 +31,8 @@ export default defineConfig({
           fsModuleCache: true,
           environment: "node",
           include: ["tests/unit/**/*.test.ts"],
+          // La política comercial del template, no la de la tienda (ver el archivo).
+          setupFiles: ["./tests/setup/config-del-template.ts"],
           // Cold module transforms and repository scans can exceed 30s on Windows.
           testTimeout: process.platform === "win32" ? 90_000 : 30_000,
         },
@@ -44,6 +46,7 @@ export default defineConfig({
           environment: "node",
           include: ["tests/integration/**/*.test.ts"],
           globalSetup: ["tests/global-setup.ts"],
+          setupFiles: ["./tests/setup/config-del-template.ts"],
           // Las suites de integración comparten una sola base: sin esto, una
           // trunca tablas mientras otra las usa.
           fileParallelism: false,

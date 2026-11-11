@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 /**
  * Lo que comparten `template-diff.ts` (¿qué falta?) y `template-sync.ts`
@@ -176,7 +177,99 @@ export function esDeLaTienda(ruta: string): boolean {
   return (DE_LA_TIENDA as readonly string[]).includes(ruta);
 }
 
+/**
+ * Piel **acoplada**: un archivo de piel que decide cuál de otros archivos de
+ * piel se carga. Si la tienda retocó alguno de los que dependen de él, el suyo
+ * queda aunque nunca lo haya tocado: traer el del template podría dejar de
+ * importar el retoque, que se perdería en silencio con el archivo intacto.
+ *
+ * El caso que lo trajo (O23, Sur en el arnés): antes del kit de temas,
+ * NEW-STORE.md §5 mandaba a cambiar `--radius` en `src/styles/temas/<tema>.css`.
+ * El `globals.css` del template ahora importa `src/themes/temas.css` en vez de
+ * ese archivo; una tienda que no había tocado su `globals.css` lo recibía y su
+ * radio volvía al del template. Con el suyo, el `@import` viejo sigue andando
+ * (NEW-STORE.md §5, "Tiendas de antes del kit").
+ */
+export const PIEL_ACOPLADA: readonly { archivo: string; depende: string }[] = [
+  { archivo: "src/app/globals.css", depende: "src/styles/temas/" },
+];
+
+/**
+ * Los archivos acoplados que quedan como los tiene la tienda, dado lo que la
+ * tienda cambió desde el baseline (rutas agregadas, cambiadas o borradas).
+ */
+export function acopladosDeLaTienda(cambiadosPorLaTienda: Iterable<string>): Set<string> {
+  const cambiados = [...cambiadosPorLaTienda];
+  return new Set(
+    PIEL_ACOPLADA.filter(({ depende }) => cambiados.some((ruta) => ruta.startsWith(depende))).map(
+      ({ archivo }) => archivo
+    )
+  );
+}
+
 export const BASELINE_FILE = ".template-baseline";
+
+// ---------------------------------------------------------------------------
+// Tests de piel (docs/TEMPLATE-INHERITANCE.md § "Tests que miran la piel")
+// ---------------------------------------------------------------------------
+
+/**
+ * La huella de cada archivo de piel tal como lo publica el template. Viaja con
+ * los tests (es maquinaria: `tests/`) y la escribe
+ * `pnpm exec tsx tests/helpers/piel.ts --escribir` en el template.
+ */
+export const HUELLAS_PIEL = "tests/piel-del-template.json";
+
+/** Las carpetas donde vive la piel que una tienda puede rediseñar (`src/styles/temas/`: los temas de antes del kit). */
+export const RAICES_PIEL = ["src/components", "src/app", "src/themes", "src/styles"] as const;
+
+/**
+ * Tests de **piel del template**: miran cómo dibuja el template su propia piel
+ * (colores de los tokens, el markup de la tarjeta y de la portada, cómo la
+ * tarjeta muestra un ₲0 o la leyenda de una foto ilustrativa). Revisan un
+ * archivo sólo mientras es el del template (`HUELLAS_PIEL`); una tienda que lo
+ * rediseñó es dueña de eso, y el test lo saltea en vez de ponerla en rojo.
+ *
+ * Todo test que no está acá es **contrato**: lo cumple cualquier piel
+ * (`data-testid`, datos privados de proveedores, el modo de venta de
+ * `add-to-cart.tsx`, claves de i18n, CSP, `revalidate`). Si un rediseño lo
+ * rompe, el rediseño está mal. `tests/unit/piel-del-template.test.ts` verifica
+ * que esta lista y los tests que usan `tests/helpers/piel.ts` coincidan.
+ */
+export const TESTS_DE_PIEL = [
+  "src/components/__tests__/catalogue-cards.test.tsx",
+  "src/components/__tests__/zero-price-display.test.tsx",
+  "src/components/__tests__/home-hero.test.tsx",
+  "src/components/__tests__/hero-compat.test.tsx",
+  "src/components/__tests__/tema-variantes.test.tsx",
+  "tests/unit/piel-sin-colores.test.ts",
+  "tests/unit/temas.test.ts",
+] as const;
+
+/**
+ * ¿`ruta` es piel que una tienda puede rediseñar? Código o CSS bajo
+ * `RAICES_PIEL` que no es maquinaria (las rutas API y las actions lo son) ni
+ * un test.
+ */
+export function esRutaDePiel(ruta: string): boolean {
+  return (
+    RAICES_PIEL.some((raiz) => ruta.startsWith(`${raiz}/`)) &&
+    /\.(tsx?|css)$/.test(ruta) &&
+    !/\.test\.tsx?$/.test(ruta) &&
+    !ruta.includes("/__tests__/") &&
+    !esMaquinaria(ruta)
+  );
+}
+
+/**
+ * La huella de un archivo de piel: SHA-256 del texto con finales de línea
+ * LF, para que un checkout de Windows con `core.autocrlf` no cuente como
+ * rediseño.
+ */
+export function huellaPiel(contenido: string | Buffer): string {
+  const texto = (typeof contenido === "string" ? contenido : contenido.toString("utf8")).replace(/\r\n/g, "\n");
+  return createHash("sha256").update(texto, "utf8").digest("hex");
+}
 
 /**
  * Maquinaria del template que la tienda no tiene, sin importar cuándo cambió.

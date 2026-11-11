@@ -12,8 +12,15 @@ import {
 } from "@/lib/images";
 import { TESTIDS } from "@/lib/testids";
 
+import { pielDelTemplate } from "../../../tests/helpers/piel";
+
 /**
  * Tarjetas del catálogo (docs/TEMPLATE-IMPROVEMENT-PLAN.md F3, F6).
+ *
+ * Test de **piel del template** (`TESTS_DE_PIEL`): mira cómo dibuja el
+ * template su tarjeta. En una tienda que rediseñó `product-card.tsx` o
+ * `recently-viewed.tsx`, ese bloque sale "skipped": el markup es suyo
+ * (docs/TEMPLATE-INHERITANCE.md § "Tests que miran la piel").
  */
 const product: CatalogProduct = {
   id: 1,
@@ -54,7 +61,7 @@ afterEach(() => {
   resetBaseImagenesForTests();
 });
 
-describe("tarjeta de producto", () => {
+describe.runIf(pielDelTemplate("src/components/product-card.tsx"))("tarjeta de producto", () => {
   afterEach(cleanup);
 
   it("el corazón no está adentro del link (contenido interactivo anidado)", () => {
@@ -91,7 +98,7 @@ describe("tarjeta de producto", () => {
   });
 });
 
-describe("vistos recientemente", () => {
+describe.runIf(pielDelTemplate("src/components/recently-viewed.tsx"))("vistos recientemente", () => {
   const key = `${CART_STORAGE_KEY}-vistos`;
 
   beforeEach(() => {

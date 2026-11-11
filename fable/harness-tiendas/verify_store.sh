@@ -2,29 +2,37 @@
 # Fase 3: la tienda sincronizada, verificada como la verificaría su CI más el
 # deploy: install congelado, tipos, lint, suite, migración sobre su base con
 # datos, huella de los datos, preflight, build y navegador.
+#   verify_store.sh <tienda> <base-con-datos> <puerto>
 set -uo pipefail
-S="${HARNESS_DIR:?export HARNESS_DIR=<carpeta de trabajo con env-e2e.sh, stores/ y wt-main/>}"
+source "$(dirname "$0")/lib.sh"
 store=$1; data_db=$2; port=$3
-cd $S/stores/$store
-source $S/env-e2e.sh
+cd "$S/stores/$store"
+source "$S/env-e2e.sh"
 base="${DATABASE_URL%/*}"
+suite_db="${DB_PREFIX}${store}_suite_test"; e2e_db="${DB_PREFIX}${store}_e2e_test"
 pnpm install --frozen-lockfile > v-install.log 2>&1; echo "install $?"
 pnpm typecheck > v-typecheck.log 2>&1; echo "typecheck $?"
 pnpm lint > v-lint.log 2>&1; echo "lint $?"
-DATABASE_URL="$base/${store}_suite_test" TEST_DATABASE_URL="$base/${store}_suite_test" pnpm test > v-test.log 2>&1; echo "test $?"; grep -E "Test Files|Tests " v-test.log
-python3 $S/stores/snapshot.py $data_db pre-migrate.json
+recrear_db "$suite_db"
+DATABASE_URL="$base/$suite_db" TEST_DATABASE_URL="$base/$suite_db" REQUIRE_DATABASE_TESTS=1 pnpm test > v-test.log 2>&1; echo "test $?"; grep -E "Test Files|Tests " v-test.log
+"$PY" "$HERE/snapshot.py" "$data_db" pre-migrate.json
 DATABASE_URL="$base/$data_db" pnpm db:migrate > v-migrate.log 2>&1; echo "migrate $?"; tail -2 v-migrate.log
-python3 $S/stores/snapshot.py $data_db post-migrate.json pre-migrate.json
-python3 - <<PY
-import json
-a=json.load(open("pre-migrate.json"))["tables"]; b=json.load(open("post-migrate.json"))["tables"]
-diff=[t for t in a if t not in b or a[t]["md5"]!=b[t]["md5"] or a[t]["rows"]!=b[t]["rows"]]
-print("datos idénticos tras migrar" if not diff else f"CAMBIARON: {diff}", f"({len(a)} tablas, {sum(v['rows'] for v in a.values())} filas)")
-PY
+"$PY" "$HERE/snapshot.py" "$data_db" post-migrate.json pre-migrate.json
+"$PY" "$HERE/snapshot.py" --comparar pre-migrate.json post-migrate.json
 DATABASE_URL="$base/$data_db" pnpm db:check > v-dbcheck.log 2>&1; echo "db:check $?"; grep -i "migraciones" v-dbcheck.log | head -2
-DATABASE_URL="$base/$data_db" pnpm preflight > v-preflight.log 2>&1; echo "preflight $?"; grep -iE "medio|pago|transfer|contra|tarjeta" v-preflight.log | head -6
-pnpm build > v-build.log 2>&1; echo "build $?"
-export DATABASE_URL="$base/${store}_e2e_test" TEST_DATABASE_URL="$base/${store}_e2e_test" E2E_PORT=$port
-docker exec ecom-mysql8 mysql -uroot -proot -e "DROP DATABASE IF EXISTS ${store}_e2e_test; CREATE DATABASE ${store}_e2e_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" 2>/dev/null
+# Sin bucket de R2 (plan §7 ítem 6) el preflight bloquea en R2 y en nada más: es
+# lo correcto para una tienda que no puede recibir comprobantes. No se le dan
+# credenciales falsas: el canario se conectaría a Cloudflare.
+DATABASE_URL="$base/$data_db" pnpm preflight > v-preflight.log 2>&1; echo "preflight $?"
+bloquean=$(grep -E "^\s+✗ " v-preflight.log | sed 's/^\s*✗ //' | paste -sd ',' -)
+[ "$bloquean" = "Imágenes y archivos (R2)" ] && echo "preflight: sólo bloquea R2 (esperado sin bucket)" || echo "preflight: BLOQUEA [$bloquean]"
+grep -A1 "Medios de pago" v-preflight.log | head -2
+# El build prerenderiza la vidriera contra DATABASE_URL: tiene que ser la base
+# del navegador ya preparada (como en el CI del template). Contra una base que
+# no existe, la home queda cacheada con "No pude leer el catálogo" hasta que
+# revalida, y los primeros specs fallan por timeout.
+export DATABASE_URL="$base/$e2e_db" TEST_DATABASE_URL="$base/$e2e_db" E2E_PORT=$port
+recrear_db "$e2e_db"
 pnpm db:migrate > v-e2e-migrate.log 2>&1 && pnpm exec tsx scripts/prepare-browser-tests.ts > v-e2e-prepare.log 2>&1; echo "e2e-prepare $?"
+pnpm build > v-build.log 2>&1; echo "build $?"
 timeout 1800 pnpm exec playwright test > v-e2e.log 2>&1; echo "e2e $?"; grep -E "✘|passed|failed|flaky" v-e2e.log | tail -6

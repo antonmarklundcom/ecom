@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { SEMANTICOS } from "../../src/themes/tipos";
+import { esPielDelTemplate } from "../helpers/piel";
 
 /**
  * La vidriera lee colores del tema, nunca escritos a mano (NEW-STORE.md §5).
@@ -19,6 +20,12 @@ import { SEMANTICOS } from "../../src/themes/tipos";
  * `/setup`), las rutas API y los tests. Las excepciones de verdad van en
  * `PERMITIDOS`, cada una con su motivo: agregar una sin motivo es la forma
  * de que este test deje de servir.
+ *
+ * Es un test de **piel del template** (`TESTS_DE_PIEL`,
+ * docs/TEMPLATE-INHERITANCE.md § "Tests que miran la piel"): revisa cada
+ * archivo mientras sea el que publica el template. Una tienda que rediseñó
+ * `product-card.tsx` con sus propios colores es dueña de esa tarjeta, y acá
+ * no se pone en rojo; los componentes que no tocó se siguen revisando.
  */
 
 const RAICES = [path.join("src", "components"), path.join("src", "app")];
@@ -123,6 +130,8 @@ function sinComentarios(source: string): string {
 const ARCHIVOS = RAICES.flatMap(archivos).map((ruta) =>
   ruta.split(path.sep).join("/")
 );
+/** Los que siguen siendo del template: en el template, todos. */
+const DEL_TEMPLATE = ARCHIVOS.filter((ruta) => esPielDelTemplate(ruta));
 
 describe("la vidriera no escribe colores a mano", () => {
   it("encuentra los componentes (el test no está mirando una carpeta vacía)", () => {
@@ -135,7 +144,7 @@ describe("la vidriera no escribe colores a mano", () => {
 
   it("ningún componente de la tienda tiene un color fuera de los tokens", () => {
     const hallazgos: string[] = [];
-    for (const archivo of ARCHIVOS) {
+    for (const archivo of DEL_TEMPLATE) {
       const source = sinComentarios(readFileSync(archivo, "utf8"));
       for (const { nombre, regex } of PATRONES) {
         for (const match of source.matchAll(regex)) {
@@ -159,7 +168,7 @@ describe("la vidriera no escribe colores a mano", () => {
   });
 
   it("cada excepción sigue existiendo y tiene motivo", () => {
-    for (const p of PERMITIDOS) {
+    for (const p of PERMITIDOS.filter((p) => esPielDelTemplate(p.archivo))) {
       expect(
         p.motivo.trim().length,
         `${p.archivo} ${p.literal}`
@@ -178,8 +187,10 @@ describe("la vidriera no escribe colores a mano", () => {
     // del color del texto y el velo de la portada desaparece.
     const uso = new RegExp(`\\(--(?:${SEMANTICOS.join("|")})\\)`);
     for (const archivo of [
-      ...ARCHIVOS,
-      ...archivos(path.join("src", "components", "admin")),
+      ...DEL_TEMPLATE,
+      ...archivos(path.join("src", "components", "admin"))
+        .map((ruta) => ruta.split(path.sep).join("/"))
+        .filter((ruta) => esPielDelTemplate(ruta)),
     ]) {
       const source = readFileSync(archivo, "utf8");
       if (!uso.test(source)) continue;

@@ -25,6 +25,39 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
+(nada todavía)
+
+## v2.0.0 — candidata, 2026-11-10 (sin tag)
+
+**Migración: sí (0025)** — la última de esta versión; con ella llegan todas
+las de después de v1.0.0 (`0014`–`0025`). Después de mergear el PR
+`template/sync`: redeployar y correr el setup (NEW-STORE.md § "Migraciones
+que llegan por `template:sync`"). Una tienda con migraciones propias se frena
+antes de escribir nada (NEW-STORE.md § "Migraciones propias de una tienda").
+
+**Mayor** por la regla de arriba: las fotos pasan a R2 y cada tienda tiene que
+crear su bucket, su regla de bloqueo y migrar las fotos a mano (NEW-STORE.md
+§ "Migrar las fotos a R2", el paso a paso). Probada en O23 con dos tiendas
+desechables creadas desde `45f4336` (`docs/log/o23.md`). El tag y lo que
+dispara: `docs/decisions-needed.md`.
+
+- **Una tienda con piel o config propia sigue en verde después del sync**
+  (O23, docs/TEMPLATE-INHERITANCE.md). Sin migración. Maquinaria: llega sola.
+  - Tests de piel: los que miran cómo dibuja el template su propia piel
+    (`TESTS_DE_PIEL` en `scripts/template-shared.ts`) revisan un archivo sólo
+    mientras es el del template (huellas en `tests/piel-del-template.json`);
+    el rediseñado sale *skipped*, no rojo. En el template, después de tocar
+    piel: `pnpm exec tsx tests/helpers/piel.ts --escribir`.
+  - La suite del template corre con la política de pago del template
+    (`tests/setup/config-del-template.ts`), no con el `checkout.ts` ni el
+    `STORE_PAYMENT_METHODS` de la tienda.
+  - Piel acoplada: si la tienda retocó un tema en `src/styles/temas/`, su
+    `globals.css` queda aunque no lo haya tocado (si no, el retoque dejaba de
+    cargarse).
+  - `template:sync` en Windows: corre `pnpm` por la shell (`pnpm.cmd`), y el
+    commit del sync no dispara el pre-commit de la tienda (con los
+    `node_modules` de antes del sync dejaba el árbol a medias).
+
 - **Dependencias al día** (S26, rehace #157): 25 subidas menores y parches (next 16.4.3, react 19.3.1, radix, drizzle-orm, mysql2, zod, vitest, playwright…). Sin migración, sin cambios de código; `eslint` sigue en 9. Detalle en `docs/log/s26.md`.
 
 - **La reserva mientras se revisa un comprobante ya no depende de la zona

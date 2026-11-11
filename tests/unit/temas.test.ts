@@ -15,6 +15,7 @@ import {
   VARIANTES_FOOTER,
   VARIANTES_HEADER,
 } from '../../src/themes/tipos';
+import { esPielDelTemplate, pielDelTemplate } from '../helpers/piel';
 
 /**
  * Kit de piel (plan-crecimiento §6.2) — los archivos de `src/styles/temas/`,
@@ -120,7 +121,9 @@ describe('kit de piel: paridad de variables entre temas', () => {
     }
   });
 
-  it('neutro.css es exactamente lo que había en globals.css antes de esta fase', () => {
+  // Test de piel (TESTS_DE_PIEL): una tienda de antes del kit retocó su tema acá,
+  // como decía NEW-STORE.md §5 (O23: Sur). Ese archivo es suyo.
+  it.runIf(pielDelTemplate('src/styles/temas/neutro.css'))('neutro.css es exactamente lo que había en globals.css antes de esta fase', () => {
     // Los valores de hoy, movidos byte a byte (plan §6.2.A): si alguno de
     // estos dos números cambia, alguien "retocó" el tema por accidente y
     // las capturas de CI van a salir distintas de las de antes de esta fase.
@@ -237,7 +240,9 @@ describe('kit de temas: el CSS', () => {
     existsSync(archivo) ? readFileSync(archivo, 'utf8') : null;
 
   it('temas.css y los archivos legados están al día con los presets (pnpm temas:css)', () => {
+    // Un archivo que la tienda retocó (piel, TESTS_DE_PIEL) no se regenera: es suyo.
     for (const { archivo, contenido } of archivosDeTemas(leer)) {
+      if (!esPielDelTemplate(archivo.split(path.sep).join('/'))) continue;
       expect(leer(archivo), `${archivo} desactualizado: corré \`pnpm temas:css\``).toBe(contenido);
     }
   });

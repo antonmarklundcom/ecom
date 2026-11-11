@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -402,6 +403,32 @@ describe("template:sync contra git de verdad", () => {
     );
   });
 
+  it("el commit del sync no corre los hooks de la tienda (O23: Norte quedaba a medias)", () => {
+    // El pre-commit de toda tienda es `pnpm typecheck && pnpm lint` (.husky):
+    // corre con los node_modules de antes del sync y frenaba el commit con
+    // 352 archivos escritos y nada commiteado. Lo que verifica el sync es su
+    // paso final (sin --sin-tests) o el CI del PR, no el hook.
+    const { tienda, c1 } = armarEscenario();
+    escribir(tienda, ".hooks/pre-commit", "#!/bin/sh\necho 'hook de la tienda' >&2\nexit 1\n");
+    chmodSync(join(tienda, ".hooks", "pre-commit"), 0o755);
+    gitEn(tienda, ["add", "-A"]);
+    gitEn(tienda, ["update-index", "--chmod=+x", ".hooks/pre-commit"]);
+    commit(tienda, "Hook que falla");
+    gitEn(tienda, ["config", "core.hooksPath", ".hooks"]);
+    // El hook de verdad frena un commit común en esta plataforma…
+    escribir(tienda, "nota.txt", "x\n");
+    expect(() => commit(tienda, "Con el hook puesto")).toThrow();
+    gitEn(tienda, ["reset", "-q", "--", "nota.txt"]);
+    rmSync(join(tienda, "nota.txt"));
+
+    // …y el del sync no lo corre.
+    const resultado = ejecutarSync(tienda, OPCIONES);
+
+    expect(resultado.estado, "mensaje" in resultado ? String(resultado.mensaje) : "").toBe("completado");
+    expect(gitEn(tienda, ["status", "--porcelain"]).trim()).toBe("");
+    expect(leer(tienda, ".template-baseline")).toContain(c1);
+  });
+
   it("--dry-run no toca nada y lista la decisión de cada archivo", () => {
     const { tienda } = armarEscenario();
     const antes = gitEn(tienda, ["rev-parse", "HEAD"]).trim();
@@ -471,6 +498,56 @@ describe("template:sync contra git de verdad", () => {
     expect(resultado.resumen.conservados).not.toContain(
       "src/components/site-header.tsx"
     );
+  });
+
+  it("un tema retocado en src/styles/temas/ deja el globals.css de la tienda, que es el que lo importa (O23: Sur)", () => {
+    // Antes del kit de temas, NEW-STORE.md §5 mandaba a retocar `--radius` en
+    // `src/styles/temas/<tema>.css`. Si el `globals.css` sin tocar se cambia por
+    // el del template (que ya no importa ese archivo), el retoque se pierde en
+    // silencio aunque el archivo quede intacto.
+    const { template, tienda } = armarEscenario();
+    const globalsViejo = '@import "../styles/temas/neutro.css";\n';
+    for (const repo of [template, tienda]) {
+      escribir(repo, "src/app/globals.css", globalsViejo);
+      escribir(repo, "src/styles/temas/neutro.css", ":root { --radius: 0.625rem; }\n");
+      escribir(repo, "src/app/page.tsx", "home v1\n");
+    }
+    const conTemas = commit(template, "C2 temas");
+    writeFileSync(join(tienda, ".template-baseline"), `# baseline\n${conTemas}\n`);
+    commit(tienda, "Baseline con temas");
+    escribir(tienda, "src/styles/temas/neutro.css", ":root { --radius: 0.25rem; }\n");
+    commit(tienda, "Radio propio");
+
+    escribir(template, "src/app/globals.css", '@import "../themes/temas.css";\n@import "../themes/custom.css";\n');
+    escribir(template, "src/styles/temas/neutro.css", ":root { --radius: 0.625rem; --nuevo: 1; }\n");
+    escribir(template, "src/app/page.tsx", "home v2\n");
+    commit(template, "C3 kit de temas");
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+    expect(resultado.estado).toBe("completado");
+    if (resultado.estado !== "completado") throw new Error("no debería pasar");
+    expect(leer(tienda, "src/styles/temas/neutro.css")).toBe(":root { --radius: 0.25rem; }\n");
+    expect(leer(tienda, "src/app/globals.css")).toBe(globalsViejo);
+    expect(resultado.resumen.conservados).toContain("src/app/globals.css");
+    // La otra piel sin tocar se actualiza como siempre.
+    expect(leer(tienda, "src/app/page.tsx")).toBe("home v2\n");
+  });
+
+  it("sin retoques en src/styles/temas/, el globals.css sin tocar se actualiza", () => {
+    const { template, tienda } = armarEscenario();
+    for (const repo of [template, tienda]) {
+      escribir(repo, "src/app/globals.css", '@import "../styles/temas/neutro.css";\n');
+      escribir(repo, "src/styles/temas/neutro.css", ":root { --radius: 0.625rem; }\n");
+    }
+    const conTemas = commit(template, "C2 temas");
+    writeFileSync(join(tienda, ".template-baseline"), `# baseline\n${conTemas}\n`);
+    commit(tienda, "Baseline con temas");
+    escribir(template, "src/app/globals.css", '@import "../themes/temas.css";\n');
+    commit(template, "C3 kit de temas");
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+    expect(resultado.estado).toBe("completado");
+    expect(leer(tienda, "src/app/globals.css")).toBe('@import "../themes/temas.css";\n');
   });
 
   it("el baseline de origen es el commit del template con el árbol del primer commit de la tienda", () => {
