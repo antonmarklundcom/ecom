@@ -37,6 +37,7 @@
     "template:adoptar-historial": "tsx scripts/template-adoptar-historial.ts",
     "template:probar-tienda": "tsx scripts/probar-tienda-nueva.ts",
     "template:ensayar-distribucion": "tsx scripts/ensayar-distribucion.ts",
+    "template:atraso": "tsx scripts/template-atraso.ts",
     "setup:doctor": "tsx scripts/doctor.ts",
     "bootstrap:repo": "tsx scripts/bootstrap-into-repo.ts",
     "restore": "tsx scripts/restore-backup.ts",

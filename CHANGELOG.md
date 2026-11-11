@@ -17,7 +17,12 @@ Actions).
    un "Sin publicar" vacío arriba. **Marcar "Migración: sí"** si algún cambio
    trae una migración en `drizzle/` (la tienda tiene que redeployar y correr
    el setup, NEW-STORE.md § "Migraciones que llegan por `template:sync`").
-4. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z` (anotado: la
+   fecha del tag es la que cuenta la edad de un PR de sync en versiones).
+   El tag llega **sólo a las canarias** (`"anillo": 0` en `tiendas.json`).
+5. Cuando los PRs de las canarias estén verdes y mergeados: Actions →
+   "Distribuir a las tiendas" → Run workflow, `tag: vX.Y.Z`, `anillo: 1`. Antes
+   y después, `pnpm template:atraso` muestra cuánto le falta a cada tienda.
 
 Versionado: **mayor** si una tienda tiene que hacer algo a mano además de
 mergear el PR (variable nueva obligatoria, paso de deploy); **menor** para
@@ -35,6 +40,26 @@ funciones nuevas; **parche** para arreglos.
   de una tienda que adoptó. Regla nueva: una tienda nunca corre `db:generate`
   para portar un arreglo del template (NEW-STORE.md § "Migraciones propias de
   una tienda").
+- Distribución por anillos (O28): `tiendas.json` suma `anillo` (0 canaria, 1
+  el resto) y `estado` (`activa` | `pausada`); una entrada sin esos campos es
+  activa y del anillo 1. Un tag distribuye sólo al anillo 0; el anillo 1 pide
+  un "Run workflow" que nombra el tag. Las tiendas reales quedan pausadas hasta
+  adoptar la historia de migraciones del template (review F13, O24).
+- `distribuir.yml` arma la matrix en lotes (hasta 8 tiendas por job, nunca más
+  de 256 jobs) con `max-parallel: 8`, y lee `tiendas.json` de `main` aunque
+  distribuya un tag: pausar una tienda vale para la próxima corrida.
+- Una rama `template/sync` editada a mano con el PR abierto, o un PR de sync
+  abierto por más de dos versiones, dejan esa tienda en **rojo** (antes: un
+  aviso y un job verde).
+- `pnpm template:atraso`: una fila por tienda con baseline, commits atrás
+  (de maquinaria) y edad del PR de sync. `template:ensayar-distribucion` muestra
+  el plan por anillo y acepta `--tiendas`, `--origen`, `--anillo` e
+  `--incluir-pausadas` (el arnés de tiendas locales).
+- Los scripts de la distribución (`distribuir-lote`, `armar-pr-tiendas`,
+  `template:atraso`, `template:ensayar-distribucion`) y los tests de O28 corren
+  cada `git` hijo sin las variables `GIT_*` del entorno
+  (`scripts/ci/entorno-sin-git.mjs`): dentro de un hook, un `git init` o
+  `git clone` heredaba `GIT_DIR` y operaba sobre el repo del template.
 
 ## v2.0.0 — candidata, 2026-11-10 (sin tag)
 

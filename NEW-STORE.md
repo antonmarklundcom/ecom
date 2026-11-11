@@ -809,56 +809,87 @@ del template. Lo que sigue es sólo dónde encontrarlo:
   `pnpm restore -- --r2 ultimo` (README.md, DEPLOY.md §"Restaurar una
   copia"): sólo corre contra una base cuyo nombre contenga `restore` o `test`.
 
-### La distribución automática del template (S13)
+### La distribución automática del template (S13, anillos O28)
 
-Publicar una versión del template (un tag `v*`, ver CHANGELOG.md) —o correrlo
-a mano desde la pestaña Actions— dispara `.github/workflows/distribuir.yml` en
-el template, que le abre (o actualiza) un PR de maquinaria a cada tienda
-listada en la raíz de `tiendas.json` — el mismo `pnpm template:sync` de arriba,
-corrido por una acción en vez de a mano. Es lo que hace que el paso 1 de
-"Arreglos que aparecen después" deje de ser manual. Un push a `main` ya no
-distribuye: cada PR de distribución corre el CI de la tienda (incluido el e2e,
-porque es donde llega maquinaria nueva), así que se agrupan por versión.
+Publicar una versión del template (un tag `v*`, ver CHANGELOG.md) dispara
+`.github/workflows/distribuir.yml` en el template, que le abre (o actualiza) un
+PR de maquinaria a las tiendas listadas en la raíz de `tiendas.json` — el mismo
+`pnpm template:sync` de arriba, corrido por una acción en vez de a mano. Es lo
+que hace que el paso 1 de "Arreglos que aparecen después" deje de ser manual.
+Un push a `main` no distribuye: cada PR de distribución corre el CI de la
+tienda (incluido el e2e, porque es donde llega maquinaria nueva), así que se
+agrupan por versión.
 
 El workflow viaja a las tiendas con el resto del repo, pero **sólo corre en el
 repo del template** (`if: github.repository == 'antonmarklundcom/ecom'`): en una
 tienda no levanta ni un runner.
 
+**Anillos y pausa.** Cada tienda tiene un `anillo` y un `estado`:
+
+| Qué | Quién recibe la versión |
+|---|---|
+| Push del tag `vX.Y.Z` | sólo `"anillo": 0` (las canarias) con `"estado": "activa"` |
+| Actions → "Distribuir a las tiendas" → Run workflow, `tag: vX.Y.Z`, `anillo: 1` | `"anillo": 1` (el resto), activas. El tag tiene que existir. |
+| Run workflow con `anillo: 0` | repite las canarias |
+| `"estado": "pausada"` | nadie, en ningún anillo |
+
+Orden de una versión: tag → los PRs de las canarias pasan su CI y se mergean →
+Run workflow del anillo 1 con el mismo tag. `tiendas.json` se lee siempre de
+`main`, no del tag: pausar una tienda (o pasarla de anillo) vale para la
+próxima corrida aunque la versión se haya etiquetado antes. Qué tiendas recibe
+cada corrida lo decide `scripts/ci/elegir-tiendas.mjs`, el mismo que usan el
+ensayo y `template:atraso`.
+
+**Escala.** Las tiendas elegidas se reparten en lotes de hasta 8 por job (cada
+job instala las dependencias del template una vez y se cobra redondeado al
+minuto), nunca más de 256 jobs (el tope de una matrix de GitHub: con más de
+2048 tiendas crece el lote), con `max-parallel: 8` para no chocar con el límite
+secundario de la API al abrir PRs. Dentro de un lote una tienda que falla no
+frena a las otras; el job sale en rojo y el resumen de la corrida tiene una
+fila por tienda. Dos corridas nunca van a la vez (`concurrency`), y ninguna se
+cancela a medias.
+
 **Para que una tienda reciba estos PRs, alguien con acceso al repo del
 template tiene que:**
 
-1. Agregarla a `tiendas.json` en la raíz del template. `repo` es lo único que
-   usa el workflow; `dominio` y `notas` son opcionales y sirven de registro:
+1. Agregarla a `tiendas.json` en la raíz del template. `repo` es obligatorio;
+   `anillo` (0 o 1, como número) y `estado` (`"activa"` o `"pausada"`) son
+   opcionales —una entrada sin ellos es activa y del anillo 1—; `dominio` y
+   `notas` sirven de registro:
 
    ```json
    [
      {
        "repo": "antonmarklundcom/mi-tienda",
+       "anillo": 1,
+       "estado": "activa",
        "dominio": "mitienda.com.py",
        "notas": "cuentas de cliente prendidas; Pagopar en sandbox"
      }
    ]
    ```
 
-   Nada de secretos ni de datos de infraestructura acá: el template es
-   público. Ni claves ni `DATABASE_URL`, pero tampoco el nombre de la base o
-   del usuario de Hostinger (`u123_…` es la mitad de un login), ni la cuenta
-   o el slot. Eso va a un lugar privado (el gestor de contraseñas, o un repo
-   privado de notas). `tests/unit/tiendas-json.test.ts` rechaza campos que no
-   sean esos tres. `tiendas.json` es `SOLO_TEMPLATE`: una tienda nueva no
-   hereda la lista.
+   Activar una tienda pausada es cambiar una línea: `"estado": "pausada"` →
+   `"estado": "activa"`, en un PR a `main`. Nada de secretos ni de datos de
+   infraestructura acá: el template es público. Ni claves ni `DATABASE_URL`,
+   pero tampoco el nombre de la base o del usuario de Hostinger (`u123_…` es la
+   mitad de un login), ni la cuenta o el slot. Eso va a un lugar privado (el
+   gestor de contraseñas, o un repo privado de notas).
+   `tests/unit/tiendas-json.test.ts` rechaza campos que no sean esos cinco.
+   `tiendas.json` es `SOLO_TEMPLATE`: una tienda nueva no hereda la lista.
 
-2. Tener cargado el secret `TIENDAS_TOKEN` en el repo del template: un token
-   **fine-grained** de GitHub (Settings → Developer settings → Fine-grained
-   tokens) con acceso a cada tienda y estos permisos de repositorio en
-   **Read and write**: **Contents**, **Pull requests** y **Workflows**
-   (Workflows porque la maquinaria incluye `.github/workflows/*`: sin ese
-   permiso GitHub rechaza el push). Issues en Read and write es opcional:
-   deja que el workflow cree el label `ci-completo` en la tienda. Un token
-   fine-grained lista los repos uno por uno —**cada tienda nueva hay que
-   sumarla al token**— y vence: cuando vence, el paso "Clonar la tienda"
-   falla y lo dice. Sin el secret, el workflow se salta solo y lo dice en el
-   log — no hace nada a medias.
+2. Tener cargado el secret `TIENDAS_TOKEN` en el repo del template. Hoy: un
+   token **fine-grained** de GitHub (Settings → Developer settings →
+   Fine-grained tokens) con acceso a cada tienda y estos permisos de
+   repositorio en **Read and write**: **Contents**, **Pull requests** y
+   **Workflows** (Workflows porque la maquinaria incluye `.github/workflows/*`:
+   sin ese permiso GitHub rechaza el push). Issues en Read and write es
+   opcional: deja que el workflow cree el label `ci-completo` en la tienda. Un
+   token fine-grained lista los repos uno por uno —**cada tienda nueva hay que
+   sumarla al token**— y vence: cuando vence, esa tienda falla con "no pude
+   clonarla". Con muchas tiendas conviene una GitHub App (permisos exactos y
+   recomendación en `docs/decisions-needed.md`). Sin el secret y con tiendas
+   elegidas, `preparar` falla en rojo y lo dice — no hace nada a medias.
 
 3. Que la tienda tenga `.template-baseline` (el commit del template desde el
    que se creó o hasta el que se sincronizó). Sin él, la distribución a esa
@@ -866,21 +897,44 @@ template tiene que:**
    `pnpm template:diff --marcar` en la tienda sobre un commit conocido.
 
 El PR que abre en la tienda es exactamente `pnpm template:sync` (ver
-"Arreglos que aparecen después"), corrido desde el template: archivo por
-archivo, con la piel de la tienda intacta y la lista de qué se trajo, qué se
-fusionó, qué cambio de la tienda pisó el template y qué quedó sin tocar en el
-cuerpo del PR. Siempre la misma rama, `template/sync`: una versión nueva
-actualiza el PR abierto en vez de abrir otro, y si alguien ya empujó
-commits a mano a esa rama (resolviendo un conflicto), el workflow no la pisa
-y lo avisa. Si quedó un conflicto de verdad, el PR sale **en draft** con los
-marcadores (`<<<<<<<`) commiteados y la lista de archivos: se resuelven en
-esa misma rama. El CI de cada tienda decide si se mergea; nadie mergea por
-ella.
+"Arreglos que aparecen después"), corrido desde el template en el tag: archivo
+por archivo, con la piel de la tienda intacta y la lista de qué se trajo, qué
+se fusionó, qué cambio de la tienda pisó el template y qué quedó sin tocar en
+el cuerpo del PR. Siempre la misma rama, `template/sync`: una versión nueva
+actualiza el PR abierto en vez de abrir otro. Si quedó un conflicto de verdad,
+el PR sale **en draft** con los marcadores (`<<<<<<<`) commiteados y la lista
+de archivos: se resuelven en esa misma rama. El CI de cada tienda decide si se
+mergea; nadie mergea por ella.
+
+**Dos casos dejan a una tienda en rojo** (hasta O28 eran un aviso y un job
+verde, y una tienda podía quedar meses sin recibir nada):
+
+- **Rama editada a mano**: alguien empujó commits a `template/sync` (por
+  ejemplo, resolviendo un conflicto) y su PR sigue abierto. La distribución no
+  la pisa, no le empuja nada, y esa tienda sale en rojo hasta que el PR se
+  mergee o se cierre; después se vuelve a correr la versión.
+- **PR viejo**: el PR de sync sigue abierto después de más de dos versiones
+  publicadas desde que se abrió (se cuentan los tags `v*` con fecha posterior
+  a la del PR; por eso los tags son anotados). Se actualiza igual con la
+  versión nueva, y la tienda sale en rojo.
+
+**Cuánto le falta a cada tienda:** `pnpm template:atraso` imprime una fila por
+tienda de `tiendas.json`: anillo, estado, baseline, commits del template que no
+tiene (cuántos de maquinaria) y el PR de sync abierto (número, días y
+versiones; marca los que ya dejan la distribución en rojo). Sólo lee (`gh api`
+con tu sesión de `gh`); `--ref vX.Y.Z` compara contra un tag, `--json` para
+scripts.
 
 **Ensayo gratis antes de publicar:** `pnpm template:ensayar-distribucion`
-hace lo mismo que el workflow contra cada tienda de `tiendas.json` (clon
-temporal, nada se empuja) y, con `--verificar`, corre `typecheck`, `lint` y
-los unitarios de cada tienda ya sincronizada. 0 minutos de Actions.
+muestra el plan de la corrida (qué tiendas recibe el tag, cuáles el anillo 1,
+cuáles están pausadas, en cuántos jobs) y hace lo mismo que el workflow contra
+cada tienda activa (clon temporal, nada se empuja); con `--verificar`, corre
+`typecheck`, `lint` y los unitarios de cada tienda ya sincronizada. `--anillo 0`
+ensaya sólo lo que recibiría el tag, `--incluir-pausadas` suma las pausadas,
+`--repo dueño/tienda` una sola. Para el arnés de tiendas locales
+(`fable/harness-tiendas/`): `--tiendas otro.json --origen <carpeta>` clona
+`<carpeta>/<nombre>` en vez de GitHub (también vale para `template:atraso`).
+0 minutos de Actions.
 
 ### CI y minutos de Actions
 
