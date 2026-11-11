@@ -487,4 +487,35 @@ describe.skipIf(!hasTestDb)("template:adoptar-historial contra MySQL", () => {
     expect(await filasDe(con)).toEqual(antes.filas);
     await con.end();
   });
+
+  it("una corrida que muere después del COMMIT queda adoptada: la próxima no vuelve el drizzle/ viejo", async () => {
+    const { repo, objetivo, base, con } = await tienda("corte_commit", propiasDeOeste());
+    backupDe(repo, base);
+    const antes = await filasDe(con);
+
+    await expect(
+      adoptarHistorial({
+        cwd: repo,
+        con,
+        objetivo,
+        aplicar: true,
+        backup: null,
+        cortar: (etapa) => {
+          if (etapa === "confirmado") throw new CorteSimulado(etapa, false);
+        },
+      })
+    ).rejects.toThrow("corte simulado en confirmado");
+    expect(existsSync(join(repo, CARPETA_PREVIA))).toBe(true);
+    const adoptados = carpeta(join(repo, "drizzle"));
+    const filas = await filasDe(con);
+    expect(filas).not.toEqual(antes);
+
+    const despues = await adoptarHistorial({ cwd: repo, con, objetivo, aplicar: false, backup: null });
+    expect(despues.recuperado).toBe(false);
+    expect(despues.decision.estado).toBe("ya-adoptada");
+    expect(existsSync(join(repo, CARPETA_PREVIA))).toBe(false);
+    expect(carpeta(join(repo, "drizzle"))).toEqual(adoptados);
+    expect(await filasDe(con)).toEqual(filas);
+    await con.end();
+  });
 });
