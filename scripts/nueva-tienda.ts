@@ -745,7 +745,7 @@ export function checklistHostinger(datos: { nombre: string; dominio: string; rep
     '',
     '| Variable | Valor |',
     '|---|---|',
-    '| `DATABASE_URL` | armala con la base del paso 1: `mysql://USUARIO:CONTRASEÑA@HOST:3306/BASE` (la contraseña, del gestor) |',
+    '| `DATABASE_URL` | armala con la base del paso 1 (usuario, contraseña del gestor, host y nombre) en la forma de `DATABASE_URL` de `.env.example` |',
     '| `SESSION_SECRET` | copiá `SESSION_SECRET` de `.env.local` |',
     `| \`NEXT_PUBLIC_SITE_URL\` | \`${url}\` (mientras el DNS no apunte, la URL temporal \`*.hostingersite.com\`) |`,
     '| `CRON_SECRET` | copiá `CRON_SECRET` de `.env.local` |',
