@@ -177,10 +177,14 @@ function armarHistoria(
   return { journal, migraciones };
 }
 
-/** La historia del working tree (`drizzle/` de la tienda, como la deployó). */
-export function historiaDeCarpeta(cwd: string): Historia {
+/**
+ * La historia del working tree (`drizzle/` de la tienda, como la deployó).
+ * `carpeta`: otra carpeta con la forma de `drizzle/` (la copia de una
+ * adopción cortada).
+ */
+export function historiaDeCarpeta(cwd: string, carpeta: string = join(cwd, "drizzle")): Historia {
   const leer = (ruta: string) => {
-    const completa = join(cwd, ...ruta.split("/"));
+    const completa = join(carpeta, ...ruta.split("/").slice(1));
     return existsSync(completa) ? readFileSync(completa, "utf8") : null;
   };
   return armarHistoria(leer(JOURNAL_PATH), leer, "la tienda");
@@ -1047,13 +1051,31 @@ export const CARPETA_NUEVA = ".drizzle-adopcion-nueva";
 
 /**
  * Si una corrida anterior murió en el medio (quedó la copia de `drizzle/`
- * de antes), la vuelve a su lugar. La transacción de la base, si no llegó
- * al COMMIT, ya la deshizo MySQL al cortarse la conexión.
+ * de antes), deciden las filas de `__drizzle_migrations`. Antes del COMMIT
+ * son siempre exactamente las del `drizzle/` de antes (si no, no se adopta),
+ * y si la transacción no llegó al COMMIT MySQL ya la deshizo al cortarse la
+ * conexión: vuelve la copia a su lugar. Si ya no son esas pero encajan con el
+ * `drizzle/` nuevo, el COMMIT llegó (murió limpiando): la adopción está hecha
+ * y sólo sobra la copia. Devuelve `true` sólo si volvió el `drizzle/` de antes.
  */
-export function recuperarCorte(cwd: string): boolean {
+export function recuperarCorte(cwd: string, filasAplicadas: readonly Fila[]): boolean {
   const previa = join(cwd, CARPETA_PREVIA);
   rmSync(join(cwd, CARPETA_NUEVA), { recursive: true, force: true });
   if (!existsSync(previa)) return false;
+  const estado = (carpeta: string) => {
+    try {
+      return estadoDeFilas(filasAplicadas, historiaDeCarpeta(cwd, carpeta));
+    } catch {
+      return null;
+    }
+  };
+  const antes = estado(previa);
+  const deAntes = antes !== null && antes.ajenas === 0 && antes.pendientes.length === 0;
+  const nueva = deAntes ? null : estado(join(cwd, "drizzle"));
+  if (nueva !== null && nueva.ajenas === 0) {
+    rmSync(previa, { recursive: true, force: true });
+    return false;
+  }
   rmSync(join(cwd, "drizzle"), { recursive: true, force: true });
   renameSync(previa, join(cwd, "drizzle"));
   return true;
@@ -1084,7 +1106,7 @@ export function archivosNuevos(
   return archivos;
 }
 
-export type Corte = "archivos" | "filas";
+export type Corte = "archivos" | "filas" | "confirmado";
 
 /** Un corte simulado (tests): `limpiar: false` imita un proceso que muere sin llegar al catch. */
 export class CorteSimulado extends Error {
@@ -1165,6 +1187,9 @@ export async function aplicarAdopcion(entrada: {
     rmSync(nueva, { recursive: true, force: true });
     throw error;
   }
+  // Después del COMMIT ya no se vuelve atrás: si muere acá, la próxima corrida
+  // ve las filas nuevas y sólo borra la copia (`recuperarCorte`).
+  entrada.cortar?.("confirmado");
   rmSync(previa, { recursive: true, force: true });
 }
 
@@ -1251,11 +1276,11 @@ export async function adoptarHistorial(entrada: {
 }): Promise<Resultado> {
   const { cwd, con } = entrada;
   const ahora = entrada.ahora ?? new Date();
-  const recuperado = recuperarCorte(cwd);
+  const filasLeidas = await leerFilas(con);
+  const recuperado = recuperarCorte(cwd, filasLeidas);
 
   const tienda = historiaDeCarpeta(cwd);
   const template = historiaDeGit(cwd, entrada.objetivo);
-  const filasLeidas = await leerFilas(con);
   const motor = await motorDe(con);
   const vivo = await esquemaVivo(con, motor);
   const [base] = await filas<{ db: string }>(con, "SELECT DATABASE() AS db");

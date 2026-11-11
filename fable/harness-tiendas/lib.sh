@@ -13,6 +13,10 @@ PY="${HARNESS_PYTHON:-python3}"
 export PYTHONIOENCODING=utf-8
 TEMPLATE_DIR="${TEMPLATE_DIR:-$S/wt-main}"
 DB_PREFIX="${DB_PREFIX:-}"
+# Los scripts del arnés corren git en sus propias carpetas (tpl.git, stores/*).
+# Un GIT_DIR heredado (un hook, otro script) haría que `git init`/`git config`
+# escriban en el repo de quien lo llamó: fuera todas las GIT_*.
+unset $(env | grep -o '^GIT_[A-Za-z0-9_]*' | sort -u) 2>/dev/null || true
 
 mysql_cli() {
   if [ -n "${HARNESS_MYSQL:-}" ]; then
