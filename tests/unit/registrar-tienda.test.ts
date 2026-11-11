@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
@@ -120,7 +120,8 @@ describe('registrar-tienda', () => {
     expect(x.archivos).toEqual([]);
   });
 
-  it('CLI --dry-run de verdad: tiendas.json queda igual', () => {
+  // `tiendas.json` es del template: una tienda lo borra (probar-tienda-nueva).
+  it.skipIf(!existsSync('tiendas.json'))('CLI --dry-run de verdad: tiendas.json queda igual', () => {
     const antes = readFileSync('tiendas.json', 'utf8');
     const r = spawnSync('pnpm', ['exec', 'tsx', 'scripts/registrar-tienda.ts', 'a/prueba-s29', '--dry-run'], {
       encoding: 'utf8',
