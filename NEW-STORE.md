@@ -1093,6 +1093,9 @@ kit: cambiar esa línea por `@import "../themes/temas.css";` y agregar
 `@import "../themes/custom.css";` al final de `globals.css`. Un `tienda.ts`
 sin el campo `tema` dibuja el header, el pie y la home del default, como
 siempre.
+Si la tienda retocó un archivo de `src/styles/temas/`, `template:sync` le deja
+su `globals.css` aunque nunca lo haya tocado (docs/TEMPLATE-INHERITANCE.md
+§ "Piel acoplada"): así el retoque se sigue cargando.
 
 #### Del mockup al código
 

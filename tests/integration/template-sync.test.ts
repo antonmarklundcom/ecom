@@ -500,6 +500,56 @@ describe("template:sync contra git de verdad", () => {
     );
   });
 
+  it("un tema retocado en src/styles/temas/ deja el globals.css de la tienda, que es el que lo importa (O23: Sur)", () => {
+    // Antes del kit de temas, NEW-STORE.md §5 mandaba a retocar `--radius` en
+    // `src/styles/temas/<tema>.css`. Si el `globals.css` sin tocar se cambia por
+    // el del template (que ya no importa ese archivo), el retoque se pierde en
+    // silencio aunque el archivo quede intacto.
+    const { template, tienda } = armarEscenario();
+    const globalsViejo = '@import "../styles/temas/neutro.css";\n';
+    for (const repo of [template, tienda]) {
+      escribir(repo, "src/app/globals.css", globalsViejo);
+      escribir(repo, "src/styles/temas/neutro.css", ":root { --radius: 0.625rem; }\n");
+      escribir(repo, "src/app/page.tsx", "home v1\n");
+    }
+    const conTemas = commit(template, "C2 temas");
+    writeFileSync(join(tienda, ".template-baseline"), `# baseline\n${conTemas}\n`);
+    commit(tienda, "Baseline con temas");
+    escribir(tienda, "src/styles/temas/neutro.css", ":root { --radius: 0.25rem; }\n");
+    commit(tienda, "Radio propio");
+
+    escribir(template, "src/app/globals.css", '@import "../themes/temas.css";\n@import "../themes/custom.css";\n');
+    escribir(template, "src/styles/temas/neutro.css", ":root { --radius: 0.625rem; --nuevo: 1; }\n");
+    escribir(template, "src/app/page.tsx", "home v2\n");
+    commit(template, "C3 kit de temas");
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+    expect(resultado.estado).toBe("completado");
+    if (resultado.estado !== "completado") throw new Error("no debería pasar");
+    expect(leer(tienda, "src/styles/temas/neutro.css")).toBe(":root { --radius: 0.25rem; }\n");
+    expect(leer(tienda, "src/app/globals.css")).toBe(globalsViejo);
+    expect(resultado.resumen.conservados).toContain("src/app/globals.css");
+    // La otra piel sin tocar se actualiza como siempre.
+    expect(leer(tienda, "src/app/page.tsx")).toBe("home v2\n");
+  });
+
+  it("sin retoques en src/styles/temas/, el globals.css sin tocar se actualiza", () => {
+    const { template, tienda } = armarEscenario();
+    for (const repo of [template, tienda]) {
+      escribir(repo, "src/app/globals.css", '@import "../styles/temas/neutro.css";\n');
+      escribir(repo, "src/styles/temas/neutro.css", ":root { --radius: 0.625rem; }\n");
+    }
+    const conTemas = commit(template, "C2 temas");
+    writeFileSync(join(tienda, ".template-baseline"), `# baseline\n${conTemas}\n`);
+    commit(tienda, "Baseline con temas");
+    escribir(template, "src/app/globals.css", '@import "../themes/temas.css";\n');
+    commit(template, "C3 kit de temas");
+
+    const resultado = ejecutarSync(tienda, OPCIONES);
+    expect(resultado.estado).toBe("completado");
+    expect(leer(tienda, "src/app/globals.css")).toBe('@import "../themes/temas.css";\n');
+  });
+
   it("el baseline de origen es el commit del template con el árbol del primer commit de la tienda", () => {
     const template = repoTemporal("origen-template");
     identidadGit(template);

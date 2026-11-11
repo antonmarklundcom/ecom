@@ -177,6 +177,36 @@ export function esDeLaTienda(ruta: string): boolean {
   return (DE_LA_TIENDA as readonly string[]).includes(ruta);
 }
 
+/**
+ * Piel **acoplada**: un archivo de piel que decide cuál de otros archivos de
+ * piel se carga. Si la tienda retocó alguno de los que dependen de él, el suyo
+ * queda aunque nunca lo haya tocado: traer el del template podría dejar de
+ * importar el retoque, que se perdería en silencio con el archivo intacto.
+ *
+ * El caso que lo trajo (O23, Sur en el arnés): antes del kit de temas,
+ * NEW-STORE.md §5 mandaba a cambiar `--radius` en `src/styles/temas/<tema>.css`.
+ * El `globals.css` del template ahora importa `src/themes/temas.css` en vez de
+ * ese archivo; una tienda que no había tocado su `globals.css` lo recibía y su
+ * radio volvía al del template. Con el suyo, el `@import` viejo sigue andando
+ * (NEW-STORE.md §5, "Tiendas de antes del kit").
+ */
+export const PIEL_ACOPLADA: readonly { archivo: string; depende: string }[] = [
+  { archivo: "src/app/globals.css", depende: "src/styles/temas/" },
+];
+
+/**
+ * Los archivos acoplados que quedan como los tiene la tienda, dado lo que la
+ * tienda cambió desde el baseline (rutas agregadas, cambiadas o borradas).
+ */
+export function acopladosDeLaTienda(cambiadosPorLaTienda: Iterable<string>): Set<string> {
+  const cambiados = [...cambiadosPorLaTienda];
+  return new Set(
+    PIEL_ACOPLADA.filter(({ depende }) => cambiados.some((ruta) => ruta.startsWith(depende))).map(
+      ({ archivo }) => archivo
+    )
+  );
+}
+
 export const BASELINE_FILE = ".template-baseline";
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Commit } from '../../scripts/template-shared';
-import { DE_LA_TIENDA, esDeLaTienda, esMaquinaria } from '../../scripts/template-shared';
+import { acopladosDeLaTienda, DE_LA_TIENDA, esDeLaTienda, esMaquinaria } from '../../scripts/template-shared';
 import {
   comandoPnpm,
   decidirArchivo,
@@ -309,5 +309,13 @@ describe('versionMasVieja', () => {
     expect(versionMasVieja('workspace:*', '^1.0.0')).toBe(false);
     expect(versionMasVieja('latest', '^1.0.0')).toBe(false);
     expect(versionMasVieja('^1.0.0', 'github:org/repo')).toBe(false);
+  });
+});
+
+describe('piel acoplada (O23: el radio de Sur)', () => {
+  it('un tema retocado en src/styles/temas/ deja el globals.css de la tienda', () => {
+    expect([...acopladosDeLaTienda(['src/styles/temas/neutro.css'])]).toEqual(['src/app/globals.css']);
+    expect([...acopladosDeLaTienda(['src/components/product-card.tsx', 'src/themes/custom.css'])]).toEqual([]);
+    expect([...acopladosDeLaTienda([])]).toEqual([]);
   });
 });

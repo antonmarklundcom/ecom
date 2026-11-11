@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { mensajeProblemasMigraciones, problemasEntreRefs } from './template-migrations';
 
 import {
+  acopladosDeLaTienda,
   BASELINE_FILE,
   commitsClasificados,
   type Commit,
@@ -676,6 +677,19 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
     if (!enElPlan.has(ruta)) plan.push({ ruta, accion: 'restaurar' });
   }
   plan.sort((a, b) => (a.ruta < b.ruta ? -1 : a.ruta > b.ruta ? 1 : 0));
+
+  // Piel acoplada (`PIEL_ACOPLADA`): si la tienda retocó un tema en
+  // `src/styles/temas/`, su `globals.css` —el que lo importa— queda aunque no
+  // lo haya tocado.
+  const cambiadosPorLaTienda = [...new Set([...enBase.keys(), ...enTienda.keys()])].filter(
+    (ruta) => enBase.get(ruta) !== enTienda.get(ruta),
+  );
+  const acoplados = acopladosDeLaTienda(cambiadosPorLaTienda);
+  for (const entrada of plan) {
+    if (entrada.accion === 'tomar-template' && acoplados.has(entrada.ruta) && enObjetivo.has(entrada.ruta)) {
+      entrada.accion = 'conservar';
+    }
+  }
 
   const soloTemplate = soloTemplateVersionado(cwd);
 
