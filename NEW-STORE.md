@@ -1454,6 +1454,40 @@ pnpm fotos:migrar-cloudinary -- --cloud <nombre-de-la-cuenta-vieja> --aplicar
 - Cuando `pnpm preflight` dice "todas son de R2", la cuenta vieja ya no hace
   falta para la vidriera.
 
+#### El paso a paso, por tienda (de punta a punta)
+
+En este orden, y una tienda por vez. El orden importa en un punto: las
+referencias nuevas (`r2:…`) sólo las entiende el código nuevo, así que **se
+migra después de deployar**, nunca antes; en el medio, las fotos viejas se ven
+como el placeholder de su categoría, nunca rotas.
+
+1. **Bucket** (DEPLOY.md §3b pasos 1–2): un bucket para esta tienda y su
+   dominio público `imagenes.TU-DOMINIO`. Nada cambia todavía en la tienda.
+2. **Regla de bloqueo** (§3b paso 3): la custom rule del WAF que bloquea
+   `/comprobantes/` y `/backups/` en ese dominio. Sin esto no se sigue: en el
+   mismo bucket van a vivir los comprobantes.
+3. **Token** (§3b paso 4): *Object Read & Write* sólo sobre ese bucket. Anotá
+   los cuatro valores (cuenta, key, secret, URL pública).
+4. **Backup** de la base de producción (DEPLOY.md §7), antes de tocar código.
+5. **Deploy**: mergeá el PR `template/sync` que trae R2, cargá `R2_*` en el
+   hPanel (o, después del deploy, en `/admin/integraciones` → R2 → **Probar
+   conexión**), Redeploy y `POST /api/setup/init` para las migraciones
+   (incluida la `0025`). Desde acá las fotos viejas salen como placeholder.
+6. **Preflight**: `pnpm preflight` contra la base de la tienda tiene que dar
+   el canario de `comprobantes/` y `backups/` bloqueado, y cuenta las fotos
+   que no son de R2.
+7. **Migración, ensayo**: desde tu máquina, con `DATABASE_URL` de la tienda
+   (Remote MySQL, DEPLOY.md §3) y `R2_*` en el entorno,
+   `pnpm fotos:migrar-cloudinary -- --cloud <cuenta-vieja>`. Cuenta y lista;
+   no baja ni escribe nada. Si los números no son los que esperás, pará acá.
+8. **Migración, de verdad**: lo mismo con `--aplicar`. Se puede cortar y
+   volver a correr. Los comprobantes que esperan revisión, con
+   `--api-key`/`--api-secret` (ver arriba).
+9. **Hero**: pegá en `src/config/tienda.ts` la referencia que imprimió el
+   script (`imageRef`), commit y deploy.
+10. **Cierre**: `pnpm preflight` dice "todas son de R2" y la vidriera muestra
+    las fotos. Recién entonces se puede dar de baja la cuenta vieja.
+
 ## Catalogue inheritance upgrade
 
 See `docs/TEMPLATE-INHERITANCE.md` for optional structured facts, public/private boundaries, attribute and editorial configuration, SKU links, URL history, payment selection, setup changes and migration/backup ordering. New store generation includes the generic mechanisms. Template updates preserve store-owned configuration and customized mixed UI; review the integration checklist in that document before enabling the features. No automatic distribution to existing stores is performed by this upgrade.
