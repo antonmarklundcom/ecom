@@ -32,6 +32,20 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+## v2.0.0 — 2026-11-11
+
+**Migración: sí (0025)** — la última de esta versión; con ella llegan todas
+las de después de v1.0.0 (`0014`–`0025`). Después de mergear el PR
+`template/sync`: redeployar y correr el setup (NEW-STORE.md § "Migraciones
+que llegan por `template:sync`"). Una tienda con migraciones propias se frena
+antes de escribir nada (NEW-STORE.md § "Migraciones propias de una tienda").
+
+**Mayor** por la regla de arriba: las fotos pasan a R2 y cada tienda tiene que
+crear su bucket, su regla de bloqueo y migrar las fotos a mano (NEW-STORE.md
+§ "Migrar las fotos a R2", el paso a paso). Probada en O23 con dos tiendas
+desechables creadas desde `45f4336` (`docs/log/o23.md`). El tag y lo que
+dispara: `docs/decisions-needed.md`.
+
 - Tienda nueva más rápida (S29): `pnpm nueva-tienda --crear-repo dueño/nombre` crea el repo desde el
   template (privado; `--publico`), lo clona, agrega el remoto `template`, crea el label
   `ci-completo` y corre el wizard; `pnpm registrar-tienda dueño/nombre` abre el PR que la suma a
@@ -67,20 +81,6 @@ funciones nuevas; **parche** para arreglos.
   cada `git` hijo sin las variables `GIT_*` del entorno
   (`scripts/ci/entorno-sin-git.mjs`): dentro de un hook, un `git init` o
   `git clone` heredaba `GIT_DIR` y operaba sobre el repo del template.
-
-## v2.0.0 — candidata, 2026-11-10 (sin tag)
-
-**Migración: sí (0025)** — la última de esta versión; con ella llegan todas
-las de después de v1.0.0 (`0014`–`0025`). Después de mergear el PR
-`template/sync`: redeployar y correr el setup (NEW-STORE.md § "Migraciones
-que llegan por `template:sync`"). Una tienda con migraciones propias se frena
-antes de escribir nada (NEW-STORE.md § "Migraciones propias de una tienda").
-
-**Mayor** por la regla de arriba: las fotos pasan a R2 y cada tienda tiene que
-crear su bucket, su regla de bloqueo y migrar las fotos a mano (NEW-STORE.md
-§ "Migrar las fotos a R2", el paso a paso). Probada en O23 con dos tiendas
-desechables creadas desde `45f4336` (`docs/log/o23.md`). El tag y lo que
-dispara: `docs/decisions-needed.md`.
 
 - **Una tienda con piel o config propia sigue en verde después del sync**
   (O23, docs/TEMPLATE-INHERITANCE.md). Sin migración. Maquinaria: llega sola.
