@@ -20,7 +20,13 @@ DATABASE_URL="$base/$data_db" pnpm db:migrate > v-migrate.log 2>&1; echo "migrat
 "$PY" "$HERE/snapshot.py" "$data_db" post-migrate.json pre-migrate.json
 "$PY" "$HERE/snapshot.py" --comparar pre-migrate.json post-migrate.json
 DATABASE_URL="$base/$data_db" pnpm db:check > v-dbcheck.log 2>&1; echo "db:check $?"; grep -i "migraciones" v-dbcheck.log | head -2
-DATABASE_URL="$base/$data_db" pnpm preflight > v-preflight.log 2>&1; echo "preflight $?"; grep -iE "medio|pago|transfer|contra|tarjeta" v-preflight.log | head -6
+# Sin bucket de R2 (plan §7 ítem 6) el preflight bloquea en R2 y en nada más: es
+# lo correcto para una tienda que no puede recibir comprobantes. No se le dan
+# credenciales falsas: el canario se conectaría a Cloudflare.
+DATABASE_URL="$base/$data_db" pnpm preflight > v-preflight.log 2>&1; echo "preflight $?"
+bloquean=$(grep -E "^\s+✗ " v-preflight.log | sed 's/^\s*✗ //' | paste -sd ',' -)
+[ "$bloquean" = "Imágenes y archivos (R2)" ] && echo "preflight: sólo bloquea R2 (esperado sin bucket)" || echo "preflight: BLOQUEA [$bloquean]"
+grep -A1 "Medios de pago" v-preflight.log | head -2
 pnpm build > v-build.log 2>&1; echo "build $?"
 export DATABASE_URL="$base/$e2e_db" TEST_DATABASE_URL="$base/$e2e_db" E2E_PORT=$port
 recrear_db "$e2e_db"

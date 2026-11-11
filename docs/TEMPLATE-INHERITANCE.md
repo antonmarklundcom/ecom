@@ -72,6 +72,10 @@ Lo que la tienda que rediseñó una pieza revisa a mano en la suya, porque ning�
 
 Un test nuevo del template que dibuja o escanea piel va en `TESTS_DE_PIEL` y usa el helper; si es contrato, no.
 
+### Tests y la config de la tienda
+
+También de O23. `src/config/checkout.ts` y `STORE_PAYMENT_METHODS` son de la tienda: Norte, en el arnés, no cobra con tarjeta, y 32 tests de integración del template (checkout, recuperación de pagos, conciliación) que crean un pedido con tarjeta la ponían en rojo sin que nada de su maquinaria estuviera mal. La suite del template prueba maquinaria con la política comercial del template: `tests/setup/config-del-template.ts` (setup de los proyectos `unit` e `integration`) fija `CHECKOUT` en los tres medios y deja `STORE_PAYMENT_METHODS` vacía. Lo que la tienda eligió lo prueban su `pnpm preflight` y su suite de navegador. `tests/unit/config-tienda-propia.test.ts` es la prueba, con su control. Por la misma razón, en una tienda `tests/unit/sin-proveedor-viejo.test.ts` revisa sólo lo que publica el template (maquinaria y sus docs), no su `tienda.ts`.
+
 ### Piel acoplada
 
 También de O23. Un archivo de piel que la tienda no tocó se actualiza con el del template, salvo que decida cuál de otros archivos de piel se carga y la tienda haya retocado alguno de ésos (`PIEL_ACOPLADA` en `scripts/template-shared.ts`). Hoy hay uno: `src/app/globals.css`, que importa el tema. Antes del kit de temas NEW-STORE.md §5 mandaba a retocar `--radius` en `src/styles/temas/<tema>.css`; el `globals.css` del template ya no importa ese archivo, así que traerlo dejaba el retoque intacto pero muerto (Sur, en el arnés). Si la tienda cambió algo en `src/styles/temas/`, su `globals.css` queda y sale en `conservados`; el `@import` viejo sigue andando. Pasar al kit (`tema` en `tienda.ts`, retoques en `src/themes/custom.css`) es a mano, cuando la tienda quiera.

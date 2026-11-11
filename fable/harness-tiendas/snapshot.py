@@ -4,7 +4,8 @@ columnas. `snapshot.py <db> <out.json>` guarda las columnas actuales;
 `snapshot.py <db> <out.json> <columnas-de.json>` usa las columnas de una huella
 anterior (las agregadas por una migración no cuentan) para compararlas.
 `snapshot.py --comparar <a.json> <b.json>` dice si dos huellas son idénticas
-(sale con 1 si no).
+(sale con 1 si no). Una tabla que sólo está en <b> y no tiene filas (la
+trajo una migración) no cuenta como cambio: se lista aparte.
 
 El cliente sale de `HARNESS_MYSQL` (p. ej. `mysql.exe -h127.0.0.1 -P3317
 -uroot -proot`); sin la variable, `docker exec ecom-mysql8 mysql`."""
@@ -23,9 +24,12 @@ def q(db, sql):
 def comparar(a_path, b_path):
     a = json.load(open(a_path, encoding="utf-8"))["tables"]
     b = json.load(open(b_path, encoding="utf-8"))["tables"]
-    diff = sorted(t for t in set(a) | set(b) if t not in a or t not in b or a[t]["md5"] != b[t]["md5"] or a[t]["rows"] != b[t]["rows"])
+    # Una tabla que trajo una migración y está vacía no es un dato que cambió.
+    nuevas = sorted(t for t in set(b) - set(a) if b[t]["rows"] == 0)
+    diff = sorted(t for t in (set(a) | set(b)) - set(nuevas) if t not in a or t not in b or a[t]["md5"] != b[t]["md5"] or a[t]["rows"] != b[t]["rows"])
     filas = sum(v["rows"] for v in a.values())
-    print("huellas idénticas" if not diff else f"CAMBIARON: {diff}", f"({len(a)} tablas, {filas} filas)")
+    extra = f"; tablas nuevas vacías: {nuevas}" if nuevas else ""
+    print("huellas idénticas" if not diff else f"CAMBIARON: {diff}", f"({len(a)} tablas, {filas} filas{extra})")
     return 0 if not diff else 1
 
 if len(sys.argv) > 1 and sys.argv[1] == "--comparar":

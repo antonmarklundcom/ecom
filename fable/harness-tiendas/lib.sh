@@ -9,6 +9,8 @@
 S="${HARNESS_DIR:?export HARNESS_DIR=<carpeta de trabajo con env-e2e.sh, stores/ y wt-main/>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="${HARNESS_PYTHON:-python3}"
+# Las tildes de snapshot.py, legibles también en una consola de Windows.
+export PYTHONIOENCODING=utf-8
 TEMPLATE_DIR="${TEMPLATE_DIR:-$S/wt-main}"
 DB_PREFIX="${DB_PREFIX:-}"
 

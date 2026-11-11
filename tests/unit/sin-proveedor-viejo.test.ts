@@ -1,8 +1,11 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+
+import { DOCS_DEL_TEMPLATE, esMaquinaria } from '../../scripts/template-shared';
 
 /**
  * Las imágenes, los comprobantes y los backups viven en R2. El proveedor
@@ -22,6 +25,11 @@ import { describe, expect, it } from 'vitest';
  *   una tienda, que `template:sync` nunca pisa, siga compilando).
  *
  * Cualquier otra mención es código o documentación que quedó vieja.
+ *
+ * En una tienda se revisa sólo lo que publica el template (maquinaria y sus
+ * docs): `src/config/tienda.ts`, la piel rediseñada y los docs propios son de
+ * la tienda, `template:sync` nunca los pisa, y un comentario viejo ahí no es
+ * algo que la tienda arregle trayendo el template (O23: Norte).
  */
 
 const PERMITIDOS = [
@@ -36,6 +44,17 @@ const PERMITIDOS = [
   /^pnpm-lock\.yaml$/,
 ];
 
+/** En el template se revisa todo; en una tienda, lo que el template publica. */
+function seRevisa(archivo: string, esTemplate: boolean): boolean {
+  if (PERMITIDOS.some((re) => re.test(archivo))) return false;
+  if (/\.(png|jpe?g|webp|gif|ico|woff2?|ttf|gz)$/i.test(archivo)) return false;
+  return (
+    esTemplate ||
+    esMaquinaria(archivo) ||
+    (DOCS_DEL_TEMPLATE as readonly string[]).includes(archivo)
+  );
+}
+
 /** Lo que sí se puede nombrar en cualquier lado. */
 const TOLERADOS = /(?:image_|qr_)?cloudinary_id|fotos[:-]migrar-cloudinary|\bcloudinaryId\b/gi;
 
@@ -44,8 +63,8 @@ describe('el proveedor de imágenes anterior no aparece fuera de la migración y
     const archivos = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
       .split('\n')
       .filter(Boolean)
-      .filter((archivo) => !PERMITIDOS.some((re) => re.test(archivo)))
-      .filter((archivo) => !/\.(png|jpe?g|webp|gif|ico|woff2?|ttf|gz)$/i.test(archivo));
+      // El repo del template tiene `tiendas.json`, que nunca viaja a una tienda.
+      .filter((archivo) => seRevisa(archivo, existsSync('tiendas.json')));
 
     const conMencion: string[] = [];
     for (const archivo of archivos) {
@@ -58,5 +77,16 @@ describe('el proveedor de imágenes anterior no aparece fuera de la migración y
       if (/cloudinary/i.test(texto.replace(TOLERADOS, ''))) conMencion.push(archivo);
     }
     expect(conMencion).toEqual([]);
+  });
+});
+
+describe('qué revisa en una tienda', () => {
+  it('la config y la piel de la tienda no; la maquinaria y los docs del template sí', () => {
+    expect(seRevisa('src/config/tienda.ts', false)).toBe(false);
+    expect(seRevisa('README.md', false)).toBe(false);
+    expect(seRevisa('src/lib/imagenes-r2.ts', false)).toBe(true);
+    expect(seRevisa('NEW-STORE.md', false)).toBe(true);
+    expect(seRevisa('src/config/tienda.ts', true)).toBe(true);
+    expect(seRevisa('CHANGELOG.md', true)).toBe(false);
   });
 });

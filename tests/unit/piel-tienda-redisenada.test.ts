@@ -95,6 +95,7 @@ beforeAll(() => {
   for (const ruta of [
     "src",
     "tests/helpers",
+    "tests/setup",
     "tests/piel-del-template.json",
     "tests/unit/piel-sin-colores.test.ts",
     "scripts/template-shared.ts",
