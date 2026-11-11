@@ -861,7 +861,9 @@ minuto), nunca más de 256 jobs (el tope de una matrix de GitHub: con más de
 secundario de la API al abrir PRs. Dentro de un lote una tienda que falla no
 frena a las otras; el job sale en rojo y el resumen de la corrida tiene una
 fila por tienda. Dos corridas nunca van a la vez (`concurrency`), y ninguna se
-cancela a medias.
+cancela a medias. GitHub deja una sola corrida en espera: si llega una tercera,
+cancela la que esperaba, así que el Run workflow del anillo 1 va cuando terminó
+la corrida anterior.
 
 **Para que una tienda reciba estos PRs, alguien con acceso al repo del
 template tiene que:**

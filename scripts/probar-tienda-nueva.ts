@@ -5,6 +5,7 @@ import { basename, dirname, join, toNamespacedPath } from "node:path";
 
 import { SOLO_TEMPLATE } from "./template-shared";
 import { runPnpm } from "./package-runner";
+import { envSinGit } from "./ci/entorno-sin-git.mjs";
 
 /**
  * `pnpm template:probar-tienda` — ¿una tienda recién creada desde este commit
@@ -54,6 +55,7 @@ function cleanup(): void {
     {
       cwd: raiz,
       stdio: ["ignore", "pipe", "pipe"],
+      env: envSinGit(),
     }
   );
 }
@@ -73,6 +75,7 @@ function main(): void {
   execFileSync("git", ["worktree", "add", "--detach", destino, "HEAD"], {
     cwd: raiz,
     stdio: ["ignore", "pipe", "inherit"],
+    env: envSinGit(),
   });
 
   try {

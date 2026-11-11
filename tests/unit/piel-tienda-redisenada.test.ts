@@ -99,6 +99,7 @@ beforeAll(() => {
     "tests/piel-del-template.json",
     "tests/unit/piel-sin-colores.test.ts",
     "scripts/template-shared.ts",
+    "scripts/ci/entorno-sin-git.mjs",
     "vitest.config.mts",
     "vitest.setup.ts",
     "tsconfig.json",
