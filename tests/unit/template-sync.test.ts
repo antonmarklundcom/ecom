@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Commit } from '../../scripts/template-shared';
 import { DE_LA_TIENDA, esDeLaTienda, esMaquinaria } from '../../scripts/template-shared';
 import {
+  comandoPnpm,
   decidirArchivo,
   esTest,
   fusionarPackageJson,
@@ -154,6 +155,17 @@ describe('hayQueHacer', () => {
     ).toBe(false);
     expect(hayQueHacer([{ ruta: 'a', accion: 'tomar-template' }])).toBe(true);
     expect(hayQueHacer([{ ruta: 'pnpm-lock.yaml', accion: 'lockfile' }])).toBe(true);
+  });
+});
+
+describe('comandoPnpm', () => {
+  it('en Windows pasa por la shell (pnpm es pnpm.cmd); en el resto, directo', () => {
+    expect(comandoPnpm(['install', '--lockfile-only'], 'win32')).toEqual({
+      archivo: 'pnpm install --lockfile-only',
+      args: [],
+      shell: true,
+    });
+    expect(comandoPnpm(['typecheck'], 'linux')).toEqual({ archivo: 'pnpm', args: ['typecheck'], shell: false });
   });
 });
 

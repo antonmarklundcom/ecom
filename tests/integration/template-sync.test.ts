@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -400,6 +401,32 @@ describe("template:sync contra git de verdad", () => {
     expect(gitEn(tienda, ["show", "HEAD:src/domain/stock.ts"])).toContain(
       "<<<<<<<"
     );
+  });
+
+  it("el commit del sync no corre los hooks de la tienda (O23: Norte quedaba a medias)", () => {
+    // El pre-commit de toda tienda es `pnpm typecheck && pnpm lint` (.husky):
+    // corre con los node_modules de antes del sync y frenaba el commit con
+    // 352 archivos escritos y nada commiteado. Lo que verifica el sync es su
+    // paso final (sin --sin-tests) o el CI del PR, no el hook.
+    const { tienda, c1 } = armarEscenario();
+    escribir(tienda, ".hooks/pre-commit", "#!/bin/sh\necho 'hook de la tienda' >&2\nexit 1\n");
+    chmodSync(join(tienda, ".hooks", "pre-commit"), 0o755);
+    gitEn(tienda, ["add", "-A"]);
+    gitEn(tienda, ["update-index", "--chmod=+x", ".hooks/pre-commit"]);
+    commit(tienda, "Hook que falla");
+    gitEn(tienda, ["config", "core.hooksPath", ".hooks"]);
+    // El hook de verdad frena un commit común en esta plataforma…
+    escribir(tienda, "nota.txt", "x\n");
+    expect(() => commit(tienda, "Con el hook puesto")).toThrow();
+    gitEn(tienda, ["reset", "-q", "--", "nota.txt"]);
+    rmSync(join(tienda, "nota.txt"));
+
+    // …y el del sync no lo corre.
+    const resultado = ejecutarSync(tienda, OPCIONES);
+
+    expect(resultado.estado, "mensaje" in resultado ? String(resultado.mensaje) : "").toBe("completado");
+    expect(gitEn(tienda, ["status", "--porcelain"]).trim()).toBe("");
+    expect(leer(tienda, ".template-baseline")).toContain(c1);
   });
 
   it("--dry-run no toca nada y lista la decisión de cada archivo", () => {

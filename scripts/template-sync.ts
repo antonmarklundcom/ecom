@@ -483,6 +483,41 @@ function tomarDelTemplate(cwd: string, objetivo: string, ruta: string, existeEnT
 }
 
 /**
+ * Cómo correr `pnpm` en esta plataforma. En Windows `pnpm` es `pnpm.cmd`:
+ * `execFileSync('pnpm')` no lo encuentra (ENOENT) y Node ≥ 20 no corre un
+ * `.cmd` sin shell, así que un `pnpm template:sync` en la PC de una tienda
+ * marcaba el lockfile como conflicto y nunca corría los tests del final.
+ * Los argumentos son fijos (nada que venga de la tienda), por eso alcanza con
+ * unirlos.
+ */
+export function comandoPnpm(
+  args: readonly string[],
+  plataforma: NodeJS.Platform = process.platform,
+): { archivo: string; args: string[]; shell: boolean } {
+  return plataforma === 'win32'
+    ? { archivo: ['pnpm', ...args].join(' '), args: [], shell: true }
+    : { archivo: 'pnpm', args: [...args], shell: false };
+}
+
+function correrPnpm(cwd: string, args: readonly string[]): void {
+  const { archivo, args: argumentos, shell } = comandoPnpm(args);
+  execFileSync(archivo, argumentos, { cwd, shell, stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+/**
+ * El commit del sync, sin los hooks de la tienda (`--no-verify`).
+ *
+ * El pre-commit de toda tienda es `pnpm typecheck && pnpm lint` (.husky), y en
+ * este punto corre con los `node_modules` de antes del sync: con 352 archivos
+ * escritos, Norte (arnés de O23) quedaba con nada commiteado y el árbol a
+ * medias, y `distribuir.yml` no tenía commit para abrir el PR. Lo que verifica
+ * el sync es su propio paso final (sin `--sin-tests`) o el CI del PR.
+ */
+function commitDelSync(cwd: string, mensaje: string): void {
+  gitEn(cwd, ['-c', 'core.editor=true', 'commit', '--no-verify', '-m', mensaje]);
+}
+
+/**
  * Lo de `SOLO_TEMPLATE` que está versionado en la tienda: en una tienda vieja,
  * creada antes de que existiera la lista, también se saca lo que heredó.
  */
@@ -751,10 +786,7 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
       resumen.traidos.push('pnpm-lock.yaml');
     } else {
       try {
-        execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts'], {
-          cwd,
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
+        correrPnpm(cwd, ['install', '--lockfile-only', '--ignore-scripts']);
         gitEn(cwd, ['add', '--', 'pnpm-lock.yaml']);
         resumen.fusionados.push('pnpm-lock.yaml');
       } catch (error) {
@@ -774,7 +806,7 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
     const commiteado = Boolean(opciones.commitearConflictos);
     if (commiteado) {
       gitEn(cwd, ['add', '-A']);
-      gitEn(cwd, ['-c', 'core.editor=true', 'commit', '-m', mensajeCommit(objetivo, commits, resumen.conflictos)]);
+      commitDelSync(cwd, mensajeCommit(objetivo, commits, resumen.conflictos));
     }
     return {
       estado: 'conflicto',
@@ -794,7 +826,7 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
     };
   }
 
-  gitEn(cwd, ['-c', 'core.editor=true', 'commit', '-m', mensajeCommit(objetivo, commits, [])]);
+  commitDelSync(cwd, mensajeCommit(objetivo, commits, []));
 
   if (!opciones.sinTests) {
     const pasos: string[][] = [];
@@ -804,7 +836,7 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
     pasos.push(['pnpm', 'typecheck'], ['pnpm', 'lint'], ['pnpm', 'test']);
     for (const comando of pasos) {
       try {
-        execFileSync(comando[0]!, comando.slice(1), { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+        correrPnpm(cwd, comando.slice(1));
       } catch (error) {
         return {
           estado: 'fallo-post',

@@ -1,9 +1,17 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ContactoEfectivo } from "@/domain/store-settings-schema";
 import { TESTIDS } from "@/lib/testids";
-import { VARIANTES_FOOTER, VARIANTES_HEADER } from "@/themes/tipos";
+import {
+  VARIANTES_FOOTER,
+  VARIANTES_HEADER,
+  type VarianteFooter,
+  type VarianteHeader,
+} from "@/themes/tipos";
+
+import { pielDelTemplate } from "../../../tests/helpers/piel";
 
 // Lo que no corre en jsdom (server actions, sesión, base) no es lo que se
 // prueba acá: se prueba el armado de cada variante.
@@ -19,8 +27,37 @@ vi.mock("@/domain/store-settings", () => ({ getStoreSettings: vi.fn() }));
 vi.mock("@/lib/comercio", () => ({ contactoPublico: vi.fn() }));
 vi.mock("@/lib/paginas", () => ({ paginasActivas: vi.fn() }));
 
-const { HeaderVariante } = await import("@/components/site-header");
-const { FooterVariante } = await import("@/components/site-footer");
+type Categoria = { id: number; slug: string; name: string };
+/**
+ * Las props se escriben acá y los componentes se leen del módulo, no con un
+ * import con nombre: un `site-footer.tsx` que una tienda rediseñó no exporta
+ * `FooterVariante`, y el test tiene que compilar ahí también (el typecheck de
+ * la tienda corre sobre los tests aunque el caso salga skipped).
+ */
+type PropsHeader = {
+  variante: VarianteHeader;
+  categories: readonly Categoria[];
+  marca: { nombre: string; logoUrl: string | null };
+};
+type PropsFooter = {
+  variante: VarianteFooter;
+  nombre: string;
+  tagline: string;
+  categories: readonly Categoria[];
+  contacto: ContactoEfectivo;
+  paginas: Array<{ slug: string; titulo: string }>;
+};
+
+const HeaderVariante = (
+  (await import("@/components/site-header")) as unknown as {
+    HeaderVariante: ComponentType<PropsHeader>;
+  }
+).HeaderVariante;
+const FooterVariante = (
+  (await import("@/components/site-footer")) as unknown as {
+    FooterVariante: ComponentType<PropsFooter>;
+  }
+).FooterVariante;
 
 afterEach(cleanup);
 
@@ -42,8 +79,12 @@ const CONTACTO: ContactoEfectivo = {
  * con `tests/e2e/**` son los `data-testid` (`src/lib/testids.ts`): un tema que
  * cambia de variante no puede llevarse uno. Por eso se prueban **todas** las
  * variantes con la misma lista y no sólo la del default.
+ *
+ * Test de **piel del template** (`TESTS_DE_PIEL`): una tienda que rediseñó su
+ * header o su pie ya no tiene las variantes del kit, y ese bloque sale
+ * skipped. Los `data-testid` de su header los sigue exigiendo `tests/e2e/**`.
  */
-describe("variantes de header", () => {
+describe.runIf(pielDelTemplate("src/components/site-header.tsx"))("variantes de header", () => {
   for (const variante of VARIANTES_HEADER) {
     it(`${variante}: mismos testids, marca y buscadores`, () => {
       const { container } = render(
@@ -96,7 +137,7 @@ describe("variantes de header", () => {
   });
 });
 
-describe("variantes de pie", () => {
+describe.runIf(pielDelTemplate("src/components/site-footer.tsx"))("variantes de pie", () => {
   for (const variante of VARIANTES_FOOTER) {
     it(`${variante}: mismo contenido`, () => {
       const { container } = render(

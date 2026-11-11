@@ -6,6 +6,9 @@ import { TIENDA } from "@/config/tienda";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { META_BASE_IMAGENES, resetBaseImagenesForTests } from "@/lib/images";
 
+import { heroDelTemplate } from "../../../tests/helpers/hero";
+import { esRepoDelTemplate, pielDelTemplate } from "../../../tests/helpers/piel";
+
 /**
  * La portada de la home (PLAN.md FASE 2, PR O).
  *
@@ -14,18 +17,24 @@ import { META_BASE_IMAGENES, resetBaseImagenesForTests } from "@/lib/images";
  * tienda que se actualiza y no configura nada no puede ver ningún cambio, y
  * una que sí lo configura no puede terminar con un botón que lleva a ningún
  * lado ni con un `<img>` roto porque le falta R2.
+ *
+ * Test de **piel del template** (`TESTS_DE_PIEL`): en una tienda que rediseñó
+ * `home-hero.tsx` los casos que la dibujan salen "skipped", y "sin portada"
+ * sólo vale en el template (cada tienda carga la suya en `tienda.ts`).
  */
+const HERO_DEL_TEMPLATE = pielDelTemplate("src/components/home-hero.tsx");
+
 describe("hero de la home", () => {
   // `globals` está apagado en vitest.config.mts, así que el auto-cleanup de
   // testing-library no se registra solo: sin esto, cada render se apila sobre
   // el anterior y `getByRole` encuentra dos títulos.
   afterEach(cleanup);
 
-  it("el template se instala sin portada configurada", () => {
+  it.runIf(esRepoDelTemplate())("el template se instala sin portada configurada", () => {
     expect(TIENDA.hero).toBeNull();
   });
 
-  it("dibuja título, texto y botón", () => {
+  it.runIf(HERO_DEL_TEMPLATE)("dibuja título, texto y botón", () => {
     render(
       <HomeHero
         hero={{
@@ -44,21 +53,21 @@ describe("hero de la home", () => {
     );
   });
 
-  it("sin CTA no hay botón, y eso es una portada válida", () => {
+  it.runIf(HERO_DEL_TEMPLATE)("sin CTA no hay botón, y eso es una portada válida", () => {
     render(<HomeHero hero={{ titulo: "Cerrado por vacaciones" }} />);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("sin base pública de R2 no dibuja ninguna imagen", () => {
+  it.runIf(HERO_DEL_TEMPLATE)("sin base pública de R2 no dibuja ninguna imagen", () => {
     // El estado de toda tienda recién clonada: hay una referencia en el config
     // pero el entorno todavía no tiene la base pública. Tiene que salir el
     // hero de texto, nunca un rectángulo roto.
     render(
       <HomeHero
-        hero={{
+        hero={heroDelTemplate({
           titulo: "Verano 2026",
           imagen: { imageRef: "r2:p1/portada-0123456789@1200x600", alt: "Modelo en la playa" },
-        }}
+        })}
       />,
     );
 
@@ -66,16 +75,16 @@ describe("hero de la home", () => {
     expect(screen.getByRole("heading", { name: "Verano 2026" })).toBeInTheDocument();
   });
 
-  it("con base pública dibuja un <picture> con WebP por caja y el JPEG de respaldo", () => {
+  it.runIf(HERO_DEL_TEMPLATE)("con base pública dibuja un <picture> con WebP por caja y el JPEG de respaldo", () => {
     resetBaseImagenesForTests();
     document.head.innerHTML = `<meta name="${META_BASE_IMAGENES}" content="https://img.tienda.test">`;
     try {
       const { container } = render(
         <HomeHero
-          hero={{
+          hero={heroDelTemplate({
             titulo: "Verano 2026",
             imagen: { imageRef: "r2:p1/portada-0123456789@1200x600", alt: "Modelo en la playa" },
-          }}
+          })}
         />,
       );
       const img = screen.getByRole("img", { name: "Modelo en la playa" });
@@ -93,12 +102,12 @@ describe("hero de la home", () => {
     }
   });
 
-  it("una referencia vieja que no es de R2 cae al hero de texto", () => {
+  it.runIf(HERO_DEL_TEMPLATE)("una referencia vieja que no es de R2 cae al hero de texto", () => {
     resetBaseImagenesForTests();
     document.head.innerHTML = `<meta name="${META_BASE_IMAGENES}" content="https://img.tienda.test">`;
     try {
       render(
-        <HomeHero hero={{ titulo: "Verano", imagen: { imageRef: "portadas/verano", alt: "x" } }} />,
+        <HomeHero hero={heroDelTemplate({ titulo: "Verano", imagen: { imageRef: "portadas/verano", alt: "x" } })} />,
       );
       expect(screen.queryByRole("img")).not.toBeInTheDocument();
     } finally {

@@ -1,16 +1,17 @@
 #!/bin/bash
 # Fase 1 (T0): base, fixtures, planilla de la tienda, roles y la suite de navegador
 # de la propia tienda (checkout, panel) contra su base desechable.
+#   populate_t0.sh <tienda> <base> <puerto> <rol-extra>
 set -uo pipefail
-S="${HARNESS_DIR:?export HARNESS_DIR=<carpeta de trabajo con env-e2e.sh, stores/ y wt-main/>}"
+source "$(dirname "$0")/lib.sh"
 store=$1; db=$2; port=$3; extra_role=$4
-cd $S/stores/$store
-source $S/env-e2e.sh
+cd "$S/stores/$store"
+source "$S/env-e2e.sh"
 export DATABASE_URL="${DATABASE_URL%/*}/$db" E2E_PORT=$port; export TEST_DATABASE_URL="$DATABASE_URL"
-docker exec ecom-mysql8 mysql -uroot -proot -e "DROP DATABASE IF EXISTS $db; CREATE DATABASE $db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" 2>/dev/null
+recrear_db "$db"
 pnpm db:migrate > t0-migrate.log 2>&1; echo "migrate $?"
 pnpm exec tsx scripts/prepare-browser-tests.ts > t0-prepare.log 2>&1; echo "prepare $?"
-pnpm importar:productos $S/stores/$store.csv --aplicar > t0-import.log 2>&1; echo "import $?"; grep -E "producto|variante|categor" t0-import.log | tail -3
+pnpm importar:productos "$HERE/$store.csv" --aplicar > t0-import.log 2>&1; echo "import $?"; grep -E "producto|variante|categor" t0-import.log | tail -3
 cat > crear-rol.mts <<TS
 import "./src/lib/load-env";
 import { createUser } from "./src/lib/auth";

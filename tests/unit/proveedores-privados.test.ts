@@ -108,7 +108,9 @@ describe('los datos de proveedores no salen del panel', () => {
 
 describe('el flag `proveedores`', () => {
   it.skipIf(TIENDA.nombre !== MARCA_PLACEHOLDER)('viene apagado en el template', async () => {
-    expect(TIENDA.proveedores).toBe(false);
+    // Con `in`: el `Tienda` de un tienda.ts anterior al flag no lo declara, y
+    // `TIENDA.proveedores` a secas no compilaba en esa tienda (O23, Norte).
+    expect('proveedores' in TIENDA ? TIENDA.proveedores : undefined).toBe(false);
     const { proveedoresHabilitados } = await import('@/lib/proveedores');
     expect(proveedoresHabilitados()).toBe(false);
   });

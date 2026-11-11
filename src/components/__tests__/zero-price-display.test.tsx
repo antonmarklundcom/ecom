@@ -9,10 +9,19 @@ import type { CatalogProductDetail } from "@/db/queries";
 import { CART_STORAGE_KEY } from "@/lib/cart-store";
 import { TESTIDS } from "@/lib/testids";
 
+import { pielDelTemplate } from "../../../tests/helpers/piel";
+
 /**
  * ₲0 no es un precio (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1). Una fila vieja
  * o un producto de consulta todavía sin precio no puede aparecer como
  * mercadería gratis en ninguna tarjeta.
+ *
+ * Test de **piel del template** (`TESTS_DE_PIEL`): cada caso mira cómo un
+ * componente del template muestra el precio, y corre mientras ese componente
+ * sea el del template. Una tienda que rediseñó su tarjeta revisa el ₲0 en la
+ * suya (docs/TEMPLATE-INHERITANCE.md § "Tests que miran la piel"). La regla
+ * de plata —que ₲0 no se vende— es maquinaria y la prueba
+ * `tests/integration/positive-prices.test.ts`, que corre en toda tienda.
  */
 const ZERO = /₲\s*0(?!\d|\.)/;
 
@@ -44,28 +53,28 @@ const product: CatalogProductDetail = {
 describe("₲0 nunca se muestra como precio", () => {
   afterEach(cleanup);
 
-  it("PriceTag no dibuja un precio que no se puede cobrar", () => {
+  it.runIf(pielDelTemplate("src/components/price-tag.tsx"))("PriceTag no dibuja un precio que no se puede cobrar", () => {
     const { container } = render(
       <PriceTag pricePyg={0} compareAtPyg={50_000} />
     );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("la tarjeta de producto omite el precio y el descuento de −100%", () => {
+  it.runIf(pielDelTemplate("src/components/product-card.tsx"))("la tarjeta de producto omite el precio y el descuento de −100%", () => {
     render(<ProductCard product={product} />);
     const card = screen.getByTestId(TESTIDS.productCard);
     expect(card.textContent).not.toMatch(ZERO);
     expect(card.textContent).not.toContain("−100%");
   });
 
-  it("la ficha de un producto de consulta sin precio no lo anuncia como orientativo", () => {
+  it.runIf(pielDelTemplate("src/components/add-to-cart.tsx"))("la ficha de un producto de consulta sin precio no lo anuncia como orientativo", () => {
     render(<AddToCart product={{ ...product, saleMode: "enquiry" }} />);
     expect(document.body.textContent).not.toMatch(ZERO);
     expect(screen.queryByText(/orientativo/i)).not.toBeInTheDocument();
   });
 });
 
-describe("vistos recientemente sin precio", () => {
+describe.runIf(pielDelTemplate("src/components/recently-viewed.tsx"))("vistos recientemente sin precio", () => {
   const key = `${CART_STORAGE_KEY}-vistos`;
 
   beforeEach(() => {

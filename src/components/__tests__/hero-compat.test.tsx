@@ -6,13 +6,20 @@ import type { Hero } from "@/config/tienda";
 import { DEFAULT_STORE_SETTINGS, heroEfectivo } from "@/domain/store-settings-schema";
 import { META_BASE_IMAGENES, resetBaseImagenesForTests } from "@/lib/images";
 
+import { pielDelTemplate } from "../../../tests/helpers/piel";
+
 /**
  * `src/config/tienda.ts` es de cada tienda: `template:sync` nunca lo pisa. Una
  * tienda que cargó la foto del hero con el nombre de antes del cambio a R2
  * (`imagen.cloudinaryId`) tiene que seguir compilando y dibujando: con un id
  * viejo, el hero sin foto; con una referencia de R2 bajo el nombre viejo, la
  * foto.
+ *
+ * Los dos casos que dibujan `HomeHero` son de **piel del template**
+ * (`TESTS_DE_PIEL`): una tienda que rediseñó su portada los ve "skipped".
+ * `heroEfectivo` es maquinaria y corre siempre.
  */
+const HERO_DEL_TEMPLATE = pielDelTemplate("src/components/home-hero.tsx");
 
 /** El `Hero` tal como lo tiene el `tienda.ts` viejo de una tienda. */
 type HeroDeTiendaVieja = Omit<Hero, "imagen"> & {
@@ -31,7 +38,7 @@ function conBase(): void {
 }
 
 describe("hero con el nombre viejo de la foto", () => {
-  it("compila con el tipo viejo y un id que no es de R2 dibuja el hero sin foto", () => {
+  it.runIf(HERO_DEL_TEMPLATE)("compila con el tipo viejo y un id que no es de R2 dibuja el hero sin foto", () => {
     conBase();
     const viejo: HeroDeTiendaVieja = {
       titulo: "Verano",
@@ -44,7 +51,7 @@ describe("hero con el nombre viejo de la foto", () => {
     expect(screen.getByRole("heading", { name: "Verano" })).toBeInTheDocument();
   });
 
-  it("una referencia de R2 bajo `cloudinaryId` se dibuja", () => {
+  it.runIf(HERO_DEL_TEMPLATE)("una referencia de R2 bajo `cloudinaryId` se dibuja", () => {
     conBase();
     render(
       <HomeHero
