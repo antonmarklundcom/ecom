@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { armarLotes, elegirTiendas, leerTiendas as leerTiendasCi } from './ci/elegir-tiendas.mjs';
+import { envSinGit, sacarGitDelEntorno } from './ci/entorno-sin-git.mjs';
 import { gitEn } from './template-shared';
 import { ejecutarSync, type ResultadoSync } from './template-sync';
 
@@ -129,7 +130,8 @@ function correr(comando: string, args: string[], cwd: string): { ok: boolean; sa
       stdio: ['ignore', 'pipe', 'pipe'],
       // Igual que probar-tienda-nueva.ts: sin base de tests, los de
       // integración se saltan en vez de intentar conectarse.
-      env: { ...process.env, TEST_DATABASE_URL: '' },
+      // Y sin GIT_*: el clon va a una carpeta temporal (ver entorno-sin-git.mjs).
+      env: { ...envSinGit(process.env), TEST_DATABASE_URL: '' },
       // pnpm es pnpm.cmd en Windows.
       shell: process.platform === 'win32' && comando === 'pnpm',
     });
@@ -254,6 +256,8 @@ function main(): void {
 }
 
 if (process.argv[1] && /ensayar-distribucion\.ts$/.test(process.argv[1])) {
+  // Todo git hijo (gitEn y template:sync incluidos) sin las GIT_* de un hook.
+  sacarGitDelEntorno();
   try {
     main();
   } catch (error) {

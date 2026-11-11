@@ -24,6 +24,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+import { sacarGitDelEntorno } from './entorno-sin-git.mjs';
+
 /** Un PR de sync puede sobrevivir a dos versiones nuevas; a la tercera, rojo. */
 export const MAX_VERSIONES_SIN_MERGEAR = 2;
 
@@ -314,5 +316,6 @@ function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  sacarGitDelEntorno();
   process.exitCode = main();
 }

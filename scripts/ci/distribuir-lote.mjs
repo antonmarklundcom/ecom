@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { armarPr, releasesDelTemplate } from './armar-pr-tiendas.mjs';
+import { sacarGitDelEntorno } from './entorno-sin-git.mjs';
 
 export const RAMA = 'template/sync';
 export const EMAIL_BOT = 'actions@users.noreply.github.com';
@@ -150,6 +151,7 @@ function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  sacarGitDelEntorno();
   try {
     process.exitCode = main();
   } catch (error) {

@@ -13,6 +13,8 @@ import {
   versionesDesde,
 } from '../../scripts/ci/armar-pr-tiendas.mjs';
 import { distribuirLote, tablaResumen } from '../../scripts/ci/distribuir-lote.mjs';
+import { sacarGitDelEntorno } from '../../scripts/ci/entorno-sin-git.mjs';
+import { envSinGit } from '../helpers/git-sin-entorno';
 import {
   anilloDeLaCorrida,
   armarLotes,
@@ -371,8 +373,11 @@ describe('commitsAMano contra un repo de verdad', () => {
   const dir = mkdtempSync(join(tmpdir(), 'o28-a-mano-'));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
+  // Sin las GIT_* del entorno (ver el helper): dentro del pre-push, un
+  // `git init` acá reinicializaba el repo del template.
+  const env = envSinGit();
   const git = (cwd: string, ...args: string[]) =>
-    execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const commit = (cwd: string, email: string, archivo: string, asunto: string) => {
     writeFileSync(join(cwd, archivo), asunto);
     git(cwd, 'add', archivo);
@@ -390,7 +395,7 @@ describe('commitsAMano contra un repo de verdad', () => {
 
     const clon = join(dir, 'clon');
     git(dir, 'clone', '-q', origen, clon);
-    const correr = (cmd: string, args: string[]) => execFileSync(cmd, args, { cwd: clon, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const correr = (cmd: string, args: string[]) => execFileSync(cmd, args, { cwd: clon, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     const aMano = commitsAMano('main', 'template/sync', BOT, correr);
     expect(aMano).toHaveLength(1);
     expect(aMano[0]).toMatch(/dueña@tienda\.test Resolver conflicto a mano$/);
@@ -413,4 +418,34 @@ describe('distribuir-lote', () => {
     expect(tablaResumen(resultados, 'v2.1.0')).toContain('| `a/dos` | ✗ | no pude clonarla |');
     expect(distribuirLote(['a/uno'], () => ({ ok: true, detalle: 'al día' })).codigo).toBe(0);
   });
+});
+
+describe('envSinGit', () => {
+  it('saca todas las GIT_* (las que exporta un hook) y deja el resto', () => {
+    const env = envSinGit({
+      PATH: '/bin',
+      GIT_DIR: '/repo/.git',
+      GIT_WORK_TREE: '/repo',
+      GIT_INDEX_FILE: '/repo/.git/index',
+      GIT_COMMON_DIR: '/repo/.git',
+      GIT_PREFIX: '',
+      GIT_CONFIG_COUNT: '1',
+      git_dir: 'en Windows las variables no distinguen mayúsculas',
+    });
+    expect(env).toEqual({ PATH: '/bin' });
+  });
+
+  it('sacarGitDelEntorno limpia un entorno en el lugar', () => {
+    const env: Record<string, string | undefined> = { PATH: '/bin', GIT_DIR: '/repo/.git', Git_Work_Tree: '/repo' };
+    sacarGitDelEntorno(env);
+    expect(env).toEqual({ PATH: '/bin' });
+  });
+
+  it.each(['scripts/ci/distribuir-lote.mjs', 'scripts/ci/armar-pr-tiendas.mjs', 'scripts/template-atraso.ts', 'scripts/ensayar-distribucion.ts'])(
+    '%s limpia las GIT_* al arrancar como CLI',
+    (ruta) => {
+      const fuente = readFileSync(join(process.cwd(), ruta), 'utf8');
+      expect(fuente).toMatch(/if \(process\.argv\[1\][^\n]*\{\s*(\/\/[^\n]*\s*)?sacarGitDelEntorno\(\);/);
+    },
+  );
 });

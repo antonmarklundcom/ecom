@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { releasesDelTemplate, versionesDesde, MAX_VERSIONES_SIN_MERGEAR } from './ci/armar-pr-tiendas.mjs';
+import { sacarGitDelEntorno } from './ci/entorno-sin-git.mjs';
 import { leerTiendas, urlDeClon, type Tienda } from './ensayar-distribucion';
 import { commitsClasificados, gitEn, parseBaseline } from './template-shared';
 
@@ -164,6 +165,8 @@ function main(): void {
 }
 
 if (process.argv[1] && /template-atraso\.ts$/.test(process.argv[1])) {
+  // Todo git hijo (gitEn incluido) sin las GIT_* de un hook: ver entorno-sin-git.mjs.
+  sacarGitDelEntorno();
   try {
     main();
   } catch (error) {
