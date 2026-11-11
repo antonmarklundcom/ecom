@@ -5,6 +5,8 @@
 #          de pago propios en `src/config/checkout.ts` (sin tarjeta).
 #   Sur:   token `--radius` de su tema, medios de pago por entorno y una
 #          migración propia (`customers.loyalty_note`) con su `db:generate`.
+#   Oeste: (O24, desde f9979ce) dos migraciones propias que portan la 0011 y
+#          la 0012 del template, la segunda con `products.pais_origen`.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 store=$1
@@ -28,6 +30,21 @@ case $store in
     pnpm db:generate > generate.log 2>&1
     ls drizzle/*.sql | tail -1
     git add -A; git commit -qm "Sur: radio del tema y migración propia loyalty_note"
+    ;;
+  oeste)
+    # La forma de mascota (O24): sobre el baseline f9979ce, dos arreglos del
+    # template portados a mano con su propio `db:generate`, bajo los números
+    # que el template usa (0011, 0012), y una columna que es sólo de Oeste.
+    git -C "$S/stores/tpl.git" show fb20fcf:src/db/schema.ts > src/db/schema.ts
+    pnpm db:generate > generate-0011.log 2>&1
+    ls drizzle/0011_*.sql
+    git add -A; git commit -qm "Oeste: métodos de envío del template, portados a mano"
+    git -C "$S/stores/tpl.git" show be45b09:src/db/schema.ts > src/db/schema.ts
+    agregar_pais_origen src/db/schema.ts
+    pnpm db:generate > generate-0012.log 2>&1
+    ls drizzle/0012_*.sql
+    grep -q 'pais_origen' drizzle/0012_*.sql
+    git add -A; git commit -qm "Oeste: schema del plan de operación portado a mano, y su país de origen"
     ;;
   *) echo "no conozco la tienda $store"; exit 1 ;;
 esac

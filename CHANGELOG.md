@@ -32,6 +32,14 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+- `pnpm template:adoptar-historial` (O24): una tienda con migraciones propias
+  ya aplicadas en producción adopta la historia del template sin tocar sus
+  datos, decidiendo por el esquema real; lo propio pasa a una
+  `NNNN_propias_de_la_tienda`. Se niega con la diferencia exacta cuando la base
+  no cuadra (hoy, mascota y lenceria). `template:sync` ya no choca en el journal
+  de una tienda que adoptó. Regla nueva: una tienda nunca corre `db:generate`
+  para portar un arreglo del template (NEW-STORE.md § "Migraciones propias de
+  una tienda").
 - Distribución por anillos (O28): `tiendas.json` suma `anillo` (0 canaria, 1
   el resto) y `estado` (`activa` | `pausada`); una entrada sin esos campos es
   activa y del anillo 1. Un tag distribuye sólo al anillo 0; el anillo 1 pide

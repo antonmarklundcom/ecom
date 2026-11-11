@@ -3,7 +3,7 @@
 Open items a phase could not decide alone (plan §4.4). Newest first. Close an
 item by deleting it in the PR that acts on it.
 
-## 3. Distribution token: GitHub App or fine-grained PAT (O28, 2026-11-11 — plan §5.4 item 5)
+## 4. Distribution token: GitHub App or fine-grained PAT (O28, 2026-11-11 — plan §5.4 item 5)
 
 `distribuir.yml` needs one credential (`secrets.TIENDAS_TOKEN` today) that can clone each
 store, push `template/sync` (it carries `.github/workflows/*`) and open/edit the PR.
@@ -30,15 +30,15 @@ when you create it (not done, nothing on GitHub yet): repo variable `TIENDAS_APP
 A per-job token is why the App fits the batched matrix: a lote never runs near an hour.
 Until then the fine-grained PAT works as NEW-STORE.md describes.
 
-## 2. Stores paused in `tiendas.json` (O28, 2026-11-11 — review Q4 and F13)
+## 3. Stores paused in `tiendas.json` (O28, 2026-11-11 — review Q4 and F13)
 
 Q4 is unanswered, so O28 applied the fallback. All three listed stores are
 `"estado": "pausada"`: no tag and no manual run sends them anything.
 
 | Store | Ring | Why paused |
 |---|---|---|
-| `antonmarklundcom/lenceria` | 0 (canary) | its own migrations collide with the template's (F13); the sync would stop at the migration guard until it adopts the template's history (O24's tool, run with your approval) |
-| `antonmarklundcom/mascota` | 1 | same (F13), and its first sync conflicts in `admin-products.ts` |
+| `antonmarklundcom/lenceria` | 0 (canary) | its own migrations collide with the template's (F13); the sync would stop at the migration guard until it adopts the template's history (O24's tool, run with your approval; item 2: refused by that tool today until a manual schema step) |
+| `antonmarklundcom/mascota` | 1 | same (F13; item 2 applies too), and its first sync conflicts in `admin-products.ts` |
 | `antonmarklundcom/productos` | 1 | dead store (F4; the review recommends removing it); kept and paused until you confirm |
 
 No store was added (anillos is not listed; the review suggests adding it, paused).
@@ -46,6 +46,34 @@ No store was added (anillos is not listed; the review suggests adding it, paused
 its line `"estado": "pausada"` to `"estado": "activa"`. Check first with
 `pnpm template:ensayar-distribucion --repo <owner/store>` and see where it stands with
 `pnpm template:atraso`. To drop productos, delete its entry.
+
+## 2. mascota and lenceria cannot adopt the template's migration history as they are (O24, 2026-11-11)
+
+`pnpm template:adoptar-historial` (O24) decides from the live schema. It was
+proven on the harness store Oeste. The real stores are a different shape: both
+mascota (`0011_tiny_may_parker`, `0012_old_puppet_master`) and lenceria
+(`0017_bent_robin_chapel`, `0018_foamy_ezekiel`) added **two pieces of template
+`0018_worthless_rage`** by hand: `login_tokens.attempts` (identical) and
+`customers.session_version` with **DEFAULT 0** (the template has DEFAULT 1).
+They do not have the rest of 0018 (`users.session_version`, dropping index
+`login_tokens_hash_uq`, the `UPDATE` that invalidates open login tokens), nor
+the template migrations between their baseline and 0018. The tool therefore
+refuses both, by design (the O24 integration test "Mascota" uses exactly
+mascota's two files). It never ran against their databases: their `drizzle/`
+was read with `gh api`, nothing else.
+
+What it needs, per store, in a maintenance window, after a backup, tried first
+on a restored copy:
+1. Bring the live schema to a point the template explains: apply the missing
+   template migrations before 0018 by hand, then finish 0018 (drop the index,
+   add `users.session_version`, run its `UPDATE`) and
+   `ALTER TABLE customers ALTER session_version SET DEFAULT 1` (only the
+   default changes; existing values stay, so no session is invalidated).
+2. Then `template:adoptar-historial` → `--aplicar` → sync (NEW-STORE.md runbook).
+
+**Recommendation:** do lenceria first (more active), as a small reviewed
+script per store. Not automated on purpose: it is DDL on a production database,
+which O24 never does. anillos and productos.new were not checked in detail.
 
 ## 1. First release tag: v2.0.0 (O23, 2026-11-10 — plan §7 item 4, review Q2)
 
@@ -68,7 +96,7 @@ active ring-0 (canary) repo in `tiendas.json` it clones the store with
 `secrets.TIENDAS_TOKEN`, runs `template:sync --commitear-conflictos` and opens or
 updates a `template/sync` PR there (draft if it conflicted). Ring 1 only gets the
 version from a manual "Run workflow" naming the tag (O28). Since O28 every listed
-store is paused (item 2), so today the tag would distribute to nobody. A store whose
+store is paused (item 3), so today the tag would distribute to nobody. A store whose
 sync stops at a precondition (migration guard) is red in its job and gets no PR.
 
 - **Today it triggers nothing**: GitHub Actions is disabled on `ecom` (review Q1).

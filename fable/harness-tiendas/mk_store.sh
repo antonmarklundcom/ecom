@@ -7,7 +7,9 @@ T0="${T0:-45f4336}"
 name=$1; shift
 dir=$S/stores/$name
 rm -rf "$dir"; mkdir -p "$dir"
-git -C "$S/stores/tpl.git" archive "$T0" | tar -x -C "$dir"
+# Sin conversión de fin de línea: con core.autocrlf=true global, `git archive`
+# de un árbol sin .gitattributes (f9979ce) escribe CRLF y el árbol ya no es el del template.
+git -C "$S/stores/tpl.git" -c core.autocrlf=false archive "$T0" | tar -x -C "$dir"
 cd "$dir"
 git init -q -b main
 git config user.name "Tienda $name"; git config user.email "$name@example.test"
@@ -26,7 +28,10 @@ git add -A; git commit -qm "nueva-tienda" && echo "wizard commiteado"
 # En Windows el wizard llama `pnpm` sin shell y no lo encuentra (pnpm.cmd):
 # el paso que él mismo sugiere, a mano.
 if [ ! -f .template-baseline ]; then
-  pnpm template:diff --marcar --origen > marcar.log 2>&1
+  # `--origen` llegó después de f9979ce: ahí el baseline es T0 mismo (el
+  # árbol del primer commit es el suyo, ver arriba), como en mascota.
+  pnpm template:diff --marcar --origen > marcar.log 2>&1 ||
+    printf '# Baseline del template (arnés: T0)\n%s\n' "$(git -C "$S/stores/tpl.git" rev-parse "$T0^{commit}")" > .template-baseline
   git add .template-baseline && git commit -qm "Baseline del template" && echo "baseline marcado a mano"
 fi
 grep -v '^#' .template-baseline 2>/dev/null || echo "(sin baseline)"
