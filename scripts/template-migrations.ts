@@ -284,10 +284,32 @@ export function mensajeProblemasMigraciones(
     "  - Migración propia que todavía no se aplicó en ninguna base de verdad: sacala\n" +
     "    (el .sql, su snapshot y su entrada del journal) en una rama, sincronizá, y\n" +
     "    regenerala con `pnpm db:generate` encima de las del template.\n" +
-    "  - Migración propia ya aplicada en producción, o una migración publicada que\n" +
-    "    cambió: no la reescribas ni edites __drizzle_migrations a ciegas. Es una\n" +
-    "    revisión a mano, con backup, `pnpm db:check` y el esquema real a la vista.\n"
+    "  - Migración propia ya aplicada en producción: no la reescribas ni edites\n" +
+    "    __drizzle_migrations a mano. `pnpm template:adoptar-historial` (ensayo; con un\n" +
+    "    backup de la última hora, `--aplicar`) decide por el esquema real qué migración\n" +
+    "    del template ya está, pasa lo propio a una migración nueva y reescribe la historia.\n" +
+    "  - Una migración publicada que cambió: es un error del template; no se sincroniza.\n"
   );
+}
+
+/**
+ * El journal de una tienda cuando `template:sync` lo tiene que fusionar y la
+ * guardia de arriba ya pasó: si uno de los dos lados es el otro más entradas
+ * al final (la tienda que adoptó la historia del template y sumó su
+ * `NNNN_propias_de_la_tienda`, o el template con migraciones que la tienda
+ * todavía no tiene), gana el más largo. Un merge de texto de dos listas que
+ * crecen en el mismo lugar choca siempre, aunque no haya nada que decidir.
+ * `null` si no es ese caso: que lo resuelva el merge de siempre.
+ */
+export function journalSinChoque(tienda: string, template: string): string | null {
+  const t = leerJournal(tienda);
+  const p = leerJournal(template);
+  if ("error" in t || "error" in p) return null;
+  const [corto, largo, contenido] =
+    t.entradas.length >= p.entradas.length
+      ? [p.entradas, t.entradas, tienda]
+      : [t.entradas, p.entradas, template];
+  return corto.every((entrada, i) => mismaEntrada(entrada, largo[i]!)) ? contenido : null;
 }
 
 /**

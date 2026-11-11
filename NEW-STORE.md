@@ -1402,17 +1402,106 @@ Cómo se sale, según el caso:
    migración propia renace con el número siguiente y un `when` posterior a las
    del template. En tu base local, volvé a crearla desde cero con
    `pnpm db:migrate` (es una base desechable).
-2. **La migración propia ya corrió en producción.** No hay arreglo
-   automático, y no se editan `__drizzle_migrations` ni migraciones
-   publicadas a ciegas. Antes que nada: backup (DEPLOY.md §7), `pnpm db:check`
-   contra esa base y el esquema real a la vista. Si la migración propia es
-   **equivalente** a la del template (mismo DDL; pasa cuando una mejora de una
-   tienda se generalizó en el template), el plan es adoptar los archivos del
-   template y registrar la equivalencia con una revisión escrita, probada
-   primero en una copia restaurada. Si no son equivalentes, la del template se
-   aplica a mano, revisada, en una ventana de mantenimiento.
+2. **La migración propia ya corrió en producción.** Es el caso de las tiendas
+   que portaron a mano un arreglo del template (review F13: mascota, lenceria,
+   anillos). No se editan `__drizzle_migrations` ni migraciones publicadas a
+   mano: se adopta la historia del template con
+   `pnpm template:adoptar-historial` (abajo, "Adoptar la historia del
+   template").
 3. **El template reescribió una migración publicada.** Es un error del
    template: no se sincroniza. Avisá en el repo del template.
+
+**La regla, para que no vuelva a pasar: una tienda nunca corre
+`pnpm db:generate` para portar un arreglo del template. Sincroniza**
+(`pnpm template:sync`, o espera el PR `template/sync`). `db:generate` en una
+tienda es sólo para lo que es de esa tienda y de nadie más.
+
+#### Adoptar la historia del template (`pnpm template:adoptar-historial`)
+
+Lo que hace, mirando el **esquema real** de la base (`information_schema`) y
+los snapshots de drizzle (`drizzle/meta/`) de la tienda y del template:
+
+- por cada migración del template que la tienda no tiene, decide si su efecto
+  **ya está** en la base (se marca aplicada), si **no está** (queda pendiente
+  para `pnpm db:migrate`) o si está **con otra definición** (se niega y
+  muestra la diferencia exacta). Lo aplicado tiene que ser un prefijo (drizzle
+  sólo corre lo posterior a la última fila): una base que tiene la `0018` del
+  template a medias, o sin las `0011`–`0017` antes, se rechaza;
+- lo que es **sólo de la tienda** (una columna, una tabla, un índice) pasa a
+  **una** migración nueva, `NNNN_propias_de_la_tienda`, numerada después de la
+  última del template. Su SQL crea cada objeto sólo si no existe: en esta base
+  no hace nada, en una base nueva lo crea;
+- con `--aplicar`, reemplaza `drizzle/` por el del template más esa migración
+  y reescribe `__drizzle_migrations` en una transacción. Nunca corre DDL sobre
+  la base. Si algo se corta en el medio, la tienda queda como estaba (la
+  corrida siguiente vuelve `drizzle/` si hace falta). Correrlo otra vez no
+  hace nada.
+
+Se niega también si la base no tiene exactamente las migraciones de
+`drizzle/` de la tienda, si su esquema no es el que dicen los snapshots de la
+tienda (un cambio hecho a mano en el hPanel), si la tienda cambió un objeto del
+template, o —con `--aplicar`— si no hay un backup de esa base de la última
+hora: el `.sql.gz` de `pnpm backup` en `backups/` (o el que pases con
+`--backup <archivo>`; tiene que ser un dump de esa base) o una corrida OK del
+cron de backup. Si una migración del template que se marca aplicada trae SQL de
+datos (`UPDATE`, `INSERT`), el informe lo muestra: en esa base nunca corrió.
+
+El paso a paso, por tienda (Anton lo aprueba tienda por tienda; ninguna fase
+lo corre contra una base de verdad):
+
+```bash
+# 0. Desde tu máquina, con Remote MySQL habilitado (DEPLOY.md §3) y la
+#    DATABASE_URL de ESA tienda en su .env.local. Una tienda de antes de O24
+#    no tiene el script: se corre el del template, parado en la tienda.
+cd <tienda> && git checkout main && git pull
+git fetch template main
+git checkout -b template/adopcion
+T=<checkout del template con pnpm install hecho>
+adoptar() { "$T/node_modules/.bin/tsx" "$T/scripts/template-adoptar-historial.ts" "$@"; }
+
+# 1. Ensayo contra la base de producción: sólo lee. Leé el informe entero.
+pnpm db:check
+adoptar                         # ✓ ya está · · pendiente · objetos propios · avisos
+
+# 2. Backup de esa base, y recién ahí, de verdad.
+pnpm backup
+adoptar --aplicar
+git add drizzle && git commit -m "Adoptar la historia de migraciones del template"
+
+# 3. Sincronizar (la guardia ya pasa) y resolver lo que choque en schema.ts:
+#    el del template más lo propio de la tienda. db:generate tiene que quedar
+#    sin drift contra NNNN_propias_de_la_tienda.
+#    (una tienda sin `template:sync` corre también el del template:
+#    "$T/node_modules/.bin/tsx" "$T/scripts/template-sync.ts" --rama-destino template/sync)
+pnpm template:sync --rama-destino template/sync
+pnpm install && pnpm db:generate     # sin archivos nuevos en drizzle/
+pnpm typecheck && pnpm lint && pnpm test
+
+# 4. PR, merge, deploy, y en el servidor el setup de siempre (DEPLOY.md §4):
+#    aplica las pendientes del template y la propia (que ahí no hace nada).
+pnpm db:check                   # ✓ migraciones al día
+```
+
+Entre el paso 2 y el deploy, el `/api/health` de la tienda dice que las
+migraciones no están al día (la base ya tiene la historia nueva, el código
+todavía no): hacelo en una ventana tranquila, y no corras el setup con el
+código viejo en el medio. Para volver atrás antes del deploy: `git checkout
+main -- drizzle` no alcanza (las filas ya cambiaron); restaurá el backup del
+paso 2 (DEPLOY.md §7).
+
+Si el informe dice **"con otra definición"** o **"a medias"** (las propias de
+mascota y lenceria son pedazos de la `0018` del template, con
+`session_version` DEFAULT 0 en vez de 1, y sin las `0011`–`0017` antes): no
+hay atajo. Hay que llevar la base, a mano y en una ventana de mantenimiento,
+a un punto que el template explique (aplicar las migraciones que faltan antes
+y completar o corregir la que está a medias), probado primero en una copia
+restaurada, y recién ahí adoptar. Es una decisión por tienda
+(`docs/decisions-needed.md`).
+
+El arnés `fable/harness-tiendas/` lo prueba con la tienda "Oeste"
+(`customize.sh oeste`, `populate_oeste.sh`, `adopt_store.sh`, `sync_oeste.sh`,
+`verify_store.sh`); los tests están en
+`tests/integration/template-adoptar-historial.test.ts`.
 
 `pnpm db:check`, `/api/version` y el campo `migrations` de `/api/health`
 dicen si la base tiene exactamente las migraciones del código: pendientes, las

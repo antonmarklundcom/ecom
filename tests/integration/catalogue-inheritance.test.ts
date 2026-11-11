@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -324,24 +325,21 @@ describe.skipIf(!hasTestDb)("template catalogue mechanisms", () => {
       const rows = records.filter(
         (r) => r.table && r.table !== "product_slug_redirects"
       );
+      // Lo que todavía no existía en la 0022 (specifications, seo_*, las de la
+      // 0025…) sale de su snapshot y no de una lista a mano: en una tienda con
+      // columnas propias posteriores (O24, `products.pais_origen` de Oeste) la
+      // lista dejaba pasar una columna que la base de la 0022 no conoce.
+      const enLa0022 = JSON.parse(
+        readFileSync(
+          path.join("drizzle", "meta", `${migration.tag.slice(0, 4)}_snapshot.json`),
+          "utf8"
+        )
+      ) as { tables: Record<string, { columns: Record<string, unknown> }> };
       for (const record of rows) {
-        const omitted =
-          record.table === "products"
-            ? [
-                "specifications",
-                "supplier_details",
-                "seo_title",
-                "seo_description",
-                // 0025: posterior a la 0022 de este backup.
-                "featured_position",
-                "supplier_url",
-              ]
-            : record.table === "variants"
-              ? ["attributes", "identifiers"]
-              : record.table === "categories"
-                ? ["seo_title", "seo_description"]
-                : [];
-        for (const column of omitted) delete record.row[column];
+        const conocidas = enLa0022.tables[record.table]?.columns ?? {};
+        for (const column of Object.keys(record.row)) {
+          if (!(column in conocidas)) delete record.row[column];
+        }
       }
       const counts = Object.fromEntries(tables.map((table) => [table, 0]));
       const digest = rowDigest();

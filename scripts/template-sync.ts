@@ -3,7 +3,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { mensajeProblemasMigraciones, problemasEntreRefs } from './template-migrations';
+import {
+  JOURNAL_PATH,
+  journalSinChoque,
+  mensajeProblemasMigraciones,
+  problemasEntreRefs,
+} from './template-migrations';
 
 import {
   acopladosDeLaTienda,
@@ -743,6 +748,22 @@ export function ejecutarSync(cwd: string, opciones: Opciones): ResultadoSync {
           tomarDelTemplate(cwd, objetivo, ruta, true);
           resumen.reemplazados.push(ruta);
           break;
+        }
+        if (ruta === JOURNAL_PATH && v.tienda !== null && v.template !== null) {
+          // La guardia de migraciones ya pasó: si un journal es el otro más
+          // entradas al final (una tienda que adoptó la historia del template,
+          // NEW-STORE.md § "Migraciones propias de una tienda"), no hay nada
+          // que fusionar a mano.
+          const journal = journalSinChoque(
+            blobABuffer(cwd, v.tienda).toString('utf8'),
+            blobABuffer(cwd, v.template).toString('utf8'),
+          );
+          if (journal !== null) {
+            writeFileSync(join(cwd, ruta), journal);
+            gitEn(cwd, ['add', '--', ruta]);
+            resumen.fusionados.push(ruta);
+            break;
+          }
         }
         if (ruta === 'package.json' && v.base !== null && v.tienda !== null && v.template !== null) {
           const json = fusionarPackageJson(

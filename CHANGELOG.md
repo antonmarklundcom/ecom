@@ -25,7 +25,16 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
-(nada todavía)
+**Migración: no.**
+
+- `pnpm template:adoptar-historial` (O24): una tienda con migraciones propias
+  ya aplicadas en producción adopta la historia del template sin tocar sus
+  datos, decidiendo por el esquema real; lo propio pasa a una
+  `NNNN_propias_de_la_tienda`. Se niega con la diferencia exacta cuando la base
+  no cuadra (hoy, mascota y lenceria). `template:sync` ya no choca en el journal
+  de una tienda que adoptó. Regla nueva: una tienda nunca corre `db:generate`
+  para portar un arreglo del template (NEW-STORE.md § "Migraciones propias de
+  una tienda").
 
 ## v2.0.0 — candidata, 2026-11-10 (sin tag)
 
