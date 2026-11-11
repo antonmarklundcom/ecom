@@ -32,6 +32,8 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+- `tiendas.json`: sale la entrada vieja `productos`, entra `anillos` (pausada); lenceria y mascota siguen pausadas (review Q4).
+
 ## v2.0.0 — 2026-11-11
 
 **Migración: sí (0025)** — la última de esta versión; con ella llegan todas
