@@ -15,6 +15,7 @@
     "db:push": "drizzle-kit push && tsx scripts/post-push.ts",
     "db:seed": "tsx scripts/seed.ts",
     "nueva-tienda": "tsx scripts/nueva-tienda.ts",
+    "registrar-tienda": "tsx scripts/registrar-tienda.ts",
     "importar:productos": "tsx scripts/importar-productos.ts",
     "fotos:preparar": "tsx scripts/fotos-preparar.ts",
     "fotos:subir": "tsx scripts/fotos-subir.ts",

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -101,7 +101,8 @@ describe('todo git hijo corre sin GIT_*', () => {
     expect(malos).toEqual([]);
   });
 
-  it('los .sh del arnés que usan git cargan lib.sh (que hace unset de GIT_*)', () => {
+  // `fable/` sólo existe en el template: una tienda lo borra (probar-tienda-nueva).
+  it.skipIf(!existsSync(join(raiz, 'fable/harness-tiendas/lib.sh')))('los .sh del arnés que usan git cargan lib.sh (que hace unset de GIT_*)', () => {
     const lib = readFileSync(join(raiz, 'fable/harness-tiendas/lib.sh'), 'utf8');
     expect(lib).toMatch(/unset .*GIT_|GIT_\*|compgen -e GIT_/);
     const sh = execFileSync('git', ['ls-files', 'fable/harness-tiendas'], { cwd: raiz, env: limpio, encoding: 'utf8' })
