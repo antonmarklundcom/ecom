@@ -32,7 +32,9 @@ on:
         default: "1"
 
 # Dos corridas a la vez empujarían a la misma rama de la misma tienda: la
-# segunda espera. Nunca se cancela una a medias (escribe en otros repos).
+# segunda espera. Nunca se cancela una a medias (escribe en otros repos). Ojo:
+# GitHub deja UNA sola en espera; si llega una tercera, cancela la que esperaba
+# (no la que corre). Disparar el anillo 1 después de que terminó el anillo 0.
 concurrency:
   group: distribuir
   cancel-in-progress: false

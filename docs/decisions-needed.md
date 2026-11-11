@@ -88,8 +88,12 @@ git tag -a v2.0.0 <MERGE_SHA> -m "v2.0.0"
 git push origin v2.0.0
 ```
 
-`<MERGE_SHA>` = the O23 merge commit on `main` (in `docs/log/o23.md`), or a later
-`main` if more phases have landed (then move the CHANGELOG heading with it).
+`<MERGE_SHA>` = O28's merge commit on `main` (in `docs/log/o28.md`) or a later `main`
+(then move the CHANGELOG heading with it), **never an older commit such as O23's**:
+a tag push runs `distribuir.yml` and its scripts as they are in the tagged commit, and
+before O28 that workflow has no rings and no pause, so it would send the version to
+every store in that commit's `tiendas.json`. A ring-1 run of an older tag would also
+fail (its scripts are missing).
 
 **What it triggers.** The tag push runs `.github/workflows/distribuir.yml`: for each
 active ring-0 (canary) repo in `tiendas.json` it clones the store with

@@ -129,9 +129,10 @@ function correr(comando: string, args: string[], cwd: string): { ok: boolean; sa
       maxBuffer: 50 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
       // Igual que probar-tienda-nueva.ts: sin base de tests, los de
-      // integración se saltan en vez de intentar conectarse.
+      // integración se saltan en vez de intentar conectarse (también desde
+      // una consola del gate, con REQUIRE_DATABASE_TESTS=1 exportada).
       // Y sin GIT_*: el clon va a una carpeta temporal (ver entorno-sin-git.mjs).
-      env: { ...envSinGit(process.env), TEST_DATABASE_URL: '' },
+      env: { ...envSinGit(process.env), TEST_DATABASE_URL: '', REQUIRE_DATABASE_TESTS: '' },
       // pnpm es pnpm.cmd en Windows.
       shell: process.platform === 'win32' && comando === 'pnpm',
     });
