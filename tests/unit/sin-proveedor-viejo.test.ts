@@ -6,6 +6,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { DOCS_DEL_TEMPLATE, esMaquinaria } from '../../scripts/template-shared';
+import { envSinGit } from '../helpers/git-sin-entorno';
 
 /**
  * Las imágenes, los comprobantes y los backups viven en R2. El proveedor
@@ -60,7 +61,7 @@ const TOLERADOS = /(?:image_|qr_)?cloudinary_id|fotos[:-]migrar-cloudinary|\bclo
 
 describe('el proveedor de imágenes anterior no aparece fuera de la migración y el historial', () => {
   it('ningún archivo versionado lo menciona', async () => {
-    const archivos = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
+    const archivos = execFileSync('git', ['ls-files'], { encoding: 'utf8', env: envSinGit() })
       .split('\n')
       .filter(Boolean)
       // El repo del template tiene `tiendas.json`, que nunca viaja a una tienda.

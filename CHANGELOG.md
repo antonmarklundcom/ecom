@@ -32,6 +32,7 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+- Ningún `git` hijo de `scripts/` ni de `tests/` hereda `GIT_DIR` y compañía: `gitEn` (`template:sync` y otros) y los demás spawns usan `envSinGit()`, con un test que lo vigila (`tests/unit/git-sin-entorno.test.ts`).
 - `pnpm template:adoptar-historial` (O24): una tienda con migraciones propias
   ya aplicadas en producción adopta la historia del template sin tocar sus
   datos, decidiendo por el esquema real; lo propio pasa a una

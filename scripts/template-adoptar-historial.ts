@@ -22,6 +22,7 @@ import {
   leerJournal,
   type JournalEntry,
 } from "./template-migrations";
+import { envSinGit } from "./ci/entorno-sin-git.mjs";
 
 /**
  * git sobre el repo de `cwd`, sin las variables `GIT_*` del proceso: corrido
@@ -29,14 +30,11 @@ import {
  * otro repo.
  */
 export function gitEn(cwd: string, args: string[]): string {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([clave]) => !clave.startsWith("GIT_"))
-  ) as NodeJS.ProcessEnv;
   return execFileSync("git", ["-C", cwd, ...args], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
-    env,
+    env: envSinGit(),
   });
 }
 
