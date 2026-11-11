@@ -9,17 +9,16 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
 ## En una página
 
-1. GitHub → **Use this template** → repo **privado** nuevo para la tienda.
-2. `git clone` · `pnpm install` · `git remote add template https://github.com/antonmarklundcom/ecom.git`
-3. `pnpm setup:doctor` → `pnpm nueva-tienda` (marca, WhatsApp **real**, dominio,
-   tema; borra `fable/`, la config de Renovate y `tiendas.json`, que son del template) → commit + push.
-4. En el repo nuevo: crear el label `ci-completo` (Issues → Labels) para pedir
-   el e2e cuando haga falta. Ver § "CI y minutos de Actions".
-5. Base, catálogo y dueño (§4) · diseño (§5) · cuentas de terceros (tabla de
-   abajo) · deploy (DEPLOY.md).
-6. `pnpm preflight` en verde → recién ahí se cobra (§6).
-7. En el template: agregar la tienda a `tiendas.json` (con dominio y dónde está
-   hosteada) para que le lleguen las versiones nuevas.
+1. En el template, con `gh` iniciado: `pnpm nueva-tienda --crear-repo dueño/nombre`
+   (repo **privado**, `--publico` si hace falta; clona, remoto `template`, label
+   `ci-completo`, instala y corre el wizard). `--dry-run` sólo muestra los comandos.
+2. `pnpm registrar-tienda dueño/nombre`: abre el PR que la suma a `tiendas.json`.
+   A mano queda dar a `TIENDAS_TOKEN` acceso al repo.
+3. En la tienda, `HOSTINGER-CHECKLIST.md` (lo escribió el wizard): base, variables, cron.
+4. Base, catálogo y dueño (§4) · diseño (§5) · terceros (tabla de abajo).
+5. `pnpm preflight` en verde → recién ahí se cobra (§6).
+
+Sin `gh`: "Use this template" + §1.
 
 ---
 
@@ -96,6 +95,17 @@ cuadra, o si querés saber por qué el wizard hace lo que hace.
 ## Checklist (en orden)
 
 ### 1. Crear el repo
+
+**Un comando (S29):** desde el checkout del template, con `gh auth login` hecho,
+`pnpm nueva-tienda --crear-repo dueño/nombre [--publico] [--en carpeta]` hace los
+pasos 1 a 3 de abajo y sigue con el wizard del §2: `gh repo create --template
+antonmarklundcom/ecom` (privado salvo `--publico`), clona al lado, agrega el
+remoto `template`, crea el label `ci-completo`, `pnpm install` y `pnpm nueva-tienda`.
+Con `--dry-run` imprime esa lista y no corre nada. Después, **en el template**,
+`pnpm registrar-tienda dueño/nombre [--anillo 0|1] [--estado activa|pausada]
+[--dominio x.com.py]` abre el PR que la agrega a `tiendas.json` (ver "La
+distribución automática"). Lo que queda a mano es darle al token `TIENDAS_TOKEN`
+acceso a esa tienda. Lo de abajo es el camino manual, para cuando no hay `gh`.
 
 1. En GitHub, "Use this template" → repo nuevo (ej. `ropa-store`).
 2. `git clone` y `pnpm install`.
@@ -197,6 +207,10 @@ del pie, WhatsApp y dominio— más el tema (§5 "El kit de temas"), y con eso:
   escribe en `.env.local` junto con el WhatsApp y el dominio;
 - lista las variables del hPanel; los secretos se copian desde `.env.local`,
   para que no queden en logs de la consola;
+- escribe `HOSTINGER-CHECKLIST.md` (git-ignored): los clics del hPanel en orden con
+  los valores de esta tienda (nombre de base sugerido, las cinco variables, las tres
+  líneas de cron con su dominio). Sin valores secretos: dice de qué clave de
+  `.env.local` copiar cada uno;
 - corre `pnpm template:diff --marcar --origen` si todavía no hay
   `.template-baseline` (si ya hay, no lo mueve).
 

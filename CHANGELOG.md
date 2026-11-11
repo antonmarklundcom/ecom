@@ -32,6 +32,12 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+- Tienda nueva más rápida (S29): `pnpm nueva-tienda --crear-repo dueño/nombre` crea el repo desde el
+  template (privado; `--publico`), lo clona, agrega el remoto `template`, crea el label
+  `ci-completo` y corre el wizard; `pnpm registrar-tienda dueño/nombre` abre el PR que la suma a
+  `tiendas.json` (anillo y estado) e imprime el único paso manual (acceso del token). El wizard
+  escribe `HOSTINGER-CHECKLIST.md` (git-ignored, sin secretos) con los clics del hPanel y los
+  valores de la tienda. NEW-STORE.md "En una página" reescrita, más corta.
 - `pnpm template:adoptar-historial` (O24): una tienda con migraciones propias
   ya aplicadas en producción adopta la historia del template sin tocar sus
   datos, decidiendo por el esquema real; lo propio pasa a una

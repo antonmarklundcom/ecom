@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 
@@ -11,6 +12,7 @@ import { stdin, stdout } from 'node:process';
 // "sigue siendo la constante del template" de "la tienda se llama así".
 import { MARCA_PLACEHOLDER } from '../src/config/tienda';
 import { idTema, IDS_TEMAS, TEMA_POR_DEFECTO, TEMAS as PRESETS, type TemaId } from '../src/themes/presets';
+import { envSinGit } from './ci/entorno-sin-git.mjs';
 import { BASELINE_FILE, SOLO_TEMPLATE } from './template-shared';
 
 /**
@@ -569,6 +571,218 @@ export function normalizarWhatsApp(entrada: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// S29: el repo en GitHub (`--crear-repo`) y el checklist del hPanel
+// ---------------------------------------------------------------------------
+
+export const REPO_TEMPLATE = 'antonmarklundcom/ecom';
+const REPO_DUENO_NOMBRE = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
+
+export type OpcionesRepo = {
+  /** `dueño/nombre` del repo nuevo. */
+  repo: string;
+  /** Privado salvo que se pida `--publico` (review Q6, sin responder). */
+  publico: boolean;
+  /** Carpeta donde se clona. Default: junto a donde se corre, con el nombre del repo. */
+  carpeta: string;
+  /** Las banderas del wizard (`--nombre`, `--dominio`…) que se le pasan tal cual. */
+  banderasWizard: string[];
+};
+
+/**
+ * Separa `--crear-repo <dueño/nombre>`, `--publico` y `--en <carpeta>` del
+ * resto. Lo que sobra son las banderas del wizard (`--dry-run` incluido), que
+ * `parseFlags` valida después.
+ */
+export function separarBanderasRepo(
+  entrada: readonly string[],
+  cwd = process.cwd(),
+): { repo: OpcionesRepo | null; resto: string[] } {
+  const argv = entrada.filter((arg) => arg !== '--');
+  const resto: string[] = [];
+  let repo: string | null = null;
+  let publico = false;
+  let en: string | null = null;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i] as string;
+    if (arg === '--publico') publico = true;
+    else if (arg === '--crear-repo' || arg === '--en') {
+      const valor = argv[i + 1];
+      if (valor === undefined || valor.startsWith('--')) throw new Error(`${arg} espera un valor`);
+      if (arg === '--crear-repo') repo = valor;
+      else en = valor;
+      i += 1;
+    } else resto.push(arg);
+  }
+  if (repo === null) {
+    if (publico || en !== null) throw new Error('--publico y --en sólo van con --crear-repo <dueño/nombre>');
+    return { repo: null, resto };
+  }
+  if (!REPO_DUENO_NOMBRE.test(repo)) {
+    throw new Error('--crear-repo espera dueño/nombre, por ejemplo antonmarklundcom/mi-tienda');
+  }
+  const nombre = repo.split('/')[1] as string;
+  return {
+    repo: { repo, publico, carpeta: path.resolve(cwd, en ?? path.join('..', nombre)), banderasWizard: resto },
+    resto,
+  };
+}
+
+export type PasoRepo = { cmd: string; args: string[]; cwd?: string };
+
+/**
+ * Los comandos de `--crear-repo`, en orden y sin ejecutar nada. Es lo que
+ * imprime `--dry-run` y lo que prueban los tests; `main` ejecuta la misma lista.
+ */
+export function pasosCrearRepo(o: OpcionesRepo): PasoRepo[] {
+  return [
+    {
+      cmd: 'gh',
+      args: ['repo', 'create', o.repo, '--template', REPO_TEMPLATE, o.publico ? '--public' : '--private'],
+    },
+    { cmd: 'gh', args: ['repo', 'clone', o.repo, o.carpeta] },
+    {
+      cmd: 'git',
+      args: ['remote', 'add', 'template', `https://github.com/${REPO_TEMPLATE}.git`],
+      cwd: o.carpeta,
+    },
+    {
+      cmd: 'gh',
+      args: [
+        'label', 'create', 'ci-completo',
+        '--repo', o.repo,
+        '--description', 'Corre también el e2e en este PR',
+        '--color', '0E8A16',
+        '--force',
+      ],
+    },
+    { cmd: 'pnpm', args: ['install', '--frozen-lockfile'], cwd: o.carpeta },
+    { cmd: 'pnpm', args: ['nueva-tienda', ...o.banderasWizard], cwd: o.carpeta },
+  ];
+}
+
+export function mostrarPaso(paso: PasoRepo): string {
+  const comillas = (a: string): string => (/[\s"']/.test(a) ? JSON.stringify(a) : a);
+  const cuerpo = [paso.cmd, ...paso.args].map(comillas).join(' ');
+  return paso.cwd ? `(en ${paso.cwd}) ${cuerpo}` : cuerpo;
+}
+
+function ejecutarPaso(paso: PasoRepo): void {
+  // Sin ninguna `GIT_*`: un hook exporta `GIT_DIR` y el git hijo operaría sobre otro repo.
+  const resultado = spawnSync(paso.cmd, paso.args, {
+    cwd: paso.cwd,
+    env: envSinGit(),
+    stdio: 'inherit',
+    shell: process.platform === 'win32' && paso.cmd === 'pnpm',
+  });
+  if (resultado.status !== 0) {
+    throw new Error(
+      `falló: ${mostrarPaso(paso)} (código ${String(resultado.status)}). ` +
+        'Arreglalo y volvé a correr; lo ya creado en GitHub no se repite solo.',
+    );
+  }
+}
+
+/** `gh repo clone` falla unos segundos si el repo recién creado no terminó de generarse. */
+function ejecutarConReintento(paso: PasoRepo): void {
+  const intentos = paso.args[1] === 'clone' ? 4 : 1;
+  for (let i = 1; ; i += 1) {
+    try {
+      ejecutarPaso(paso);
+      return;
+    } catch (error) {
+      if (i >= intentos) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3000);
+    }
+  }
+}
+
+/** Un nombre de base sugerido a partir del dominio: `https://lenceria.com.py` → `lenceria`. */
+export function nombreBaseSugerido(dominio: string, nombre: string): string {
+  const host = dominio.replace(/^https?:\/\//i, '').split('/')[0] ?? '';
+  const crudo = host !== '' ? (host.split('.')[0] ?? '') : nombre;
+  const slug = crudo
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return slug === '' ? 'tienda' : slug;
+}
+
+/**
+ * `HOSTINGER-CHECKLIST.md`: los clics del hPanel en orden, con los valores de
+ * esta tienda. **Sin ningún valor secreto**: de cada secreto dice la clave de
+ * `.env.local` de donde copiarlo. Los valores no secretos (dominio, nombre de
+ * la base sugerido) sí van, porque no dañan nada.
+ */
+export function checklistHostinger(datos: { nombre: string; dominio: string; repo?: string }): string {
+  const dominio = datos.dominio === '' ? 'TU-DOMINIO' : datos.dominio.replace(/^https?:\/\//i, '');
+  const url = datos.dominio === '' ? 'https://TU-DOMINIO' : datos.dominio;
+  const base = nombreBaseSugerido(datos.dominio, datos.nombre);
+  const repo = datos.repo ?? 'dueño/nombre';
+  const cron = (frecuencia: string, ruta: string): string =>
+    `${frecuencia}  curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://${dominio}/api/cron/${ruta}`;
+  return [
+    `# Hostinger — ${datos.nombre || 'tienda nueva'}`,
+    '',
+    'Generado por `pnpm nueva-tienda`. No se commitea (está en .gitignore) y **no tiene ningún secreto**:',
+    'donde hay uno, dice de qué clave de `.env.local` copiarlo. Detalle de cada paso: DEPLOY.md.',
+    '',
+    '## 1. Base de datos (hPanel → Databases → Management, DEPLOY.md §3)',
+    '',
+    `- [ ] Crear base y usuario en el mismo formulario. Nombre sugerido: \`${base}\` (Hostinger le pone el prefijo \`uNNN_\`).`,
+    '- [ ] Anotar la contraseña del usuario en el gestor de contraseñas.',
+    '- [ ] Cuidado: `MySQL Database` y `MySQL User` son dos columnas casi iguales; no las transpongas.',
+    '',
+    `## 2. El sitio y el repo (Websites → ${dominio} → Advanced → GIT, DEPLOY.md §1)`,
+    '',
+    `- [ ] Repo \`${repo}\`, rama \`main\`. Si es privado: copiar la clave pública que muestra Hostinger a GitHub → ${repo} → Settings → Deploy keys.`,
+    '- [ ] Node.js: versión de `.nvmrc`, framework Next.js, gestor pnpm, build `pnpm run build`, salida `.next`.',
+    '',
+    '## 3. Variables (Node.js → Environment variables, DEPLOY.md §1 punto 3)',
+    '',
+    'Pegá estas cinco, sin comillas, y `NODE_ENV=production`. Los secretos se copian de `.env.local`:',
+    '',
+    '| Variable | Valor |',
+    '|---|---|',
+    '| `DATABASE_URL` | armala con la base del paso 1: `mysql://USUARIO:CONTRASEÑA@HOST:3306/BASE` (la contraseña, del gestor) |',
+    '| `SESSION_SECRET` | copiá `SESSION_SECRET` de `.env.local` |',
+    `| \`NEXT_PUBLIC_SITE_URL\` | \`${url}\` (mientras el DNS no apunte, la URL temporal \`*.hostingersite.com\`) |`,
+    '| `CRON_SECRET` | copiá `CRON_SECRET` de `.env.local` |',
+    '| `SETUP_SECRET` | copiá `SETUP_SECRET` de `.env.local` (se borra después del paso 5) |',
+    '| `NODE_ENV` | `production` |',
+    '',
+    '- [ ] Guardar y apretar **Redeploy**: cambiar variables no rebuildea.',
+    '',
+    '## 4. Dominio (DEPLOY.md § Cloudflare)',
+    '',
+    `- [ ] Agregar ${dominio} al sitio y apuntar el DNS. En Cloudflare: **DNS only** (nube gris), nunca proxeado.`,
+    '- [ ] Con el DNS resuelto: `NEXT_PUBLIC_SITE_URL` al dominio final y **Redeploy** otra vez.',
+    '',
+    '## 5. Inicializar (DEPLOY.md §4)',
+    '',
+    `- [ ] Abrir ${url}/setup, pegar \`SETUP_SECRET\` (de \`.env.local\`), email y contraseña del dueño.`,
+    '- [ ] Borrar `SETUP_SECRET` del hPanel y Redeploy.',
+    '',
+    '## 6. Cron (hPanel → Advanced → Cron Jobs, DEPLOY.md §5)',
+    '',
+    'Tres entradas. La hora es UTC (Paraguay es UTC−3 todo el año). `$CRON_SECRET` es el de `.env.local`:',
+    '',
+    '```',
+    cron('*/15 * * * *', 'vencer-pedidos'),
+    cron('0 11 * * *', 'resumen-diario'),
+    cron('0 6 * * *', 'backup'),
+    '```',
+    '',
+    '## 7. Comprobar',
+    '',
+    `- [ ] \`curl -fsS ${url}/api/health\` responde \`"ok":true,"db":true\`.`,
+    '- [ ] `pnpm preflight` en verde antes de cobrar (NEW-STORE.md §6).',
+    '',
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // De acá para abajo: preguntas, archivos y git
 // ---------------------------------------------------------------------------
 
@@ -576,6 +790,17 @@ const TIENDA_FILE = 'src/config/tienda.ts';
 const ENV_FILE = '.env.local';
 const ENV_EXAMPLE = '.env.example';
 const GLOBALS_FILE = 'src/app/globals.css';
+export const CHECKLIST_FILE = 'HOSTINGER-CHECKLIST.md';
+
+/** `dueño/nombre` de `origin`, o `undefined` (el checklist pone un marcador). */
+function repoDeOrigin(): string | undefined {
+  try {
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8', env: envSinGit(), stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return /github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/.exec(url)?.[1];
+  } catch {
+    return undefined;
+  }
+}
 
 /** Las claves que este script sabe completar. El resto las trae otra persona. */
 const CLAVES_GENERADAS = ['SESSION_SECRET', 'CRON_SECRET', 'SETUP_SECRET'] as const;
@@ -685,8 +910,28 @@ function limpiar(flags: Respuestas): Respuestas {
   );
 }
 
+async function crearRepo(o: OpcionesRepo, dryRun: boolean): Promise<void> {
+  const pasos = pasosCrearRepo(o);
+  console.log(`\n  --crear-repo ${o.repo} (${o.publico ? 'público' : 'privado'}):\n`);
+  for (const paso of pasos) console.log(`    ${mostrarPaso(paso)}`);
+  if (dryRun) {
+    console.log('\n  --dry-run: no se creó ni se corrió nada.\n');
+    return;
+  }
+  console.log('');
+  for (const paso of pasos) ejecutarConReintento(paso);
+  console.log(
+    `\n  Listo el repo. Falta registrarlo en el template (en el checkout del template):\n\n    pnpm registrar-tienda ${o.repo}\n`,
+  );
+}
+
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
+  const { repo: opcionesRepo, resto: argvWizard } = separarBanderasRepo(process.argv.slice(2));
+  if (opcionesRepo !== null) {
+    await crearRepo(opcionesRepo, dryRun);
+    return;
+  }
 
   if (!existsSync(TIENDA_FILE)) {
     throw new Error(`No encuentro ${TIENDA_FILE}. ¿Estás parado en la raíz del repo?`);
@@ -704,7 +949,7 @@ async function main(): Promise<void> {
   }
   const globalsSource = readFileSync(GLOBALS_FILE, 'utf8');
 
-  const flags = parseFlags(process.argv.slice(2));
+  const flags = parseFlags(argvWizard);
 
   // Los defaults salen de lo que ya está escrito: en la primera corrida son
   // los del template, y en la segunda son los de esta tienda — que es lo que
@@ -788,6 +1033,7 @@ async function main(): Promise<void> {
   }
 
   if (dryRun) {
+    console.log(`  ${CHECKLIST_FILE}: se escribe (con los valores de esta tienda, sin secretos)`);
     console.log('\n  --dry-run: no se escribió nada.\n');
     imprimirHPanel(env.contenido, aEscribir);
     return;
@@ -802,6 +1048,8 @@ async function main(): Promise<void> {
   for (const ruta of aBorrar) rmSync(ruta, { recursive: true, force: true });
 
   imprimirHPanel(env.contenido, aEscribir);
+  writeFileSync(CHECKLIST_FILE, checklistHostinger({ nombre: datos.nombre, dominio: datos.dominio, repo: repoDeOrigin() }));
+  console.log(`  ${CHECKLIST_FILE} escrito (no se commitea): los clics del hPanel con los valores de esta tienda.`);
   marcarBaseline();
 
   console.log(

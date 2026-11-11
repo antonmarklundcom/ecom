@@ -156,3 +156,6 @@ vite.config.ts.timestamp-*
 # Capturas de pantalla (plan-operacion §6.4): siempre al artifact de CI,
 # nunca a git.
 /docs/screenshots/
+
+# S29: checklist del hPanel generado por pnpm nueva-tienda (valores de la tienda)
+HOSTINGER-CHECKLIST.md
