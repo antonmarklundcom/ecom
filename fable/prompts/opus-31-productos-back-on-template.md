@@ -1,6 +1,6 @@
 # Phase O31 — productos.com.py back on the template. Opus 5.5 session. Only on Anton's go.
-- Start condition: `docs/decisions-needed.md` in ecom has Anton's go for review Q3; O23 and O27 are
-  merged; a version tag exists. Otherwise write the question, commit, push, end (§4.4).
+- Start condition: `docs/decisions-needed.md` in ecom has Anton's go for review Q3 (recorded); O23 is
+  merged; a version tag exists. O27 is NOT a start condition. Otherwise write the question, commit, push, end (§4.4).
 - Read ONLY: this file, `fable/plan-2026-11.md` §1, §4, §5.5, `fable/REVIEW-2026-11-10.md`
   § "productos.new" (P1–P8), `docs/log/o23.md`, `docs/log/o27.md`, NEW-STORE.md "En una página"; in
   productos.new `docs/STATUS-2026-11.md`, `workers/d1/schema.ts`, `docs/operations/workers-recovery.md`.
@@ -26,5 +26,6 @@
 - `docs/log/o31.md` holds Anton's cutover checklist: freeze admin edits, final export, import,
   Hostinger app and env, smoke test on the temporary URL, DNS switch (two records), rollback =
   re-attach the Worker Custom Domains, what to delete after 14 days.
+  The cutover itself waits for O27's capacity numbers (`docs/log/o27.md`).
 ## After this phase
 Spawn nothing. STOP and report counts, the checklist and what was left behind. Never use Fable.
