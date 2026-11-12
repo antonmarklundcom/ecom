@@ -16,5 +16,10 @@
     "anillo": 1,
     "estado": "pausada",
     "notas": "pausada hasta adoptar la historia de migraciones del template (O24, review F13); sus migraciones todavía no se revisaron en detalle"
+  },
+  {
+    "repo": "antonmarklundcom/productos.tienda",
+    "anillo": 1,
+    "estado": "pausada"
   }
 ]
