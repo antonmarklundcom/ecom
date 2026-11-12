@@ -8,6 +8,7 @@ item by deleting it in the PR that acts on it.
 - Q1: GitHub Actions switched back on for ecom (2026-11-11).
 - Q2: tag v2.0.0: yes (item 1).
 - Q3 / O31: go, productos.com.py moves back onto the template (plan §5.5); start conditions for O31 otherwise unchanged.
+- Q4: `tiendas.json` loses the old `antonmarklundcom/productos` entry (unused repo; the live productos.com.py returns as a new repo in O31), gains `antonmarklundcom/anillos` paused; lenceria and mascota stay paused (2026-11-11). The GitHub repo is not deleted or archived.
 
 ## 4. Distribution token: GitHub App or fine-grained PAT (O28, 2026-11-11 — plan §5.4 item 5)
 
@@ -38,20 +39,20 @@ Until then the fine-grained PAT works as NEW-STORE.md describes.
 
 ## 3. Stores paused in `tiendas.json` (O28, 2026-11-11 — review Q4 and F13)
 
-Q4 is unanswered, so O28 applied the fallback. All three listed stores are
+Q4 is answered (2026-11-11). All three listed stores are
 `"estado": "pausada"`: no tag and no manual run sends them anything.
 
 | Store | Ring | Why paused |
 |---|---|---|
 | `antonmarklundcom/lenceria` | 0 (canary) | its own migrations collide with the template's (F13); the sync would stop at the migration guard until it adopts the template's history (O24's tool, run with your approval; item 2: refused by that tool today until a manual schema step) |
 | `antonmarklundcom/mascota` | 1 | same (F13; item 2 applies too), and its first sync conflicts in `admin-products.ts` |
-| `antonmarklundcom/productos` | 1 | dead store (F4; the review recommends removing it); kept and paused until you confirm |
+| `antonmarklundcom/anillos` | 1 | not adopted the template's history yet (O24, F13); its migrations were not checked in detail |
 
-No store was added (anillos is not listed; the review suggests adding it, paused).
+The old `productos` entry was removed (Q4).
 **To activate a store**, after it adopted the template's history: in a PR to `main`, change
 its line `"estado": "pausada"` to `"estado": "activa"`. Check first with
 `pnpm template:ensayar-distribucion --repo <owner/store>` and see where it stands with
-`pnpm template:atraso`. To drop productos, delete its entry.
+`pnpm template:atraso`. Activating a store stays your call, store by store.
 
 ## 2. mascota and lenceria cannot adopt the template's migration history as they are (O24, 2026-11-11)
 

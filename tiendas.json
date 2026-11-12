@@ -12,9 +12,9 @@
     "notas": "pausada hasta adoptar la historia de migraciones (O24, review F13); nunca trajo la carga por planilla: el primer sync choca en admin-products.ts"
   },
   {
-    "repo": "antonmarklundcom/productos",
+    "repo": "antonmarklundcom/anillos",
     "anillo": 1,
     "estado": "pausada",
-    "notas": "tienda muerta (review F4; Q4 sin responder): pausada, sacarla de la lista cuando Anton lo confirme; tema propio `productos`"
+    "notas": "pausada hasta adoptar la historia de migraciones del template (O24, review F13); sus migraciones todavía no se revisaron en detalle"
   }
 ]

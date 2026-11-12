@@ -32,6 +32,8 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+- `tiendas.json`: sale la entrada vieja `productos`, entra `anillos` (pausada); lenceria y mascota siguen pausadas (review Q4).
+
 - `pnpm template:adoptar-historial` probado contra MariaDB 10.11 (job "Tests
   en MariaDB"): un `longtext` cuenta como `json` sólo si tiene su CHECK
   `json_valid(col)` (antes cualquier `longtext` pasaba por `json`), ese CHECK

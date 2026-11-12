@@ -273,7 +273,7 @@ describe('anilloDeLaCorrida', () => {
 describe('el tiendas.json del template', () => {
   const ruta = join(raiz, 'tiendas.json');
 
-  // Review Q4 sin responder y F13: ninguna tienda real recibe nada hasta
+  // Review Q4 (respondida 2026-11-11: lenceria, mascota y anillos pausadas) y F13: ninguna tienda real recibe nada hasta
   // adoptar la historia de migraciones del template (O24).
   it.runIf(existsSync(ruta))('hoy no distribuye a nadie: todas pausadas', () => {
     const contenido = readFileSync(ruta, 'utf8');
@@ -281,10 +281,8 @@ describe('el tiendas.json del template', () => {
       const plan = correrPreparar(ctx, contenido);
       expect(plan.lotes).toEqual([]);
     }
-    const productos = planDistribucion({ contenido, evento: 'push', tag: 'v2.0.0' }).tiendas.find(
-      (t) => t.repo === 'antonmarklundcom/productos',
-    );
-    expect(productos?.estado ?? 'no está').not.toBe('activa');
+    const repos = planDistribucion({ contenido, evento: 'push', tag: 'v2.0.0' }).tiendas.map((t) => t.repo);
+    expect(repos).toEqual(['antonmarklundcom/lenceria', 'antonmarklundcom/mascota', 'antonmarklundcom/anillos']);
   });
 });
 
