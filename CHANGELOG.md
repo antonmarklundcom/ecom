@@ -32,6 +32,8 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+- Las notas de v2.0.0 ahora listan S25 (#168, CSV sin fórmulas y tope al `.xlsx`), que salió en v2.0.0 sin su entrada.
+
 ## v2.0.1 — 2026-11-11
 
 **Migración: no.**
@@ -114,6 +116,17 @@ dispara: `docs/decisions-needed.md`.
     `node_modules` de antes del sync dejaba el árbol a medias).
 
 - **Dependencias al día** (S26, rehace #157): 25 subidas menores y parches (next 16.4.3, react 19.3.1, radix, drizzle-orm, mysql2, zod, vitest, playwright…). Sin migración, sin cambios de código; `eslint` sigue en 9. Detalle en `docs/log/s26.md`.
+
+- **Los CSV que baja el panel ya no ejecutan fórmulas, y un `.xlsx` gigante
+  no tumba el servidor** (`src/lib/csv.ts`, `src/lib/spreadsheet.ts`, F5 y F6
+  de `fable/REVIEW-2026-11-10.md`). Sin migración. Maquinaria: llega sola por
+  `template:sync`. Una celda de texto que arranca con `=`, `+`, `-`, `@`, tab o
+  retorno de carro sale ahora con un `'` adelante (`neutralizeFormula`), no solo
+  entrecomillada; los teléfonos (`+595…`) y los números de verdad (`-5`) no se
+  tocan. Al importar el mismo archivo, la fórmula vuelve como texto inerte. El
+  importador de `.xlsx` rechaza, antes de abrir la hoja, un archivo que
+  descomprime a más de 50 MB (o con más de 500 entradas), y una hoja con más de
+  5.001 filas o 100 columnas, con mensaje en castellano.
 
 - **La reserva mientras se revisa un comprobante ya no depende de la zona
   horaria del servidor** (`src/domain/receipts.ts`, F1 de
