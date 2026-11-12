@@ -25,6 +25,8 @@ import {
   estadoDeFilas,
   historiaDeCarpeta,
   informe,
+  leerFilasDeEsquema,
+  motorDe,
   type Snapshot,
 } from "../../scripts/template-adoptar-historial";
 
@@ -236,6 +238,16 @@ function backupDe(repo: string, base: string): string {
   return archivo;
 }
 
+/** Para el mensaje de un test que falla: la versión y las filas crudas de esas claves. */
+async function crudoDe(con: mysql.Connection, clavesDistintas: string[]): Promise<string> {
+  const [[{ v }]] = (await con.query("SELECT VERSION() AS v")) as unknown as [[{ v: string }]];
+  const filas = await leerFilasDeEsquema(con, await motorDe(con));
+  const tablas = new Set(clavesDistintas.map((clave) => clave.split(" ").at(-1)!.split(".")[0]!));
+  const columnas = filas.columnas.filter((c) => tablas.has(c.t) && clavesDistintas.some((k) => k.endsWith(` ${c.t}.${c.c}`)));
+  const checks = [...filas.checks, ...filas.clausulas].filter((c) => tablas.has(c.t));
+  return `VERSION() ${v}\n${JSON.stringify({ columnas, checks }, null, 1)}`;
+}
+
 async function filasDe(con: mysql.Connection): Promise<string[]> {
   const [rows] = await con.query("SELECT id, hash, created_at FROM __drizzle_migrations ORDER BY id");
   return (rows as { id: number; hash: string; created_at: string }[]).map((r) => `${r.id}:${r.hash}:${r.created_at}`);
@@ -279,12 +291,48 @@ describe.skipIf(!hasTestDb)("template:adoptar-historial contra MySQL", () => {
       for (const e of entries) escribir(carpetaK, `${e.tag}.sql`, sqlDelTemplate(e.idx));
       escribir(carpetaK, "meta/_journal.json", JSON.stringify({ ...JOURNAL, entries }));
       await migrateWithBoundedLocks(con, { migrationsFolder: carpetaK });
-      const vivo = await esquemaVivo(con, "mysql");
+      const vivo = await esquemaVivo(con, await motorDe(con));
       const esperado = esquemaDeSnapshot(snapshotDelTemplate(k));
       const distintas = [...esperado].filter(([clave, def]) => vivo.get(clave) !== def);
-      expect(distintas.map(([clave, def]) => `${clave}: snapshot ${def} / base ${vivo.get(clave)}`)).toEqual([]);
+      // Si falla, lo que devolvió el motor tal cual, para ver qué normalizar.
+      const crudo = distintas.length ? await crudoDe(con, distintas.map(([clave]) => clave)) : "";
+      expect(distintas.map(([clave, def]) => `${clave}: snapshot ${def} / base ${vivo.get(clave)}`), crudo).toEqual([]);
       await con.end();
     }
+  });
+
+  it("los casos que el motor podría confundir se leen como son (texto 'NULL', longtext que no es JSON, comillas)", async () => {
+    const base = await baseNueva("sonda");
+    const con = await conectar(base);
+    await con.query(`CREATE TABLE sonda (
+      id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      sin_default varchar(20),
+      texto_null varchar(20) DEFAULT 'NULL',
+      comilla varchar(20) NOT NULL DEFAULT 'it''s',
+      estado enum('a','b') NOT NULL DEFAULT 'a',
+      cero int NOT NULL DEFAULT 0,
+      largo longtext,
+      datos json,
+      creado datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      tocado timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+    )`);
+    const vivo = await esquemaVivo(con, await motorDe(con));
+    const obtenido = Object.fromEntries([...vivo].filter(([clave]) => / sonda[.]|sonda$/.test(clave)));
+    expect(obtenido, await crudoDe(con, Object.keys(obtenido))).toEqual({
+      "tabla sonda": "existe",
+      "clave primaria sonda": "(id)",
+      "columna sonda.id": "int NOT NULL AUTO_INCREMENT",
+      "columna sonda.sin_default": "varchar(20)",
+      "columna sonda.texto_null": "varchar(20) DEFAULT 'NULL'",
+      "columna sonda.comilla": "varchar(20) NOT NULL DEFAULT 'it''s'",
+      "columna sonda.estado": "enum('a','b') NOT NULL DEFAULT 'a'",
+      "columna sonda.cero": "int NOT NULL DEFAULT '0'",
+      "columna sonda.largo": "longtext",
+      "columna sonda.datos": "json",
+      "columna sonda.creado": "datetime NOT NULL DEFAULT CURRENT_TIMESTAMP",
+      "columna sonda.tocado": "timestamp ON UPDATE CURRENT_TIMESTAMP",
+    });
+    await con.end();
   });
 
   it("Oeste: el ensayo decide por el esquema real y no escribe nada", async () => {
@@ -387,7 +435,8 @@ describe.skipIf(!hasTestDb)("template:adoptar-historial contra MySQL", () => {
     const fresca = await baseNueva("oeste_fresca");
     const conFresca = await conectar(fresca);
     await migrateWithBoundedLocks(conFresca, { migrationsFolder: join(repo, "drizzle") });
-    const [vivoAdoptada, vivoFresca] = [await esquemaVivo(con, "mysql"), await esquemaVivo(conFresca, "mysql")];
+    const motor = await motorDe(con);
+    const [vivoAdoptada, vivoFresca] = [await esquemaVivo(con, motor), await esquemaVivo(conFresca, motor)];
     expect([...vivoAdoptada].sort()).toEqual([...vivoFresca].sort());
     await conFresca.end();
 
