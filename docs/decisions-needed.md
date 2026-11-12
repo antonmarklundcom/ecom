@@ -17,6 +17,13 @@ item by deleting it in the PR that acts on it.
 - O31 before O27: O31's build part (new repo, import script, proof on a local database) may start without O27; O27's numbers are needed before the cutover only. O31 still needs from Anton a name for the new repo and the D1 export (2026-11-11).
 - Two proposed extra phases (2026-11-11): a fleet status command, yes, but only after two stores run on v2.x (`pnpm template:atraso` covers the gap until then); a hosting-shape phase, to be decided after O27's numbers, no phase now.
 - anillos (2026-11-11): rebuilt as a new repo `antonmarklundcom/anillos.tienda` (plan `fable/anillos/plan-anillos-tienda.md`), not by adopting the template's history in the old repo; build not started.
+- O31 repo (2026-11-12): `antonmarklundcom/productos.tienda`, private, checkout `C:\Projects\productos.tienda`.
+- O31 payments at launch (2026-11-12): bank transfer + cash on delivery; Pagopar stays off until Anton has keys.
+- O31 suppliers (2026-11-12): `proveedores: true`; the 262 historical Dropi offers are imported as supplier offers.
+- O31 Dropi review queue (2026-11-12): not on day one; later as a template phase for every store with suppliers.
+- O31 look (2026-11-12): keep productos.com.py's current look.
+- O31 catalogue (2026-11-12): from Anton's D1 export; Dropi Product Lab only as a read-only cross-check.
+- O31 "Tests en MariaDB" (2026-11-12): may be dispatched by hand on O31's own PR branches in productos.tienda only.
 
 ## 4. Distribution token: GitHub App or fine-grained PAT (O28, 2026-11-11 — plan §5.4 item 5)
 
