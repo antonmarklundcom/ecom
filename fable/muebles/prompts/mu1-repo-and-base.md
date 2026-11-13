@@ -4,21 +4,42 @@
 - Read ONLY: this file; in ecom (`origin/main`) `fable/muebles/plan-muebles-tienda.md` (all),
   `fable/plan-2026-11.md` §1 and §4, `CLAUDE.md`, NEW-STORE.md "En una página", §2, §3, §4 and §5
   "El kit de temas", `docs/log/s29.md`, `fable/REVIEW-2026-11-10.md` § "How this was tested".
-- Owns: the new repo `antonmarklundcom/muebles.tienda`. In it: `src/config/tienda.ts`,
-  `src/config/checkout.ts`, `docs/log/mu1.md`, `docs/log/mu1-shots/**`, `STATUS.md`.
+- Owns: the new repo `antonmarklundcom/muebles.tienda` (created empty from the template by the
+  manager, not by this session). In it: `src/config/tienda.ts`, `src/config/checkout.ts`, the two
+  brand guards `tests/unit/marca-centralizada.test.ts` and the "los textos por defecto no nombran la
+  tienda a mano" test of `tests/unit/store-settings.test.ts` (step 3 only), `docs/log/mu1.md`,
+  `docs/log/mu1-shots/**`, `STATUS.md`.
 ### Work
 1. Check: O31 merged; ecom `main` carries the latest tag and its newest "CI" and "Tests en MariaDB"
    runs are green (`gh run list -R antonmarklundcom/ecom --limit 6`); `gh repo view
-   antonmarklundcom/muebles.tienda` fails (the repo must not exist: `--crear-repo` is not
-   re-runnable; if it exists, continue from the clone instead).
-2. In an ecom worktree at latest `origin/main` (never switch `C:\dev\ecom` itself): `pnpm
-   nueva-tienda --crear-repo antonmarklundcom/muebles.tienda --en C:\Projects --dry-run` and read
-   the output; then the real run (private, the default) with `--dominio muebles.com.py --tema
-   vitrina` and the brief's `--nombre`, `--titulo`, `--descripcion`, `--tagline`, `--whatsapp`.
-   A text Anton did not give and the wizard requires is a neutral placeholder containing
-   `[COMPLETAR]`, listed in the log.
+   antonmarklundcom/muebles.tienda` succeeds and shows a private repo whose only commit is the
+   template's "Initial commit". This session never runs `gh repo create` nor `pnpm nueva-tienda
+   --crear-repo` (both run `gh repo create`, `scripts/nueva-tienda.ts` `pasosCrearRepo`, and the
+   permission check refuses it in a build session, `docs/log/o31.md` "Known issues"). The manager
+   creates the repo before this session, on Anton's go:
+   `gh repo create antonmarklundcom/muebles.tienda --template antonmarklundcom/ecom --private` and
+   `gh label create ci-completo --repo antonmarklundcom/muebles.tienda --description "Corre también
+   el e2e en este PR" --color 0E8A16 --force`. Repo missing: write `FAILED.md` ("the manager has to
+   create the repo") and end. (O31's fallback, if the manager prefers it: build in a local clone of
+   the template and rebase onto the repo's "Initial commit" once it exists.)
+2. The remaining steps of `pasosCrearRepo`, by hand, never switching `C:\dev\ecom` itself:
+   `gh repo clone antonmarklundcom/muebles.tienda C:\Projects\muebles.tienda`; in it
+   `git remote add template https://github.com/antonmarklundcom/ecom.git`; `pnpm install
+   --frozen-lockfile`; `pnpm nueva-tienda --dry-run` with the flags below, read the output; then the
+   real run with `--dominio muebles.com.py --tema vitrina` and the brief's `--nombre`, `--titulo`,
+   `--descripcion`, `--tagline`, `--whatsapp` (no `--crear-repo`). Commit the `.template-baseline`
+   it writes. A text Anton did not give and the wizard requires is a neutral placeholder containing
+   `[COMPLETAR]`, listed in the log. Name, tagline and WhatsApp stay as Anton gives them, or the
+   plan's §3 placeholders.
 3. `src/config/tienda.ts`: `proveedores: true`, `cuentasClientes: false`, `lang: "es-PY"`.
    `src/config/checkout.ts`: `paymentMethods: ["transferencia", "contra_entrega"]`.
+   Brand guard: "muebles" is the word this store's own copy will use everywhere (MU3's skin, MU4's
+   policy texts in `paginas-default.ts`), and both template guards search `TIENDA.nombre` as a plain
+   substring (`tests/unit/marca-centralizada.test.ts`; the default-texts test in
+   `tests/unit/store-settings.test.ts`). Do what O31 did for "Productos" (`docs/log/o31.md`
+   "Decisions" and template proposal 1): add an optional `marcaBuscable: "muebles.com.py"` to the
+   store's `TIENDA` and make both guards search `TIENDA.marcaBuscable ?? TIENDA.nombre`. Only those
+   two test files change; list them in the log as template test files edited in the store.
 4. Theme previews: with `pnpm demo` data in `muebles_dev_mu1`, screenshots (Playwright, desktop
    1440 and mobile 390) of home, one category, one product and the cart for each stock theme
    (`clasico`, `vitrina`, `calido`, `oscuro-vivo`) into `docs/log/mu1-shots/<tema>-<page>-<size>.png`.
@@ -30,13 +51,16 @@
 ### Rules every muebles phase carries (plan §4)
 - Start condition: O31 (productos.tienda) merged = `docs/log/o31.md` exists on ecom `origin/main`.
   Go-live additionally waits for O27 (`docs/log/o27.md`). Unmet: write `FAILED.md` (below) and end.
-- The store is created with `pnpm nueva-tienda --crear-repo` and lives at `C:\Projects\muebles.tienda`;
-  worktrees next to it. Work on C: only, never on E:.
+- The repo `antonmarklundcom/muebles.tienda` is created by the manager on Anton's go, never by a
+  phase: `gh repo create` (and so `pnpm nueva-tienda --crear-repo`) is refused in build sessions
+  (`docs/log/o31.md` "Known issues"). MU1 clones it to `C:\Projects\muebles.tienda`; worktrees next
+  to it. Work on C: only, never on E:.
 - Gate = `fable/plan-2026-11.md` §4.2 in the store: `pnpm install --frozen-lockfile && pnpm db:generate`
   (no `drizzle/` diff) `&& pnpm typecheck && pnpm lint && pnpm test && pnpm build` with
   `REQUIRE_DATABASE_TESTS=1`, then Playwright, then `pnpm preflight` showing only items for Anton.
-  Local MySQL on port 3317 is shared: check `SHOW PROCESSLIST` first and wait if another session is
-  testing. Databases `muebles_test_mu1` and `muebles_dev_mu1` only; nothing outside the
+  Local MySQL on port 3317 is the manager's server: a phase never starts, stops or restarts it (not
+  listening = `FAILED.md`). Check `SHOW PROCESSLIST` first and wait if another session is testing.
+  Databases `muebles_test_mu1` and `muebles_dev_mu1` only; nothing outside the
   `muebles_` prefix is created or dropped. `E2E_PORT=3321`.
 - AND both GitHub workflows green on the PR branch: "CI" and "Tests en MariaDB". In a private repo
   the second runs only by manual dispatch (`gh workflow run mariadb.yml -R
