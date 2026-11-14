@@ -21,6 +21,12 @@
    footer → home → product card → category → product page. Colours only as tokens. Every existing
    `data-testid` stays. Keep `export const dynamic` / `revalidate` and read no `cookies()` or
    `headers()` in the category and product pages. Brand through `marcaEfectiva()`.
+   Header: the first element with `data-testid={TESTIDS.headerCategoryLink}` is an always-visible
+   category link (a strip or row, at 390 and 1440 px), never only inside a closed dropdown or
+   drawer; copies inside a dropdown or drawer do not carry the id. The e2e specs click its
+   `.first()` (`tests/e2e/helpers.ts`, `capturas.spec.ts`, `presupuesto.spec.ts`); with the links
+   hidden, 19 specs hung and the CI e2e job hit its 10-minute limit in O31 (`docs/log/o31.md`
+   "Decisions").
 3. A mockup part that cannot be done as skin is left out and written as a proposal; it is not
    approximated by touching machinery.
 4. Screenshots of the running store (demo data, `muebles_dev_mu3`) beside the mockup for home,
@@ -33,13 +39,16 @@
 ### Rules every muebles phase carries (plan §4)
 - Start condition: O31 (productos.tienda) merged = `docs/log/o31.md` exists on ecom `origin/main`.
   Go-live additionally waits for O27 (`docs/log/o27.md`). Unmet: write `FAILED.md` (below) and end.
-- The store is created with `pnpm nueva-tienda --crear-repo` and lives at `C:\Projects\muebles.tienda`;
-  worktrees next to it. Work on C: only, never on E:.
+- The repo `antonmarklundcom/muebles.tienda` is created by the manager on Anton's go, never by a
+  phase: `gh repo create` (and so `pnpm nueva-tienda --crear-repo`) is refused in build sessions
+  (`docs/log/o31.md` "Known issues"). MU1 clones it to `C:\Projects\muebles.tienda`; worktrees next
+  to it. Work on C: only, never on E:.
 - Gate = `fable/plan-2026-11.md` §4.2 in the store: `pnpm install --frozen-lockfile && pnpm db:generate`
   (no `drizzle/` diff) `&& pnpm typecheck && pnpm lint && pnpm test && pnpm build` with
   `REQUIRE_DATABASE_TESTS=1`, then Playwright, then `pnpm preflight` showing only items for Anton.
-  Local MySQL on port 3317 is shared: check `SHOW PROCESSLIST` first and wait if another session is
-  testing. Databases `muebles_test_mu3` and `muebles_dev_mu3` only; nothing outside the
+  Local MySQL on port 3317 is the manager's server: a phase never starts, stops or restarts it (not
+  listening = `FAILED.md`). Check `SHOW PROCESSLIST` first and wait if another session is testing.
+  Databases `muebles_test_mu3` and `muebles_dev_mu3` only; nothing outside the
   `muebles_` prefix is created or dropped. `E2E_PORT=3323`.
 - AND both GitHub workflows green on the PR branch: "CI" and "Tests en MariaDB". In a private repo
   the second runs only by manual dispatch (`gh workflow run mariadb.yml -R

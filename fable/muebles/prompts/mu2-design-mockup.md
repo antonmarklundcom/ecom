@@ -24,9 +24,15 @@
 4. Texts: Spanish (es-PY). Anything that would be a fact (price, measure, material, delivery time,
    warranty, supplier) is visibly `[COMPLETAR]` or the template's demo data, never invented. Brand
    name from the store's `tienda.ts`; no logo is drawn as if it were final.
-5. Anything the mockup would need from machinery (plan §6 T1–T3 or new) is NOT drawn as working:
+5. Header contract: the header shows at least one category link that is **visible without opening
+   anything** (a strip or row, at 390 and 1440 px). The template's e2e specs click
+   `getByTestId(TESTIDS.headerCategoryLink).first()` (`tests/e2e/helpers.ts`, `capturas.spec.ts`,
+   `presupuesto.spec.ts`, `accesibilidad.spec.ts`; id in `src/lib/testids.ts`), so categories only
+   inside a closed dropdown or drawer make 19 specs hang (`docs/log/o31.md` "Decisions"). A dropdown
+   or drawer may exist in addition. Say in `DESIGN.md` which element carries the id.
+6. Anything the mockup would need from machinery (plan §6 T1–T3 or new) is NOT drawn as working:
    list it in `docs/log/mu2.md` as a proposal.
-6. Screenshots of every mockup page, both sizes, light, into `docs/design/shots/`.
+7. Screenshots of every mockup page, both sizes, light, into `docs/design/shots/`.
 ### Exit
 - Gate green (docs-only change, still run once); "CI" green or skipped by its own path rules (say
   which); "Tests en MariaDB" dispatched on the branch and green; PR `phase/mu2-design-mockup` merged
@@ -34,13 +40,16 @@
 ### Rules every muebles phase carries (plan §4)
 - Start condition: O31 (productos.tienda) merged = `docs/log/o31.md` exists on ecom `origin/main`.
   Go-live additionally waits for O27 (`docs/log/o27.md`). Unmet: write `FAILED.md` (below) and end.
-- The store is created with `pnpm nueva-tienda --crear-repo` and lives at `C:\Projects\muebles.tienda`;
-  worktrees next to it. Work on C: only, never on E:.
+- The repo `antonmarklundcom/muebles.tienda` is created by the manager on Anton's go, never by a
+  phase: `gh repo create` (and so `pnpm nueva-tienda --crear-repo`) is refused in build sessions
+  (`docs/log/o31.md` "Known issues"). MU1 clones it to `C:\Projects\muebles.tienda`; worktrees next
+  to it. Work on C: only, never on E:.
 - Gate = `fable/plan-2026-11.md` §4.2 in the store: `pnpm install --frozen-lockfile && pnpm db:generate`
   (no `drizzle/` diff) `&& pnpm typecheck && pnpm lint && pnpm test && pnpm build` with
   `REQUIRE_DATABASE_TESTS=1`, then Playwright, then `pnpm preflight` showing only items for Anton.
-  Local MySQL on port 3317 is shared: check `SHOW PROCESSLIST` first and wait if another session is
-  testing. Databases `muebles_test_mu2` and `muebles_dev_mu2` only; nothing outside the
+  Local MySQL on port 3317 is the manager's server: a phase never starts, stops or restarts it (not
+  listening = `FAILED.md`). Check `SHOW PROCESSLIST` first and wait if another session is testing.
+  Databases `muebles_test_mu2` and `muebles_dev_mu2` only; nothing outside the
   `muebles_` prefix is created or dropped. `E2E_PORT=3322`.
 - AND both GitHub workflows green on the PR branch: "CI" and "Tests en MariaDB". In a private repo
   the second runs only by manual dispatch (`gh workflow run mariadb.yml -R

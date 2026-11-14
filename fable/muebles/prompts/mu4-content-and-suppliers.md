@@ -12,7 +12,9 @@
 ### Work
 1. `paginas-default.ts`: starting texts of `/envios`, `/devoluciones`, `/preguntas-frecuentes`,
    `/terminos`, `/privacidad` for a store that lists furniture from Paraguayan suppliers. Keep the
-   template's placeholders (`{{tienda}}`, `{{whatsapp}}`…). No promise, number, term, legal claim or
+   template's placeholders (`{{tienda}}`, `{{whatsapp}}`…). The word "muebles" is fine; the store's
+   name or domain is only `{{tienda}}` (MU1 pointed the default-texts guard of
+   `tests/unit/store-settings.test.ts` at `TIENDA.marcaBuscable`, `muebles.com.py`). No promise, number, term, legal claim or
    delivery time that Anton did not give: `[COMPLETAR]` in the text and in the log's list.
 2. `public-facts.ts`: change `publishUnknownImages` to `false` only if the brief carries Anton's
    yes; otherwise leave the file and write the recommendation in the log (supplier photos: only
@@ -34,13 +36,16 @@
 ### Rules every muebles phase carries (plan §4)
 - Start condition: O31 (productos.tienda) merged = `docs/log/o31.md` exists on ecom `origin/main`.
   Go-live additionally waits for O27 (`docs/log/o27.md`). Unmet: write `FAILED.md` (below) and end.
-- The store is created with `pnpm nueva-tienda --crear-repo` and lives at `C:\Projects\muebles.tienda`;
-  worktrees next to it. Work on C: only, never on E:.
+- The repo `antonmarklundcom/muebles.tienda` is created by the manager on Anton's go, never by a
+  phase: `gh repo create` (and so `pnpm nueva-tienda --crear-repo`) is refused in build sessions
+  (`docs/log/o31.md` "Known issues"). MU1 clones it to `C:\Projects\muebles.tienda`; worktrees next
+  to it. Work on C: only, never on E:.
 - Gate = `fable/plan-2026-11.md` §4.2 in the store: `pnpm install --frozen-lockfile && pnpm db:generate`
   (no `drizzle/` diff) `&& pnpm typecheck && pnpm lint && pnpm test && pnpm build` with
   `REQUIRE_DATABASE_TESTS=1`, then Playwright, then `pnpm preflight` showing only items for Anton.
-  Local MySQL on port 3317 is shared: check `SHOW PROCESSLIST` first and wait if another session is
-  testing. Databases `muebles_test_mu4` and `muebles_dev_mu4` only; nothing outside the
+  Local MySQL on port 3317 is the manager's server: a phase never starts, stops or restarts it (not
+  listening = `FAILED.md`). Check `SHOW PROCESSLIST` first and wait if another session is testing.
+  Databases `muebles_test_mu4` and `muebles_dev_mu4` only; nothing outside the
   `muebles_` prefix is created or dropped. `E2E_PORT=3324`.
 - AND both GitHub workflows green on the PR branch: "CI" and "Tests en MariaDB". In a private repo
   the second runs only by manual dispatch (`gh workflow run mariadb.yml -R

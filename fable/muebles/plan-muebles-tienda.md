@@ -2,6 +2,10 @@
 
 **Written:** 2026-11-12 by a planning session (Fable 5.2, opened by Anton). **Build:** not started.
 Anton starts it by pasting the line of §10 into the manager session.
+**Corrected 2026-11-13** (docs only) with what O31 hit (`docs/log/o31.md`): the manager creates the
+repo (§4.2, §10), the brand guard needs `marcaBuscable` (§5 MU1.3), the header keeps a visible
+category link (§4.12), MU5's ecom PR also edits `tests/unit/distribuir.test.ts` (§5 MU5), and the
+MySQL server on 3317 is the manager's (§4.4).
 **Source:** Anton's answers on 2026-11-12 (§1), `fable/plan-2026-11.md` §1, §4 and §5.5,
 `fable/anillos/plan-anillos-tienda.md` (same shape), NEW-STORE.md "En una página", §4 and §5,
 `docs/log/s29.md`, `CLAUDE.md`.
@@ -11,7 +15,7 @@ Anton starts it by pasting the line of §10 into the manager session.
 
 | Phase | Repo | Model | Prompt file | Owns | Depends on |
 |---|---|---|---|---|---|
-| MU1 | muebles.tienda | Opus 5.5 (`claude-opus-5-5`) | `fable/muebles/prompts/mu1-repo-and-base.md` | the new repo; `src/config/tienda.ts`, `src/config/checkout.ts`, `docs/log/mu1.md`, `docs/log/mu1-shots/**`, `STATUS.md` | O31 merged; §3 inputs 1–2 |
+| MU1 | muebles.tienda | Opus 5.5 (`claude-opus-5-5`) | `fable/muebles/prompts/mu1-repo-and-base.md` | the new repo (created by the manager, §10); `src/config/tienda.ts`, `src/config/checkout.ts`, the two brand guards (`tests/unit/marca-centralizada.test.ts`, the default-texts test of `tests/unit/store-settings.test.ts`), `docs/log/mu1.md`, `docs/log/mu1-shots/**`, `STATUS.md` | O31 merged; §3 inputs 1–2; repo created by the manager |
 | MU2 | muebles.tienda | Opus 5.5 (`claude-opus-5-5`) | `fable/muebles/prompts/mu2-design-mockup.md` | `docs/design/**` (mockup pages, `DESIGN.md`), `docs/log/mu2.md` | MU1 |
 | MU3 | muebles.tienda | Opus 5.5 (`claude-opus-5-5`) | `fable/muebles/prompts/mu3-skin.md` | `src/themes/presets/muebles.ts`, `src/themes/presets.ts`, `src/themes/temas.css`, `src/themes/custom.css`, `src/app/layout.tsx` (fonts), `src/app/page.tsx`, header, footer, home hero, product card, category page, product page markup, `public/` media, i18n keys it adds, their tests, `docs/log/mu3.md` | MU2 **approved by Anton in chat** |
 | MU4 | muebles.tienda | Sonnet 5.5 (`claude-sonnet-5-5`) | `fable/muebles/prompts/mu4-content-and-suppliers.md` | `src/config/paginas-default.ts`, `src/config/catalogue.ts`, `src/config/public-facts.ts`, `docs/PROVEEDORES.md`, `docs/planillas/**`, `docs/log/mu4.md` | MU1 |
@@ -87,17 +91,20 @@ repeats them in short form.
 1. **Start condition.** O31 (productos.tienda) is merged: `docs/log/o31.md` exists on ecom
    `origin/main`. Go-live (§7) additionally waits for O27 (`docs/log/o27.md`). A phase that finds
    the condition unmet writes `FAILED.md` (rule 9) and ends.
-2. **Where.** The store is created with `pnpm nueva-tienda --crear-repo` and lives at
-   `C:\Projects\muebles.tienda`; worktrees go next to it. Work on C: only: never build, install or
-   test on E:.
+2. **Where.** The repo is created by the **manager**, on Anton's go, before MU1 (§10): a build
+   session's `gh repo create`, and so `pnpm nueva-tienda --crear-repo` (`scripts/nueva-tienda.ts`
+   `pasosCrearRepo`), is refused by the permission check (`docs/log/o31.md` "Known issues"). MU1
+   clones it to `C:\Projects\muebles.tienda` and runs the wizard there; worktrees go next to it.
+   Work on C: only: never build, install or test on E:.
 3. **Gate** (in the store's own repo) = `fable/plan-2026-11.md` §4.2: `pnpm install
    --frozen-lockfile && pnpm db:generate` (no diff in `drizzle/`) `&& pnpm typecheck && pnpm lint &&
    pnpm test && pnpm build` with `REQUIRE_DATABASE_TESTS=1`, then Playwright
    (`pnpm exec tsx scripts/prepare-browser-tests.ts`, `pnpm exec playwright test`), then
    `pnpm preflight`, which must show only items that need Anton. Report real numbers.
-4. **Local MySQL** 8.4.11 on port 3317 (`C:\dev\tools\mysql`, start command in
-   `fable/REVIEW-2026-11-10.md` § "How this was tested"). It is shared with other sessions. Before
-   the gate: check `SHOW PROCESSLIST` and the other phases' `DONE.md`; if another session is running
+4. **Local MySQL** 8.4.11 on port 3317 (`C:\dev\tools\mysql`; the command in
+   `fable/REVIEW-2026-11-10.md` § "How this was tested" is how the manager starts it). The server
+   is the manager's and shared with other sessions: a phase never starts, stops or restarts it,
+   and writes `FAILED.md` if nothing listens on 3317. Before the gate: check `SHOW PROCESSLIST` and the other phases' `DONE.md`; if another session is running
    tests, wait. Databases start with `muebles_` and nothing else is created or dropped:
    `muebles_test_mu<N>` for tests (the name must contain `test`), `muebles_dev_mu<N>` for the app.
    `E2E_PORT` 3321–3325, one per phase (MU1 = 3321 … MU5 = 3325).
@@ -126,7 +133,9 @@ repeats them in short form.
 11. **Read-only towards production.** No DNS, Hostinger, hPanel, Cloudflare, R2, live database, tag,
     or store set to `activa` without Anton's go in chat.
 12. **Skin contract.** Colours are theme tokens, never literals (`tests/unit/piel-sin-colores.test.ts`).
-    Every `data-testid` of `src/lib/testids.ts` stays. Brand text comes from `src/config/tienda.ts`
+    Every `data-testid` of `src/lib/testids.ts` stays. The first `header-category-link` is visible
+    without opening a dropdown or drawer: the e2e specs click its `.first()` (`tests/e2e/helpers.ts`),
+    and with it hidden 19 specs hung in O31 (`docs/log/o31.md` "Decisions"). Brand text comes from `src/config/tienda.ts`
     and `marcaEfectiva()` only. Add i18n keys; never delete a template key.
 13. **Status.** Each phase keeps the store's `STATUS.md` current at every stop: done, running now,
     needs Anton, next step.
@@ -136,13 +145,17 @@ repeats them in short form.
 ### MU1 — the repo and the base (Opus 5.5)
 
 1. Checks: O31 merged; ecom `main` carries the latest tag and its newest "CI" and "Tests en MariaDB"
-   runs are green; `antonmarklundcom/muebles.tienda` does not exist yet.
-2. In an ecom worktree at latest `origin/main`: `pnpm nueva-tienda --crear-repo
-   antonmarklundcom/muebles.tienda --en C:\Projects --dry-run` first, read what it prints, then for
-   real with `--dominio muebles.com.py --tema vitrina` and the name, tagline and WhatsApp of §3
-   input 1.
+   runs are green; `antonmarklundcom/muebles.tienda` **exists**, private, created from the template
+   by the manager (§10), with the `ci-completo` label. Missing: `FAILED.md`.
+2. Clone it to `C:\Projects\muebles.tienda`, add the `template` remote, `pnpm install
+   --frozen-lockfile`, then `pnpm nueva-tienda --dry-run` and the real run (no `--crear-repo`) with
+   `--dominio muebles.com.py --tema vitrina` and the name, tagline and WhatsApp of §3 input 1.
 3. `src/config/tienda.ts`: `proveedores: true`, `cuentasClientes: false`, `lang: "es-PY"`.
-   `src/config/checkout.ts`: `transferencia`, `contra_entrega`.
+   `src/config/checkout.ts`: `transferencia`, `contra_entrega`. Brand guard as O31 did
+   (`docs/log/o31.md` "Decisions", template proposal 1): `marcaBuscable: "muebles.com.py"` in
+   `TIENDA`, and the two guards (`tests/unit/marca-centralizada.test.ts`, the default-texts test of
+   `tests/unit/store-settings.test.ts`) search `TIENDA.marcaBuscable ?? TIENDA.nombre`, because the
+   store's own copy will say "muebles" everywhere.
 4. Theme previews for Anton: with the template's demo catalogue (`pnpm demo`) on local MySQL,
    screenshots of home, a category, a product and the cart in each of the four stock themes, desktop
    and mobile, in `docs/log/mu1-shots/`. The theme is switched only in the working tree for the
@@ -161,7 +174,8 @@ repeats them in short form.
    cut-out images. Photos: Anton's (§3 input 3) or the template's placeholders. Texts that would be
    facts are `[COMPLETAR]`.
 4. Every mockup element maps to a file of NEW-STORE.md §5 "Del mockup al código"; anything that
-   would need machinery is listed as a proposal, not drawn as if it existed.
+   would need machinery is listed as a proposal, not drawn as if it existed. The header keeps a
+   category link visible without opening anything (§4.12); a dropdown or drawer may be added.
 5. Exit: screenshots of the mockup in `docs/design/shots/`; PR merged (docs only, gate still run);
    `DONE.md` says "waiting for Anton's approval of the mockup". MU3 does not start without it.
 
@@ -171,7 +185,8 @@ repeats them in short form.
    `pnpm temas:css`, `tema: "muebles"` in `tienda.ts`; fonts in `src/app/layout.tsx`; retouches in
    `src/themes/custom.css`.
 2. Header, footer, home, hero, product card, category page and the product page's markup, to the
-   approved mockup. Not the `con-parametros` twins, not `checkout-form.tsx` logic, not `/admin`.
+   approved mockup. The first `header-category-link` is an always-visible link (§4.12); copies in a
+   dropdown or drawer do not carry the id. Not the `con-parametros` twins, not `checkout-form.tsx` logic, not `/admin`.
 3. Each rewritten skin file stops receiving template updates: list them in the log.
 4. Exit: gate green; the template's Playwright specs pass unchanged; `ci-completo` label put on the
    PR once at the end so the e2e job runs on GitHub too; side-by-side screenshots mockup against
@@ -199,7 +214,11 @@ repeats them in short form.
 `docs/CUTOVER.md` in the store = §7 with the store's real values from the git-ignored
 `HOSTINGER-CHECKLIST.md` (no secret values: name the key to copy). `pnpm preflight` output, split
 into "Anton" and "should be zero". In ecom: `pnpm registrar-tienda antonmarklundcom/muebles.tienda
---anillo 1 --estado pausada --dominio muebles.com.py --dry-run`, then the real PR, **not merged**.
+--anillo 1 --estado pausada --dominio muebles.com.py --dry-run`, then the real PR, **not merged**,
+which also adds `antonmarklundcom/muebles.tienda` to the hard-coded list of the test "hoy no
+distribuye a nadie: todas pausadas" in `tests/unit/distribuir.test.ts`: the script writes only
+`tiendas.json`, so without that line the PR is red (O31's first push, `docs/log/o31.md`
+"Verification", template proposal 4).
 The owner manual `C:\operation manuals\muebles\README.md` with the `project-manual-update` skill.
 Closing list: what merged, every `[COMPLETAR]`, every template proposal, Anton's manual time.
 **Stops before any Hostinger, DNS, Cloudflare or data change.**
@@ -265,6 +284,14 @@ Anton's own time: approvals and inputs about 1 h, the mockup review 30–60 min,
 estimate.
 
 ## 10. How the build starts
+
+Before MU1, the manager creates the empty store repo on Anton's go (a build session cannot:
+`docs/log/o31.md` "Known issues"), and makes sure MySQL listens on 3317 (§4.4):
+
+```
+gh repo create antonmarklundcom/muebles.tienda --template antonmarklundcom/ecom --private
+gh label create ci-completo --repo antonmarklundcom/muebles.tienda --description "Corre también el e2e en este PR" --color 0E8A16 --force
+```
 
 Anton pastes this line into the manager session:
 
