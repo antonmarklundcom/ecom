@@ -44,6 +44,9 @@ const TABLES = [
   "stock_reservations",
   "receipts",
   "payment_events",
+  // O33: conteos diarios, sin FK.
+  "enquiry_daily",
+  "search_daily",
   "payments",
   "order_items",
   "orders",

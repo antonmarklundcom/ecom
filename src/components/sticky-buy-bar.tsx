@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n/client";
+import { atributosConsulta } from "@/lib/consulta-click";
 import { TESTIDS } from "@/lib/testids";
 
 /**
@@ -33,6 +34,7 @@ export function StickyBuyBar({
   name,
   price,
   consulta = null,
+  productId,
 }: {
   /** El `id` del bloque de agregar al carrito de la ficha. */
   targetId: string;
@@ -41,6 +43,8 @@ export function StickyBuyBar({
   price: string | null;
   /** Links de WhatsApp por SKU, y el de la variante por defecto. */
   consulta?: { porSku: Record<string, string>; porDefecto: string } | null;
+  /** Para contar el clic de consulta (O33, `src/lib/consulta-click.ts`). */
+  productId?: number;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -92,6 +96,7 @@ export function StickyBuyBar({
               target="_blank"
               rel="noopener noreferrer"
               data-testid={TESTIDS.stickyInquiryLink}
+              {...atributosConsulta("producto", { productId })}
               onClick={(event) => {
                 event.currentTarget.href = linkElegido();
               }}

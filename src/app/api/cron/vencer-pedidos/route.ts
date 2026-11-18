@@ -59,6 +59,7 @@ async function handle(request: Request): Promise<Response> {
       salteados: report.skipped,
       reservasBorradas: report.reservationsDeleted,
       avisosStockPurgados: report.stockAlertsPurged,
+      conteosPodados: report.conteosPodados,
       recordatorios: report.paymentReminders.enviados,
       recordatoriosFallidos: report.paymentReminders.fallidos,
     });
