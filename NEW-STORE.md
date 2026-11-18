@@ -646,7 +646,8 @@ prop sigue compilando, pero no se entera del modo: en consulta mostraría un
 producto `stock` como comprable. Antes de pasar a consulta, sumale a tu tarjeta
 la prop `modoVenta?: ModoVenta` y dibujá el producto con
 `saleModeEfectivo(product.saleMode, modoVenta)`, como `product-card.tsx` del
-template. Un pie de página propio tampoco gana los links "Guías" y "Contacto".
+template. Un pie de página propio tampoco gana los links "Guías" y "Contacto",
+y en consulta tiene que perder el de "Seguí tu pedido" (`/pedido/buscar` es 404).
 
 ### 4c. ¿Entrar sin contraseña? (opcional, apagado)
 
