@@ -21,9 +21,15 @@
   and its own certificate, how many, and how they are added; whether cron can call one URL per
   plan instead of three per store; the same questions for a VPS; monthly price of each shape at
   10, 30 and 100 stores from published prices.
-- Three options side by side with what each costs in money, in Anton's hours per store, and in
+- Four options side by side with what each costs in money, in Anton's hours per store, and in
   risk: (a) fleet app on Hostinger with added domains, (b) fleet app on a VPS, (c) one app per
-  store with a shorter checklist. One recommendation with its reason. The decision is Anton's.
+  store with a shorter checklist, (d) fleet app on Cloudflare Workers that keeps MySQL. For (d),
+  from Cloudflare's current documentation (URL and date for each claim) and a small throwaway
+  experiment if needed: does this Next.js version build and run there, how MySQL transactions and
+  row locks behave through their connection pooling, what replaces the process memory the app uses
+  today (rate limit, integrations snapshot), size and CPU limits against this app's bundle, how many
+  custom domains one deployment takes and how certificates are issued, and what it costs. Nothing
+  is deployed to Anton's Cloudflare account. One recommendation with its reason. The decision is Anton's.
 - Also settle what O27 left open: keep, drop or move in-process the start guard, from what was
   measured.
 ### Exit
