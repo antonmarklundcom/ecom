@@ -404,7 +404,7 @@ No earlier plan exists; this section is it.
 | Phase | PR | Log |
 |---|---|---|
 | plan | this PR | — |
-| O32 | #PR | `docs/log/o32.md` |
+| O32 | #193 | `docs/log/o32.md` |
 
 ## 10. Backlog (not planned)
 
