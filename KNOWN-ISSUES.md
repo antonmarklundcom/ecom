@@ -177,3 +177,17 @@ Dos consecuencias de ISR que conviene saber:
   recorre URLs inventadas deja una entrada por URL en la caché de Next
   (memoria y `.next/`). Crear el producto con ese slug invalida todo, así que
   no hay 404 viejos; lo que crece es la caché, y se vacía en cada deploy.
+
+## Tarjeta y ficha pueden decir distinto con stock de proveedor confirmado — O35, 2026-11-18
+
+En una tienda con `proveedores: true` y un producto en consulta, la ficha
+decide la disponibilidad con `disponibilidadDelProducto()`
+(`src/domain/disponibilidad-proveedor.ts`): si la oferta preferida del
+proveedor está activa, confirmada, con stock > 0 y mirada hace ≤ 7 días, la
+ficha dice **"En stock"** (y el JSON-LD `InStock`). La tarjeta del producto
+(`product-card.tsx`) no recibe datos de proveedor —se dibuja también del lado
+del cliente— y sigue diciendo **"Consultá disponibilidad…"**. No se arregló en
+O35 a propósito: adivinar en la tarjeta contradiría la ficha, y lo que ve
+Google (la ficha y su JSON-LD) ya es correcto. El arreglo: que la página que
+arma la grilla calcule la palabra con la misma función, en lote, y se la pase
+a la tarjeta como prop, sin exponer nada del proveedor más que la palabra.

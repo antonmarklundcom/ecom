@@ -20,6 +20,22 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
 Sin `gh`: "Use this template" + §1.
 
+**Tienda que no vende todavía (modo consulta, v2.1.0):** todo se consulta por
+WhatsApp, sin carrito ni pedidos.
+
+1. En el paso 1, `--modo consulta` (`pnpm nueva-tienda --crear-repo dueño/nombre
+   --modo consulta`): queda `modoVenta: "consulta"` en `tienda.ts`; se cambia
+   después en `/admin/ajustes` → Modo de venta (§4b-ter). `pnpm preflight` dice
+   "no aplica" en banco, pagos y envíos y **bloquea sin WhatsApp público**.
+2. Categorías y sus textos: `src/content/categorias.json` → `pnpm
+   categorias:aplicar` (ensayo) y después `--aplicar` (docs/SEO.md §4).
+3. Guías: `src/content/guias/<slug>.md` según docs/GUIAS.md; el test de
+   contenido (`tests/unit/guias-contenido.test.ts`) las revisa en el CI.
+4. `pnpm seo:auditar` antes de publicar (`--estricto` sale con 1 si falta algo).
+5. Los clics de WhatsApp y las búsquedas se ven en `/admin/consultas`.
+
+Pasar a vender es cambiar el modo en el panel: entonces vale el paso 5 de arriba.
+
 ---
 
 **Los pasos de la base de datos corrélos en tu máquina, en una terminal.**

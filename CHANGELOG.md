@@ -30,8 +30,12 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
-**Migración: sí** (O33: `0026`, dos tablas nuevas; sólo agrega, no cambia nada existente).
+## v2.1.0 — 2026-11-18
 
+**Migración: sí (0026)** (O33: dos tablas nuevas, `enquiry_daily` y `search_daily`; sólo agrega, no cambia nada existente). Después de mergear el PR `template/sync`: redeployar y correr el setup (NEW-STORE.md § "Migraciones que llegan por `template:sync`").
+
+- **next 16.4.5** (O36, era 16.4.3; `eslint-config-next` con él): arregla GHSA-mfr8-8qww-v76h y GHSA-vc7v-qv4w-wrv8 (fuga de caché entre valores de root params con `'use cache'`, moderadas, `<=16.4.4`). Sólo parche; `next build` ya no frena con el aviso de seguridad.
+- O36 · Prueba de fábrica (docs/log/o36.md): una tienda nueva en modo consulta y una tienda de v2.0.1 sincronizada a esta versión, con el arnés `fable/harness-tiendas/`. NEW-STORE.md "En una página" suma el camino de una tienda en modo consulta (modo, categorías, guías, auditoría).
 - O33 · Consultas por WhatsApp y búsquedas, contadas por día y sin datos de nadie: cada clic en un link con `data-consulta` manda un `sendBeacon` a `POST /api/consulta` (204 siempre, mismo origen, con límite) y suma en `enquiry_daily`; `/buscar` suma en `search_daily` (sin robots, sin teléfonos ni e-mails, tope de 500 términos nuevos por día). Panel `/admin/consultas` (permiso del resumen, CSV de 90 días), una línea en el resumen diario, las dos tablas en el backup, poda a los 13 meses en el cron de mantenimiento, y `generate_lead` / `Contact` por `src/lib/funnel.ts` cuando GA4 o el pixel están conectados.
 - O34: guías de compra como archivos `src/content/guias/<slug>.md` (sin tabla ni migración): `/guias` y `/guias/<slug>` estáticas con `Article` y `BreadcrumbList`, sitemap, bloque "Guías" en la home (sección de tema `guias`), "Guías relacionadas" en categoría y producto, link en el pie; sin guías publicadas, todo apagado (404, sin link, sin entrada). `src/content/` es de la tienda: `template:sync` nunca lo pisa ni lo borra. Formato y reglas en `docs/GUIAS.md`; el test de contenido `tests/unit/guias-contenido.test.ts` viaja a las tiendas.
 - Las notas de v2.0.0 ahora listan S25 (#168, CSV sin fórmulas y tope al `.xlsx`), que salió en v2.0.0 sin su entrada.
