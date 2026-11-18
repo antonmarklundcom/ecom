@@ -197,7 +197,7 @@ describe('kit de temas: los presets', () => {
     expect(TEMAS.clasico).toBe(TEMA_BASE);
     expect(TEMA_BASE.header).toBe('clasico');
     expect(TEMA_BASE.footer).toBe('columnas');
-    expect(TEMA_BASE.home).toEqual(['hero', 'categorias', 'destacados']);
+    expect(TEMA_BASE.home).toEqual(['hero', 'categorias', 'destacados', 'guias']);
     // Sin escala: header, pie y home miden lo de Tailwind de siempre.
     expect(TEMA_BASE.tokens.escala).toBeUndefined();
     // Los valores de neutro.css, byte a byte (ver el test de arriba).

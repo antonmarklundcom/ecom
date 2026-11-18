@@ -5,6 +5,8 @@ import { Suspense, cache } from "react";
 
 import { CATALOGUE } from "@/config/catalogue";
 import { CatalogueEditorial } from "@/components/catalogue-editorial";
+import { GuiaRelacionadas } from "@/components/guia-relacionadas";
+import { guiasDeCategoria } from "@/lib/guias";
 import { ImagenR2 } from "@/components/imagen-r2";
 import { AttributeFilters } from "@/components/attribute-filters";
 import {
@@ -317,6 +319,7 @@ export default async function CategoryPage({
       )}
 
       <CatalogueEditorial content={CATALOGUE.categories[category.slug]} />
+      <GuiaRelacionadas guias={guiasDeCategoria(category.slug)} />
       {result.totalPages > 1 ? (
         <nav
           className="mt-8 flex items-center justify-center gap-3"

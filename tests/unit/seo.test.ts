@@ -121,6 +121,8 @@ describe("robots.txt", () => {
       "preguntas-frecuentes",
       "terminos",
       "privacidad",
+      // Las guías de compra (O34): texto de la tienda, archivos del repo.
+      "guias",
     ]);
     const raiz = path.join(process.cwd(), "src/app");
     const entries = await readdir(raiz, { withFileTypes: true });

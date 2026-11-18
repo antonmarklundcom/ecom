@@ -32,6 +32,7 @@ funciones nuevas; **parche** para arreglos.
 
 **Migración: no.**
 
+- O34: guías de compra como archivos `src/content/guias/<slug>.md` (sin tabla ni migración): `/guias` y `/guias/<slug>` estáticas con `Article` y `BreadcrumbList`, sitemap, bloque "Guías" en la home (sección de tema `guias`), "Guías relacionadas" en categoría y producto, link en el pie; sin guías publicadas, todo apagado (404, sin link, sin entrada). `src/content/` es de la tienda: `template:sync` nunca lo pisa ni lo borra. Formato y reglas en `docs/GUIAS.md`; el test de contenido `tests/unit/guias-contenido.test.ts` viaja a las tiendas.
 - Las notas de v2.0.0 ahora listan S25 (#168, CSV sin fórmulas y tope al `.xlsx`), que salió en v2.0.0 sin su entrada.
 
 ## v2.0.1 — 2026-11-11

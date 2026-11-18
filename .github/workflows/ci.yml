@@ -194,6 +194,10 @@ jobs:
       OWNER_NAME: "Dueño CI"
       TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/ecom_test
       R2_PUBLIC_URL: https://imagenes.fixture.test
+      # Las guías de ejemplo (O34, tests/e2e/guias.spec.ts): el build y el
+      # server las leen de acá en vez de src/content/guias/. Sólo se acepta
+      # una carpeta adentro de tests/fixtures/ (src/lib/guias.ts).
+      GUIAS_DIR: tests/fixtures/guias
 
     steps:
       - uses: actions/checkout@v7

@@ -107,6 +107,9 @@ export const MIXTOS = [
   "src/app/producto",
   "src/app/categoria",
   "src/app/comparar",
+  // Las páginas de guías (O34): el markup es piel, la lectura de los archivos
+  // y el JSON-LD viven en `src/lib/guias.ts` y `src/lib/seo.ts` (maquinaria).
+  "src/app/guias",
   "src/app/page.tsx",
   "src/app/layout.tsx",
 ] as const;
@@ -174,8 +177,20 @@ export const DOCS_DEL_TEMPLATE = [
  */
 export const DE_LA_TIENDA = ["src/themes/custom.css"] as const;
 
+/**
+ * Carpetas enteras que son de la tienda (O34): `src/content/` es su contenido
+ * —las guías de `src/content/guias/`, docs/GUIAS.md—. `template:sync` nunca
+ * pisa ni borra un archivo de acá: lo que la tienda tiene, queda; lo que el
+ * template agrega y la tienda no tiene (el `README.md` de la carpeta) llega.
+ * `pnpm nueva-tienda` tampoco la toca.
+ */
+export const CARPETAS_DE_LA_TIENDA = ["src/content/"] as const;
+
 export function esDeLaTienda(ruta: string): boolean {
-  return (DE_LA_TIENDA as readonly string[]).includes(ruta);
+  return (
+    (DE_LA_TIENDA as readonly string[]).includes(ruta) ||
+    CARPETAS_DE_LA_TIENDA.some((carpeta) => ruta.startsWith(carpeta))
+  );
 }
 
 /**
