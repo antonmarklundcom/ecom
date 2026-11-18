@@ -22,7 +22,11 @@ leé:
   `fable/plan-2026-11.md` (fases O22–O31, protocolo §4, una prompt por fase
   en `fable/prompts/`, log de cada fase en `docs/log/`), que sale de la
   revisión `fable/REVIEW-2026-11-10.md`; reemplaza al handoff de octubre
-  (`fable/HANDOFF-2026-10-07.md`, hoy historial). La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
+  (`fable/HANDOFF-2026-10-07.md`, hoy historial). **Lo siguiente** (2026-11-18) es
+  `fable/plan-trafico.md`: el template primero (fases O32–O36: modo consulta,
+  medir consultas, guías, SEO, release v2.1.0) y después cuatro tiendas en modo
+  consulta, una sesión por tienda (`fable/prompts/tienda-*.md`). De
+  `plan-2026-11.md` sólo queda abierto O27. La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
   en el template: una tienda no lo tiene (`pnpm nueva-tienda` lo borra).
 - **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
   remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).
