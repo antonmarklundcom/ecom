@@ -259,6 +259,11 @@ Lo que hay en el bucket:
 #   - El número PÚBLICO (botón flotante, pie, páginas de políticas, "consultá
 #     por WhatsApp") es éste mientras el dueño no cargue otro en
 #     /admin/ajustes → "Contacto y redes". Cargado ahí, gana el del panel.
+#
+# Modo consulta (NEW-STORE.md §4b-ter; no es una variable: es `modoVenta` en
+# tienda.ts y /admin/ajustes → Modo de venta): el número público es lo único
+# imprescindible — cada botón de "Consultar por WhatsApp" sale de él, y
+# `pnpm preflight` bloquea sin ninguno de los dos.
 WHATSAPP_NUMBER=""
 ```
 

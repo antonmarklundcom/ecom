@@ -19,6 +19,25 @@
 export const TESTIDS = {
   /** Un link del menú de categorías del header (`site-header.tsx`). */
   headerCategoryLink: "header-category-link",
+  /**
+   * El botón que abre las categorías de un header que las guarda en un
+   * desplegable (`CategoriasDesplegable` de `site-header.tsx`). Los specs no
+   * lo buscan a mano: `irAPrimeraCategoria()` de `tests/e2e/helpers.ts` lo
+   * abre si los links no están a la vista.
+   */
+  headerCategoriesTrigger: "header-categories-trigger",
+  /** Lo mismo, cuando lo que se abre es el menú entero (un cajón lateral). */
+  headerMenuTrigger: "header-menu-trigger",
+  /**
+   * El botón de WhatsApp de la barra fija del celular en modo consulta
+   * (`sticky-buy-bar.tsx`).
+   */
+  stickyInquiryLink: "sticky-inquiry-link",
+  /**
+   * El botón de WhatsApp de una categoría sin productos en modo consulta
+   * (`src/app/categoria/[slug]/page.tsx`).
+   */
+  categoryInquiryLink: "category-inquiry-link",
   /** El botón que abre el carrito (`cart-button.tsx`). */
   headerCartLink: "header-cart-link",
   /** La ficha de producto en una grilla (`product-card.tsx`), con `data-slug`. */

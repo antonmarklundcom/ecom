@@ -2,8 +2,11 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
+import { tiendaTomaPedidos } from "@/lib/modo-venta";
 
-export default function NotFound() {
+export default async function NotFound() {
+  // En modo consulta `/pedido/buscar` también es 404: no se ofrece.
+  const conPedidos = await tiendaTomaPedidos();
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 py-24 text-center">
       <p className="text-muted-foreground text-sm">{t("error404.codigo")}</p>
@@ -13,9 +16,11 @@ export default function NotFound() {
         <Button asChild>
           <Link href="/">{t("error404.inicio")}</Link>
         </Button>
-        <Button asChild variant="outline">
-          <Link href="/pedido/buscar">{t("error404.buscarPedido")}</Link>
-        </Button>
+        {conPedidos ? (
+          <Button asChild variant="outline">
+            <Link href="/pedido/buscar">{t("error404.buscarPedido")}</Link>
+          </Button>
+        ) : null}
       </div>
     </main>
   );

@@ -13,7 +13,9 @@ import {
   countActiveDemoProducts,
   countActiveShippingZones,
   countUnpricedSellableVariants,
+  avisosDeCobroAplican,
 } from "@/domain/launch-checks";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { findUnmatchedPayments } from "@/domain/payment-recovery";
 import { getDatosBancarios } from "@/lib/comercio";
 import { formatGs } from "@/lib/money";
@@ -31,6 +33,8 @@ export default async function AdminDashboardPage() {
   // El umbral global de stock bajo sale de `/admin/ajustes`; el de cada
   // variante igual gana.
   const { stock } = await getStoreSettings();
+  // Modo consulta: sin cobro, los avisos de banco, envíos y precios no aplican.
+  const cobra = avisosDeCobroAplican(await modoVentaEfectivo());
 
   const [summary, awaiting, lowStock, unmatched, top, trend, banco, demo, zonas, cron, sinPrecio, backup] =
     await Promise.all([
@@ -59,7 +63,7 @@ export default async function AdminDashboardPage() {
         página de un pedido ajeno, así que nunca se enteraba. `pnpm preflight`
         tampoco alcanza: es env-only y no ve la tabla.
       */}
-      {banco === null && can(actor.role, "banco") ? (
+      {cobra && banco === null && can(actor.role, "banco") ? (
         <section className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
           <h2 className="font-medium">{t("panel.resumen.sinBanco")}</h2>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -91,7 +95,7 @@ export default async function AdminDashboardPage() {
         la vidriera no muestra el precio (docs/TEMPLATE-IMPROVEMENT-PLAN.md A1),
         así que sin este aviso nadie sabría por qué "no se venden".
       */}
-      {sinPrecio > 0 && can(actor.role, "productos") ? (
+      {cobra && sinPrecio > 0 && can(actor.role, "productos") ? (
         <section className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
           <h2 className="font-medium">{t("panel.resumen.sinPrecio", { n: sinPrecio })}</h2>
           <p className="text-muted-foreground mt-1 text-sm">{t("panel.resumen.sinPrecio.ayuda")}</p>
@@ -101,7 +105,7 @@ export default async function AdminDashboardPage() {
         </section>
       ) : null}
 
-      {zonas === 0 && can(actor.role, "envios") ? (
+      {cobra && zonas === 0 && can(actor.role, "envios") ? (
         <section className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
           <h2 className="font-medium">{t("panel.resumen.sinZonas")}</h2>
           <p className="text-muted-foreground mt-1 text-sm">{t("panel.resumen.sinZonas.ayuda")}</p>

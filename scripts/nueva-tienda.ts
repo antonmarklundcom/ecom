@@ -12,6 +12,7 @@ import { stdin, stdout } from 'node:process';
 // "sigue siendo la constante del template" de "la tienda se llama así".
 import { MARCA_PLACEHOLDER } from '../src/config/tienda';
 import { idTema, IDS_TEMAS, TEMA_POR_DEFECTO, TEMAS as PRESETS, type TemaId } from '../src/themes/presets';
+import { esModoVenta, MODO_VENTA_POR_DEFECTO, MODOS_VENTA, type ModoVenta } from '../src/domain/modo-venta';
 import { envSinGit } from './ci/entorno-sin-git.mjs';
 import { BASELINE_FILE, SOLO_TEMPLATE } from './template-shared';
 
@@ -34,6 +35,11 @@ import { BASELINE_FILE, SOLO_TEMPLATE } from './template-shared';
  *
  * Con `--dry-run` no escribe nada: imprime lo que haría. Útil para ver el
  * bloque del hPanel sin tocar el repo.
+ *
+ * `--modo consulta|carrito` escribe el modo de venta de fábrica
+ * (`modoVenta` en `tienda.ts`, fable/plan-trafico.md §2.1). Sin la bandera
+ * queda el que ya estaba (`carrito` si no había ninguno). No se pregunta: es
+ * una decisión que se toma antes, no un dato de marca.
  *
  * Las seis respuestas también se pueden pasar por bandera
  * (`--nombre`, `--titulo`, `--descripcion`, `--tagline`, `--whatsapp`,
@@ -297,6 +303,50 @@ export function escribirTemaTienda(tiendaSource: string, tema: Tema, globalsSour
   return nuevo === literal ? tiendaSource : tiendaSource.replace(literal, nuevo);
 }
 
+/** `modoVenta: "<modo>",` adentro de `TIENDA`. */
+const CAMPO_MODO_REGEX = /(\n[ \t]*modoVenta:\s*)(["'])([^"']*)\2(\s*,)/;
+/** `cuentasClientes: …,` adentro de `TIENDA`: el ancla para agregar el modo. */
+const CAMPO_CUENTAS_REGEX = /\n([ \t]*)cuentasClientes:\s*[^,\n]+,/;
+
+/** El modo de venta de hoy: el `modoVenta` de `tienda.ts`, o `carrito` sin el campo. */
+export function leerModoVentaActual(tiendaSource: string): ModoVenta {
+  const valor = CAMPO_MODO_REGEX.exec(tiendaSource)?.[3];
+  return esModoVenta(valor) ? valor : MODO_VENTA_POR_DEFECTO;
+}
+
+/**
+ * Escribe `modoVenta: "…"` en `TIENDA` (`src/config/tienda.ts`).
+ *
+ * Idempotente. Sin el campo en `TIENDA` lo agrega abajo de `cuentasClientes`
+ * si el tipo `Tienda` ya lo conoce; con un `tienda.ts` de antes de O32 (sin
+ * `modoVenta` en el tipo) y el modo de siempre no hace nada, y con
+ * `"consulta"` falla diciendo qué agregar — un campo que el tipo no conoce no
+ * compila.
+ */
+export function escribirModoVentaTienda(tiendaSource: string, modo: string): string {
+  if (!esModoVenta(modo)) {
+    throw new Error(`"${modo}" no es un modo de venta. Elegí uno de: ${MODOS_VENTA.join(', ')}.`);
+  }
+  if (CAMPO_MODO_REGEX.test(tiendaSource)) {
+    return tiendaSource.replace(
+      CAMPO_MODO_REGEX,
+      (_todo, antes: string, comilla: string, _viejo: string, coma: string) =>
+        `${antes}${comilla}${modo}${comilla}${coma}`,
+    );
+  }
+  if (modo === MODO_VENTA_POR_DEFECTO) return tiendaSource;
+  const ancla = CAMPO_CUENTAS_REGEX.exec(tiendaSource);
+  if (!/\bmodoVenta\??:/.test(tiendaSource) || !ancla) {
+    throw new Error(
+      'src/config/tienda.ts no tiene el campo `modoVenta` (es de antes de O32). Agregá ' +
+        '`modoVenta?: ModoVenta;` al tipo `Tienda` (import type { ModoVenta } from "@/domain/modo-venta") ' +
+        `y \`modoVenta: "${modo}",\` a \`TIENDA\` — ver NEW-STORE.md § "Modo de venta".`,
+    );
+  }
+  const fin = ancla.index + ancla[0].length;
+  return `${tiendaSource.slice(0, fin)}\n${ancla[1]}modoVenta: "${modo}",${tiendaSource.slice(fin)}`;
+}
+
 /** ¿`tema` se ve bien en una tienda cuyo `tienda.ts` no tiene el campo? */
 function alcanzaSinCampo(tema: Tema, globalsSource: string): boolean {
   if (tema === TEMA_POR_DEFECTO) return true;
@@ -363,8 +413,8 @@ export function generarSecreto(bytes = 32): string {
   return randomBytes(bytes).toString('base64');
 }
 
-/** Las seis respuestas de marca, más el tema — tal como pueden venir por bandera. */
-export type Respuestas = Partial<DatosTienda> & { tema?: string };
+/** Las seis respuestas de marca, más el tema y el modo — tal como pueden venir por bandera. */
+export type Respuestas = Partial<DatosTienda> & { tema?: string; modo?: string };
 
 /**
  * `--nombre "Lencería Guaraní" --dominio lenceria.com.py --tema calido` → `{ … }`.
@@ -381,7 +431,7 @@ export type Respuestas = Partial<DatosTienda> & { tema?: string };
 export function parseFlags(entrada: readonly string[]): Respuestas {
   // pnpm 11 pasa el `--` de `pnpm <script> -- --flag` tal cual (B6).
   const argv = entrada.filter((arg) => arg !== '--');
-  const conocidas: Record<string, keyof DatosTienda | 'tema'> = {
+  const conocidas: Record<string, keyof DatosTienda | 'tema' | 'modo'> = {
     '--nombre': 'nombre',
     '--titulo': 'titulo',
     '--descripcion': 'descripcion',
@@ -389,6 +439,7 @@ export function parseFlags(entrada: readonly string[]): Respuestas {
     '--whatsapp': 'whatsapp',
     '--dominio': 'dominio',
     '--tema': 'tema',
+    '--modo': 'modo',
   };
   const sinValor = new Set(['--dry-run']);
 
@@ -965,6 +1016,7 @@ async function main(): Promise<void> {
     dominio: leerValorEnv(envActual, 'NEXT_PUBLIC_SITE_URL'),
   };
   const temaActual = leerTemaActual(tiendaSource, globalsSource);
+  const modoActual = leerModoVentaActual(tiendaSource);
 
   const crudos = stdin.isTTY
     ? await preguntarTodo(actuales, temaActual, flags, dryRun)
@@ -982,11 +1034,20 @@ async function main(): Promise<void> {
     throw new Error(`"${crudos.tema}" no es un tema conocido. Elegí uno de: ${TEMAS.join(', ')}.`);
   }
 
-  // --- tienda.ts (marca y tema) ----------------------------------------------
+  // --- modo de venta (sólo por bandera) -------------------------------------
+  const modoPedido = flags.modo?.trim() || modoActual;
+  if (!esModoVenta(modoPedido)) {
+    throw new Error(`"${modoPedido}" no es un modo de venta. Elegí uno de: ${MODOS_VENTA.join(', ')}.`);
+  }
+  const modo: ModoVenta = modoPedido;
+
+  // --- tienda.ts (marca, tema y modo) ----------------------------------------
   const tiendaConMarca = reescribirTienda(tiendaSource, datos);
-  const tiendaNueva = escribirTemaTienda(tiendaConMarca, tema, globalsSource);
+  const tiendaConTema = escribirTemaTienda(tiendaConMarca, tema, globalsSource);
+  const tiendaNueva = escribirModoVentaTienda(tiendaConTema, modo);
   const tiendaCambia = tiendaNueva !== tiendaSource;
   const temaCambia = tema !== temaActual;
+  const modoCambia = modo !== modoActual;
 
   // --- globals.css (sólo si es de antes del kit) ------------------------------
   const globalsNuevo = escribirTema(globalsSource, tema);
@@ -1016,7 +1077,8 @@ async function main(): Promise<void> {
   console.log('');
   console.log(
     `  ${TIENDA_FILE}: ${tiendaCambia ? 'marca actualizada' : 'sin cambios'}` +
-      (temaCambia ? ` (tema → ${tema})` : ` (tema ${tema})`),
+      (temaCambia ? ` (tema → ${tema})` : ` (tema ${tema})`) +
+      (modoCambia ? ` (modo de venta → ${modo})` : ` (modo de venta ${modo})`),
   );
   console.log(
     `  ${ENV_FILE}: ${escritas.length === 0 ? 'sin cambios' : `escribe ${escritas.join(', ')}`}`,

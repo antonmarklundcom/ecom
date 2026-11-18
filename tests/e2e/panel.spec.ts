@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   COMPRADOR,
   confirmarPedido,
+  irAPrimeraCategoria,
   loginAsOwner,
   openOrderFicha,
   orderTransitionButton,
@@ -103,7 +104,7 @@ test("editar un pedido: bajar una cantidad cambia el total en la ficha y en /ped
   page,
 }) => {
   await page.goto("/");
-  await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
+  await irAPrimeraCategoria(page);
   await expect(page).toHaveURL(/\/categoria\//);
 
   await page.getByTestId(TESTIDS.productCard).first().click();

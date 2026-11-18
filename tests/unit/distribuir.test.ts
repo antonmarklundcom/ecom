@@ -282,13 +282,11 @@ describe('el tiendas.json del template', () => {
       const plan = correrPreparar(ctx, contenido);
       expect(plan.lotes).toEqual([]);
     }
-    const repos = planDistribucion({ contenido, evento: 'push', tag: 'v2.0.0' }).tiendas.map((t) => t.repo);
-    expect(repos).toEqual([
-      'antonmarklundcom/lenceria',
-      'antonmarklundcom/mascota',
-      'antonmarklundcom/anillos',
-      'antonmarklundcom/productos.tienda',
-    ]);
+    // O32 (docs/log/o31.md, propuesta 4): "todas pausadas", no una lista fija de
+    // repos — si no, `pnpm registrar-tienda` abre un PR que nace rojo.
+    const tiendas = planDistribucion({ contenido, evento: 'push', tag: 'v2.0.0' }).tiendas;
+    expect(tiendas.length).toBeGreaterThan(0);
+    expect(tiendas.filter((t) => t.estado !== 'pausada').map((t) => t.repo)).toEqual([]);
   });
 });
 

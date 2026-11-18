@@ -19,7 +19,9 @@ const CONFIG_MODULE = path.join('src', 'config', 'tienda.ts');
 
 describe('la marca vive sólo en src/config/tienda.ts', () => {
   it('ningún otro módulo escribe el nombre de la tienda a mano', async () => {
-    const needle = TIENDA.nombre.toLowerCase();
+    // `marcaBuscable` para un nombre que es una palabra común (O32): sin él,
+    // el nombre.
+    const needle = (TIENDA.marcaBuscable ?? TIENDA.nombre).toLowerCase();
     const offenders: string[] = [];
 
     for (const file of await listSourceFiles(ROOTS)) {

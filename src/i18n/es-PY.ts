@@ -261,6 +261,9 @@ export const esPY = {
   "categoria.sinResultados": "No encontramos productos con esos filtros",
   "categoria.sinResultados.ayuda":
     "Probá quitando la marca o ampliando el rango de precio.",
+  "categoria.consulta.ayuda":
+    "Todavía no hay productos publicados en esta categoría. Escribinos y te contamos qué hay.",
+  "categoria.consulta.whatsApp": "¡Hola! Quiero consultar por {categoria}.",
   "categoria.verTodo": "Ver toda la categoría",
 
   // -------------------------------------------------------------------------
@@ -556,6 +559,8 @@ export const esPY = {
   "error.checkout.ruc": "RUC inválido: {motivo}",
   "error.checkout.ci": "CI inválida: {motivo}",
   "error.checkout.carritoVacio": "El carrito está vacío.",
+  "error.checkout.modoConsulta":
+    "Esta tienda no está tomando pedidos online por ahora. Consultá cada producto por WhatsApp.",
   "error.checkout.noDisponible":
     "Algunos productos ya no están disponibles. Revisá tu carrito.",
   "error.checkout.noPude": "No pude crear el pedido. Probá de nuevo.",
@@ -2341,6 +2346,7 @@ export const esPY = {
   "catalogo.resenas.varios": "{n} reseñas",
   "producto.barraCompra.label": "Comprar este producto",
   "producto.barraCompra.boton": "Comprar",
+  "producto.barraCompra.consultaLabel": "Consultar este producto",
   "checkout.confianza.titulo": "Comprá tranquilo",
   "checkout.confianza.linea1": "Precios en guaraníes, IVA incluido",
   "checkout.confianza.linea2": "Seguí tu pedido con su enlace privado",
@@ -2510,7 +2516,17 @@ export const esPY = {
   "panel.ajustes.cuentas.no": "No",
   "panel.ajustes.cuentas.sinSecreto":
     "No hay secreto para las sesiones de cliente: SESSION_SECRET no está bien configurado en el hosting. Prenderlas así hace fallar /cuenta.",
+  "panel.ajustes.ventas.titulo": "Modo de venta",
+  "panel.ajustes.ventas.bajada":
+    "Con carrito, la tienda vende: carrito, checkout y pedidos. En modo consulta no toma pedidos: cada producto se consulta por WhatsApp, sin carrito ni checkout. Los modos de cada producto no se tocan: volver a vender es cambiar esto.",
+  "panel.ajustes.ventas.modo": "¿Cómo vende la tienda?",
+  "panel.ajustes.ventas.porDefecto": "Lo que diga el código ({valor})",
+  "panel.ajustes.ventas.carrito": "Con carrito y pedidos",
+  "panel.ajustes.ventas.consulta": "Sólo consulta por WhatsApp",
+  "panel.ajustes.ventas.sinWhatsApp":
+    "En modo consulta no hay ningún WhatsApp público cargado (Contacto, arriba, o WHATSAPP_NUMBER): sin él, los productos no tienen ningún botón para consultar.",
   "adminError.ajustes.color": "El color va en formato #RRGGBB (ej. #1f6feb).",
+  "adminError.ajustes.modoVenta": "El modo de venta es \"carrito\" o \"consulta\".",
   "setup.meta": "Configuración inicial",
   "setup.titulo": "Configuración inicial de la tienda",
   "setup.bajada":

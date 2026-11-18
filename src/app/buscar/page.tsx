@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getCategories, searchProducts } from "@/db/queries";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const results = term.length >= 2 ? await searchProducts(term) : [];
   const categories = results.length === 0 ? await getCategories().catch(() => []) : [];
   const { vidriera } = await getStoreSettings();
+  const modoVenta = await modoVentaEfectivo();
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
@@ -47,6 +49,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               product={product}
               priority={index < 4}
               showRating={vidriera.estrellasEnTarjetas}
+              modoVenta={modoVenta}
             />
           ))}
         </div>

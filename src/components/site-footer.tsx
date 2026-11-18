@@ -3,6 +3,7 @@ import Link from "next/link";
 import { TIENDA } from "@/config/tienda";
 import { getCategories } from "@/db/queries";
 import { getStoreSettings } from "@/domain/store-settings";
+import { tiendaTomaPedidos } from "@/lib/modo-venta";
 import { t } from "@/i18n/client";
 import { contactoPublico } from "@/lib/comercio";
 import { hayGuias } from "@/lib/guias";
@@ -26,11 +27,12 @@ export async function SiteFooter() {
     // idem SiteHeader: el pie no debería tirar la página abajo.
   }
   // Los tres de abajo no tiran: sin base, los ajustes son los de siempre.
-  const [ajustes, contacto, paginas, marca] = await Promise.all([
+  const [ajustes, contacto, paginas, marca, seguirPedido] = await Promise.all([
     getStoreSettings(),
     contactoPublico(),
     paginasActivas(),
     marcaEfectiva(),
+    tiendaTomaPedidos(),
   ]);
   const tagline = ajustes.marca.tagline ?? TIENDA.tagline;
 
@@ -42,6 +44,7 @@ export async function SiteFooter() {
       categories={categories}
       contacto={contacto}
       paginas={paginas}
+      seguirPedido={seguirPedido}
       guias={hayGuias()}
     />
   );
@@ -70,6 +73,7 @@ function FooterColumnas({
   categories,
   contacto,
   paginas,
+  seguirPedido = true,
   guias = false,
 }: DatosFooter) {
   return (
@@ -142,11 +146,13 @@ function FooterColumnas({
             ) : null}
             {contacto.direccion ? <li>{contacto.direccion}</li> : null}
             {contacto.horario ? <li>{contacto.horario}</li> : null}
-            <li>
-              <Link href="/pedido/buscar" className="hover:text-foreground">
-                {t("footer.seguirPedido")}
-              </Link>
-            </li>
+            {seguirPedido ? (
+              <li>
+                <Link href="/pedido/buscar" className="hover:text-foreground">
+                  {t("footer.seguirPedido")}
+                </Link>
+              </li>
+            ) : null}
           </ul>
         </div>
 
@@ -189,6 +195,11 @@ type DatosFooter = {
   }>;
   contacto: Awaited<ReturnType<typeof contactoPublico>>;
   paginas: ReadonlyArray<{ slug: string; titulo: string }>;
+  /**
+   * "Seguí tu pedido". `false` en modo consulta (`tiendaTomaPedidos()`), donde
+   * `/pedido/buscar` es 404. Sin el dato, `true`: el pie de siempre.
+   */
+  seguirPedido?: boolean;
   /** ¿Hay guías publicadas? (O34) Sin ninguna, el pie no lleva el link. */
   guias?: boolean;
 };
@@ -204,6 +215,7 @@ function FooterCompacto({
   categories,
   contacto,
   paginas,
+  seguirPedido = true,
   guias = false,
 }: DatosFooter) {
   const links = [
@@ -216,7 +228,9 @@ function FooterCompacto({
       href: `/${pagina.slug}`,
       label: pagina.titulo,
     })),
-    { href: "/pedido/buscar", label: t("footer.seguirPedido") },
+    ...(seguirPedido
+      ? [{ href: "/pedido/buscar", label: t("footer.seguirPedido") }]
+      : []),
   ];
   const datosDeContacto = [
     contacto.whatsapp

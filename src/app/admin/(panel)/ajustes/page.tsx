@@ -27,6 +27,7 @@ import { requireCapabilityPage } from "@/lib/admin-guard";
 import { r2Configurado } from "@/lib/r2";
 import { customerSessionConfigured } from "@/lib/customer-session";
 import { comercioWhatsApp } from "@/lib/comercio";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { productImageUrl } from "@/lib/images";
 import { paginaEfectiva } from "@/lib/paginas";
 import { PLACEHOLDERS } from "@/lib/placeholders";
@@ -61,6 +62,7 @@ export default async function AdminAjustesPage() {
 
   const { settings, updatedAt } = await readStoreSettings();
   const whatsappEntorno = comercioWhatsApp();
+  const modoVenta = await modoVentaEfectivo();
 
   return (
     <div className="grid gap-6">
@@ -95,6 +97,14 @@ export default async function AdminAjustesPage() {
       </div>
 
       <IdentidadSection settings={settings} />
+      <VentasSection
+        settings={settings}
+        sinWhatsApp={
+          modoVenta === "consulta" &&
+          !settings.contacto.whatsapp &&
+          !whatsappEntorno
+        }
+      />
       <MarcaSection settings={settings} />
       <AnuncioSection settings={settings} />
       <ContactoSection settings={settings} whatsappEntorno={whatsappEntorno} />
@@ -110,6 +120,7 @@ export default async function AdminAjustesPage() {
 
 const INDICE = [
   ["identidad", "panel.ajustes.identidad.titulo"],
+  ["ventas", "panel.ajustes.ventas.titulo"],
   ["marca", "panel.ajustes.marca.titulo"],
   ["anuncio", "panel.ajustes.anuncio.titulo"],
   ["contacto", "panel.ajustes.contacto.titulo"],
@@ -325,6 +336,53 @@ function IdentidadSection({ settings }: { settings: StoreSettings }) {
           habilitado={almacenamientoListo}
         />
       </div>
+    </Tarjeta>
+  );
+}
+
+/**
+ * Modo de venta (`src/domain/modo-venta.ts`): con carrito o sólo consulta.
+ * Vacío = lo que diga `TIENDA.modoVenta`. Cambiarlo no toca el modo de
+ * ningún producto.
+ */
+function VentasSection({
+  settings,
+  sinWhatsApp,
+}: {
+  settings: StoreSettings;
+  sinWhatsApp: boolean;
+}) {
+  const porDefecto = t(
+    (TIENDA.modoVenta ?? "carrito") === "consulta"
+      ? "panel.ajustes.ventas.consulta"
+      : "panel.ajustes.ventas.carrito"
+  );
+  return (
+    <Tarjeta
+      id="ventas"
+      titulo={t("panel.ajustes.ventas.titulo")}
+      bajada={t("panel.ajustes.ventas.bajada")}
+    >
+      <SettingsSectionForm seccion="ventas" campos={{ modo: "texto" }}>
+        <CampoSelect
+          nombre="modo"
+          etiqueta={t("panel.ajustes.ventas.modo")}
+          valor={settings.ventas.modo ?? ""}
+          opciones={[
+            ["", t("panel.ajustes.ventas.porDefecto", { valor: porDefecto })],
+            ["carrito", t("panel.ajustes.ventas.carrito")],
+            ["consulta", t("panel.ajustes.ventas.consulta")],
+          ]}
+        />
+        {sinWhatsApp ? (
+          <p
+            role="alert"
+            className="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
+          >
+            {t("panel.ajustes.ventas.sinWhatsApp")}
+          </p>
+        ) : null}
+      </SettingsSectionForm>
     </Tarjeta>
   );
 }

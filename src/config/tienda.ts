@@ -13,11 +13,21 @@
  *
  * Ver NEW-STORE.md para el checklist completo de una tienda nueva.
  */
+import type { ModoVenta } from "@/domain/modo-venta";
 import type { TemaId } from "@/themes/presets";
 
 export type Tienda = {
   /** Nombre comercial. Header, pie y `siteName` de Open Graph. */
   nombre: string;
+  /**
+   * Lo que buscan los guardarraíles de marca (`marca-centralizada.test.ts` y
+   * el de los textos por defecto de `store-settings.test.ts`) para encontrar
+   * el nombre escrito a mano fuera de este archivo. **Opcional**: sin esto,
+   * `nombre`. Sirve cuando el nombre es una palabra común ("Productos",
+   * "Muebles") que aparece sola en el código: acá va algo que sí es sólo de
+   * la marca (`"productos.com.py"`, `"Muebles PY"`).
+   */
+  marcaBuscable?: string;
   /** Título de la home y default del `<title>`. */
   titulo: string;
   /** Meta description — 150/160 caracteres, en el idioma de la tienda. */
@@ -60,6 +70,22 @@ export type Tienda = {
    * negocio.)
    */
   cuentasClientes: boolean;
+
+  /**
+   * Cómo vende la tienda (fable/plan-trafico.md §2.1, `src/domain/modo-venta.ts`):
+   *
+   * - `"carrito"` — la tienda de siempre: carrito, checkout y pedidos. El
+   *   default del template, y el que se asume si el campo no está.
+   * - `"consulta"` — no toma pedidos: cada producto `stock` se consulta por
+   *   WhatsApp como uno `enquiry`, sin carrito, sin "Seguí tu pedido", con
+   *   `/checkout` en 404 y el pedido rechazado en el servidor. Necesita un
+   *   WhatsApp público (`pnpm preflight` bloquea sin él).
+   *
+   * Es sólo el default: el dueño lo cambia en `/admin/ajustes` → Modo de
+   * venta, y lo lee únicamente `modoVentaEfectivo()` de
+   * `src/lib/modo-venta.ts`. Lo escribe `pnpm nueva-tienda --modo consulta`.
+   */
+  modoVenta?: ModoVenta;
 
   /**
    * ¿El panel maneja datos de proveedores? (dropshipping, mayoristas,
@@ -144,6 +170,7 @@ export const TIENDA: Tienda = {
   ogLocale: "es_PY",
   tema: "clasico",
   cuentasClientes: false,
+  modoVenta: "carrito",
   proveedores: false,
   hero: null,
 };
