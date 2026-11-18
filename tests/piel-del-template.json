@@ -58,7 +58,7 @@
   "src/app/setup/page.tsx": "ffc2f06742ed1a393857f375c03934f12667a6e3376a61fdad22ca045355e6be",
   "src/app/sitemap.ts": "a9aaab0a97489d7e825a39638f40d0ce2cec3c4878324e640ba2c42fbe3811bb",
   "src/app/terminos/page.tsx": "fdeb0c309e5ac3a6de705a3da28b5a070869d3a35c12a88bc840094fdd8f0a0d",
-  "src/components/add-to-cart.tsx": "409da5e0f722938e782aa9ea4cd588454b4e6bf7dc7ade7f9d44f6ef348eafcf",
+  "src/components/add-to-cart.tsx": "f2978622702e973e0f7cc4a4914f6268f962e736d7e8c43ffa015b8a09625eed",
   "src/components/admin/activity-filters.tsx": "50b025fc4e67c32aea941d200fc7fae057bcdcfaf7345a91d779b671fe1b82e4",
   "src/components/admin/bank-details-manager.tsx": "4bee268fc64c1341077a94ef8bb30de771bf9f2aab57b5aa94603c056a8f45f7",
   "src/components/admin/bulk-actions.tsx": "f4fb5e1e6424b9cd0158621c868c97935e213cb2960441870977240df2e69f31",

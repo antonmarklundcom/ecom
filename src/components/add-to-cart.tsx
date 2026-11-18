@@ -20,6 +20,13 @@ import type { CatalogProductDetail } from "@/db/queries";
 import type { Disponibilidad } from "@/domain/disponibilidad";
 import { t } from "@/i18n/client";
 
+/** O35: el texto de cada palabra de `src/domain/disponibilidad.ts`. */
+const TEXTO_DISPONIBILIDAD = {
+  en_stock: "disponibilidad.en_stock",
+  por_encargo: "disponibilidad.por_encargo",
+  agotado: "disponibilidad.agotado",
+} as const satisfies Record<Disponibilidad, string>;
+
 /**
  * Selector de variante + agregar al carrito.
  *
@@ -197,7 +204,7 @@ export function AddToCart({
               data-disponibilidad={disponibilidad[selected.sku]!}
               className="text-sm font-medium"
             >
-              {t(`disponibilidad.${disponibilidad[selected.sku]!}`)}
+              {t(TEXTO_DISPONIBILIDAD[disponibilidad[selected.sku]!])}
             </span>
           ) : null}
           {purchasable ? null : (
