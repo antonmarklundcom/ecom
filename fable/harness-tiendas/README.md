@@ -52,3 +52,27 @@ Sur, caso 1: `recover_store.sh sur 0024_<su-tag> …` (el tag sale del `ls drizz
 Playwright (en `populate_t0`, `recover_store` y `verify_store`) necesita el
 MySQL para él solo: una tienda por vez. Sin bucket de R2 el `preflight` bloquea
 sólo en R2, que es lo esperado.
+
+## O36 (v2.1.0): en un contenedor de la nube, con MariaDB
+
+Corrida de `docs/log/o36.md`. Linux, MariaDB 10.11 del plan-trafico §4.2 (sin
+Docker), Node 22.
+
+- `HARNESS_MYSQL="mysql -h127.0.0.1 -P3306 -uecom -pecom"`, `DB_PREFIX=h36_`,
+  `TEMPLATE_DIR` = el checkout del template; en `env-e2e.sh`, el mismo usuario
+  en `127.0.0.1:3306`.
+- **El checkout del template no puede ser superficial** (`git rev-parse
+  --is-shallow-repository`): con un clon `--depth`, `tpl.git` sale incompleto,
+  el wizard no puede traer `template/main` y no marca el baseline. Antes de
+  `git clone --bare`: `git fetch --unshallow origin` y los tags
+  (`git fetch origin 'refs/tags/*:refs/tags/*'`).
+- **Este** (nueva, modo consulta): `T0=<commit del template> bash ../h/mk_store.sh
+  este --nombre "Este Joyas" --titulo "Este Joyas — Anillos y alianzas"
+  --descripcion "Tienda de prueba del arnés" --tagline "Consultanos por WhatsApp"
+  --whatsapp 0981000004 --dominio este.example.test --modo consulta`; después dos
+  guías (las de `tests/fixtures/guias/` con slugs del catálogo de demo) y un
+  `src/content/categorias.json`, commiteados; `bash ../h/este_checks.sh <db>
+  <puerto>` (demo, categorías, preflight, `seo:auditar`, pedido rechazado,
+  `next start` y un clic de verdad); `verify_store.sh este <db> <puerto>`.
+- **Norte** (carrito, desde `v2.0.1`): `T0=v2.0.1 bash ../h/mk_store.sh norte …`
+  (flags de arriba), `customize.sh norte`, y `bash ../h/norte_o36.sh`.
