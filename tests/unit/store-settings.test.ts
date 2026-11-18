@@ -333,7 +333,7 @@ describe("placeholders de las páginas", () => {
   it("los textos por defecto no nombran la tienda a mano", () => {
     for (const slug of PAGINAS) {
       expect(PAGINAS_DEFAULT[slug].cuerpo.toLowerCase()).not.toContain(
-        TIENDA.nombre.toLowerCase()
+        (TIENDA.marcaBuscable ?? TIENDA.nombre).toLowerCase()
       );
     }
   });

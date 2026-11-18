@@ -84,6 +84,30 @@ export async function openOrderFicha(page: Page, orderNumber: string): Promise<v
 }
 
 /**
+ * Entra a la primera categoría desde el header, esté donde esté el menú.
+ *
+ * El header del template deja los links (`headerCategoryLink`) siempre a la
+ * vista; el de una tienda los puede guardar en un desplegable o un cajón.
+ * Si ninguno se ve, abre el que haya (`headerCategoriesTrigger`, si no
+ * `headerMenuTrigger`) y recién ahí hace click en el primer link visible
+ * (docs/log/o31.md, propuesta 2). Así una tienda no necesita una tira de
+ * categorías visible sólo para que pasen los specs.
+ */
+export async function irAPrimeraCategoria(page: Page): Promise<void> {
+  const links = page.getByTestId(TESTIDS.headerCategoryLink);
+  if (!(await links.first().isVisible())) {
+    for (const id of [TESTIDS.headerCategoriesTrigger, TESTIDS.headerMenuTrigger]) {
+      const trigger = page.getByTestId(id).first();
+      if (await trigger.isVisible()) {
+        await trigger.click();
+        break;
+      }
+    }
+  }
+  await links.locator("visible=true").first().click();
+}
+
+/**
  * Datos de una compra válida, iguales a los que pide el plan (fable/plan.md
  * §6.1): teléfono `+5959…`, documento CI, ciudad de una zona sembrada
  * (`scripts/seed-data.ts`) y transferencia — el único medio de pago que esta
@@ -133,7 +157,7 @@ export async function realizarCompra(
  */
 export async function completarCheckout(page: Page): Promise<void> {
   await page.goto("/");
-  await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
+  await irAPrimeraCategoria(page);
   await expect(page).toHaveURL(/\/categoria\//);
 
   await page.getByTestId(TESTIDS.productCard).first().click();

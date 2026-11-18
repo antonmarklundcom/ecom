@@ -54,6 +54,8 @@ import {
 import { siteOrigin } from "@/lib/site-url";
 import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
 import { TESTIDS } from "@/lib/testids";
+import { conModoVenta } from "@/domain/modo-venta";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 
 /**
  * Ficha de producto.
@@ -218,6 +220,11 @@ export default async function ProductPage({
       );
     notFound();
   }
+  // Modo consulta (`src/lib/modo-venta.ts`): un producto `stock` se dibuja y
+  // se consulta como `enquiry` (`conModoVenta`). `vista` es lo que ve la
+  // compradora; `product` queda como está en la base.
+  const modoVenta = await modoVentaEfectivo();
+  const vista = conModoVenta(product, modoVenta);
   const recentPhoto =
     product.images.find((image) => image.provenance !== "illustrative") ??
     product.images[0];
@@ -283,7 +290,32 @@ export default async function ProductPage({
   // componente cliente nunca lee `process.env` ni la base.
   const whatsappPhone =
     product.saleMode === "showcase" ? null : await whatsappPublico();
-  const inquiryLinks = await productInquiryLinks(product);
+  const inquiryLinks = await productInquiryLinks(product, modoVenta);
+  // La barra fija de consulta (modo consulta): el link de cada variante por
+  // SKU, y el de la primera como el que va si no se eligió ninguna.
+  const variantesConsulta = product.variants.filter(
+    (variant) => inquiryLinks[variant.id] !== undefined
+  );
+  const consultaPorSku =
+    variantesConsulta.length > 0
+      ? {
+          porSku: Object.fromEntries(
+            variantesConsulta.map((variant) => [
+              variant.sku,
+              inquiryLinks[variant.id]!,
+            ])
+          ),
+          // La misma que `AddToCart` elige sin `?variante=`: la primera con
+          // disponibilidad, si no la primera.
+          porDefecto:
+            inquiryLinks[
+              (
+                variantesConsulta.find((variant) => variant.available > 0) ??
+                variantesConsulta[0]!
+              ).id
+            ]!,
+        }
+      : null;
   const origin = siteOrigin();
   const productUrl = origin
     ? `${origin.origin}/producto/${product.slug}`
@@ -413,7 +445,7 @@ export default async function ProductPage({
             className="mt-6 flex scroll-mt-24 flex-wrap items-start gap-3"
           >
             <AddToCart
-              product={product}
+              product={vista}
               inquiryLinks={inquiryLinks}
               stockAlertsEnabled={stockAlertsEnabled()}
               whatsappPhone={whatsappPhone}
@@ -462,7 +494,7 @@ export default async function ProductPage({
             </div>
           ) : null}
 
-          {(product.saleMode ?? "stock") === "stock" &&
+          {(vista.saleMode ?? "stock") === "stock" &&
           product.showPrice !== false ? (
             <dl className="border-border text-muted-foreground mt-6 grid grid-cols-2 gap-2 border-t pt-6 text-sm">
               <dt>{t("producto.iva")}</dt>
@@ -566,20 +598,29 @@ export default async function ProductPage({
           </h2>
           <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
             {related.map((item) => (
-              <ProductCard key={item.id} product={item} />
+              <ProductCard key={item.id} product={item} modoVenta={modoVenta} />
             ))}
           </div>
         </section>
       ) : null}
 
       {ajustes.vidriera.barraCompraMovil &&
-      (product.saleMode ?? "stock") === "stock" &&
+      (vista.saleMode ?? "stock") === "stock" &&
       product.showPrice !== false &&
       product.variants.length > 0 ? (
         <StickyBuyBar
           targetId={BLOQUE_COMPRA_ID}
           name={product.name}
           price={cheapest !== undefined ? formatGs(cheapest) : null}
+        />
+      ) : modoVenta === "consulta" && consultaPorSku ? (
+        // Modo consulta: la barra fija del celular es el botón de WhatsApp,
+        // con el producto, la variante, el SKU y el link en el mensaje.
+        <StickyBuyBar
+          targetId={BLOQUE_COMPRA_ID}
+          name={product.name}
+          price={null}
+          consulta={consultaPorSku}
         />
       ) : null}
 

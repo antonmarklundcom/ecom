@@ -243,6 +243,7 @@ export const TESTS_DE_PIEL = [
   "src/components/__tests__/home-hero.test.tsx",
   "src/components/__tests__/hero-compat.test.tsx",
   "src/components/__tests__/tema-variantes.test.tsx",
+  "src/components/__tests__/modo-consulta.test.tsx",
   "tests/unit/piel-sin-colores.test.ts",
   "tests/unit/temas.test.ts",
 ] as const;

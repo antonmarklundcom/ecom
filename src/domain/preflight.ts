@@ -14,6 +14,7 @@ import {
 import type { PaymentMethod } from "@/db/schema";
 
 import { paymentPolicy } from "./payment-policy";
+import { MODO_VENTA_POR_DEFECTO, type ModoVenta } from "./modo-venta";
 import { WEBHOOK_ENVELOPE_CONFIRMED } from "./pagopar/protocol";
 import { PAGOPAR_MOCK_MODE } from "./pagopar/mode";
 
@@ -206,6 +207,14 @@ export type PreflightAjustes = {
   nombreTienda?: string | null;
   cuentasClientes?: boolean | null;
   /**
+   * El modo de venta efectivo (`modoVentaEfectivo()`). Sin dato,
+   * `TIENDA.modoVenta`. En `"consulta"` los controles de cobro dicen "no
+   * aplica" y el WhatsApp público pasa a ser lo único imprescindible.
+   */
+  modoVenta?: ModoVenta;
+  /** El WhatsApp público de `/admin/ajustes` → Contacto (ya normalizado). */
+  whatsappPublico?: string | null;
+  /**
    * La política de medios de pago guardada en `/admin/ajustes` y si
    * `/admin/banco` tiene la cuenta cargada (docs/TEMPLATE-IMPROVEMENT-PLAN.md
    * D1). `fallo` = la base no contestó: se evalúa con el entorno y se dice.
@@ -225,6 +234,8 @@ export function preflight(
   ajustes: PreflightAjustes = {}
 ): PreflightReport {
   const { efectivo: env, origenes } = entornoEfectivo(envCrudo, panel);
+  const modo = ajustes.modoVenta ?? TIENDA.modoVenta ?? MODO_VENTA_POR_DEFECTO;
+  const consulta = modo === "consulta";
   const checks: PreflightCheck[] = [
     ...(panel ? [checkLecturaPanel(panel)] : []),
     checkMarca(ajustes.nombreTienda),
@@ -244,7 +255,14 @@ export function preflight(
     ),
     checkPagoparCredentials(env),
     checkR2(env),
-    checkWhatsApp(env),
+    checkWhatsApp(
+      // En consulta lo que importa es el WhatsApp **público**: el del panel
+      // gana sobre WHATSAPP_NUMBER, igual que en la vidriera.
+      consulta && ajustes.whatsappPublico
+        ? { ...env, WHATSAPP_NUMBER: ajustes.whatsappPublico }
+        : env,
+      consulta
+    ),
     checkAvisoPedidoNuevo(env),
     checkAvisoCliente(
       env,
@@ -270,7 +288,10 @@ export function preflight(
     checkBackups(env),
     checkDatabaseUrl(env),
     checkSiteUrl(env),
-  ].map((check) => conOrigen(check, origenes));
+  ]
+    .map((check) => conOrigen(check, origenes))
+    .map((check) => (consulta ? noAplicaEnConsulta(check) : check));
+  if (consulta) checks.unshift(CHECK_MODO_CONSULTA);
 
   const blocking = checks.filter(
     (check) => check.severity === "bloquea"
@@ -281,6 +302,46 @@ export function preflight(
 
   return { checks, ok: blocking === 0, blocking, warnings };
 }
+
+/**
+ * Lo que no aplica en modo consulta: todo lo que existe para cobrar un pedido
+ * (medios de pago, banco, Pagopar) y los avisos de pedidos por WhatsApp. La
+ * tienda no toma pedidos (`src/domain/modo-venta.ts`), así que nada de eso
+ * puede perder plata. Las formas de entrega, que lee la base, las dice
+ * `scripts/preflight.ts` con la misma regla.
+ */
+const NO_APLICA_EN_CONSULTA = new Set([
+  "medios_pago",
+  "banco",
+  "pagopar_credenciales",
+  "pagopar_mode",
+  "pagopar_webhook_envelope",
+  "aviso_pedido_nuevo",
+  "aviso_cliente_confirmado",
+  "aviso_cliente_pagado",
+  "aviso_cliente_enviado",
+  "aviso_cliente_recordatorio",
+  "aviso_cliente_resena",
+]);
+
+function noAplicaEnConsulta(check: PreflightCheck): PreflightCheck {
+  if (!NO_APLICA_EN_CONSULTA.has(check.id)) return check;
+  return {
+    id: check.id,
+    severity: "ok",
+    title: check.title,
+    detail: "no aplica: la tienda está en modo consulta y no toma pedidos",
+  };
+}
+
+const CHECK_MODO_CONSULTA: PreflightCheck = {
+  id: "modo_venta",
+  severity: "ok",
+  title: "Modo de venta",
+  detail:
+    "consulta: sin carrito ni checkout, cada producto se consulta por WhatsApp. Para vender, " +
+    "/admin/ajustes → Modo de venta (y volvé a correr pnpm preflight)",
+};
 
 /**
  * La marca sigue siendo la del template.
@@ -863,7 +924,7 @@ function checkR2(env: PreflightEnv): PreflightCheck {
 export const WHATSAPP_DE_EJEMPLO = "+595981123456";
 
 /** El aviso al dueño llega por WhatsApp; sin número, no llega. */
-function checkWhatsApp(env: PreflightEnv): PreflightCheck {
+function checkWhatsApp(env: PreflightEnv, consulta = false): PreflightCheck {
   const phone = value(env, "WHATSAPP_NUMBER");
 
   if (phone === "") {
@@ -871,9 +932,12 @@ function checkWhatsApp(env: PreflightEnv): PreflightCheck {
       id: "whatsapp",
       severity: "bloquea",
       title: "WhatsApp del comercio",
-      detail:
-        "sin WhatsApp del comercio (ni en /admin/integraciones ni en WHATSAPP_NUMBER): el " +
-        "comprador no tiene botón para avisar del pedido",
+      detail: consulta
+        ? "modo consulta sin WhatsApp público (ni en /admin/ajustes → Contacto, ni en " +
+          "/admin/integraciones, ni en WHATSAPP_NUMBER): sin él no hay ningún botón para " +
+          "consultar un producto"
+        : "sin WhatsApp del comercio (ni en /admin/integraciones ni en WHATSAPP_NUMBER): el " +
+          "comprador no tiene botón para avisar del pedido",
     };
   }
   if (phone.replace(/[^\d+]/g, "") === WHATSAPP_DE_EJEMPLO) {

@@ -28,6 +28,7 @@ import {
 } from "@/lib/rate-limit";
 import { cargarIntegraciones } from "@/lib/integraciones-store";
 import { revalidarVidriera } from "@/lib/revalidar-vidriera";
+import { tiendaTomaPedidos } from "@/lib/modo-venta";
 
 /**
  * Server action del checkout.
@@ -102,6 +103,12 @@ export type CheckoutResult =
     };
 
 export async function submitCheckout(input: unknown): Promise<CheckoutResult> {
+  // Modo consulta (`src/lib/modo-venta.ts`): no hay checkout. La página ya da
+  // 404; esto corta un POST directo antes de leer nada. `createOrder` lo
+  // vuelve a mirar adentro de su transacción, que es la defensa de verdad.
+  if (!(await tiendaTomaPedidos())) {
+    return { ok: false, error: t("error.checkout.modoConsulta") };
+  }
   // Pagopar puede estar configurado desde /admin/integraciones.
   await cargarIntegraciones();
   // Antes de mirar el cuerpo: lo caro de este endpoint no es validarlo sino la
