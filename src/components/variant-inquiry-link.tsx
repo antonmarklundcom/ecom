@@ -3,6 +3,7 @@
 import { MessageCircle } from "lucide-react";
 
 import { t } from "@/i18n/client";
+import { atributosConsulta } from "@/lib/consulta-click";
 import { waLink } from "@/lib/py";
 import { TESTIDS } from "@/lib/testids";
 
@@ -23,6 +24,8 @@ export function VariantInquiryLink({
   variantLabel,
   sku,
   productUrl,
+  productId,
+  variantId,
 }: {
   phone: string | null;
   productName: string;
@@ -30,6 +33,9 @@ export function VariantInquiryLink({
   sku: string;
   /** URL absoluta de la ficha, o `null` sin `NEXT_PUBLIC_SITE_URL`. */
   productUrl: string | null;
+  /** Para contar el clic (O33, `src/lib/consulta-click.ts`). */
+  productId?: number;
+  variantId?: number;
 }) {
   if (!phone) return null;
 
@@ -55,6 +61,7 @@ export function VariantInquiryLink({
       target="_blank"
       rel="noopener noreferrer"
       data-testid={TESTIDS.variantInquiryLink}
+      {...atributosConsulta("producto", { productId, variantId, sku })}
       className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm underline"
     >
       <MessageCircle className="size-4" aria-hidden />

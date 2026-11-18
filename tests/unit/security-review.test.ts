@@ -380,7 +380,15 @@ describe("cobertura de la revisión", () => {
     // ningún dato —un `SELECT 1`— y contesta dos booleanos: ni versiones, ni
     // schema, ni el error de MySQL. Cualquier ruta nueva que quiera entrar acá
     // tiene que poder decir lo mismo.
-    const SIN_GUARD = new Set([path.join(API, "health", "route.ts")]);
+    // La segunda (O33): el beacon de "Consultar por WhatsApp" lo manda una
+    // compradora anónima, así que no hay sesión ni secreto que pedir. Se la
+    // banca porque sólo suma un contador sin datos de nadie, después de
+    // comprobar mismo origen y el límite por IP, y contesta 204 siempre — lo
+    // verifica el test de abajo.
+    const SIN_GUARD = new Set([
+      path.join(API, "health", "route.ts"),
+      path.join(API, "consulta", "route.ts"),
+    ]);
 
     const offenders: string[] = [];
     for (const file of routes) {
@@ -400,6 +408,17 @@ describe("cobertura de la revisión", () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  it("el beacon de consultas (O33) mira el origen y el límite antes de contar", async () => {
+    const code = await readCode(path.join("src", "app", "api", "consulta", "route.ts"));
+    const conteo = code.indexOf("registrarConsulta(consulta)");
+    expect(conteo).toBeGreaterThan(0);
+    expect(code.indexOf("mismoOrigen(request)")).toBeGreaterThan(0);
+    expect(code.indexOf("mismoOrigen(request)")).toBeLessThan(conteo);
+    expect(code.indexOf("rateLimit(")).toBeLessThan(conteo);
+    expect(code).not.toMatch(/export async function (GET|PUT|PATCH|DELETE)/);
+    expect(code).not.toMatch(/status:\s*(?!204)\d{3}/);
   });
 });
 

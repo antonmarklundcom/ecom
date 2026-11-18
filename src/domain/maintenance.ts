@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { orders, stockReservations } from "@/db/schema";
 
 import type { Executor } from "./executor";
+import { podarConteos } from "./consultas";
 import { InvalidTransitionError, transitionOrder } from "./orders";
 import { sendPaymentReminders, type PaymentReminderReport } from "./payment-reminders";
 import { purgeNotifiedStockAlerts } from "./stock-alerts";
@@ -34,6 +35,8 @@ export type ExpiryReport = {
   stockAlertsPurged: number;
   /** Recordatorios de pago de esta corrida (O15). */
   paymentReminders: PaymentReminderReport;
+  /** Filas de conteos de consultas y búsquedas de hace más de 13 meses (O33). */
+  conteosPodados: number;
 };
 
 /**
@@ -154,6 +157,15 @@ export async function runMaintenance(now: Date = new Date()): Promise<ExpiryRepo
   // se venció en esta misma corrida nunca recibe un "podés pagar hasta las…".
   // No tira nunca y no agrega una entrada de cron: es el mismo cada 15 min.
   const paymentReminders = await sendPaymentReminders(now);
+  // Conteos de consultas y búsquedas de hace más de 13 meses (O33).
+  const conteosPodados = await podarConteos(now);
 
-  return { expired, skipped, reservationsDeleted, stockAlertsPurged, paymentReminders };
+  return {
+    expired,
+    skipped,
+    reservationsDeleted,
+    stockAlertsPurged,
+    paymentReminders,
+    conteosPodados,
+  };
 }

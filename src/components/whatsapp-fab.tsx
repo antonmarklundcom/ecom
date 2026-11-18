@@ -2,6 +2,7 @@ import { MessageCircle } from "lucide-react";
 
 import { t } from "@/i18n/client";
 import { waLinkPublico } from "@/lib/comercio";
+import { atributosConsulta } from "@/lib/consulta-click";
 
 /**
  * Botón flotante de WhatsApp. En PY es el canal de venta real: si el
@@ -30,6 +31,7 @@ export async function WhatsAppFab({ message }: { message?: string }) {
         rel="noopener noreferrer"
         aria-label={t("whatsapp.flotante.label")}
         data-whatsapp-fab=""
+        {...atributosConsulta("flotante")}
         className="fixed right-4 bottom-4 z-40 flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <MessageCircle className="size-7" />

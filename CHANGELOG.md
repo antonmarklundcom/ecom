@@ -30,8 +30,9 @@ funciones nuevas; **parche** para arreglos.
 
 ## Sin publicar
 
-**Migración: no.**
+**Migración: sí** (O33: `0026`, dos tablas nuevas; sólo agrega, no cambia nada existente).
 
+- O33 · Consultas por WhatsApp y búsquedas, contadas por día y sin datos de nadie: cada clic en un link con `data-consulta` manda un `sendBeacon` a `POST /api/consulta` (204 siempre, mismo origen, con límite) y suma en `enquiry_daily`; `/buscar` suma en `search_daily` (sin robots, sin teléfonos ni e-mails, tope de 500 términos nuevos por día). Panel `/admin/consultas` (permiso del resumen, CSV de 90 días), una línea en el resumen diario, las dos tablas en el backup, poda a los 13 meses en el cron de mantenimiento, y `generate_lead` / `Contact` por `src/lib/funnel.ts` cuando GA4 o el pixel están conectados.
 - Las notas de v2.0.0 ahora listan S25 (#168, CSV sin fórmulas y tope al `.xlsx`), que salió en v2.0.0 sin su entrada.
 
 ## v2.0.1 — 2026-11-11

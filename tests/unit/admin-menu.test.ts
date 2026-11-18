@@ -17,7 +17,14 @@ describe("reusable admin navigation", () => {
     expect(
       staff.find((item) => item.href === "/admin/resenas")?.label
     ).toContain("3");
-    expect(adminMenuFor("owner")).toHaveLength(15);
+    expect(adminMenuFor("owner")).toHaveLength(16);
+    // O33: consultas, con el mismo permiso que el resumen.
+    expect(
+      adminMenuFor("owner").some((item) => item.href === "/admin/consultas")
+    ).toBe(true);
+    expect(
+      adminMenuFor("vendedor").some((item) => item.href === "/admin/consultas")
+    ).toBe(false);
     expect(
       adminMenuFor("owner").some((item) => item.href === "/admin/guia")
     ).toBe(true);

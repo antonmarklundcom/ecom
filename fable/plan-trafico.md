@@ -415,6 +415,7 @@ No earlier plan exists; this section is it.
 | Phase | PR | Log |
 |---|---|---|
 | plan | this PR | — |
+| O33 | PR_NUMBER | `docs/log/o33.md` |
 
 ## 10. Backlog (not planned)
 

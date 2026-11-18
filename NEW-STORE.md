@@ -817,6 +817,25 @@ del template. Lo que sigue es sólo dónde encontrarlo:
 - **Reembolso parcial.** Vive junto al botón de devolución total (dashboard,
   "Pagos sin pedido vivo"): un monto menor al total dejando el pedido como
   está, con su fila en el ledger de devoluciones (`refunds`, ARCH.md §2).
+- **Consultas y búsquedas (O33).** `/admin/consultas` muestra cuántas veces
+  tocaron «Consultar por WhatsApp» por producto (7, 30 y 90 días) y desde
+  dónde (ficha, tarjeta, botón flotante, guía, contacto), lo más buscado en
+  `/buscar` y las búsquedas sin resultado, con un CSV de 90 días. Lo ve quien
+  ve el resumen (`dashboard`); sólo lee. Son cantidades por día: no se guarda
+  IP, user agent, cookie ni el texto del mensaje, y un término que parece un
+  teléfono o un e-mail no se guarda. El resumen diario suma una línea con las
+  consultas de ayer; el cron de mantenimiento borra lo de más de 13 meses.
+  Las vistas de cada producto están en GA4, no acá. Para que un link nuevo de
+  WhatsApp cuente —por ejemplo uno que agregues al rediseñar la piel— ponele
+  `{...atributosConsulta("<origen>", { productId })}` de
+  `src/lib/consulta-click.ts`: el link sigue siendo un `<a href="https://wa.me/...">`
+  común y el escuchador del layout (`contador-consultas.tsx`) hace el resto.
+  Si tu tienda rediseñó `src/app/layout.tsx`, la ficha o el botón flotante,
+  `template:sync` deja tu versión: sumá a mano `<ContadorConsultas />` en el
+  layout de la vidriera y los `atributosConsulta` en tus links, o no se cuenta
+  nada.
+  Trae la migración `0026` (dos tablas nuevas): una tienda con migraciones
+  propias la recibe según § "Migraciones propias de una tienda".
 - **Backups automáticos y restauración.** Corren solos con la entrada de cron
   del hPanel (DEPLOY.md §5, tercera entrada) — nada que prender a mano más
   allá de tener R2 configurado. Restaurar una copia es

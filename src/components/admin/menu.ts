@@ -13,6 +13,7 @@ const sections = [
   ["/admin/clientes", "clientes", "panel.nav.clientes", "customers"],
   ["/admin/cupones", "cupones", "panel.nav.cupones", "coupons"],
   ["/admin/actividad", "actividad", "panel.nav.actividad", "activity"],
+  ["/admin/consultas", "dashboard", "panel.nav.consultas", "enquiries"],
   ["/admin/categorias", "categorias", "panel.nav.categorias", "categories"],
   ["/admin/envios", "envios", "panel.nav.envios", "shipping"],
   ["/admin/banco", "banco", "panel.nav.banco", "bank"],
