@@ -291,6 +291,8 @@ second run unchanged, `--pisar`; `seo:auditar` against the demo data prints find
 
 ### 5.5 O36 — proof and release v2.1.0
 
+0. The Next.js advisory that O32 and O34 hit during `next build` (16.4.3): a patch-level bump if
+   one fixes it, before anything else, so the proof runs on what is released (prompt, first rule).
 1. With `fable/harness-tiendas/` on the local MariaDB: a new store "Este" from `main` with
    `--modo consulta`, demo data, two fixture guides and a `categorias.json`: no cart, order
    refused, a click counted, guide in the sitemap, back order in the product data, `seo:auditar`
