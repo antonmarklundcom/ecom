@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { soloTemplateABorrar } from "../../scripts/nueva-tienda";
@@ -47,5 +49,17 @@ describe("clasificación de las guías", () => {
   it("pnpm nueva-tienda no borra src/content/", () => {
     const borra = soloTemplateABorrar("La Esquina", () => true);
     expect(borra.some((ruta) => ruta.startsWith("src/content"))).toBe(false);
+  });
+});
+
+describe("las guías y el modo de venta (O32)", () => {
+  it("las tarjetas de producto de una guía reciben el modo de venta de la tienda", () => {
+    // Sin el prop, en "consulta" una tarjeta de un producto con stock seguía
+    // ofreciendo comprar desde la guía.
+    const fuente = readFileSync("src/app/guias/[slug]/page.tsx", "utf8");
+    const tarjetas = [...fuente.matchAll(/<ProductCard\b[^>]*>/g)].map((m) => m[0]);
+    expect(tarjetas.length).toBeGreaterThan(0);
+    for (const tarjeta of tarjetas) expect(tarjeta).toMatch(/modoVenta=\{modoVenta\}/);
+    expect(fuente).toMatch(/modoVentaEfectivo\(\)/);
   });
 });

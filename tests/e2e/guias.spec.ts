@@ -1,8 +1,9 @@
 import { join } from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { leerCarpetaDeGuias } from "../../src/lib/guias";
+import { loginAsOwner } from "./helpers";
 
 /**
  * Las guías (O34, docs/GUIAS.md) contra un `next build` + `next start` de
@@ -137,6 +138,40 @@ test.describe("guías de ejemplo", () => {
     expect(xml).toMatch(
       new RegExp(`/guias/${PRIMERA}</loc>\\s*<lastmod>2026-11-15T03:00:00.000Z</lastmod>`)
     );
+  });
+});
+
+/** Mismo camino que `modo-consulta.spec.ts` (O32): el dueño lo cambia en el panel. */
+async function elegirModo(page: Page, opcion: string): Promise<void> {
+  await page.goto("/admin/ajustes#ventas");
+  const seccion = page.locator("#ventas");
+  await seccion.getByLabel("¿Cómo vende la tienda?").selectOption({ label: opcion });
+  await seccion.getByRole("button", { name: "Guardar cambios" }).click();
+  await expect(page.getByText("Ajustes guardados.")).toBeVisible();
+}
+
+test.describe("guías en los dos modos de venta", () => {
+  test.skip(!CON_FIXTURES, "sin GUIAS_DIR: el build no tiene las guías de ejemplo");
+
+  test("en consulta la guía sigue, y su tarjeta de stock pasa a consulta", async ({ page }) => {
+    const tarjeta = page.locator('[data-testid="product-card"][href="/producto/browser-stock"]');
+    // Carrito (el del template): la tarjeta de siempre.
+    await page.goto(`/guias/${PRIMERA}`);
+    await expect(tarjeta).toBeVisible();
+    await expect(tarjeta).not.toContainText("Consultá disponibilidad");
+
+    await loginAsOwner(page);
+    await elegirModo(page, "Sólo consulta por WhatsApp");
+    try {
+      expect((await page.goto(`/guias/${PRIMERA}`))?.status()).toBe(200);
+      await expect(tarjeta).toContainText("Consultá disponibilidad");
+      await expect(page.locator('[data-site-footer] a[href="/guias"]')).toBeVisible();
+      expect((await page.goto("/guias"))?.status()).toBe(200);
+      await page.goto("/");
+      await expect(page.locator("[data-home-guias] a[data-guia]")).toHaveCount(2);
+    } finally {
+      await elegirModo(page, "Lo que diga el código (Con carrito y pedidos)");
+    }
   });
 });
 

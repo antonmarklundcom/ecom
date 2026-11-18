@@ -11,6 +11,7 @@ import { t } from "@/i18n";
 import { fechaDeGuia, guiaPorSlug, slugsDeGuias } from "@/lib/guias";
 import { log } from "@/lib/log";
 import { marcaEfectiva } from "@/lib/marca";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { formatDatePY } from "@/lib/py";
 import { safeError } from "@/lib/safe-error";
 import { articleJsonLd, breadcrumbJsonLd, jsonLdScript } from "@/lib/seo";
@@ -117,7 +118,9 @@ export default async function GuiaPage({ params }: { params: Params }) {
   }
 
   const origin = siteOrigin();
-  const marca = await marcaEfectiva();
+  // El modo de venta (O32): en "consulta" las tarjetas no ofrecen carrito.
+  // Un cambio en el panel tira toda la caché (`revalidarVidriera`).
+  const [marca, modoVenta] = await Promise.all([marcaEfectiva(), modoVentaEfectivo()]);
   const jsonLd = [
     articleJsonLd({
       origin,
@@ -202,7 +205,7 @@ export default async function GuiaPage({ params }: { params: Params }) {
           <h2 className="text-lg font-semibold">{t("guias.productos")}</h2>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             {productos.map((producto) => (
-              <ProductCard key={producto.id} product={producto} />
+              <ProductCard key={producto.id} product={producto} modoVenta={modoVenta} />
             ))}
           </div>
         </section>

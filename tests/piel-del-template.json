@@ -42,7 +42,7 @@
   "src/app/favoritos/page.tsx": "cbf93d9831fddf22b3a0c81042b3b849894b79b695671a41ab59cc368f85ca7d",
   "src/app/feed.xml/route.ts": "46d103858095fed6f90ef3cb53a8ee36b81680e00334d5f58a2e25114781767c",
   "src/app/globals.css": "17e4bdf97f6529a8295b783c1db26930a18d7c649b998ca5e0ba515956a59000",
-  "src/app/guias/[slug]/page.tsx": "66c2785bdfba982969d8241590f93d9e5cad48a35c1b56ab60cbd4ef3fc59994",
+  "src/app/guias/[slug]/page.tsx": "3487567df8f2b9cbfd94bd31fd41395bb2323d65e8872bbdd9169f55f118ed4a",
   "src/app/guias/page.tsx": "4c9d49cf8100a77f69fe1a5f37ce35eebfa1d51363373aff7b7d11915f77d176",
   "src/app/layout.tsx": "8c17b86d3800ca9a52fa8fb3f435bf0f817e2e556841b4cb025c1a29ed0b25e2",
   "src/app/not-found.tsx": "2c0b0402a30579c06cabb4ff04b2d9a720d75c16570173cff24e1e9a03010dfb",
