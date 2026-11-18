@@ -123,6 +123,8 @@ describe("robots.txt", () => {
       "preguntas-frecuentes",
       "terminos",
       "privacidad",
+      // Las guías de compra (O34): texto de la tienda, archivos del repo.
+      "guias",
       // O35: `/contacto`, sólo lo que la tienda cargó como contacto público.
       "contacto",
     ]);

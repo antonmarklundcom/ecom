@@ -4,7 +4,8 @@ import { getSitemapEntries } from "@/db/queries";
 import { contactoPublico } from "@/lib/comercio";
 import { productImageUrl } from "@/lib/images";
 import { paginasActivas } from "@/lib/paginas";
-import { buildSitemap, contactoTieneDatos } from "@/lib/seo";
+import { guiasPublicadas } from "@/lib/guias";
+import { buildSitemap, contactoTieneDatos, guiasSitemap } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 
 /**
@@ -31,28 +32,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // O35: `/contacto` sólo si la tienda cargó algún dato (si no, es 404).
   const contacto = contactoTieneDatos(await contactoPublico());
 
+  // Las guías son archivos (O34): no dependen de la base. Sin guías
+  // publicadas, ninguna entrada.
+  const guias = guiasSitemap(origin, guiasPublicadas());
+
   try {
     const { categories, products } = await getSitemapEntries();
-    return buildSitemap(origin, {
-      categories,
-      products: products.map((product) => ({
-        slug: product.slug,
-        updatedAt: product.updatedAt,
-        images: product.images
-          .map((image) => productImageUrl(image.imageRef, "detail"))
-          .filter((src): src is string => src !== null),
-      })),
-      pages,
-      contacto,
-    });
+    return [
+      ...buildSitemap(origin, {
+        categories,
+        // O35: hasta cinco fotos públicas por producto.
+        products: products.map((product) => ({
+          slug: product.slug,
+          updatedAt: product.updatedAt,
+          images: product.images
+            .map((image) => productImageUrl(image.imageRef, "detail"))
+            .filter((src): src is string => src !== null),
+        })),
+        pages,
+        contacto,
+      }),
+      ...guias,
+    ];
   } catch {
     // La base caída no puede tumbar el sitio: al menos la home se publica, y
     // el crawler vuelve en el próximo revalidate.
-    return buildSitemap(origin, {
-      categories: [],
-      products: [],
-      pages,
-      contacto,
-    });
+    return [
+      ...buildSitemap(origin, { categories: [], products: [], pages, contacto }),
+      ...guias,
+    ];
   }
 }

@@ -647,3 +647,101 @@ export function contactoTieneDatos(contacto: {
       contacto.redes.length > 0
   );
 }
+
+// ---------------------------------------------------------------------------
+// Guías (O34, fable/plan-trafico.md §2.3). Bloque propio: el sitemap y el
+// JSON-LD del resto de la tienda no cambian.
+// ---------------------------------------------------------------------------
+
+/** Lo mínimo de una guía para el sitemap y el `Article`. */
+export type GuiaSeo = {
+  slug: string;
+  titulo: string;
+  descripcion: string;
+  /** `YYYY-MM-DD`. */
+  publicada: string;
+  /** `YYYY-MM-DD`. */
+  actualizada: string;
+  imagen?: string | null;
+};
+
+/** `YYYY-MM-DD` → la medianoche de ese día en Paraguay. */
+function diaPY(fecha: string): Date {
+  return new Date(`${fecha}T00:00:00-03:00`);
+}
+
+/**
+ * Las entradas del sitemap de las guías publicadas: el índice `/guias` (con
+ * la `actualizada` más nueva) y una por guía (con su `actualizada`). Sin
+ * guías, ninguna: un `/guias` que da 404 no se publica.
+ */
+export function guiasSitemap(
+  origin: URL,
+  guias: readonly GuiaSeo[]
+): SitemapEntry[] {
+  if (guias.length === 0) return [];
+  const base = origin.origin;
+  const ultima = guias.reduce(
+    (max, guia) => (guia.actualizada > max ? guia.actualizada : max),
+    guias[0]!.actualizada
+  );
+  return [
+    {
+      url: `${base}/guias`,
+      lastModified: diaPY(ultima),
+      changeFrequency: "weekly",
+      priority: 0.5,
+    },
+    ...guias.map((guia) => ({
+      url: `${base}/guias/${guia.slug}`,
+      lastModified: diaPY(guia.actualizada),
+      changeFrequency: "monthly" as const,
+      priority: 0.5,
+    })),
+  ];
+}
+
+/**
+ * `Article` de una guía. Autor y editor son **la tienda** (`marcaEfectiva()`):
+ * las guías las escribe la tienda, no una persona con nombre, y no se inventa
+ * una. Sin calificación ni `FAQPage`: las preguntas se muestran en la página,
+ * pero no se le promete a Google un rich result que no da para un comercio.
+ * `image` sólo si la guía tiene una (absoluta: una ruta propia se completa con
+ * el origen; sin origen, se omite).
+ */
+export function articleJsonLd(input: {
+  origin: URL | null;
+  guia: GuiaSeo;
+  tienda: { nombre: string; logoUrl?: string | null };
+}): JsonLd {
+  const base = input.origin?.origin ?? "";
+  const url = `${base}/guias/${input.guia.slug}`;
+  const organizacion = {
+    "@type": "Organization",
+    name: input.tienda.nombre,
+    ...(base ? { url: `${base}/` } : {}),
+    ...(input.tienda.logoUrl && /^https:\/\//.test(input.tienda.logoUrl)
+      ? { logo: { "@type": "ImageObject", url: input.tienda.logoUrl } }
+      : {}),
+  };
+  const imagen = input.guia.imagen
+    ? /^https:\/\//.test(input.guia.imagen)
+      ? input.guia.imagen
+      : base && input.guia.imagen.startsWith("/")
+        ? `${base}${input.guia.imagen}`
+        : null
+    : null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: input.guia.titulo,
+    description: input.guia.descripcion,
+    datePublished: input.guia.publicada,
+    dateModified: input.guia.actualizada,
+    author: organizacion,
+    publisher: organizacion,
+    mainEntityOfPage: { "@type": "WebPage", "@id": url },
+    url,
+    ...(imagen ? { image: [imagen] } : {}),
+  };
+}

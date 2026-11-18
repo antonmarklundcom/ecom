@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CATEGORIA_PALABRAS_MIN,
@@ -116,5 +116,41 @@ describe("cargarGuias", () => {
       };
     });
     expect(cargadas).toEqual({ guias: [guia], rotos: [], problemas: new Map([["g", ["x"]]]) });
+  });
+});
+
+describe("cargarGuias con el src/lib/guias.ts de verdad (O34)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("lee las guías de fixtures y la auditoría marca lo que apunta a nada y las rotas", async () => {
+    vi.stubEnv("GUIAS_DIR", "tests/fixtures/guias/invalidas");
+    const invalidas = await cargarGuias();
+    expect(invalidas).not.toBeNull();
+    expect(invalidas!.rotos.map((r) => r.archivo)).toContain("sin-front-matter.md");
+
+    vi.stubEnv("GUIAS_DIR", "tests/fixtures/guias");
+    const guias = await cargarGuias();
+    expect(guias!.guias.map((g) => g.slug)).toEqual(
+      expect.arrayContaining(["como-elegir-en-el-navegador", "borrador-de-prueba"])
+    );
+    const hallazgos = auditarSeo({
+      categorias: [{ ...categoriaLimpia, slug: "browser-fixtures", name: "Fixtures" }],
+      productos: [{ ...productoLimpio, slug: "browser-stock" }],
+      guias,
+    });
+    expect(hallazgos).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tipo: "guia",
+          slug: "como-elegir-en-el-navegador",
+          control: "guiaApuntaANada",
+          detalle: "categoría categoria-que-no-existe, producto producto-que-no-existe",
+        }),
+      ])
+    );
+    // La categoría que una guía publicada nombra no sale como "sin guía".
+    expect(hallazgos.some((h) => h.control === "sinGuia")).toBe(false);
   });
 });

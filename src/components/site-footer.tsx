@@ -6,6 +6,7 @@ import { getStoreSettings } from "@/domain/store-settings";
 import { tiendaTomaPedidos } from "@/lib/modo-venta";
 import { t } from "@/i18n/client";
 import { contactoPublico } from "@/lib/comercio";
+import { hayGuias } from "@/lib/guias";
 import { marcaEfectiva } from "@/lib/marca";
 import { paginasActivas } from "@/lib/paginas";
 import { formatPhonePY } from "@/lib/py";
@@ -45,6 +46,7 @@ export async function SiteFooter() {
       contacto={contacto}
       paginas={paginas}
       seguirPedido={seguirPedido}
+      guias={hayGuias()}
     />
   );
 }
@@ -73,6 +75,7 @@ function FooterColumnas({
   contacto,
   paginas,
   seguirPedido = true,
+  guias = false,
 }: DatosFooter) {
   return (
     <footer
@@ -162,10 +165,17 @@ function FooterColumnas({
           </ul>
         </div>
 
-        {paginas.length > 0 ? (
+        {paginas.length > 0 || guias ? (
           <div>
             <p className="text-foreground font-medium">{t("footer.ayuda")}</p>
             <ul className="mt-2 space-y-1">
+              {guias ? (
+                <li>
+                  <Link href="/guias" className="hover:text-foreground">
+                    {t("footer.guias")}
+                  </Link>
+                </li>
+              ) : null}
               {paginas.map((pagina) => (
                 <li key={pagina.slug}>
                   <Link
@@ -199,6 +209,8 @@ type DatosFooter = {
    * `/pedido/buscar` es 404. Sin el dato, `true`: el pie de siempre.
    */
   seguirPedido?: boolean;
+  /** ¿Hay guías publicadas? (O34) Sin ninguna, el pie no lleva el link. */
+  guias?: boolean;
 };
 
 /**
@@ -213,12 +225,14 @@ function FooterCompacto({
   contacto,
   paginas,
   seguirPedido = true,
+  guias = false,
 }: DatosFooter) {
   const links = [
     ...categories.map((category) => ({
       href: `/categoria/${category.slug}`,
       label: category.name,
     })),
+    ...(guias ? [{ href: "/guias", label: t("footer.guias") }] : []),
     ...paginas.map((pagina) => ({
       href: `/${pagina.slug}`,
       label: pagina.titulo,

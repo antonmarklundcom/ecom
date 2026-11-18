@@ -3,6 +3,7 @@ import type React from "react";
 import { Suspense } from "react";
 import HomeLoading from "@/components/home-loading";
 
+import { GuiaLista } from "@/components/guia-lista";
 import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
 import { TIENDA, type Hero } from "@/config/tienda";
@@ -10,6 +11,7 @@ import { getCatalog, getCategories, type CatalogProduct } from "@/db/queries";
 import { getStoreSettings } from "@/domain/store-settings";
 import { heroEfectivo } from "@/domain/store-settings-schema";
 import { t } from "@/i18n";
+import { guiasPublicadas } from "@/lib/guias";
 import { log } from "@/lib/log";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { safeError } from "@/lib/safe-error";
@@ -142,6 +144,23 @@ async function HomeContent() {
           {t("home.sinProductos")}
         </p>
       ),
+    // Las tres guías más nuevas (O34). Sin guías publicadas, nada.
+    guias: () => {
+      const guias = guiasPublicadas().slice(0, 3);
+      return guias.length > 0 ? (
+        <section key="guias" className="mt-12" data-home-guias="">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-semibold">{t("home.guias")}</h2>
+            <Link href="/guias" className="text-muted-foreground hover:text-foreground text-sm">
+              {t("home.guias.verTodas")}
+            </Link>
+          </div>
+          <div className="mt-4">
+            <GuiaLista guias={guias} encabezado="h3" />
+          </div>
+        </section>
+      ) : null;
+    },
   };
   const orden = temaActivo().home;
   const conPortada = orden.includes("hero");

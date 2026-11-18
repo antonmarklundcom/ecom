@@ -33,7 +33,7 @@ export const config = {
 
 /**
  * Las rutas cuyo HTML se cachea (ISR) en vez de renderizarse en cada request:
- * la home, `/categoria/<slug>` y `/producto/<slug>` — exactamente esos
+ * la home, `/categoria/<slug>`, `/producto/<slug>` y las guías — exactamente esos
  * niveles; la gemela `…/<slug>/con-parametros` se renderiza por request.
  *
  * **Tiene que coincidir con los `export const revalidate` de `src/app`**, y hay
@@ -41,7 +41,14 @@ export const config = {
  * pantalla nueva y se olvida de agregarla acá, esa pantalla se queda sin
  * JavaScript en producción, y no se nota hasta que un cliente no puede comprar.
  */
-export const RUTAS_CACHEADAS = ["/", "/categoria/[slug]", "/producto/[slug]"] as const;
+export const RUTAS_CACHEADAS = [
+  "/",
+  "/categoria/[slug]",
+  "/producto/[slug]",
+  // Las guías (O34): estáticas, construidas una vez por deploy (+ ISR).
+  "/guias",
+  "/guias/[slug]",
+] as const;
 
 const PATRONES_CACHEADOS = RUTAS_CACHEADAS.map(
   (ruta) => new RegExp(`^${ruta.replace(/\[[^\]]+\]/g, "[^/]+")}$`)

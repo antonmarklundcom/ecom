@@ -75,8 +75,10 @@ export type VarianteFooter = (typeof VARIANTES_FOOTER)[number];
  * Las secciones de la home (`src/app/page.tsx`), en el orden en que el tema
  * las quiere. Una que no está en la lista no se dibuja; sin `hero`, el `<h1>`
  * de la página sigue existiendo (oculto) para lectores de pantalla.
+ * `guias` (O34) son las tres guías más nuevas, y sólo se dibuja si la tienda
+ * tiene alguna publicada (`src/content/guias/`).
  */
-export const SECCIONES_HOME = ["hero", "categorias", "destacados"] as const;
+export const SECCIONES_HOME = ["hero", "categorias", "destacados", "guias"] as const;
 export type SeccionHome = (typeof SECCIONES_HOME)[number];
 
 /** Los tamaños de texto de Tailwind que un tema puede reescalar. */

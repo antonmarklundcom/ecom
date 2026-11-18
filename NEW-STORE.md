@@ -1128,7 +1128,8 @@ datos en [`src/themes/presets/`](./src/themes/presets) con
 - la **variante de header** (`clasico` | `centrado`) y la **de pie**
   (`columnas` | `compacto`), que dibujan los mismos `data-testid`;
 - el **orden de las secciones de la home** (`hero`, `categorias`,
-  `destacados`; la que no está, no se dibuja).
+  `destacados`, `guias`; la que no está, no se dibuja. `guias` son las tres
+  guías más nuevas y sólo aparece si la tienda tiene alguna publicada).
 
 | Tema | Para quién | Header / pie / home | Fuentes sugeridas |
 |---|---|---|---|
@@ -1246,6 +1247,7 @@ esa traducción, para no volver a deducirla en cada sesión:
 | Ancho de las fotos en la grilla, la ficha y la portada | `src/lib/image-sizes.ts` (`IMAGE_SIZES`) | Si cambiás la grilla (3 columnas, otro contenedor), cambiá el `sizes` ahí. Toda `<Image>` de la vidriera lleva `sizes` (`tests/unit/image-sizes.test.ts`) |
 | Ficha de producto y página de categoría | `src/app/producto/[slug]/page.tsx`, `src/app/categoria/[slug]/page.tsx` | Rediseñá esos archivos; **no** las gemelas `…/con-parametros/page.tsx`, que reusan la misma página para los links con parámetros (§7b). Dejá `export const dynamic`/`revalidate` y no leas `cookies()`/`headers()` ahí |
 | Pie: columnas, contacto, WhatsApp | `footer` del preset (`columnas` / `compacto`); a medida, `src/components/site-footer.tsx` | El nombre y el tagline salen de `TIENDA`, no los escribas a mano |
+| Guías: índice, página de una guía, bloque "Guías" de la home y "Guías relacionadas" | `src/app/guias/**`, `src/components/guia-*.tsx`; el contenido, archivos `src/content/guias/<slug>.md` | El texto es de la tienda (`template:sync` nunca toca `src/content/`); el formato y las reglas, [`docs/GUIAS.md`](./docs/GUIAS.md). La lectura (`src/lib/guias.ts`) y el JSON-LD son maquinaria |
 | Botón flotante de WhatsApp | `src/components/whatsapp-fab.tsx` | El número sale del entorno (`src/lib/comercio.ts`) |
 | Nombre, título del navegador, tagline, meta description | `src/config/tienda.ts` | **Nunca** en un componente: `tests/unit/marca-centralizada.test.ts` lo bloquea |
 | Imagen que se ve al compartir el link | `src/app/opengraph-image.tsx` | Se dibuja sola con el nombre y el tagline. No hay que subir nada |
@@ -1279,6 +1281,7 @@ Qué se puede redibujar libremente y qué no:
 |---|---|
 | `site-header`, `site-footer`, home, `product-card`, páginas de categoría | `src/domain/**` (estados del pedido, stock, plata, Pagopar) |
 | `tema` de `tienda.ts`, `src/themes/custom.css`, presets, tipografía, imágenes | checkout y sus rutas API |
+| guías (`src/content/guias/`) y sus páginas (`src/app/guias/**`) | `src/lib/guias.ts`, `src/lib/markdown-guia.ts` |
 | textos y copy | `/admin` completo |
 | | `src/lib/**` (sesión, seguridad, guaraníes) |
 
