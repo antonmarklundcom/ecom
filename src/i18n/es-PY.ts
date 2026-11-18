@@ -77,6 +77,7 @@ export const esPY = {
   "footer.contacto": "Contacto",
   "footer.whatsapp": "WhatsApp {telefono}",
   "footer.seguirPedido": "Seguí tu pedido",
+  "footer.guias": "Guías",
 
   "whatsapp.flotante.label": "Escribinos por WhatsApp",
   "whatsapp.flotante.nav": "Contacto por WhatsApp",
@@ -97,6 +98,22 @@ export const esPY = {
   "home.errorCatalogo": "No pude leer el catálogo:",
   "home.errorCatalogo.ayuda":
     "Levantá la base con docker compose up -d, después pnpm db:push && pnpm db:seed.",
+
+  // Guías (O34): archivos de src/content/guias/, docs/GUIAS.md.
+  "home.guias": "Guías",
+  "home.guias.verTodas": "Ver todas las guías →",
+  "guias.titulo": "Guías",
+  "guias.metaDescripcion": "Guías de {tienda} para elegir mejor antes de comprar.",
+  "guias.intro": "Lo que conviene saber antes de elegir.",
+  "guias.actualizada": "Actualizada el {fecha}",
+  "guias.borrador": "Borrador: no se ve en producción.",
+  "guias.categorias": "Categorías de esta guía",
+  "guias.productos": "Productos de esta guía",
+  "guias.preguntas": "Preguntas frecuentes",
+  "guias.fuentes": "Fuentes",
+  "guias.relacionadas": "Guías relacionadas",
+  "guias.dudaWhatsApp": "¿Te quedó una duda? Consultanos por WhatsApp",
+  "guias.consultaWhatsApp": "¡Hola! Leí la guía “{titulo}” y tengo una consulta.",
 
   // -------------------------------------------------------------------------
   // Catálogo: fichas, precios, stock

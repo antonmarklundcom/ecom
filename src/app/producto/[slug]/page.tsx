@@ -13,6 +13,8 @@ import {
   type GalleryImage,
 } from "@/components/product-gallery";
 import { CatalogueEditorial } from "@/components/catalogue-editorial";
+import { GuiaRelacionadas } from "@/components/guia-relacionadas";
+import { guiasDeProducto } from "@/lib/guias";
 import { CATALOGUE } from "@/config/catalogue";
 import { getProductSlugRedirect } from "@/domain/product-slugs";
 import { variantUrl } from "@/lib/variant-url";
@@ -550,6 +552,7 @@ export default async function ProductPage({
         </section>
       ) : null}
       <CatalogueEditorial content={CATALOGUE.products[product.slug]} />
+      <GuiaRelacionadas guias={guiasDeProducto(product.slug)} />
       <Link
         href={`/comparar?p=${encodeURIComponent(product.slug)}`}
         className="mt-6 inline-block underline"

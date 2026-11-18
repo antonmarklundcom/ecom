@@ -767,3 +767,45 @@ describe("template:sync y la historia de migraciones", () => {
     expect(leer(tienda, "drizzle/meta/_journal.json")).toContain("0001_tienda");
   });
 });
+
+describe("src/content/ es de la tienda (O34: las guías)", () => {
+  it("una tienda con sus guías sobrevive template:sync intacta: nada se pisa ni se borra", () => {
+    const { template, tienda } = armarEscenario();
+
+    // El template trae el README de la carpeta; la tienda lo tiene igual
+    // (sin tocar) y además sus guías.
+    escribir(template, "src/content/guias/README.md", "readme v1\n");
+    commit(template, "C2 README de guías");
+    escribir(tienda, "src/content/guias/README.md", "readme v1\n");
+    escribir(tienda, "src/content/guias/mi-guia.md", "---\ntitulo: Mía\n---\nde la tienda\n");
+    escribir(tienda, "src/content/guias/mismo-nombre.md", "la de la tienda\n");
+    commit(tienda, "Guías de la tienda");
+    expect(ejecutarSync(tienda, OPCIONES).estado).toBe("completado");
+
+    // El template cambia su README, agrega una guía con el mismo nombre que
+    // una de la tienda y un archivo que la tienda no tiene.
+    escribir(template, "src/content/guias/README.md", "readme v2\n");
+    escribir(template, "src/content/guias/mismo-nombre.md", "la del template\n");
+    escribir(template, "src/content/guias/nuevo.md", "nuevo del template\n");
+    commit(template, "C3 contenido del template");
+    const primera = ejecutarSync(tienda, OPCIONES);
+    expect(primera.estado).toBe("completado");
+
+    expect(leer(tienda, "src/content/guias/README.md")).toBe("readme v1\n");
+    expect(leer(tienda, "src/content/guias/mi-guia.md")).toBe(
+      "---\ntitulo: Mía\n---\nde la tienda\n"
+    );
+    expect(leer(tienda, "src/content/guias/mismo-nombre.md")).toBe("la de la tienda\n");
+    // Lo que la tienda no tiene llega (no pisa nada).
+    expect(leer(tienda, "src/content/guias/nuevo.md")).toBe("nuevo del template\n");
+
+    // El template borra su README: el de la tienda queda.
+    gitEn(template, ["rm", "-q", "src/content/guias/README.md"]);
+    commit(template, "C4 sin README");
+    const segunda = ejecutarSync(tienda, OPCIONES);
+    expect(["completado", "sin-cambios"]).toContain(segunda.estado);
+    expect(existe(tienda, "src/content/guias/README.md")).toBe(true);
+    expect(existe(tienda, "src/content/guias/mi-guia.md")).toBe(true);
+    expect(gitEn(tienda, ["status", "--porcelain"]).trim()).toBe("");
+  });
+});

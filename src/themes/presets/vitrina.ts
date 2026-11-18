@@ -19,7 +19,7 @@ export const vitrina = extenderTema(TEMA_BASE, {
   fuentes: "Playfair Display (títulos) + DM Sans (cuerpo)",
   header: "centrado",
   footer: "compacto",
-  home: ["hero", "destacados", "categorias"],
+  home: ["hero", "destacados", "categorias", "guias"],
   tokens: {
     radio: "0.375rem",
     claro: {

@@ -2,7 +2,8 @@ import type { MetadataRoute } from "next";
 
 import { getSitemapEntries } from "@/db/queries";
 import { paginasActivas } from "@/lib/paginas";
-import { buildSitemap } from "@/lib/seo";
+import { guiasPublicadas } from "@/lib/guias";
+import { buildSitemap, guiasSitemap } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 
 /**
@@ -26,11 +27,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // la tienda sirve en ese momento.
   const pages = (await paginasActivas()).map((pagina) => pagina.slug);
 
+  // Las guías son archivos (O34): no dependen de la base. Sin guías
+  // publicadas, ninguna entrada.
+  const guias = guiasSitemap(origin, guiasPublicadas());
+
   try {
-    return buildSitemap(origin, { ...(await getSitemapEntries()), pages });
+    return [
+      ...buildSitemap(origin, { ...(await getSitemapEntries()), pages }),
+      ...guias,
+    ];
   } catch {
     // La base caída no puede tumbar el sitio: al menos la home se publica, y
     // el crawler vuelve en el próximo revalidate.
-    return buildSitemap(origin, { categories: [], products: [], pages });
+    return [
+      ...buildSitemap(origin, { categories: [], products: [], pages }),
+      ...guias,
+    ];
   }
 }

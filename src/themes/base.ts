@@ -20,7 +20,7 @@ export const TEMA_BASE: Tema = {
     "Geist / Geist Mono (las de `src/app/layout.tsx`, no hay que tocar nada)",
   header: "clasico",
   footer: "columnas",
-  home: ["hero", "categorias", "destacados"],
+  home: ["hero", "categorias", "destacados", "guias"],
   legado: "neutro",
   tokens: {
     radio: "0.625rem",
