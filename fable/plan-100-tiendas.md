@@ -7,6 +7,11 @@ may start earlier.
 only what is very hard"); `fable/plan-trafico.md`; `fable/plan-2026-11.md` §5.3, §8 Q5 and §10;
 `docs/decisions/0001-hosting.md`; `docs/log/o28.md`, `docs/log/o31.md`; a read of the code on
 `dbebe01` (§2.2).
+**Pace (Anton, 2026-11-18): "we will start with a few stores, not 100."** With two Hostinger
+accounts of 10 Node.js apps each, one app per store covers 20 stores at no extra cost. So: after
+`v2.1.0`, only E1 (a store is data), E3 (leads) and E4 (supplier sources) are candidates to start,
+each on Anton's go. **E7, E8, E9, E10 (fleet part) and E12 are parked** until the stores pass
+about 15 or Anton asks. No VPS and no new hosting is bought for this plan before then.
 **Status of the main idea (§1.1):** proposed. Phases E1–E6 and E11 are worth doing whatever Anton
 answers; E8–E10 and E12 are not started before he says yes to §8 Q1 with E6's numbers in hand.
 
@@ -230,9 +235,10 @@ what the plan allows (Node apps, databases, connections per database user, proce
 whether several domains can reach **one** Node app on Hostinger with the host name intact and a
 certificate each, and how many; the same for a VPS; price of each shape at 10, 30 and 100 stores.
 Every number has its source (a command's output, a Hostinger page with its date, or Anton's panel).
-Output `docs/decisions/0002-flota.md`: three options side by side — (a) fleet app on Hostinger
-with added domains, (b) fleet app on a VPS, (c) one app per store with a shorter checklist — and a
-recommendation. Anton decides (§8 Q1).
+Output `docs/decisions/0002-flota.md`: four options side by side — (a) fleet app on Hostinger
+with added domains, (b) fleet app on a VPS, (c) one app per store with a shorter checklist, (d)
+fleet app on Cloudflare Workers keeping MySQL (Anton asked on 2026-11-18 whether Cloudflare could
+be the better host; it is evaluated here with facts, not built) — and a recommendation. Anton decides (§8 Q1).
 
 ### 5.7 E7 — design of "one process, many stores" (Fable, Anton's window)
 §2.2. Experiments on a throwaway branch, then `docs/decisions/0003-multi-tienda.md`: the mechanism
