@@ -1,6 +1,7 @@
-# Phase O35 — search appearance and the two content tools. Opus 5.5 session (`claude-opus-5-5`). After O34.
+# Phase O35 — search appearance and the two content tools. Opus 5.5 session (`claude-opus-5-5`). Starts when O32 is on `main`; may run beside O33 and O34.
 - Read ONLY: this file; `fable/plan-trafico.md` §1, §2.4, §4, §5.4 and the phase table;
-  `fable/plan-2026-11.md` §4; `CLAUDE.md`; `docs/log/o32.md`, `docs/log/o34.md`; `src/lib/seo.ts`,
+  `fable/plan-2026-11.md` §4; `CLAUDE.md`; `docs/log/o32.md` (must be on `main`: this phase uses its mode function), `docs/log/o34.md` if
+  it is on `main`; `src/lib/seo.ts`,
   `src/app/producto/[slug]/page.tsx` (metadata and the structured data call), `src/lib/product-feed.ts`,
   `src/domain/supplier-offers.ts`, `src/lib/proveedores.ts`, `src/components/stock-badge.tsx`,
   `src/app/categoria/[slug]/page.tsx` (metadata), `src/lib/paginas.ts`, `tests/unit/seo.test.ts`,
@@ -12,6 +13,13 @@
   their tests and fixtures, `CHANGELOG.md`, `docs/log/o35.md`.
 ### Rules
 - Branch from the brief, off latest `main`. Gate and reporting: plan §4.
+- **Other phases run at the same time** (plan §4.10). Keep your edits to shared files small and
+  in a place of their own: new i18n keys next to related ones, not appended at the end; one bullet
+  in `CHANGELOG.md` starting with your phase id. You do not merge your PR: the manager does.
+- O34 adds guide entries to the same sitemap and `src/lib/seo.ts`. If it is not on `main` yet, add
+  your entries as their own function and block; `docs/SEO.md` describes guides from plan §2.3 and
+  `seo:auditar` skips the guide checks when `src/lib/guias.ts` does not exist yet, with a test for
+  both cases.
 - Availability is decided once, on the server, by the function of plan §2.4. The product page's
   visible line and `productJsonLd` receive its result; neither recomputes it. No supplier field
   (name, cost, stock number, date) is sent to the browser: a test renders the page with
@@ -34,7 +42,9 @@
 - Plan §5.4 "Exit", every line.
 - The structured data of an enquiry product with a shown price validates as `Product` with one
   `Offer` (price, `PYG`, back order, URL); pasted into the log as one JSON block.
-- Gate green locally and on GitHub; PR merged with a merge commit; `docs/log/o35.md` committed and
-  its line added to plan §9.
+- Gate green locally and on GitHub on the PR's last commit; `docs/log/o35.md` committed on the
+  branch with its line for plan §9. **Do not merge.** Report to the manager and end the turn. If the
+  manager later writes that `main` moved: merge `origin/main` into the branch (main wins on
+  conflict, re-apply your change), run the gate again, push, wait for CI, report again.
 ## After this phase
 Report to the manager (plan §4.5) and end. Start no session. Never use Fable.

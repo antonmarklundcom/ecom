@@ -1,4 +1,4 @@
-# Phase O36 — proof and release v2.1.0. Opus 5.5 session (`claude-opus-5-5`). After O35. Last template phase.
+# Phase O36 — proof and release v2.1.0. Opus 5.5 session (`claude-opus-5-5`). After O32–O35 are all on `main`. Last template phase.
 - Read ONLY: this file; `fable/plan-trafico.md` §1, §4, §5.5 and the phase table;
   `fable/plan-2026-11.md` §1 item 6 and §4; `CLAUDE.md`; `docs/log/o32.md` … `o35.md`;
   `docs/log/o23.md` (how the harness was used); `fable/harness-tiendas/README.md`;
