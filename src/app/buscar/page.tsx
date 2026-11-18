@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
+import { after } from "next/server";
 
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
 import { getCategories, searchProducts } from "@/db/queries";
+import { registrarBusqueda } from "@/domain/consultas";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
@@ -26,6 +29,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const categories = results.length === 0 ? await getCategories().catch(() => []) : [];
   const { vidriera } = await getStoreSettings();
   const modoVenta = await modoVentaEfectivo();
+
+  // O33: una búsqueda por request de la página de resultados, después de
+  // responder (`after`). Ni robots ni prefetch; ni teléfonos ni e-mails
+  // (`src/domain/consultas.ts`). Nunca tira.
+  if (term.length >= 2) {
+    const pedido = await headers();
+    after(() =>
+      registrarBusqueda({ termino: term, resultados: results.length, headers: pedido })
+    );
+  }
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">

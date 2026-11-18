@@ -256,3 +256,12 @@ export const STOCK_ALERT_PHONE_WINDOW_MS = 24 * 60 * 60 * 1000;
  */
 export const REVIEW_IP_LIMIT = 10;
 export const REVIEW_IP_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * El beacon de "Consultar por WhatsApp" (O33, `/api/consulta`). Un clic por
+ * persona cada tanto es lo normal; treinta por minuto desde una IP ya es un
+ * script inflando el conteo. Lo que pasa el límite no se cuenta y la ruta
+ * igual contesta 204: la IP se usa acá, en memoria, y no se guarda nunca.
+ */
+export const CONSULTA_LIMIT = 30;
+export const CONSULTA_WINDOW_MS = 60 * 1000;

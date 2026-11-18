@@ -14,6 +14,14 @@
 - Store "Este": created from `main` the way NEW-STORE.md "En una página" says, `--modo consulta`.
   Store "Norte": cart mode, baseline `v2.0.1`, then `pnpm template:sync` to `main`.
 - Never push a tag, never dispatch `distribuir.yml`, never open a PR in a real store.
+- **First step, before the harness: the Next.js advisory.** O32 and O34 both saw `next build` stop
+  once with a "SecurityFatalError" advisory notice for the installed Next 16.4.3 (their logs).
+  Read the notice's full text and the advisory it names. If a 16.4.x patch release fixes it, bump
+  `next` (and what must move with it) to that patch only, no minor or major, in its own commit;
+  the whole gate and the harness then run on the bumped version. If no patch fixes it, or the fix
+  needs a minor or major upgrade, change nothing and write what you found to
+  `docs/decisions-needed.md`. Either way the log quotes the notice and says what was done. `package.json`,
+  `pnpm-lock.yaml` and `pnpm-workspace.yaml` are yours for this step only.
 - Follow the document you are proving. Where NEW-STORE.md is wrong or a step is missing, fix the
   document and note it; do not work around it silently.
 ### Exit

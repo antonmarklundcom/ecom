@@ -700,6 +700,8 @@ export const esPY = {
   "wa.resumen.stockBajoLinea": "· {producto} ({etiqueta}) — quedan {quedan}",
   "wa.resumen.ayer": "Ayer: {n} pedidos, {total}",
   "wa.resumen.ayerSinVentas": "Ayer no hubo ventas.",
+  // O33 · clics en "Consultar por WhatsApp" de ayer (sólo si hubo).
+  "wa.resumen.consultasAyer": "Consultas por WhatsApp ayer: {n}",
 
   // == O6 · avisame cuando haya stock ==
   "wa.stock.disponible":
@@ -1071,6 +1073,7 @@ export const esPY = {
   "panel.nav.clientes": "Clientes",
   "panel.nav.cupones": "Cupones",
   "panel.nav.actividad": "Actividad",
+  "panel.nav.consultas": "Consultas",
   "panel.nav.categorias": "Categorías",
   "panel.nav.envios": "Envíos",
   "panel.nav.banco": "Banco",
@@ -1723,6 +1726,34 @@ export const esPY = {
   "panel.actividad.nota": "nota interna",
   "panel.actividad.masNuevos": "← Más nuevos",
   "panel.actividad.masViejos": "Más viejos →",
+
+  // == O33 · /admin/consultas ==
+  "panel.consultas.meta": "Consultas",
+  "panel.consultas.titulo": "Consultas y búsquedas",
+  "panel.consultas.bajada":
+    "Cuántas veces tocaron «Consultar por WhatsApp» y qué buscan en la tienda. Son cantidades por día: no se guarda nada de nadie. Las vistas de cada producto están en Google Analytics.",
+  "panel.consultas.csv": "Descargar CSV (90 días)",
+  "panel.consultas.productos": "Productos más consultados",
+  "panel.consultas.vacio":
+    "Todavía nadie tocó «Consultar por WhatsApp». Los clics aparecen acá al día siguiente o al recargar.",
+  "panel.consultas.col.producto": "Producto",
+  "panel.consultas.col.d7": "7 días",
+  "panel.consultas.col.d30": "30 días",
+  "panel.consultas.col.d90": "90 días",
+  "panel.consultas.borrado": "Producto borrado",
+  "panel.consultas.sinProducto": "Sin producto (botón flotante, contacto, guías)",
+  "panel.consultas.origenes": "De dónde vienen (30 días)",
+  "panel.consultas.origen.producto": "Ficha del producto",
+  "panel.consultas.origen.tarjeta": "Tarjeta del catálogo",
+  "panel.consultas.origen.flotante": "Botón flotante",
+  "panel.consultas.origen.guia": "Guías",
+  "panel.consultas.origen.contacto": "Página de contacto",
+  "panel.consultas.terminos": "Lo más buscado (30 días)",
+  "panel.consultas.terminos.vacio": "Todavía no hay búsquedas.",
+  "panel.consultas.sinResultado": "Búsquedas sin resultado (30 días)",
+  "panel.consultas.sinResultado.ayuda":
+    "Lo que la gente quiere y la tienda no muestra: un producto que falta o un nombre distinto al que usa la gente.",
+  "panel.consultas.sinResultado.vacio": "Ninguna búsqueda quedó sin resultado.",
 
   "panel.porCobrar.meta": "Por cobrar",
   "panel.porCobrar.volver": "← Pedidos",

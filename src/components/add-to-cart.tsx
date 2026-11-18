@@ -10,6 +10,7 @@ import { PriceTag } from "@/components/price-tag";
 import { Button } from "@/components/ui/button";
 import { VariantInquiryLink } from "@/components/variant-inquiry-link";
 import { useCart } from "@/lib/cart-store";
+import { atributosConsulta } from "@/lib/consulta-click";
 import { isChargeablePrice } from "@/lib/money";
 import { sendFunnelEvent } from "@/lib/funnel";
 import { recallVariant, rememberVariant } from "@/lib/variant-memory";
@@ -267,6 +268,8 @@ export function AddToCart({
               productName={product.name}
               variantLabel={selected.label}
               sku={selected.sku}
+              productId={product.id}
+              variantId={selected.id}
               productUrl={
                 productUrl && selected
                   ? variantUrl(productUrl, selected.sku)
@@ -283,6 +286,11 @@ export function AddToCart({
           target="_blank"
           rel="noopener noreferrer"
           data-testid={TESTIDS.variantInquiryLink}
+          {...atributosConsulta("producto", {
+            productId: product.id,
+            variantId: selected.id,
+            sku: selected.sku,
+          })}
           className="inline-flex rounded-lg border px-4 py-3"
         >
           {t("producto.consultarWhatsApp")}

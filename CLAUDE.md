@@ -30,7 +30,10 @@ leé:
   v2.1.0** viene `fable/plan-100-tiendas.md` (fases E1–E12: la tienda como
   datos, temas, leads, fuentes de proveedor, control de contenido, y una
   "flota" de tiendas sin repo servidas por una sola app; la idea central espera
-  el sí de Anton, §8 Q1). La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
+  el sí de Anton, §8 Q1). **En paralelo** (2026-11-18) se construye una versión
+  hecha para Cloudflare en otro repo, `antonmarklundcom/ecom-cf`: su plan y sus
+  prompts nacen acá, en `fable/cf/`, y ese repo no vuelve a `ecom` ni cambia
+  `docs/decisions/0001-hosting.md`. La próxima revisión sale de `fable/PROMPT.md`. `fable/` sólo existe
   en el template: una tienda no lo tiene (`pnpm nueva-tienda` lo borra).
 - **fable/plan-operacion.md** — la tienda después del lanzamiento (tracking, notas,
   remito, resumen diario, backups, panel, vidriera, CI, distribución a las tiendas).

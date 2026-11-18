@@ -15,6 +15,7 @@ import {
 } from "./admin-products";
 import { getStoreSettings } from "./store-settings";
 import { umbralStockBajo } from "./store-settings-schema";
+import { consultasDelDia, diaPY } from "./consultas";
 import type { Executor } from "./executor";
 import { resolveMessageSender, type MessageSender } from "./messaging";
 import { withTimeout } from "./notify-timing";
@@ -101,6 +102,8 @@ export type DailyDigest = {
   stockBajo: LowStockVariant[];
   /** Lo vendido ayer, día calendario de Asunción. */
   ayer: { totalPyg: number; orders: number };
+  /** Clics en "Consultar por WhatsApp" de ayer (O33). */
+  consultasAyer: number;
   /** `true` cuando las cuatro secciones están vacías. */
   sinNovedades: boolean;
 };
@@ -130,7 +133,7 @@ export async function buildDailyDigest(
   );
   const limiteSinPagar = new Date(now.getTime() - SIN_PAGAR_HORAS * 3600_000);
 
-  const [comprobantes, viejos, ventasAyer, stockBajo] = await Promise.all([
+  const [comprobantes, viejos, ventasAyer, stockBajo, consultasAyer] = await Promise.all([
     tx
       .select({ n: count() })
       .from(orders)
@@ -177,6 +180,7 @@ export async function buildDailyDigest(
         tx
       )
     ),
+    consultasDelDia(diaPY(inicioDeAyer), tx),
   ]);
 
   const comprobantesPendientes = comprobantes[0]?.n ?? 0;
@@ -195,13 +199,15 @@ export async function buildDailyDigest(
     sinPagar,
     stockBajo,
     ayer,
+    consultasAyer,
     // Las ventas de ayer **no** cuentan para "sin novedades": un día sin
     // ventas es una novedad, y de las importantes.
     sinNovedades:
       comprobantesPendientes === 0 &&
       sinPagar.length === 0 &&
       stockBajo.length === 0 &&
-      ayer.orders === 0,
+      ayer.orders === 0 &&
+      consultasAyer === 0,
   };
 }
 
@@ -261,6 +267,10 @@ export function digestBody(digest: DailyDigest): string {
     );
   } else {
     lineas.push(t("wa.resumen.ayerSinVentas"));
+  }
+
+  if (digest.consultasAyer > 0) {
+    lineas.push(t("wa.resumen.consultasAyer", { n: digest.consultasAyer }));
   }
 
   return lineas.join("\n");

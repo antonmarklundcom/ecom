@@ -5,6 +5,7 @@ item by deleting it in the PR that acts on it.
 
 ## Answered
 
+- Cloudflare (2026-11-18): Anton wants the shop built for Cloudflare on his Workers Paid plan, in a new repo `antonmarklundcom/ecom-cf` (`fable/cf/plan-ecom-cf.md`, manager prompt `fable/cf/MANAGER.md`). `docs/decisions/0001-hosting.md` stays true for `ecom`; nothing from `ecom-cf` is merged back. The many-stores phases of `fable/plan-100-tiendas.md` (E6–E10, E12) wait for what that build shows. The four Hostinger store builds of `fable/plan-trafico.md` are not started until Anton says.
 - Traffic first (2026-11-18, `fable/plan-trafico.md` §1): no store has stock; every product is "consultar por WhatsApp"; card payment stays off; the template is finished and tagged `v2.1.0` (O32–O36) before any store work.
 - lenceria (2026-11-18): rebuilt as a new repo `antonmarklundcom/lenceria.tienda` (`fable/plan-trafico.md` §6.4), not by adopting the template's history in the old repo. Item 2 below now applies to mascota only.
 - Availability told to Google for a product not sold from the store's own stock (2026-11-18): back order; in stock only with own stock or a supplier stock confirmed in the last 7 days (`fable/plan-trafico.md` §2.4).

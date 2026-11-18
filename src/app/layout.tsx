@@ -10,6 +10,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { StorefrontShell } from "@/components/storefront-shell";
 import { WhatsAppFab } from "@/components/whatsapp-fab";
+import { ContadorConsultas } from "@/components/contador-consultas";
 import { Toaster } from "@/components/ui/sonner";
 import { getStoreSettings } from "@/domain/store-settings";
 import { linkSeguro } from "@/domain/store-settings-schema";
@@ -149,6 +150,8 @@ export default async function RootLayout({
               <SiteFooter />
               <CartSheet />
               <WhatsAppFab />
+              {/* O33: cuenta los clics en links con `data-consulta`. */}
+              <ContadorConsultas />
               <Analytics />
             </>
           }
