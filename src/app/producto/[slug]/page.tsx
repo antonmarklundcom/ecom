@@ -35,6 +35,7 @@ import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
 import { analyticsActivo } from "@/lib/analytics";
 import { waLinkPublico, whatsappPublico } from "@/lib/comercio";
+import { atributosConsulta } from "@/lib/consulta-click";
 import {
   OG_IMAGE_SIZE,
   productImageSources,
@@ -478,6 +479,7 @@ export default async function ProductPage({
               href={waHref}
               target="_blank"
               rel="noopener noreferrer"
+              {...atributosConsulta("producto", { productId: product.id })}
               className="text-muted-foreground hover:text-foreground mt-4 inline-block text-sm underline"
             >
               {t("producto.dudaWhatsApp")}
@@ -624,6 +626,7 @@ export default async function ProductPage({
           name={product.name}
           price={null}
           consulta={consultaPorSku}
+          productId={product.id}
         />
       ) : null}
 

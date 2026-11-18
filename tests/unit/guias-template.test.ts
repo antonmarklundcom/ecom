@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -61,5 +62,38 @@ describe("las guías y el modo de venta (O32)", () => {
     expect(tarjetas.length).toBeGreaterThan(0);
     for (const tarjeta of tarjetas) expect(tarjeta).toMatch(/modoVenta=\{modoVenta\}/);
     expect(fuente).toMatch(/modoVentaEfectivo\(\)/);
+  });
+});
+
+describe("las guías y el contador de consultas (O33)", () => {
+  /** Todo lo que dibujan las guías: sus páginas y sus componentes. */
+  function fuentesDeGuias(): { archivo: string; fuente: string }[] {
+    const archivos: string[] = [];
+    const recorrer = (carpeta: string): void => {
+      for (const entrada of readdirSync(carpeta, { withFileTypes: true })) {
+        const ruta = join(carpeta, entrada.name);
+        if (entrada.isDirectory()) recorrer(ruta);
+        else if (entrada.name.endsWith(".tsx")) archivos.push(ruta);
+      }
+    };
+    recorrer("src/app/guias");
+    for (const nombre of readdirSync("src/components")) {
+      if (/^guia-.*\.tsx$/.test(nombre)) archivos.push(join("src/components", nombre));
+    }
+    return archivos.map((archivo) => ({ archivo, fuente: readFileSync(archivo, "utf8") }));
+  }
+
+  it("todo link de WhatsApp de las guías lleva atributosConsulta(\"guia\")", () => {
+    let links = 0;
+    for (const { archivo, fuente } of fuentesDeGuias()) {
+      // Cada <a …> cuyo href es un link de WhatsApp (wa.me o el waHref de la página).
+      for (const [ancla] of fuente.matchAll(/<a\b[^>]*>/g)) {
+        if (!/wa\.me|waHref|whatsapp/i.test(ancla)) continue;
+        links += 1;
+        expect(ancla, archivo).toMatch(/\{\.\.\.atributosConsulta\("guia"\)\}/);
+      }
+    }
+    // La página de una guía tiene uno; si desaparece, este test no protege nada.
+    expect(links).toBeGreaterThan(0);
   });
 });

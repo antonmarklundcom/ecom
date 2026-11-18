@@ -34,7 +34,7 @@ test("every admin section loads, has an active icon link, and excludes shopping 
   const routes = await menu
     .getByRole("link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href")!));
-  expect(routes).toHaveLength(15);
+  expect(routes).toHaveLength(16);
   for (const route of routes) {
     const response = await page.goto(route);
     expect(response?.status(), route).toBe(200);

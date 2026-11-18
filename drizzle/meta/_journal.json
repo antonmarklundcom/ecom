@@ -183,6 +183,13 @@
       "when": 1793764066332,
       "tag": "0025_dear_arachne",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1795032813173,
+      "tag": "0026_tan_jubilee",
+      "breakpoints": true
     }
   ]
 }

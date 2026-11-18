@@ -46,6 +46,8 @@ export const publicCatalogs: Record<string, Record<string, string>> = {
     "guias.preguntas": "Preguntas frecuentes",
     "guias.fuentes": "Fuentes",
     "guias.relacionadas": "Guías relacionadas",
+    "guias.dudaWhatsApp": "¿Te quedó una duda? Consultanos por WhatsApp",
+    "guias.consultaWhatsApp": "¡Hola! Leí la guía “{titulo}” y tengo una consulta.",
     "catalogo.productos.uno": "{n} producto",
     "catalogo.productos.varios": "{n} productos",
     "catalogo.opciones": "{n} opciones",

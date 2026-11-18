@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { ENQUIRY_ORIGINS } from "@/lib/consulta-click";
 import type {
   ProductSpecifications,
   SupplierDetails,
@@ -8,6 +9,7 @@ import type {
 import {
   bigint,
   boolean,
+  date,
   datetime,
   index,
   int,
@@ -1623,6 +1625,64 @@ export const notificationOutbox = mysqlTable(
   ]
 );
 
+/**
+ * Consultas por WhatsApp y búsquedas, contadas por día (O33,
+ * `fable/plan-trafico.md` §2.2). Lo que ve `/admin/consultas`.
+ *
+ * **Sin datos de nadie, y es una regla con test**
+ * (`tests/unit/consultas-privacidad.test.ts`): ninguna columna puede guardar
+ * una IP, un user agent, una cookie, un teléfono, un e-mail ni el texto del
+ * mensaje. Una fila es "este día, este producto, desde este botón: N clics".
+ *
+ * `day` es el día **paraguayo** (`pyDateInputValue`), como texto `YYYY-MM-DD`.
+ *
+ * `product_id` / `variant_id` usan **0** para "sin producto" (el botón
+ * flotante, la página de contacto) y no NULL: un índice UNIQUE de MySQL deja
+ * pasar dos filas con NULL en la misma clave, y el upsert dejaría de sumar
+ * para crear filas repetidas. Por eso tampoco hay FK: un producto que se
+ * borra deja sus conteos viejos, que el panel muestra como "producto borrado".
+ */
+export const enquiryDaily = mysqlTable(
+  "enquiry_daily",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    day: date("day", { mode: "string" }).notNull(),
+    productId: int("product_id", { unsigned: true }).notNull().default(0),
+    variantId: int("variant_id", { unsigned: true }).notNull().default(0),
+    origin: mysqlEnum("origin", ENQUIRY_ORIGINS).notNull(),
+    count: int("count", { unsigned: true }).notNull().default(0),
+  },
+  (table) => [
+    unique("enquiry_daily_key_uq").on(
+      table.day,
+      table.productId,
+      table.variantId,
+      table.origin
+    ),
+    index("enquiry_daily_product_idx").on(table.productId, table.day),
+  ]
+);
+
+/**
+ * Lo que la gente busca en `/buscar`, por día. `term` es el término
+ * normalizado (`normalizarTermino` en `src/domain/consultas.ts`): minúsculas,
+ * espacios colapsados, recortado. Un término con siete dígitos seguidos o con
+ * `@` —un teléfono, un e-mail— no se guarda nunca.
+ */
+export const searchDaily = mysqlTable(
+  "search_daily",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    day: date("day", { mode: "string" }).notNull(),
+    term: varchar("term", { length: 80 }).notNull(),
+    zeroResults: boolean("zero_results").notNull().default(false),
+    count: int("count", { unsigned: true }).notNull().default(0),
+  },
+  (table) => [
+    unique("search_daily_key_uq").on(table.day, table.term, table.zeroResults),
+  ]
+);
+
 export const BACKUP_TABLES = [
   "notification_outbox",
   "operation_keys",
@@ -1637,6 +1697,9 @@ export const BACKUP_TABLES = [
   "shipping_zones",
   "shipping_methods",
   "payment_events",
+  // O33: conteos diarios sin FK (product_id 0 = sin producto).
+  "enquiry_daily",
+  "search_daily",
   // Cuelgan de las de arriba.
   "bank_details",
   "store_settings",

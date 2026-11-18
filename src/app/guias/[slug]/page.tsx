@@ -9,6 +9,8 @@ import { TIENDA } from "@/config/tienda";
 import { getCategories, getProductsBySlugs, type CatalogProduct } from "@/db/queries";
 import { t } from "@/i18n";
 import { fechaDeGuia, guiaPorSlug, slugsDeGuias } from "@/lib/guias";
+import { waLinkPublico } from "@/lib/comercio";
+import { atributosConsulta } from "@/lib/consulta-click";
 import { log } from "@/lib/log";
 import { marcaEfectiva } from "@/lib/marca";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
@@ -120,7 +122,13 @@ export default async function GuiaPage({ params }: { params: Params }) {
   const origin = siteOrigin();
   // El modo de venta (O32): en "consulta" las tarjetas no ofrecen carrito.
   // Un cambio en el panel tira toda la caché (`revalidarVidriera`).
-  const [marca, modoVenta] = await Promise.all([marcaEfectiva(), modoVentaEfectivo()]);
+  // La consulta por WhatsApp de la guía cuenta con origen "guia" (O33). Sin
+  // WhatsApp público, no hay link.
+  const [marca, modoVenta, waHref] = await Promise.all([
+    marcaEfectiva(),
+    modoVentaEfectivo(),
+    waLinkPublico(t("guias.consultaWhatsApp", { titulo: guia.titulo })),
+  ]);
   const jsonLd = [
     articleJsonLd({
       origin,
@@ -209,6 +217,21 @@ export default async function GuiaPage({ params }: { params: Params }) {
             ))}
           </div>
         </section>
+      ) : null}
+
+      {waHref ? (
+        <p className="mt-10">
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-guia-whatsapp=""
+            {...atributosConsulta("guia")}
+            className="text-muted-foreground hover:text-foreground text-sm underline"
+          >
+            {t("guias.dudaWhatsApp")}
+          </a>
+        </p>
       ) : null}
 
       {guia.fuentes.length > 0 ? (

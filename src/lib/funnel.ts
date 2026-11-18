@@ -89,3 +89,42 @@ export function sendFunnelEventWhenReady(event: FunnelEvent, items: FunnelItem[]
 function medidores(): Medidores {
   return typeof window === "undefined" ? {} : (window as unknown as Medidores);
 }
+
+/**
+ * Una consulta por WhatsApp (O33): GA4 `generate_lead`, Meta `Contact`. La
+ * manda el escuchador de `contador-consultas.tsx` en el mismo clic que el
+ * beacon. Igual que el resto: sin GA4 ni pixel cargados
+ * (`/admin/integraciones`), `gtag`/`fbq` no existen y no se manda nada.
+ * Sin precio a propósito: una consulta no tiene valor en guaraníes todavía.
+ */
+export function leadPayloads(origen: string, sku: string | null) {
+  return {
+    ga4: {
+      lead_source: `whatsapp_${origen}`,
+      ...(sku ? { items: [{ item_id: sku }] } : {}),
+    },
+    meta: {
+      content_name: `whatsapp_${origen}`,
+      ...(sku ? { content_type: "product", content_ids: [sku] } : {}),
+    },
+  };
+}
+
+/** Manda la consulta a lo que esté cargado. `true` si alguno la recibió. */
+export function sendLeadEvent(
+  origen: string,
+  sku: string | null,
+  w: Medidores = medidores()
+): boolean {
+  const { ga4, meta } = leadPayloads(origen, sku);
+  let enviado = false;
+  if (typeof w.gtag === "function") {
+    w.gtag("event", "generate_lead", ga4);
+    enviado = true;
+  }
+  if (typeof w.fbq === "function") {
+    w.fbq("track", "Contact", meta);
+    enviado = true;
+  }
+  return enviado;
+}

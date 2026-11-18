@@ -108,6 +108,28 @@ test.describe("guías de ejemplo", () => {
     );
   });
 
+  test("la consulta por WhatsApp de la guía cuenta con origen guia (O33)", async ({
+    page,
+    context,
+  }) => {
+    // Nada sale de la máquina: wa.me contesta una página vacía.
+    await context.route(/^https:\/\/wa\.me\//, (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<p>wa</p>" })
+    );
+    await page.goto(`/guias/${PRIMERA}`);
+    const link = page.locator("a[data-guia-whatsapp]");
+    await expect(link).toHaveAttribute("href", /^https:\/\/wa\.me\//);
+    await expect(link).toHaveAttribute("data-consulta", "guia");
+
+    const beacon = page.waitForRequest(
+      (request) => request.url().endsWith("/api/consulta") && request.method() === "POST"
+    );
+    const popup = context.waitForEvent("page");
+    await link.click();
+    expect((await beacon).postDataJSON()).toEqual({ o: "guia" });
+    await (await popup).close();
+  });
+
   test("el borrador y un slug que no existe son 404", async ({ request }) => {
     expect((await request.get(`/guias/${BORRADOR}`)).status()).toBe(404);
     expect((await request.get("/guias/no-existe")).status()).toBe(404);
