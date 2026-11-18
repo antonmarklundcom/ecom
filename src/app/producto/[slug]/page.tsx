@@ -57,7 +57,7 @@ import {
 import { siteOrigin } from "@/lib/site-url";
 import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
 import { TESTIDS } from "@/lib/testids";
-import { conModoVenta } from "@/domain/modo-venta";
+import { conModoVenta, propsDeModoVenta } from "@/domain/modo-venta";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { disponibilidadDelProducto } from "@/domain/disponibilidad-proveedor";
 import { proveedoresHabilitados } from "@/lib/proveedores";
@@ -614,7 +614,7 @@ export default async function ProductPage({
           </h2>
           <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
             {related.map((item) => (
-              <ProductCard key={item.id} product={item} modoVenta={modoVenta} />
+              <ProductCard key={item.id} product={item} {...propsDeModoVenta(modoVenta)} />
             ))}
           </div>
         </section>

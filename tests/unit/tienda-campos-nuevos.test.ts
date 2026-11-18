@@ -33,4 +33,14 @@ describe("campos nuevos de TIENDA", () => {
     }
     expect(hallazgos).toEqual([]);
   });
+
+  it("las páginas pasan el modo a ProductCard esparcido, no como atributo", async () => {
+    // Una tarjeta rediseñada antes de v2.1.0 no declara `modoVenta`: el
+    // atributo explícito no le compila, el esparcido sí (propsDeModoVenta).
+    const archivos = await listSourceFiles(["src/app"]);
+    const hallazgos = archivos.filter((archivo) =>
+      /<ProductCard\b[^>]*\bmodoVenta=/.test(stripComments(readFileSync(archivo, "utf8")))
+    );
+    expect(hallazgos).toEqual([]);
+  });
 });

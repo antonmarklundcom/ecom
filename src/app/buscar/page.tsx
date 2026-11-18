@@ -9,6 +9,7 @@ import { getCategories, searchProducts } from "@/db/queries";
 import { registrarBusqueda } from "@/domain/consultas";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
+import { propsDeModoVenta } from "@/domain/modo-venta";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +63,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               product={product}
               priority={index < 4}
               showRating={vidriera.estrellasEnTarjetas}
-              modoVenta={modoVenta}
+              {...propsDeModoVenta(modoVenta)}
             />
           ))}
         </div>

@@ -41,6 +41,20 @@ export function modoVentaDeFabrica(tienda: object): ModoVenta {
   return esModoVenta(valor) ? valor : MODO_VENTA_POR_DEFECTO;
 }
 
+/**
+ * Las props de modo para la tarjeta de producto, para pasarlas **esparcidas**
+ * (`<ProductCard … {...propsDeModoVenta(modo)} />`), nunca como
+ * `modoVenta={modo}`.
+ *
+ * `product-card.tsx` es piel: una tienda que la rediseñó antes de v2.1.0 tiene
+ * una tarjeta sin la prop, y un atributo JSX que la tarjeta no declara no
+ * compila (O36, tienda "Norte" del arnés). Esparcida, TypeScript no la
+ * reclama: esa tarjeta compila y no se entera del modo (NEW-STORE.md §4b-ter).
+ */
+export function propsDeModoVenta(modoVenta: ModoVenta): { modoVenta: ModoVenta } {
+  return { modoVenta };
+}
+
 export type SaleMode = "stock" | "enquiry" | "showcase";
 
 /**

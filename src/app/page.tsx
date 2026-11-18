@@ -13,6 +13,7 @@ import { heroEfectivo } from "@/domain/store-settings-schema";
 import { t } from "@/i18n";
 import { guiasPublicadas } from "@/lib/guias";
 import { log } from "@/lib/log";
+import { propsDeModoVenta } from "@/domain/modo-venta";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { safeError } from "@/lib/safe-error";
 import { temaActivo } from "@/themes";
@@ -134,7 +135,7 @@ async function HomeContent() {
                 product={product}
                 priority={index < 4}
                 showRating={ajustes.vidriera.estrellasEnTarjetas}
-                modoVenta={modoVenta}
+                {...propsDeModoVenta(modoVenta)}
               />
             ))}
           </div>
