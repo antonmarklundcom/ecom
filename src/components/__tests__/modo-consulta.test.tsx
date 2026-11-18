@@ -196,8 +196,8 @@ describe.runIf(pielDelTemplate("src/components/sticky-buy-bar.tsx"))("barra fija
         name="Anillo"
         price={null}
         consulta={{
-          porSku: { "AN-1": "https://wa.me/1?text=uno", "AN-2": "https://wa.me/1?text=dos" },
-          porDefecto: "https://wa.me/1?text=uno",
+          porSku: { "AN-1": "https://chat.example/?text=uno", "AN-2": "https://chat.example/?text=dos" },
+          porDefecto: "https://chat.example/?text=uno",
         }}
       />,
       { container: document.body.appendChild(document.createElement("div")) }
@@ -205,11 +205,11 @@ describe.runIf(pielDelTemplate("src/components/sticky-buy-bar.tsx"))("barra fija
     await act(async () => avisar?.([{ isIntersecting: false }]));
 
     const link = screen.getByTestId(TESTIDS.stickyInquiryLink);
-    expect(link).toHaveAttribute("href", "https://wa.me/1?text=uno");
+    expect(link).toHaveAttribute("href", "https://chat.example/?text=uno");
     window.history.replaceState(null, "", "/producto/anillo?variante=AN-2");
     link.addEventListener("click", (event) => event.preventDefault());
     link.click();
-    expect(link).toHaveAttribute("href", "https://wa.me/1?text=dos");
+    expect(link).toHaveAttribute("href", "https://chat.example/?text=dos");
     expect(screen.queryByRole("button", { name: /comprar/i })).toBeNull();
     vi.unstubAllGlobals();
     window.history.replaceState(null, "", "/");
