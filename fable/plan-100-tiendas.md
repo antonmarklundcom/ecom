@@ -262,6 +262,21 @@ Search Console numbers when connected. Its own login with a second factor. Alert
 existing notifier when a store is down or a backup is older than two days. Own stores report
 through a signed, read-only status route.
 
+**Added 2026-11-18 (Anton: "manage stock, orders and logistics from one login").** The panel is
+also the back office for the fleet, not only a status page:
+- **One login.** A super-admin account that is not a user of any store (its own table in the
+  fleet's registry database, second factor required). Proposed address: `ecom.antonmarklund.com`,
+  a domain of its own pointing at the fleet app, which serves only the panel on that host.
+- **Combined lists across stores**, read from each store's database: orders to prepare and to
+  ship, payments waiting for review, low stock, enquiries and leads, supplier changes waiting for
+  review. Filter by store; export as CSV.
+- **Work inside a store without a second login:** from any row, open that store's own `/admin`
+  already signed in, as the super-admin. Order, stock and money changes are made there, by the
+  code that already makes them; the panel adds no second way to change an order.
+- Every action a super-admin takes inside a store is written to that store's own activity log with
+  the super-admin's name. This is the one exception to §2.2 requirement 6, and it has its own tests.
+- Not included: one stock shared by several stores (§8 Q6).
+
 ### 5.11 E11 — the cost of a release
 For the stores that keep their own repo: measure Actions minutes per store per release; sync PRs
 run the short checks, the full e2e runs on the canary store only; a sync PR of a store with no
@@ -294,7 +309,7 @@ after two gates is paused, not polished.
 
 | # | Input | Needed by |
 |---|---|---|
-| 1 | Which store is live on Hostinger, SSH to that plan, the plan's name and limits as the panel shows them | E6 |
+| 1 | Which store is live on Hostinger, SSH to that plan, the plan's name and limits as the panel shows them. Known from Anton (2026-11-18): two Hostinger accounts, both in Brazil, 10 Node.js apps each, so 20 stores is the ceiling of "one app per store" on what he has | E6 |
 | 2 | Whether a VPS is acceptable if the numbers favour it | E6's recommendation |
 | 3 | Yes or no to §8 Q1 | before E8 |
 | 4 | A go to open the Fable conversation for E7 | E7 |
@@ -318,6 +333,12 @@ after two gates is paused, not polished.
    E12; a store with no custom code (lenceria is the likely one) is cheaper in the fleet.
 4. **One WhatsApp number per store, per group of stores, or one for all.** It decides how E3's
    reference is used and who answers.
+6. **One stock shared by several stores.** Each store has its own stock today, in its own
+   database. If the same physical item is sold in two stores (a Dropi product in productos and in
+   a niche store), a sale in one does not lower the other. Recommended: do not build it now; with
+   no stock anywhere and supplier stock read by E4, the case does not exist yet. If Anton says it
+   will, it is a new phase before selling is switched on in the fleet: one central stock that the
+   stores reserve from.
 5. **Legal:** what Paraguayan law requires an online seller to show, and whether one company can
    stand behind a hundred shop names. A question for Anton's accountant or lawyer; E1 only makes
    room for the answer.
