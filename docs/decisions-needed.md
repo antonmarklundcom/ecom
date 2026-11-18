@@ -5,6 +5,10 @@ item by deleting it in the PR that acts on it.
 
 ## Answered
 
+- Traffic first (2026-11-18, `fable/plan-trafico.md` §1): no store has stock; every product is "consultar por WhatsApp"; card payment stays off; the template is finished and tagged `v2.1.0` (O32–O36) before any store work.
+- lenceria (2026-11-18): rebuilt as a new repo `antonmarklundcom/lenceria.tienda` (`fable/plan-trafico.md` §6.4), not by adopting the template's history in the old repo. Item 2 below now applies to mascota only.
+- Availability told to Google for a product not sold from the store's own stock (2026-11-18): back order; in stock only with own stock or a supplier stock confirmed in the last 7 days (`fable/plan-trafico.md` §2.4).
+- Execution (2026-11-18): one Opus 5.5 cloud session per template phase and one per store, started by the manager (the Fable conversation Anton opened) on Anton's go; Fable builds nothing.
 - Q1: GitHub Actions switched back on for ecom (2026-11-11).
 - Q2: tag v2.0.0: yes (item 1).
 - Q3 / O31: go, productos.com.py moves back onto the template (plan §5.5); start conditions for O31 otherwise unchanged.
