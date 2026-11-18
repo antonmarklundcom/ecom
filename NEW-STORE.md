@@ -220,6 +220,11 @@ es prolijidad: un `SESSION_SECRET` nuevo cierra todas las sesiones del panel, y
 un `CRON_SECRET` nuevo deja al cron de Hostinger llamando con la llave vieja
 hasta que alguien lo mire.
 
+`--modo consulta|carrito` escribe además el modo de venta de fábrica
+(`modoVenta` en `tienda.ts`, §4b-ter). No se pregunta: sin la bandera queda el
+que ya estaba (`carrito` en el template), y `--dry-run` imprime el que
+escribiría.
+
 Sin terminal interactiva (un script, CI) las seis respuestas van por bandera y
 el script falla diciéndolo si falta alguna:
 
@@ -584,6 +589,39 @@ exportan e importan con el flag prendido; apagado, se ignoran con un aviso
 Una tienda creada antes de este flag no tiene el campo en su `tienda.ts`
 (`template:sync` conserva el suyo): compila igual y queda apagado hasta que
 lo agregue.
+
+### 4b-ter. Modo de venta: con carrito o sólo consulta
+
+Una tienda vende de dos maneras (fable/plan-trafico.md §2.1):
+
+- **`carrito`** (el default del template): carrito, checkout y pedidos, como
+  siempre. Cada producto sigue su modo de venta (`stock` se compra,
+  `enquiry` se consulta, `showcase` se muestra).
+- **`consulta`**: la tienda **no toma pedidos**. Cada producto `stock` se
+  comporta como "Sólo consulta" (`enquiry`) en la tarjeta y en la ficha, cuya
+  única acción es el botón de WhatsApp —fijo abajo en el celular— con el
+  producto, la variante, el SKU y el link en el mensaje. Sin carrito en el
+  header, sin "Seguí tu pedido"; `/checkout` y `/pedido/buscar` responden 404
+  y el servidor rechaza el pedido aunque llegue un POST armado a mano
+  (`VentasCerradasError`). Una categoría sin productos muestra su texto y el
+  mismo botón. `/pedido/<n>` sigue andando para un pedido que ya existía.
+
+El default sale de `modoVenta` en `src/config/tienda.ts` (`pnpm nueva-tienda
+--modo consulta` lo escribe); el dueño lo cambia en **`/admin/ajustes` → Modo
+de venta**, sin redeploy. Todo el código decide con `modoVentaEfectivo()` de
+`src/lib/modo-venta.ts` (async), y la regla "stock se consulta" es una sola
+función pura, `saleModeEfectivo()` de `src/domain/modo-venta.ts`.
+
+Lo que el modo **no** hace: no reescribe el `sale_mode` de ningún producto.
+Volver a vender es cambiar el ajuste a "Con carrito", no editar el catálogo
+(antes, cargar stock, banco y envíos: `pnpm preflight` los vuelve a pedir).
+
+En consulta, `pnpm preflight` dice "no aplica" en banco, medios de pago,
+Pagopar, avisos de pedido y formas de entrega, y **bloquea sin un WhatsApp
+público** (`/admin/ajustes` → Contacto o `WHATSAPP_NUMBER`): sin él no queda
+ningún botón para consultar. El resumen del panel tampoco avisa de banco,
+zonas de envío ni precios. Un `tienda.ts` de antes de este campo compila
+igual y queda en `carrito`.
 
 ### 4c. ¿Entrar sin contraseña? (opcional, apagado)
 

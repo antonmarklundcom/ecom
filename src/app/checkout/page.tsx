@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { CheckoutForm } from "@/components/checkout-form";
 import { CheckoutTrust } from "@/components/checkout-trust";
@@ -18,6 +19,7 @@ import { nombreMedioDePago } from "@/lib/paginas";
 import { formatPhonePY } from "@/lib/py";
 import { nombreTienda } from "@/lib/marca";
 import { readyPaymentMethods } from "@/domain/payment-readiness";
+import { tiendaTomaPedidos } from "@/lib/modo-venta";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,9 @@ export const metadata: Metadata = {
 };
 
 export default async function CheckoutPage() {
+  // Modo consulta (`src/lib/modo-venta.ts`): no hay checkout que mostrar.
+  if (!(await tiendaTomaPedidos())) notFound();
+
   const zones = await listShippingZones().catch(() => []);
   const cities = zones
     .flatMap((zone) => zone.cities)

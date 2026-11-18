@@ -34,6 +34,8 @@ funciones nuevas; **parche** para arreglos.
 
 - O33 · Consultas por WhatsApp y búsquedas, contadas por día y sin datos de nadie: cada clic en un link con `data-consulta` manda un `sendBeacon` a `POST /api/consulta` (204 siempre, mismo origen, con límite) y suma en `enquiry_daily`; `/buscar` suma en `search_daily` (sin robots, sin teléfonos ni e-mails, tope de 500 términos nuevos por día). Panel `/admin/consultas` (permiso del resumen, CSV de 90 días), una línea en el resumen diario, las dos tablas en el backup, poda a los 13 meses en el cron de mantenimiento, y `generate_lead` / `Contact` por `src/lib/funnel.ts` cuando GA4 o el pixel están conectados.
 - Las notas de v2.0.0 ahora listan S25 (#168, CSV sin fórmulas y tope al `.xlsx`), que salió en v2.0.0 sin su entrada.
+- **Modo de venta "consulta"** (O32, NEW-STORE.md §4b-ter): `modoVenta` en `tienda.ts` (`carrito` de fábrica) y `/admin/ajustes` → Modo de venta, leído sólo por `modoVentaEfectivo()`. En consulta los productos `stock` se consultan por WhatsApp (botón fijo en el celular), sin carrito ni "Seguí tu pedido", `/checkout` y `/pedido/buscar` en 404 y el pedido rechazado en el servidor; `pnpm preflight` dice "no aplica" en banco, pagos y envíos y bloquea sin WhatsApp público. `pnpm nueva-tienda --modo consulta`. Sin migración: vive en el JSON de `store_settings`. En `carrito` nada cambia.
+- Fábrica (docs/log/o31.md): `TIENDA.marcaBuscable` (opcional) para los guardarraíles de marca; `headerCategoriesTrigger`/`headerMenuTrigger`, la pieza `CategoriasDesplegable` y el helper de e2e `irAPrimeraCategoria()` para headers con desplegable; `distribuir.test.ts` exige "todas pausadas" en vez de una lista fija de repos.
 
 ## v2.0.1 — 2026-11-11
 

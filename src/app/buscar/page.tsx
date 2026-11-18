@@ -9,6 +9,7 @@ import { getCategories, searchProducts } from "@/db/queries";
 import { registrarBusqueda } from "@/domain/consultas";
 import { getStoreSettings } from "@/domain/store-settings";
 import { t, tPlural } from "@/i18n";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const results = term.length >= 2 ? await searchProducts(term) : [];
   const categories = results.length === 0 ? await getCategories().catch(() => []) : [];
   const { vidriera } = await getStoreSettings();
+  const modoVenta = await modoVentaEfectivo();
 
   // O33: una búsqueda por request de la página de resultados, después de
   // responder (`after`). Ni robots ni prefetch; ni teléfonos ni e-mails
@@ -60,6 +62,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               product={product}
               priority={index < 4}
               showRating={vidriera.estrellasEnTarjetas}
+              modoVenta={modoVenta}
             />
           ))}
         </div>

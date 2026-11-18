@@ -8,6 +8,7 @@ import { WishlistHeaderLink } from "@/components/wishlist-header-link";
 import { getCategories } from "@/db/queries";
 import { t } from "@/i18n/client";
 import { marcaEfectiva } from "@/lib/marca";
+import { tiendaTomaPedidos } from "@/lib/modo-venta";
 import { TESTIDS } from "@/lib/testids";
 import { temaActivo } from "@/themes";
 import type { VarianteHeader } from "@/themes/tipos";
@@ -24,12 +25,15 @@ export async function SiteHeader() {
   }
   // Nombre y logo de /admin/ajustes → Identidad, o los de `tienda.ts`.
   const marca = await marcaEfectiva();
+  // Modo consulta (`src/lib/modo-venta.ts`): sin carrito en el header.
+  const conCarrito = await tiendaTomaPedidos();
 
   return (
     <HeaderVariante
       variante={temaActivo().header}
       categories={categories}
       marca={marca}
+      conCarrito={conCarrito}
     />
   );
 }
@@ -41,20 +45,38 @@ export async function SiteHeader() {
  * `data-testid` (`src/lib/testids.ts`) y los specs de `tests/e2e/**` andan
  * con cualquier tema. Una variante nueva se arma con estas piezas, no
  * copiándolas.
+ *
+ * Un header de tienda que guarda las categorías en un desplegable o un menú
+ * lateral marca el botón que lo abre con `TESTIDS.headerCategoriesTrigger`
+ * (o `headerMenuTrigger` si es el menú entero): `irAPrimeraCategoria()` de
+ * `tests/e2e/helpers.ts` lo abre antes de buscar `headerCategoryLink`.
+ *
+ * `conCarrito` (de `tiendaTomaPedidos()`): en modo consulta, `false`, y el
+ * header no dibuja el carrito. Sin el dato, `true`: el de siempre.
  */
 export function HeaderVariante({
   variante,
   categories,
   marca,
+  conCarrito = true,
 }: {
   variante: VarianteHeader;
   categories: readonly Categoria[];
   marca: MarcaHeader;
+  conCarrito?: boolean;
 }) {
   return variante === "centrado" ? (
-    <HeaderCentrado categories={categories} marca={marca} />
+    <HeaderCentrado
+      categories={categories}
+      marca={marca}
+      conCarrito={conCarrito}
+    />
   ) : (
-    <HeaderClasico categories={categories} marca={marca} />
+    <HeaderClasico
+      categories={categories}
+      marca={marca}
+      conCarrito={conCarrito}
+    />
   );
 }
 
@@ -62,9 +84,11 @@ export function HeaderVariante({
 function HeaderClasico({
   categories,
   marca,
+  conCarrito,
 }: {
   categories: readonly Categoria[];
   marca: MarcaHeader;
+  conCarrito: boolean;
 }) {
   return (
     <header
@@ -81,7 +105,10 @@ function HeaderClasico({
           <SearchBox className="ml-auto hidden w-full max-w-sm sm:block" />
         </Suspense>
 
-        <Acciones className="ml-auto flex items-center gap-3 sm:ml-0" />
+        <Acciones
+          className="ml-auto flex items-center gap-3 sm:ml-0"
+          conCarrito={conCarrito}
+        />
       </div>
 
       <MenuCategorias
@@ -101,9 +128,11 @@ function HeaderClasico({
 function HeaderCentrado({
   categories,
   marca,
+  conCarrito,
 }: {
   categories: readonly Categoria[];
   marca: MarcaHeader;
+  conCarrito: boolean;
 }) {
   return (
     <header
@@ -122,7 +151,10 @@ function HeaderCentrado({
           className="text-center text-xl font-semibold tracking-[0.2em] uppercase"
         />
 
-        <Acciones className="flex items-center justify-end gap-3" />
+        <Acciones
+          className="flex items-center justify-end gap-3"
+          conCarrito={conCarrito}
+        />
       </div>
 
       <MenuCategorias
@@ -159,7 +191,13 @@ function MarcaLink({
   );
 }
 
-function Acciones({ className }: { className: string }) {
+function Acciones({
+  className,
+  conCarrito,
+}: {
+  className: string;
+  conCarrito: boolean;
+}) {
   return (
     <div className={className}>
       {/* Devuelve null con `TIENDA.cuentasClientes` apagado: sin el flag,
@@ -168,7 +206,7 @@ function Acciones({ className }: { className: string }) {
         <CuentaHeaderEntry />
       </Suspense>
       <WishlistHeaderLink />
-      <CartButton />
+      {conCarrito ? <CartButton /> : null}
     </div>
   );
 }
@@ -221,6 +259,57 @@ function MenuCategorias({
         ))}
       </div>
     </nav>
+  );
+}
+
+/**
+ * Las categorías en un desplegable, para el header de una tienda que no
+ * quiere la tira de categorías siempre a la vista. Sin JS (`<details>`), con
+ * el mismo `headerCategoryLink` en cada link y `headerCategoriesTrigger` (o
+ * `headerMenuTrigger`, con `como="menu"`) en el botón: así los specs de
+ * `tests/e2e/**` lo abren solos (`irAPrimeraCategoria()`). Ninguna variante
+ * del template lo usa; es una pieza para armar la propia.
+ */
+export function CategoriasDesplegable({
+  categories,
+  etiqueta,
+  como = "categorias",
+  className,
+}: {
+  categories: readonly Categoria[];
+  etiqueta?: string;
+  como?: "categorias" | "menu";
+  className?: string;
+}) {
+  return (
+    <details className={className ?? "relative"}>
+      <summary
+        data-testid={
+          como === "menu"
+            ? TESTIDS.headerMenuTrigger
+            : TESTIDS.headerCategoriesTrigger
+        }
+        className="cursor-pointer list-none text-sm font-medium"
+      >
+        {etiqueta ?? t("header.categorias")}
+      </summary>
+      <nav
+        aria-label={t("header.categorias")}
+        className="border-border bg-background absolute z-40 mt-2 grid min-w-48 gap-2 rounded-lg border p-3 text-sm shadow-md"
+      >
+        {categories.map((category) => (
+          <Link
+            key={category.id}
+            href={`/categoria/${category.slug}`}
+            data-testid={TESTIDS.headerCategoryLink}
+            data-slug={category.slug}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {category.name}
+          </Link>
+        ))}
+      </nav>
+    </details>
   );
 }
 

@@ -1,5 +1,8 @@
 "use server";
 
+import { conModoVenta } from "@/domain/modo-venta";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
+
 import { z } from "zod";
 
 import { getProductsBySlugs, type CatalogProduct } from "@/db/queries";
@@ -20,5 +23,11 @@ const InputSchema = z.array(z.string().max(160).regex(SLUG_RE)).max(50);
 export async function getWishlistProducts(slugs: string[]): Promise<CatalogProduct[]> {
   const parsed = InputSchema.safeParse(slugs);
   if (!parsed.success) return [];
-  return getProductsBySlugs(parsed.data);
+  // Modo consulta: la tarjeta de favoritos (cliente) no lee los ajustes, así
+  // que el producto ya llega con su `saleMode` efectivo (`conModoVenta`).
+  const [productos, modo] = await Promise.all([
+    getProductsBySlugs(parsed.data),
+    modoVentaEfectivo(),
+  ]);
+  return productos.map((producto) => conModoVenta(producto, modo));
 }

@@ -14,6 +14,8 @@ import { revisarCloudflare } from "../src/domain/preflight-cloudflare";
 import { listShippingZones } from "../src/domain/shipping";
 import { readBankDetails } from "../src/domain/admin-bank";
 import { readStoreSettings } from "../src/domain/store-settings";
+import { tomaPedidos, type ModoVenta } from "../src/domain/modo-venta";
+import { modoVentaEfectivo } from "../src/lib/modo-venta";
 import { leerIntegracionesDelPanel } from "../src/lib/integraciones-store";
 import { publicarFoto } from "../src/lib/integraciones";
 import { clienteR2, r2Configurado } from "../src/lib/r2";
@@ -67,8 +69,15 @@ const ICON: Record<PreflightCheck["severity"], string> = {
  * que se está configurando. La regla también es la de siempre: sin base
  * accesible, se dice y se sigue.
  */
-async function revisarMetodosDeEnvio(): Promise<void> {
+async function revisarMetodosDeEnvio(modo: ModoVenta): Promise<void> {
   console.log("Formas de entrega (lee la base; nunca bloquea)\n");
+
+  if (!tomaPedidos(modo)) {
+    console.log("  ✓ Formas de entrega");
+    console.log("      no aplica: la tienda está en modo consulta y no toma pedidos");
+    await closePool();
+    return;
+  }
 
   try {
     const [methods, zones] = await Promise.all([
@@ -230,17 +239,21 @@ async function main(): Promise<void> {
   // Y la política de medios de pago y la cuenta de /admin/banco: sin eso el
   // reporte no puede saber si el checkout cobra (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   // D1). Sólo lectura; sin base, se evalúa con el entorno y se avisa.
+  // El modo de venta, por su único lector (sin base: el de `tienda.ts`).
+  const modoVenta = await modoVentaEfectivo();
   const ajustes = await Promise.all([readStoreSettings(), readBankDetails()])
     .then(([{ settings }, banco]) => ({
       nombreTienda: settings.identidad.nombre,
       cuentasClientes: settings.cuentas.activas,
+      modoVenta,
+      whatsappPublico: settings.contacto.whatsapp,
       pagos: {
         lectura: "ok" as const,
         metodosPago: settings.checkout.metodosPago,
         bancoEnPanel: banco !== null,
       },
     }))
-    .catch(() => ({ pagos: { lectura: "fallo" as const } }));
+    .catch(() => ({ modoVenta, pagos: { lectura: "fallo" as const } }));
   const report = preflight(process.env, panel, ajustes);
 
   console.log("\nPreflight — lo que falta para cobrar de verdad\n");
@@ -285,7 +298,7 @@ async function main(): Promise<void> {
   if (panel.lectura === "ok") publicarFoto(panel.filas);
   await revisarR2();
   console.log("");
-  await revisarMetodosDeEnvio();
+  await revisarMetodosDeEnvio(modoVenta);
   console.log("");
   await revisarProxyCloudflare();
   console.log("");
