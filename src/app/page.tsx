@@ -11,6 +11,7 @@ import { getStoreSettings } from "@/domain/store-settings";
 import { heroEfectivo } from "@/domain/store-settings-schema";
 import { t } from "@/i18n";
 import { log } from "@/lib/log";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { safeError } from "@/lib/safe-error";
 import { temaActivo } from "@/themes";
 import type { SeccionHome } from "@/themes/tipos";
@@ -67,6 +68,7 @@ async function HomeContent() {
   // Los ajustes del panel (`/admin/ajustes`) pisan campo por campo la portada
   // de `TIENDA.hero` (o la del template); `null` = el dueño la apagó.
   const ajustes = await getStoreSettings();
+  const modoVenta = await modoVentaEfectivo();
   const hero = heroEfectivo(
     ajustes.marca,
     TIENDA.hero ?? heroPorDefecto(categories[0]?.slug)
@@ -130,6 +132,7 @@ async function HomeContent() {
                 product={product}
                 priority={index < 4}
                 showRating={ajustes.vidriera.estrellasEnTarjetas}
+                modoVenta={modoVenta}
               />
             ))}
           </div>

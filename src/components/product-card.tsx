@@ -6,6 +6,11 @@ import { RatingStars, formatRating } from "@/components/rating-stars";
 import { StockBadge } from "@/components/stock-badge";
 import { WishlistButton } from "@/components/wishlist-button";
 import type { CatalogProduct } from "@/db/queries";
+import {
+  MODO_VENTA_POR_DEFECTO,
+  saleModeEfectivo,
+  type ModoVenta,
+} from "@/domain/modo-venta";
 import { t, tPlural } from "@/i18n/client";
 import { isChargeablePrice } from "@/lib/money";
 import { TESTIDS } from "@/lib/testids";
@@ -14,9 +19,16 @@ export function ProductCard({
   product,
   priority = false,
   showRating = false,
+  modoVenta = MODO_VENTA_POR_DEFECTO,
 }: {
   product: CatalogProduct;
   priority?: boolean;
+  /**
+   * El modo de venta (`modoVentaEfectivo()`), que lo lee la página (server)
+   * por el mismo motivo que `showRating`. En `"consulta"` un producto `stock`
+   * se dibuja como `enquiry` (`saleModeEfectivo`). Sin el dato, `"carrito"`.
+   */
+  modoVenta?: ModoVenta;
   /**
    * Estrellas en la tarjeta (`/admin/ajustes` → vidriera). Lo decide la
    * página, que es server: esta tarjeta también se dibuja en el cliente
@@ -45,6 +57,7 @@ export function ProductCard({
     0
   );
   const hasVariantRange = product.variants.length > 1;
+  const saleMode = saleModeEfectivo(product.saleMode, modoVenta);
 
   // El corazón es **hermano** del link, no hijo (docs/TEMPLATE-IMPROVEMENT-PLAN.md
   // F3): un <button> adentro de un <a> es HTML inválido y el lector de
@@ -90,12 +103,12 @@ export function ProductCard({
               />
             ) : null}
             <div className="mt-2 flex items-center gap-2">
-              {(product.saleMode ?? "stock") === "stock" ? (
+              {(saleMode ?? "stock") === "stock" ? (
                 <StockBadge available={totalAvailable} />
               ) : (
                 <span className="text-xs">
                   {t(
-                    product.saleMode === "enquiry"
+                    saleMode === "enquiry"
                       ? "producto.soloConsulta"
                       : "producto.muestra"
                   )}

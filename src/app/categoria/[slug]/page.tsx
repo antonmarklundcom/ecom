@@ -29,6 +29,9 @@ import {
   jsonLdScript,
 } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
+import { waLinkPublico } from "@/lib/comercio";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
+import { TESTIDS } from "@/lib/testids";
 import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
 import {
   categoryHasPrices,
@@ -151,9 +154,10 @@ export default async function CategoryPage({
       ? requestedPage
       : 1;
 
-  const [{ vidriera }, categorias] = await Promise.all([
+  const [{ vidriera }, categorias, modoVenta] = await Promise.all([
     getStoreSettings(),
     getCategories(),
+    modoVentaEfectivo(),
   ]);
   // Las madres de esta categoría (`categories.parent_id`), de la raíz para
   // abajo y sin ella misma: la última miga es la página actual.
@@ -199,6 +203,20 @@ export default async function CategoryPage({
   // no el 1. Sin `NEXT_PUBLIC_SITE_URL` las URLs salen relativas — Google las
   // resuelve contra la página, así que sigue siendo válido.
   const origin = siteOrigin();
+  // Modo consulta y categoría vacía: el link de WhatsApp con su nombre y URL.
+  const consultaHref =
+    modoVenta === "consulta" && result.products.length === 0
+      ? await waLinkPublico(
+          [
+            t("categoria.consulta.whatsApp", { categoria: category.name }),
+            origin
+              ? new URL(`/categoria/${category.slug}`, origin).toString()
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" — ")
+        )
+      : null;
   const jsonLd = [
     breadcrumbJsonLd(origin, [
       { name: t("nav.inicio"), path: "/" },
@@ -288,7 +306,25 @@ export default async function CategoryPage({
         </Suspense>
       </div>
 
-      {result.products.length === 0 ? (
+      {result.products.length === 0 && consultaHref && activeFilters === 0 ? (
+        // Modo consulta, categoría todavía sin productos: no es un callejón
+        // sin salida. Su texto (arriba) y el mismo botón de WhatsApp.
+        <div className="border-border mt-8 rounded-xl border border-dashed p-10 text-center">
+          <p className="text-muted-foreground text-sm">
+            {t("categoria.consulta.ayuda")}
+          </p>
+          <Button asChild className="mt-4">
+            <a
+              href={consultaHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid={TESTIDS.categoryInquiryLink}
+            >
+              {t("producto.consultarWhatsApp")}
+            </a>
+          </Button>
+        </div>
+      ) : result.products.length === 0 ? (
         <div className="border-border mt-8 rounded-xl border border-dashed p-10 text-center">
           <p className="font-medium">{t("categoria.sinResultados")}</p>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -311,6 +347,7 @@ export default async function CategoryPage({
               product={product}
               priority={index < 4}
               showRating={vidriera.estrellasEnTarjetas}
+              modoVenta={modoVenta}
             />
           ))}
         </div>

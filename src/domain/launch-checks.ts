@@ -5,6 +5,7 @@ import { categories, products, shippingZones, variants } from "@/db/schema";
 
 import { SEED_PRODUCTS } from "../../scripts/seed-data";
 import type { Executor } from "./executor";
+import { tomaPedidos, type ModoVenta } from "./modo-venta";
 
 /**
  * Lo que el resumen del panel avisa antes de vender: errores de arranque que
@@ -77,4 +78,14 @@ export async function countUnpricedSellableVariants(executor?: Executor): Promis
       )
     );
   return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * ¿Aplican los avisos de "antes de cobrar" (datos bancarios, zonas de envío,
+ * variantes a la venta sin precio)? En modo consulta la tienda no toma
+ * pedidos (`src/domain/modo-venta.ts`): ninguno de los tres le cuesta nada,
+ * y avisarlos es ruido. Lo mismo dice `pnpm preflight` ("no aplica").
+ */
+export function avisosDeCobroAplican(modo: ModoVenta): boolean {
+  return tomaPedidos(modo);
 }

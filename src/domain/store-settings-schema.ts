@@ -5,6 +5,8 @@ import { refDeHeroImagen } from "@/lib/hero-imagen";
 import { t } from "@/i18n";
 import { normalizePhonePY } from "@/lib/py";
 
+import { MODOS_VENTA, type ModoVenta } from "./modo-venta";
+
 /**
  * Los ajustes de la tienda (`store_settings.data`): la forma, los defaults y
  * las reglas de precedencia. **Puro**: sin base, sin Next, sin `process.env`,
@@ -97,6 +99,13 @@ export const StoreSettingsSchema = z.object({
    */
   cuentas: seccion({
     activas: z.boolean().nullable().catch(null),
+  }),
+  /**
+   * Modo de venta (`src/domain/modo-venta.ts`). `null` = lo que dice
+   * `TIENDA.modoVenta`. Lo lee sólo `modoVentaEfectivo()`.
+   */
+  ventas: seccion({
+    modo: z.enum(MODOS_VENTA).nullable().catch(null),
   }),
   marca: seccion({
     tagline: texto,
@@ -336,6 +345,17 @@ export const SECTION_INPUT = {
   cuentas: z
     .object({
       activas: z.boolean().nullable().default(null),
+    })
+    .strict(),
+  ventas: z
+    .object({
+      modo: z.preprocess(
+        limpio,
+        z
+          .enum(MODOS_VENTA, t("adminError.ajustes.modoVenta"))
+          .nullable()
+          .default(null)
+      ),
     })
     .strict(),
   marca: z
@@ -631,6 +651,14 @@ export function cuentasEfectivas(
   porDefecto: boolean
 ): boolean {
   return cuentas.activas ?? porDefecto;
+}
+
+/** El modo de venta: el del panel o, sin decisión, el de `tienda.ts`. */
+export function ventasEfectivas(
+  ventas: StoreSettings["ventas"],
+  porDefecto: ModoVenta
+): ModoVenta {
+  return ventas.modo ?? porDefecto;
 }
 
 /**

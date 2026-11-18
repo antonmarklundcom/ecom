@@ -3,6 +3,7 @@ import { gzipSync } from "node:zlib";
 import type { Page, Request, Response } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { irAPrimeraCategoria } from "./helpers";
 import { TESTIDS } from "./testids";
 
 /**
@@ -178,7 +179,7 @@ test.describe("presupuesto de JS por página", () => {
 
   test("producto", async ({ page, browser }) => {
     await page.goto("/");
-    await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
+    await irAPrimeraCategoria(page);
     await expect(page).toHaveURL(/\/categoria\//);
 
     const productHref = await page

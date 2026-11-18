@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { loginAsOwner, openOrderFicha, realizarCompra } from "./helpers";
+import {
+  irAPrimeraCategoria,
+  loginAsOwner,
+  openOrderFicha,
+  realizarCompra,
+} from "./helpers";
 import { TESTIDS } from "./testids";
 
 /**
@@ -42,14 +47,14 @@ test.describe("capturas por PR", () => {
 
     test(`categoria @ ${width}`, async ({ page }) => {
       await page.goto("/");
-      await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
+      await irAPrimeraCategoria(page);
       await expect(page).toHaveURL(/\/categoria\//);
       await screenshot(page, "categoria", width);
     });
 
     test(`producto @ ${width}`, async ({ page }) => {
       await page.goto("/");
-      await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
+      await irAPrimeraCategoria(page);
       await page.getByTestId(TESTIDS.productCard).first().click();
       await expect(page).toHaveURL(/\/producto\//);
       await screenshot(page, "producto", width);
@@ -57,7 +62,7 @@ test.describe("capturas por PR", () => {
 
     test(`checkout con carrito @ ${width}`, async ({ page }) => {
       await page.goto("/");
-      await page.getByTestId(TESTIDS.headerCategoryLink).first().click();
+      await irAPrimeraCategoria(page);
       await page.getByTestId(TESTIDS.productCard).first().click();
       await page.getByTestId(TESTIDS.productAddToCart).click();
       await page.getByTestId(TESTIDS.cartCheckoutLink).click();

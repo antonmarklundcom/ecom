@@ -25,6 +25,8 @@ import type { MessageKey, Params } from "@/i18n";
 import type { CartIssue } from "@/lib/cart-issues";
 
 import { DomainError } from "./errors";
+import { tomaPedidos } from "./modo-venta";
+import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { operationTransaction } from "./operation-keys";
 
 /**
@@ -209,6 +211,20 @@ export class PaymentMethodNotAllowedError extends CheckoutError {
   }
 }
 
+/**
+ * La tienda está en modo consulta (`src/domain/modo-venta.ts`): no toma
+ * pedidos. Ahí todo producto `stock` es `enquiry` (`saleModeEfectivo`), y un
+ * `enquiry` no se pide — así que se rechaza el pedido entero, antes de
+ * reservar nada. Esconder el carrito y el checkout es la cortesía; esto es la
+ * defensa, para un POST armado a mano o un carrito viejo en localStorage.
+ */
+export class VentasCerradasError extends CheckoutError {
+  constructor() {
+    super("error.checkout.modoConsulta");
+    this.name = "VentasCerradasError";
+  }
+}
+
 /** 32 bytes de aleatoriedad: el link de WhatsApp es la única llave del pedido. */
 function mintAccessToken(): string {
   return randomBytes(32).toString("hex");
@@ -237,6 +253,10 @@ export async function createOrder(
   const { result: stored } = await operationTransaction(
     { scope: "checkout", key: input.operationKey, payload: input },
     async (tx) => {
+      // Primero que nada, con la misma transacción: en modo consulta no hay
+      // pedido posible (`VentasCerradasError`).
+      if (!tomaPedidos(await modoVentaEfectivo(tx)))
+        throw new VentasCerradasError();
       if (!(await readyPaymentMethods(tx)).includes(input.paymentMethod))
         throw new CheckoutError("error.checkout.pagoNoDisponible");
       // 1 y 2. Re-precio y envío, con el executor de **esta** transacción. Es la
