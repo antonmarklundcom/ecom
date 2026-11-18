@@ -17,6 +17,7 @@ import { variantFromSku, variantUrl } from "@/lib/variant-url";
 import { TESTIDS } from "@/lib/testids";
 import { cn } from "@/lib/utils";
 import type { CatalogProductDetail } from "@/db/queries";
+import type { Disponibilidad } from "@/domain/disponibilidad";
 import { t } from "@/i18n/client";
 
 /**
@@ -40,6 +41,7 @@ export function AddToCart({
   productUrl = null,
   inquiryLinks = {},
   initialVariantSku = null,
+  disponibilidad = {},
 }: {
   product: CatalogProductDetail;
   stockAlertsEnabled?: boolean;
@@ -47,6 +49,12 @@ export function AddToCart({
   productUrl?: string | null;
   inquiryLinks?: Record<number, string>;
   initialVariantSku?: string | null;
+  /**
+   * O35: la disponibilidad de cada variante por SKU, decidida en el servidor
+   * (`disponibilidadDelProducto`). Es la misma que va al JSON-LD; acá sólo se
+   * dibuja, nunca se recalcula.
+   */
+  disponibilidad?: Record<string, Disponibilidad | null>;
 }) {
   const purchasable =
     (product.saleMode ?? "stock") === "stock" && product.showPrice !== false;
@@ -182,7 +190,17 @@ export function AddToCart({
           ) : null}
           {purchasable ? (
             <StockBadge available={selected.available} />
-          ) : (
+          ) : null}
+          {!purchasable && disponibilidad[selected.sku] ? (
+            <span
+              data-testid={TESTIDS.productAvailability}
+              data-disponibilidad={disponibilidad[selected.sku]!}
+              className="text-sm font-medium"
+            >
+              {t(`disponibilidad.${disponibilidad[selected.sku]!}`)}
+            </span>
+          ) : null}
+          {purchasable ? null : (
             <span className="text-sm">
               {t(
                 product.saleMode === "enquiry"

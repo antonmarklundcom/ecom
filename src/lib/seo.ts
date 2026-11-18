@@ -8,6 +8,13 @@
  * datos y llaman acá, así que esto se testea sin levantar Next ni la base.
  */
 
+import {
+  disponibilidad as decidirDisponibilidad,
+  SCHEMA_DISPONIBILIDAD,
+  type Disponibilidad,
+} from "@/domain/disponibilidad";
+import type { ModoVenta } from "@/domain/modo-venta";
+
 import { formatDatePY } from "./py";
 import { publicIdentifiers } from "./public-product-facts";
 import { variantGrouping } from "./variant-grouping";
@@ -44,14 +51,22 @@ export type SitemapEntry = {
   changeFrequency?:
     "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
   priority?: number;
+  /** O35: URLs absolutas de fotos públicas (`<image:image>`), hasta `MAX_IMAGENES_SITEMAP`. */
+  images?: string[];
 };
+
+/** Cuántas fotos por producto van al sitemap (fable/plan-trafico.md §2.4). */
+export const MAX_IMAGENES_SITEMAP = 5;
 
 export type SitemapInput = {
   /** `updatedAt`: el último cambio de un producto publicado suyo (ver `getSitemapEntries`). */
   categories: { slug: string; updatedAt?: Date | null }[];
-  products: { slug: string; updatedAt: Date | null }[];
+  /** `images`: URLs absolutas de las fotos que pueden salir afuera, en orden. */
+  products: { slug: string; updatedAt: Date | null; images?: string[] }[];
   /** Las páginas de políticas prendidas (`/envios`, `/terminos`…), por slug. */
   pages?: string[];
+  /** O35: `/contacto` existe (la tienda cargó algún dato de contacto). */
+  contacto?: boolean;
 };
 
 /**
@@ -114,13 +129,35 @@ export function buildSitemap(origin: URL, input: SitemapInput): SitemapEntry[] {
       ...(product.updatedAt ? { lastModified: product.updatedAt } : {}),
       changeFrequency: "weekly" as const,
       priority: 0.6,
+      ...imagenesSitemap(product.images),
     })),
     ...(input.pages ?? []).map((slug) => ({
       url: `${base}/${slug}`,
       changeFrequency: "monthly" as const,
       priority: 0.3,
     })),
+    ...entradasContacto(base, input.contacto),
   ];
+}
+
+/**
+ * O35 — las fotos de un producto en el sitemap: sólo URLs absolutas `https://`
+ * (R2), sin repetir, hasta `MAX_IMAGENES_SITEMAP`. Sin ninguna, sin el campo.
+ */
+function imagenesSitemap(images: readonly string[] | undefined): {
+  images?: string[];
+} {
+  const validas = [
+    ...new Set((images ?? []).filter((src) => /^https:\/\//.test(src))),
+  ].slice(0, MAX_IMAGENES_SITEMAP);
+  return validas.length > 0 ? { images: validas } : {};
+}
+
+/** O35 — `/contacto`, sólo si la página existe (`contactoTieneDatos`). */
+function entradasContacto(base: string, contacto: boolean | undefined): SitemapEntry[] {
+  return contacto
+    ? [{ url: `${base}/contacto`, changeFrequency: "monthly", priority: 0.3 }]
+    : [];
 }
 
 type JsonLd = Record<string, unknown>;
@@ -199,6 +236,16 @@ export function productJsonLd(input: {
   saleMode?: "stock" | "enquiry" | "showcase";
   showPrice?: boolean;
   /**
+   * La disponibilidad de cada variante por SKU, ya decidida en el servidor
+   * (`disponibilidadDelProducto`, `src/domain/disponibilidad-proveedor.ts`):
+   * la misma que dice la línea visible de la ficha. Acá no se recalcula. Sin
+   * el dato (tests, llamadores viejos) se decide con la misma regla, sin
+   * proveedores (`disponibilidad` de `src/domain/disponibilidad.ts`).
+   */
+  disponibilidad?: Record<string, Disponibilidad | null>;
+  /** El modo de venta, sólo para el caso sin `disponibilidad`. */
+  modoVenta?: ModoVenta;
+  /**
    * Promedio y cantidad de reseñas **aprobadas** (`getProductRatingSummary`).
    * Con `count` 0 o ausente no sale ni `aggregateRating` ni `review`: un
    * `aggregateRating` con cero reseñas es un error de datos estructurados.
@@ -226,10 +273,26 @@ export function productJsonLd(input: {
   // "primera con stock" cambiaba el GTIN publicado cada vez que una variante
   // se agotaba (docs/TEMPLATE-IMPROVEMENT-PLAN.md E6).
   const only = input.variants.length === 1 ? input.variants[0] : undefined;
+  // Un `Offer` necesita un precio que se muestra y se cobra, también en un
+  // producto de consulta (fable/plan-trafico.md §2.4): sin precio no hay
+  // oferta, nunca un precio 0. `showcase` no publica oferta: no tiene
+  // disponibilidad (`disponibilidad` devuelve `null`).
+  const palabra = (variant: (typeof input.variants)[number]) =>
+    input.disponibilidad
+      ? (input.disponibilidad[variant.sku] ?? null)
+      : decidirDisponibilidad({
+          saleMode: input.saleMode,
+          modo: input.modoVenta,
+          disponible: variant.available,
+        });
   const priced =
-    (input.saleMode === undefined || input.saleMode === "stock") &&
-    input.showPrice !== false
-      ? input.variants.filter((v) => isChargeablePrice(v.pricePyg))
+    input.showPrice !== false && input.saleMode !== "showcase"
+      ? input.variants.flatMap((variant) => {
+          const disponible = palabra(variant);
+          return isChargeablePrice(variant.pricePyg) && disponible
+            ? [{ variant, disponible }]
+            : [];
+        })
       : [];
   const result: JsonLd = {
     "@context": "https://schema.org",
@@ -245,7 +308,7 @@ export function productJsonLd(input: {
     // estructurado inválido, no "sin ofertas".
     ...(priced.length > 0
       ? {
-          offers: priced.map((variant) => ({
+          offers: priced.map(({ variant, disponible }) => ({
             "@type": "Offer",
             sku: variant.sku,
             name: variant.label,
@@ -253,10 +316,7 @@ export function productJsonLd(input: {
             priceCurrency: "PYG",
             itemCondition: "https://schema.org/NewCondition",
             url: url ? variantUrl(url, variant.sku) : undefined,
-            availability:
-              variant.available > 0
-                ? "https://schema.org/InStock"
-                : "https://schema.org/OutOfStock",
+            availability: SCHEMA_DISPONIBILIDAD[disponible],
             ...(shippingDetails ? { shippingDetails } : {}),
             ...(returnPolicy ? { hasMerchantReturnPolicy: returnPolicy } : {}),
           })),
@@ -565,4 +625,25 @@ export function categoryTrail<T extends CategoriaDelArbol>(
     actual = actual.parentId === null ? undefined : porId.get(actual.parentId);
   }
   return camino;
+}
+
+/**
+ * O35 — ¿hay algo que mostrar en `/contacto`? Sólo lo que la tienda cargó
+ * (`contactoPublico()`): WhatsApp, e-mail, dirección, horario o redes. Sin
+ * ninguno, la página es 404 y no va ni al pie ni al sitemap.
+ */
+export function contactoTieneDatos(contacto: {
+  whatsapp: string | null;
+  email: string | null;
+  direccion: string | null;
+  horario: string | null;
+  redes: readonly unknown[];
+}): boolean {
+  return Boolean(
+    contacto.whatsapp ||
+      contacto.email ||
+      contacto.direccion ||
+      contacto.horario ||
+      contacto.redes.length > 0
+  );
 }

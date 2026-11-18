@@ -56,6 +56,8 @@ import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
 import { TESTIDS } from "@/lib/testids";
 import { conModoVenta } from "@/domain/modo-venta";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
+import { disponibilidadDelProducto } from "@/domain/disponibilidad-proveedor";
+import { proveedoresHabilitados } from "@/lib/proveedores";
 
 /**
  * Ficha de producto.
@@ -225,6 +227,13 @@ export default async function ProductPage({
   // compradora; `product` queda como está en la base.
   const modoVenta = await modoVentaEfectivo();
   const vista = conModoVenta(product, modoVenta);
+  // O35: la disponibilidad se decide **una vez**, acá en el servidor
+  // (`src/domain/disponibilidad.ts`); la línea visible y el JSON-LD reciben
+  // este resultado. Sólo viajan las palabras, por SKU.
+  const disponibilidad = await disponibilidadDelProducto(product, {
+    modo: modoVenta,
+    proveedores: proveedoresHabilitados(),
+  });
   const recentPhoto =
     product.images.find((image) => image.provenance !== "illustrative") ??
     product.images[0];
@@ -336,8 +345,9 @@ export default async function ProductPage({
       .map((image) => productImageUrl(image.imageRef, "detail"))
       .filter((src): src is string => src !== null),
     variants: product.variants,
-    saleMode: product.saleMode,
+    saleMode: vista.saleMode,
     showPrice: product.showPrice,
+    disponibilidad: disponibilidad.porSku,
     rating,
     // Envío y devoluciones para Google, sólo con lo que el dueño cargó.
     merchant: ajustes.envioDevolucion,
@@ -451,6 +461,7 @@ export default async function ProductPage({
               whatsappPhone={whatsappPhone}
               productUrl={productUrl}
               initialVariantSku={initialVariantSku}
+              disponibilidad={disponibilidad.porSku}
             />
             <WishlistButton
               slug={product.slug}

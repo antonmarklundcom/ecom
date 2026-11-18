@@ -1,13 +1,16 @@
 import type { MetadataRoute } from "next";
 
 import { getSitemapEntries } from "@/db/queries";
+import { contactoPublico } from "@/lib/comercio";
+import { productImageUrl } from "@/lib/images";
 import { paginasActivas } from "@/lib/paginas";
-import { buildSitemap } from "@/lib/seo";
+import { buildSitemap, contactoTieneDatos } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 
 /**
  * `/sitemap.xml` — la home, las categorías activas, los productos publicados
- * y las páginas de políticas prendidas.
+ * (con hasta cinco fotos cada uno), las páginas de políticas prendidas y
+ * `/contacto` si existe.
  *
  * Mismo revalidate que el catálogo: el sitemap no tiene por qué ser más fresco
  * que las páginas que lista.
@@ -25,12 +28,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // `getStoreSettings` devuelve los defaults (todas prendidas), que es lo que
   // la tienda sirve en ese momento.
   const pages = (await paginasActivas()).map((pagina) => pagina.slug);
+  // O35: `/contacto` sólo si la tienda cargó algún dato (si no, es 404).
+  const contacto = contactoTieneDatos(await contactoPublico());
 
   try {
-    return buildSitemap(origin, { ...(await getSitemapEntries()), pages });
+    const { categories, products } = await getSitemapEntries();
+    return buildSitemap(origin, {
+      categories,
+      products: products.map((product) => ({
+        slug: product.slug,
+        updatedAt: product.updatedAt,
+        images: product.images
+          .map((image) => productImageUrl(image.imageRef, "detail"))
+          .filter((src): src is string => src !== null),
+      })),
+      pages,
+      contacto,
+    });
   } catch {
     // La base caída no puede tumbar el sitio: al menos la home se publica, y
     // el crawler vuelve en el próximo revalidate.
-    return buildSitemap(origin, { categories: [], products: [], pages });
+    return buildSitemap(origin, {
+      categories: [],
+      products: [],
+      pages,
+      contacto,
+    });
   }
 }

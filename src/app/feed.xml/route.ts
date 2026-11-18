@@ -8,6 +8,7 @@ import { markdownToText } from "@/lib/markdown";
 import { buildProductFeed } from "@/lib/product-feed";
 import { siteOrigin } from "@/lib/site-url";
 import { nombreTienda } from "@/lib/marca";
+import { tiendaTomaPedidos } from "@/lib/modo-venta";
 
 /**
  * `/feed.xml` — el catálogo para Google Merchant Center y Meta Commerce
@@ -34,7 +35,9 @@ export async function GET(): Promise<Response> {
 
   let products: Awaited<ReturnType<typeof getFeedProducts>>;
   try {
-    products = await getFeedProducts();
+    // O35: en modo consulta la tienda no cobra nada en la página, así que el
+    // feed sale vacío (sólo lo que una compradora puede pagar, como siempre).
+    products = (await tiendaTomaPedidos()) ? await getFeedProducts() : [];
   } catch (error) {
     log.error("catalogue: merchant feed unavailable", {
       error: safeError(error).message,

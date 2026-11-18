@@ -75,6 +75,7 @@ export const esPY = {
 
   "footer.categorias": "Categorías",
   "footer.contacto": "Contacto",
+  "footer.contactoPagina": "Cómo contactarnos",
   "footer.whatsapp": "WhatsApp {telefono}",
   "footer.seguirPedido": "Seguí tu pedido",
 
@@ -115,6 +116,9 @@ export const esPY = {
   "stock.ultima": "Última unidad",
   "stock.quedan": "Quedan {n}",
   "stock.disponible": "Disponible",
+  "disponibilidad.en_stock": "En stock",
+  "disponibilidad.por_encargo": "Por encargo",
+  "disponibilidad.agotado": "Sin stock",
 
   // -------------------------------------------------------------------------
   // Filtros de categoría
@@ -241,8 +245,17 @@ export const esPY = {
   // Categoría
   // -------------------------------------------------------------------------
   "categoria.meta": "Categoría",
-  "categoria.metaDescripcion":
-    "{nombre} en guaraníes, IVA incluido. Envíos a todo Paraguay.",
+  "categoria.metaDescripcion": "{nombre} en guaraníes, IVA incluido.",
+  "contacto.titulo": "Contacto",
+  "contacto.metaDescripcion": "Cómo contactar a {tienda}: {medios}.",
+  "contacto.intro": "Escribinos por el medio que te quede más cómodo.",
+  "contacto.whatsapp": "WhatsApp",
+  "contacto.whatsappBoton": "Escribinos por WhatsApp",
+  "contacto.whatsappMensaje": "¡Hola! Tengo una consulta.",
+  "contacto.email": "E-mail",
+  "contacto.direccion": "Dirección",
+  "contacto.horario": "Horario",
+  "contacto.redes": "Redes sociales",
   "categoria.sinResultados": "No encontramos productos con esos filtros",
   "categoria.sinResultados.ayuda":
     "Probá quitando la marca o ampliando el rango de precio.",

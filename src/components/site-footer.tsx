@@ -9,6 +9,7 @@ import { contactoPublico } from "@/lib/comercio";
 import { marcaEfectiva } from "@/lib/marca";
 import { paginasActivas } from "@/lib/paginas";
 import { formatPhonePY } from "@/lib/py";
+import { contactoTieneDatos } from "@/lib/seo";
 import { temaActivo } from "@/themes";
 import type { VarianteFooter } from "@/themes/tipos";
 
@@ -143,6 +144,14 @@ function FooterColumnas({
             ) : null}
             {contacto.direccion ? <li>{contacto.direccion}</li> : null}
             {contacto.horario ? <li>{contacto.horario}</li> : null}
+            {/* O35: la página `/contacto`, que existe si hay algún dato. */}
+            {contactoTieneDatos(contacto) ? (
+              <li>
+                <Link href="/contacto" className="hover:text-foreground">
+                  {t("footer.contactoPagina")}
+                </Link>
+              </li>
+            ) : null}
             {seguirPedido ? (
               <li>
                 <Link href="/pedido/buscar" className="hover:text-foreground">
@@ -214,6 +223,10 @@ function FooterCompacto({
       href: `/${pagina.slug}`,
       label: pagina.titulo,
     })),
+    // O35: la página `/contacto`, que existe si hay algún dato.
+    ...(contactoTieneDatos(contacto)
+      ? [{ href: "/contacto", label: t("footer.contacto") }]
+      : []),
     ...(seguirPedido
       ? [{ href: "/pedido/buscar", label: t("footer.seguirPedido") }]
       : []),

@@ -45,7 +45,7 @@ import type { Executor } from "@/domain/executor";
 import { getRatingSummaries, type RatingSummary } from "@/domain/reviews";
 import { heldQtyMap } from "@/domain/stock";
 import { isChargeablePrice } from "@/lib/money";
-import { effectiveProvenance } from "@/lib/image-provenance";
+import { effectiveProvenance, outsideImages } from "@/lib/image-provenance";
 import type { ImageProvenance } from "@/db/enums";
 
 export type CatalogVariant = {
@@ -1027,7 +1027,12 @@ export async function getProductsBySlugs(
  */
 export async function getSitemapEntries(executor?: Executor): Promise<{
   categories: { slug: string; updatedAt: Date | null }[];
-  products: { slug: string; updatedAt: Date | null }[];
+  products: {
+    slug: string;
+    updatedAt: Date | null;
+    /** O35: las fotos que pueden salir afuera (`outsideImages`), en orden. */
+    images: { imageRef: string; provenance: ImageProvenance | null }[];
+  }[];
 }> {
   const tx = executor ?? getDb();
 
@@ -1039,15 +1044,54 @@ export async function getSitemapEntries(executor?: Executor): Promise<{
       .orderBy(asc(categories.position)),
     tx
       .select({
+        id: products.id,
         slug: products.slug,
         updatedAt: products.updatedAt,
         categoryId: products.categoryId,
+        imageProvenance: PRODUCT_COLUMNS.imageProvenance,
       })
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
       .where(PUBLISHED())
       .orderBy(asc(products.slug)),
   ]);
+
+  // O35: las fotos de cada producto publicado, para el sitemap de imágenes.
+  const imageRows =
+    productRows.length > 0
+      ? await tx
+          .select({
+            productId: productImages.productId,
+            imageRef: productImages.imageRef,
+            provenance: productImages.provenance,
+          })
+          .from(productImages)
+          .where(
+            inArray(
+              productImages.productId,
+              productRows.map((product) => product.id)
+            )
+          )
+          .orderBy(asc(productImages.productId), asc(productImages.position))
+      : [];
+  const fotosPorProducto = new Map<
+    number,
+    { imageRef: string; provenance: ImageProvenance | null }[]
+  >();
+  const nivelProducto = new Map(
+    productRows.map((product) => [product.id, product.imageProvenance])
+  );
+  for (const row of imageRows) {
+    const lista = fotosPorProducto.get(row.productId) ?? [];
+    lista.push({
+      imageRef: row.imageRef,
+      provenance: effectiveProvenance(
+        row.provenance,
+        nivelProducto.get(row.productId)
+      ),
+    });
+    fotosPorProducto.set(row.productId, lista);
+  }
 
   const ultimaPorCategoria = new Map<number, Date>();
   for (const product of productRows) {
@@ -1066,6 +1110,7 @@ export async function getSitemapEntries(executor?: Executor): Promise<{
     products: productRows.map((product) => ({
       slug: product.slug,
       updatedAt: product.updatedAt,
+      images: outsideImages(fotosPorProducto.get(product.id) ?? []),
     })),
   };
 }
