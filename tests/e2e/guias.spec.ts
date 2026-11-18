@@ -3,7 +3,18 @@ import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 import { leerCarpetaDeGuias } from "../../src/lib/guias";
+import { esPielDelTemplate } from "../helpers/piel";
 import { loginAsOwner } from "./helpers";
+
+/**
+ * Home, pie y tarjeta son piel: una tienda que los rediseñó antes de v2.1.0
+ * no tiene el bloque "Guías", el link del pie ni la tarjeta con el modo, y su
+ * CI corre este spec con las guías de ejemplo (O36). Sólo se controlan los
+ * del template.
+ */
+const HOME_DEL_TEMPLATE = esPielDelTemplate("src/app/page.tsx");
+const PIE_DEL_TEMPLATE = esPielDelTemplate("src/components/site-footer.tsx");
+const TARJETA_DEL_TEMPLATE = esPielDelTemplate("src/components/product-card.tsx");
 
 /**
  * Las guías (O34, docs/GUIAS.md) contra un `next build` + `next start` de
@@ -147,8 +158,10 @@ test.describe("guías de ejemplo", () => {
     ).toBeVisible();
 
     await page.goto("/");
-    await expect(page.locator("[data-home-guias] a[data-guia]")).toHaveCount(2);
-    await expect(page.locator('[data-site-footer] a[href="/guias"]')).toBeVisible();
+    if (HOME_DEL_TEMPLATE)
+      await expect(page.locator("[data-home-guias] a[data-guia]")).toHaveCount(2);
+    if (PIE_DEL_TEMPLATE)
+      await expect(page.locator('[data-site-footer] a[href="/guias"]')).toBeVisible();
   });
 
   test("el sitemap tiene el índice y las publicadas, con su fecha", async ({ request }) => {
@@ -180,17 +193,19 @@ test.describe("guías en los dos modos de venta", () => {
     // Carrito (el del template): la tarjeta de siempre.
     await page.goto(`/guias/${PRIMERA}`);
     await expect(tarjeta).toBeVisible();
-    await expect(tarjeta).not.toContainText("Consultá disponibilidad");
+    if (TARJETA_DEL_TEMPLATE) await expect(tarjeta).not.toContainText("Consultá disponibilidad");
 
     await loginAsOwner(page);
     await elegirModo(page, "Sólo consulta por WhatsApp");
     try {
       expect((await page.goto(`/guias/${PRIMERA}`))?.status()).toBe(200);
-      await expect(tarjeta).toContainText("Consultá disponibilidad");
-      await expect(page.locator('[data-site-footer] a[href="/guias"]')).toBeVisible();
+      if (TARJETA_DEL_TEMPLATE) await expect(tarjeta).toContainText("Consultá disponibilidad");
+      if (PIE_DEL_TEMPLATE)
+        await expect(page.locator('[data-site-footer] a[href="/guias"]')).toBeVisible();
       expect((await page.goto("/guias"))?.status()).toBe(200);
       await page.goto("/");
-      await expect(page.locator("[data-home-guias] a[data-guia]")).toHaveCount(2);
+      if (HOME_DEL_TEMPLATE)
+        await expect(page.locator("[data-home-guias] a[data-guia]")).toHaveCount(2);
     } finally {
       await elegirModo(page, "Lo que diga el código (Con carrito y pedidos)");
     }

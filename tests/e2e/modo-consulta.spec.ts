@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { esPielDelTemplate } from "../helpers/piel";
 import { irAPrimeraCategoria, loginAsOwner } from "./helpers";
 import { TESTIDS } from "./testids";
 
@@ -31,7 +32,10 @@ test("modo consulta: sin carrito, la ficha sólo ofrece WhatsApp y /checkout es 
   try {
     await page.goto("/");
     await expect(page.getByTestId(TESTIDS.headerCartLink)).toHaveCount(0);
-    await expect(page.locator('footer a[href="/pedido/buscar"]')).toHaveCount(0);
+    // El pie es piel: uno rediseñado antes de v2.1.0 conserva su link (O36,
+    // NEW-STORE.md §4b-ter); sólo el del template se controla acá.
+    if (esPielDelTemplate("src/components/site-footer.tsx"))
+      await expect(page.locator('footer a[href="/pedido/buscar"]')).toHaveCount(0);
 
     await irAPrimeraCategoria(page);
     await expect(page).toHaveURL(/\/categoria\//);
