@@ -637,7 +637,16 @@ Pagopar, avisos de pedido y formas de entrega, y **bloquea sin un WhatsApp
 público** (`/admin/ajustes` → Contacto o `WHATSAPP_NUMBER`): sin él no queda
 ningún botón para consultar. El resumen del panel tampoco avisa de banco,
 zonas de envío ni precios. Un `tienda.ts` de antes de este campo compila
-igual y queda en `carrito`.
+igual y queda en `carrito` (el campo se lee con `modoVentaDeFabrica()`, nunca
+como `TIENDA.modoVenta`).
+
+**Tarjeta rediseñada antes de v2.1.0:** las páginas le pasan el modo a
+`ProductCard` como `{...propsDeModoVenta(modo)}`, así una tarjeta propia sin la
+prop sigue compilando, pero no se entera del modo: en consulta mostraría un
+producto `stock` como comprable. Antes de pasar a consulta, sumale a tu tarjeta
+la prop `modoVenta?: ModoVenta` y dibujá el producto con
+`saleModeEfectivo(product.saleMode, modoVenta)`, como `product-card.tsx` del
+template. Un pie de página propio tampoco gana los links "Guías" y "Contacto".
 
 ### 4c. ¿Entrar sin contraseña? (opcional, apagado)
 
