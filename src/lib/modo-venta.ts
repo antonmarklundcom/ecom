@@ -1,7 +1,7 @@
 import { TIENDA } from "@/config/tienda";
 import type { Executor } from "@/domain/executor";
 import {
-  MODO_VENTA_POR_DEFECTO,
+  modoVentaDeFabrica,
   tomaPedidos,
   type ModoVenta,
 } from "@/domain/modo-venta";
@@ -30,7 +30,7 @@ export async function modoVentaEfectivo(
   const { ventas } = executor
     ? (await readStoreSettings(executor)).settings
     : await getStoreSettings();
-  return ventasEfectivas(ventas, TIENDA.modoVenta ?? MODO_VENTA_POR_DEFECTO);
+  return ventasEfectivas(ventas, modoVentaDeFabrica(TIENDA));
 }
 
 /** ¿La tienda toma pedidos ahora? (`"carrito"`). */

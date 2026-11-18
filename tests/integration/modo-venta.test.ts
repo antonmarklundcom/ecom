@@ -9,6 +9,7 @@ import {
   type CreateOrderInput,
 } from "@/domain/create-order";
 import { saveStoreSettingsSection } from "@/domain/store-settings";
+import { modoVentaDeFabrica } from "@/domain/modo-venta";
 import { modoVentaEfectivo, tiendaTomaPedidos } from "@/lib/modo-venta";
 
 import {
@@ -50,7 +51,7 @@ describe.skipIf(!hasTestDb)("modo de venta", () => {
   afterAll(closeTestDb);
 
   it("sin fila manda tienda.ts; el panel lo cambia y 'vacío' vuelve a tienda.ts", async () => {
-    const deFabrica = TIENDA.modoVenta ?? "carrito";
+    const deFabrica = modoVentaDeFabrica(TIENDA);
     expect(await modoVentaEfectivo()).toBe(deFabrica);
     expect(await modoVentaEfectivo(getTestDb())).toBe(deFabrica);
 

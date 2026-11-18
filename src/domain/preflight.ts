@@ -14,7 +14,7 @@ import {
 import type { PaymentMethod } from "@/db/schema";
 
 import { paymentPolicy } from "./payment-policy";
-import { MODO_VENTA_POR_DEFECTO, type ModoVenta } from "./modo-venta";
+import { modoVentaDeFabrica, type ModoVenta } from "./modo-venta";
 import { WEBHOOK_ENVELOPE_CONFIRMED } from "./pagopar/protocol";
 import { PAGOPAR_MOCK_MODE } from "./pagopar/mode";
 
@@ -234,7 +234,7 @@ export function preflight(
   ajustes: PreflightAjustes = {}
 ): PreflightReport {
   const { efectivo: env, origenes } = entornoEfectivo(envCrudo, panel);
-  const modo = ajustes.modoVenta ?? TIENDA.modoVenta ?? MODO_VENTA_POR_DEFECTO;
+  const modo = ajustes.modoVenta ?? modoVentaDeFabrica(TIENDA);
   const consulta = modo === "consulta";
   const checks: PreflightCheck[] = [
     ...(panel ? [checkLecturaPanel(panel)] : []),

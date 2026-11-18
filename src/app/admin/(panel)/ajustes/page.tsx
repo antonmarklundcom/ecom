@@ -27,6 +27,7 @@ import { requireCapabilityPage } from "@/lib/admin-guard";
 import { r2Configurado } from "@/lib/r2";
 import { customerSessionConfigured } from "@/lib/customer-session";
 import { comercioWhatsApp } from "@/lib/comercio";
+import { modoVentaDeFabrica } from "@/domain/modo-venta";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { productImageUrl } from "@/lib/images";
 import { paginaEfectiva } from "@/lib/paginas";
@@ -353,7 +354,7 @@ function VentasSection({
   sinWhatsApp: boolean;
 }) {
   const porDefecto = t(
-    (TIENDA.modoVenta ?? "carrito") === "consulta"
+    modoVentaDeFabrica(TIENDA) === "consulta"
       ? "panel.ajustes.ventas.consulta"
       : "panel.ajustes.ventas.carrito"
   );
