@@ -13,6 +13,8 @@ import {
   organizationJsonLd,
   productJsonLd,
   websiteJsonLd,
+  contactoTieneDatos,
+  MAX_IMAGENES_SITEMAP,
   type MerchantPoliciesLd,
 } from "../../src/lib/seo";
 
@@ -123,6 +125,8 @@ describe("robots.txt", () => {
       "privacidad",
       // Las guías de compra (O34): texto de la tienda, archivos del repo.
       "guias",
+      // O35: `/contacto`, sólo lo que la tienda cargó como contacto público.
+      "contacto",
     ]);
     const raiz = path.join(process.cwd(), "src/app");
     const entries = await readdir(raiz, { withFileTypes: true });
@@ -622,9 +626,9 @@ describe("productJsonLd · precio oculto y modos de venta", () => {
     expect(jsonLd).not.toHaveProperty("aggregateRating");
   });
 
+  // `enquiry` con precio publica su Offer desde O35 (ver "productJsonLd · O35").
   it.each([
     { caso: "precio oculto", extra: { showPrice: false } },
-    { caso: "sólo consulta", extra: { saleMode: "enquiry" as const } },
     { caso: "vidriera", extra: { saleMode: "showcase" as const } },
   ])("$caso: el producto sale, pero sin Offer ni precio", ({ extra }) => {
     const jsonLd = productJsonLd({ ...base, ...extra });
@@ -756,3 +760,99 @@ describe("Organization y WebSite del layout", () => {
   });
 });
 
+
+describe("O35 · productJsonLd de un producto de consulta", () => {
+  const consulta = {
+    origin: new URL("https://tienda.com.py"),
+    slug: "anillo",
+    name: "Anillo",
+    images: ["https://imagenes.tienda.test/p1/anillo-0123456789.jpg"],
+    saleMode: "enquiry" as const,
+    // La vidriera deja en 0 el stock de un producto de consulta.
+    variants: [{ sku: "AN-1", label: "Único", pricePyg: 1_250_000, available: 0 }],
+  };
+
+  it("con precio: una Offer con precio, PYG, back order y URL", () => {
+    const ld = productJsonLd(consulta) as { offers: Record<string, unknown>[] };
+    expect(ld.offers).toEqual([
+      expect.objectContaining({
+        "@type": "Offer",
+        price: 1_250_000,
+        priceCurrency: "PYG",
+        availability: "https://schema.org/BackOrder",
+        url: "https://tienda.com.py/producto/anillo?variante=AN-1",
+      }),
+    ]);
+  });
+
+  it("con la disponibilidad decidida en el servidor, la usa tal cual", () => {
+    const ld = productJsonLd({
+      ...consulta,
+      disponibilidad: { "AN-1": "en_stock" },
+    }) as { offers: Record<string, unknown>[] };
+    expect(ld.offers[0]!.availability).toBe("https://schema.org/InStock");
+  });
+
+  it("precio oculto (la vidriera lo deja en 0): sin Offer, nunca un precio 0", () => {
+    const ld = productJsonLd({
+      ...consulta,
+      showPrice: false,
+      variants: [{ ...consulta.variants[0]!, pricePyg: 0 }],
+    });
+    expect(ld).not.toHaveProperty("offers");
+    expect(JSON.stringify(ld)).not.toContain('"price"');
+  });
+
+  it("vidriera (showcase): sin Offer", () => {
+    expect(productJsonLd({ ...consulta, saleMode: "showcase" })).not.toHaveProperty("offers");
+  });
+
+  it("sin ninguna variante con precio cobrable: sin `offers`, nunca una lista vacía", () => {
+    const ld = productJsonLd({
+      ...consulta,
+      variants: [{ ...consulta.variants[0]!, pricePyg: 0 }],
+    });
+    expect(ld).not.toHaveProperty("offers");
+  });
+
+  it("modo consulta: un producto `stock` agotado sale como back order", () => {
+    const ld = productJsonLd({
+      ...consulta,
+      saleMode: "stock",
+      modoVenta: "consulta",
+    }) as { offers: Record<string, unknown>[] };
+    expect(ld.offers[0]!.availability).toBe("https://schema.org/BackOrder");
+  });
+});
+
+describe("O35 · sitemap de imágenes y /contacto", () => {
+  const origin = new URL("https://tienda.com.py");
+
+  it("hasta cinco fotos https por producto, sin repetir; sin fotos, sin el campo", () => {
+    const fotos = Array.from({ length: 7 }, (_, i) => `https://img.test/p1/f${i}.jpg`);
+    const entries = buildSitemap(origin, {
+      categories: [],
+      products: [
+        { slug: "con", updatedAt: null, images: [fotos[0]!, fotos[0]!, "/relativa.jpg", ...fotos] },
+        { slug: "sin", updatedAt: null, images: [] },
+      ],
+    });
+    const con = entries.find((e) => e.url.endsWith("/producto/con"))!;
+    expect(con.images).toEqual(fotos.slice(0, MAX_IMAGENES_SITEMAP));
+    expect(entries.find((e) => e.url.endsWith("/producto/sin"))).not.toHaveProperty("images");
+  });
+
+  it("/contacto sólo si la página existe", () => {
+    const sin = buildSitemap(origin, { categories: [], products: [] });
+    expect(sin.map((e) => e.url)).not.toContain("https://tienda.com.py/contacto");
+    const con = buildSitemap(origin, { categories: [], products: [], contacto: true });
+    expect(con.map((e) => e.url)).toContain("https://tienda.com.py/contacto");
+  });
+
+  it("contactoTieneDatos: cualquier dato cargado alcanza; ninguno, no", () => {
+    const vacio = { whatsapp: null, email: null, direccion: null, horario: null, redes: [] };
+    expect(contactoTieneDatos(vacio)).toBe(false);
+    expect(contactoTieneDatos({ ...vacio, email: "hola@tienda.com.py" })).toBe(true);
+    expect(contactoTieneDatos({ ...vacio, redes: [{ red: "instagram", url: "https://instagram.com/x" }] })).toBe(true);
+  });
+});

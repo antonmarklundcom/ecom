@@ -39,6 +39,9 @@ const PERMITIDOS = new Set(
     'src/db/enums.ts',
     // El dominio de proveedores y el ABM de productos que escribe `supplier_url`.
     'src/domain/supplier-offers.ts',
+    // O35: la disponibilidad de la vidriera lee stock y fecha de la oferta
+    // preferida y devuelve sólo la palabra ("en stock", "por encargo").
+    'src/domain/disponibilidad-proveedor.ts',
     'src/domain/admin-products.ts',
     // Duplicar copia el enlace de compra (y no las ofertas).
     'src/domain/admin-bulk.ts',

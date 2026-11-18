@@ -189,6 +189,13 @@ export const TESTIDS = {
   productRatingSummary: "product-rating-summary",
   /** La sección "Reseñas" (`#resenas`) de la ficha de producto. */
   productReviewsSection: "product-reviews-section",
+  /**
+   * O35: la línea de disponibilidad de la ficha ("En stock", "Por encargo"),
+   * con `data-disponibilidad` = la palabra de `src/domain/disponibilidad.ts`.
+   */
+  productAvailability: "product-availability",
+  /** O35: el botón de WhatsApp de `/contacto`. */
+  contactWhatsapp: "contact-whatsapp",
   /** Una fila de `/admin/resenas`, con `data-review-id`. */
   adminReviewRow: "admin-review-row",
 
