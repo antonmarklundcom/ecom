@@ -253,6 +253,11 @@ const CLAVES = new Set([
 function texto(datos: Record<string, Valor>, clave: string): string {
   const valor = datos[clave];
   if (valor === undefined) return "";
+  // `descripcion: [COMPLETAR]` sin comillas se lee como lista en línea: vuelve
+  // a ser el texto que se escribió, y la regla de `[COMPLETAR]` lo ve.
+  if (Array.isArray(valor) && valor.every((item) => typeof item === "string")) {
+    return `[${valor.join(", ")}]`;
+  }
   if (typeof valor !== "string") throw new Error(`"${clave}" tiene que ser texto`);
   return valor;
 }

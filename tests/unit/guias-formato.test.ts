@@ -122,6 +122,15 @@ describe("parsearGuia", () => {
     ).toThrow(/respuesta/);
   });
 
+  it("un [COMPLETAR] sin comillas sigue siendo texto (y la regla lo ve)", () => {
+    const g = parsearGuia(
+      "x",
+      "---\ntitulo: Guía\ndescripcion: [COMPLETAR]\npublicada: 2026-11-10\ncategorias: [a]\n---\nCuerpo"
+    );
+    expect(g.descripcion).toBe("[COMPLETAR]");
+    expect(problemasDeGuia(g).join("\n")).toMatch(/\[COMPLETAR\]/);
+  });
+
   it("un archivo roto se informa, no tira la lectura entera", () => {
     const { guias, rotos } = leerCarpetaDeGuias(join(FIXTURES, "invalidas"));
     expect(rotos.map((r) => r.archivo)).toEqual(["sin-front-matter.md"]);
