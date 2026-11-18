@@ -1,6 +1,6 @@
-# Phase O34 — guides. Opus 5.5 session (`claude-opus-5-5`). After O33.
+# Phase O34 — guides. Opus 5.5 session (`claude-opus-5-5`). Runs beside O32 and O33.
 - Read ONLY: this file; `fable/plan-trafico.md` §1, §2.3, §4, §5.3 and the phase table;
-  `fable/plan-2026-11.md` §4; `CLAUDE.md`; `docs/log/o33.md`; `src/lib/markdown.ts` (the escape
+  `fable/plan-2026-11.md` §4; `CLAUDE.md`; `src/lib/markdown.ts` (the escape
   rule), `src/lib/seo.ts`, `src/app/sitemap.ts`, `src/config/catalogue.ts`,
   `src/components/catalogue-editorial.tsx`, `scripts/template-shared.ts`, `scripts/nueva-tienda.ts`,
   NEW-STORE.md §5, `docs/TEMPLATE-INHERITANCE.md`.
@@ -13,6 +13,11 @@
   NEW-STORE.md §5, `CHANGELOG.md`, `docs/log/o34.md`.
 ### Rules
 - Branch from the brief, off latest `main`. Gate and reporting: plan §4.
+- **Other phases run at the same time** (plan §4.10). Keep your edits to shared files small and
+  in a place of their own: new i18n keys next to related ones, not appended at the end; one bullet
+  in `CHANGELOG.md` starting with your phase id. You do not merge your PR: the manager does.
+- O35 will add `/contacto` and product images to the same sitemap and `src/lib/seo.ts`: add the
+  guide entries as their own function and their own block, do not reshape what is there.
 - No database table and no migration. A guide is a file.
 - No new runtime dependency for markdown or front matter unless it has no install scripts, no
   transitive dependencies and you say why in the log. The guide renderer follows
@@ -35,7 +40,9 @@
 ### Exit
 - Plan §5.3 "Exit", every line.
 - A store with its own `src/content/guias/` survives `pnpm template:sync` untouched (test).
-- Gate green locally and on GitHub; PR merged with a merge commit; `docs/log/o34.md` committed and
-  its line added to plan §9.
+- Gate green locally and on GitHub on the PR's last commit; `docs/log/o34.md` committed on the
+  branch with its line for plan §9. **Do not merge.** Report to the manager and end the turn. If the
+  manager later writes that `main` moved: merge `origin/main` into the branch (main wins on
+  conflict, re-apply your change), run the gate again, push, wait for CI, report again.
 ## After this phase
 Report to the manager (plan §4.5) and end. Start no session. Never use Fable.

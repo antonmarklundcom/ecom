@@ -13,17 +13,19 @@
 | Phase | Repo | Model | Prompt file | Sections | Owns (areas) | Depends on |
 |---|---|---|---|---|---|---|
 | O32 | ecom | Opus 5.5 (`claude-opus-5-5`) | `fable/prompts/opus-32-modo-consulta.md` | §2.1, §5.1 | store mode setting, header/cart/checkout gates, preflight, `nueva-tienda`, three factory fixes from O31 | — |
-| O33 | ecom | Opus 5.5 | `fable/prompts/opus-33-medir-consultas.md` | §2.2, §5.2 | two counter tables + migration, `/api/consulta`, `/admin/consultas`, funnel event, digest, backup | O32 |
-| O34 | ecom | Opus 5.5 | `fable/prompts/opus-34-guias.md` | §2.3, §5.3 | `src/lib/guias.ts`, `src/app/guias/**`, guide markdown, sitemap, sync classification, `docs/GUIAS.md` | O33 |
-| O35 | ecom | Opus 5.5 | `fable/prompts/opus-35-seo-busqueda.md` | §2.4, §5.4 | `src/lib/seo.ts`, availability, `/contacto`, image sitemap, `pnpm seo:auditar`, `pnpm categorias:aplicar` | O34 |
-| O36 | ecom | Opus 5.5 | `fable/prompts/opus-36-release-v210.md` | §5.5 | harness proof, `CHANGELOG.md`, NEW-STORE.md "En una página", the tag request | O35 |
+| O33 | ecom | Opus 5.5 | `fable/prompts/opus-33-medir-consultas.md` | §2.2, §5.2 | two counter tables + migration, `/api/consulta`, `/admin/consultas`, funnel event, digest, backup | — (beside O32, O34) |
+| O34 | ecom | Opus 5.5 | `fable/prompts/opus-34-guias.md` | §2.3, §5.3 | `src/lib/guias.ts`, `src/app/guias/**`, guide markdown, sitemap, sync classification, `docs/GUIAS.md` | — (beside O32, O33) |
+| O35 | ecom | Opus 5.5 | `fable/prompts/opus-35-seo-busqueda.md` | §2.4, §5.4 | `src/lib/seo.ts`, availability, `/contacto`, image sitemap, `pnpm seo:auditar`, `pnpm categorias:aplicar` | O32 merged |
+| O36 | ecom | Opus 5.5 | `fable/prompts/opus-36-release-v210.md` | §5.5 | harness proof, `CHANGELOG.md`, NEW-STORE.md "En una página", the tag request | O32–O35 merged |
 | T-PRO | productos.tienda | Opus 5.5 | `fable/prompts/tienda-productos.md` | §6.1, §6.5 | the store repo | tag v2.1.0 |
 | T-ANI | anillos.tienda (new) | Opus 5.5 | `fable/prompts/tienda-anillos.md` | §6.2, §6.5 | the store repo | tag v2.1.0, §7 inputs |
 | T-MUE | muebles.tienda (new) | Opus 5.5 | `fable/prompts/tienda-muebles.md` | §6.3, §6.5 | the store repo | tag v2.1.0, §7 inputs |
 | T-LEN | lenceria.tienda (new) | Opus 5.5 | `fable/prompts/tienda-lenceria.md` | §6.4, §6.5 | the store repo | tag v2.1.0, §7 inputs |
 
-O32–O36 are sequential: they edit the same storefront files. The four store sessions touch four
-different repos and may run at the same time. Fable is not in this table and never will be: it
+**Changed 2026-11-18 (Anton: run what is not blocked at the same time, the manager decides the
+merges):** O32, O33 and O34 run side by side; O35 starts when O32 is on `main`; O36 is last. They
+share a few files, so the manager merges one PR at a time (§4.10). The four store sessions touch
+four different repos and may run at the same time. Fable is not in this table and never will be: it
 plans and manages in the window Anton opened, and builds nothing (§4.8).
 
 ---
@@ -189,6 +191,11 @@ or add to it, because the sessions now run in the cloud:
 8. **Model cost guardrail.** Fable / Mythos-class models are never used by a phase, a subagent, a
    spawned session, a watcher or a scheduled task. A session that believes it needs one writes why
    to `docs/decisions-needed.md` and ends.
+10. **Parallel phases and merging.** A phase running beside others does not merge its own PR. It
+    gets the PR green, reports, and ends its turn. The manager merges one PR at a time, first green
+    first; after each merge it brings the other open PRs up to date with `main`. A PR is merged
+    only when its last commit contains current `main` and CI is green on that commit. (O32 was
+    started before this rule and merges itself; it is the first.)
 9. **Polish cap.** One screenshot pass per phase (≤ 5 pages × 2 widths, as a CI artifact or under
    the scratch folder, never committed), one adversarial re-read of the merged diff, one follow-up
    commit. Ideas found after the exit criteria pass go to §10.
@@ -202,7 +209,11 @@ or add to it, because the sessions now run in the cloud:
   `Read fable/prompts/<file>.md in this repo and execute it.` followed by the brief: the manager's
   session id, and the inputs of §7 that Anton gave. For a store repo, which has no `fable/`:
   `Read fable/prompts/<file>.md of antonmarklundcom/ecom (origin/main) and execute it.`
-- Does not watch a running session, does not message it, does not read its event stream. It reads
+- Merges the PRs of parallel phases (§4.10). After a merge it updates the other open PR branches
+  from `main`; if GitHub cannot (a conflict) or CI turns red, it writes to that phase's session,
+  which has ended its turn, to merge `main`, re-run the gate and report again.
+- Does not watch a running session, does not message it while it works, does not read its event
+  stream. It reads
   committed state once when the session reports or when Anton asks: `docs/log/<id>.md` on `main`
   and the PR. To change what a later phase does, it edits that phase's prompt file.
 - Writes no code and reviews no diff line by line. It checks the log against the exit list, tells
