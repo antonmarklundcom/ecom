@@ -207,7 +207,7 @@ test.describe("guías en los dos modos de venta", () => {
       if (HOME_DEL_TEMPLATE)
         await expect(page.locator("[data-home-guias] a[data-guia]")).toHaveCount(2);
     } finally {
-      await elegirModo(page, "Lo que diga el código (Con carrito y pedidos)");
+      await elegirModo(page, "Con carrito y pedidos");
     }
   });
 });
