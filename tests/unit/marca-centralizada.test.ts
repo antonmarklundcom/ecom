@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { TIENDA } from '../../src/config/tienda';
+import { marcaBuscable } from '../helpers/marca-buscable';
 import { listSourceFiles, readCode } from '../helpers/source';
 
 /**
@@ -21,7 +22,7 @@ describe('la marca vive sólo en src/config/tienda.ts', () => {
   it('ningún otro módulo escribe el nombre de la tienda a mano', async () => {
     // `marcaBuscable` para un nombre que es una palabra común (O32): sin él,
     // el nombre.
-    const needle = (TIENDA.marcaBuscable ?? TIENDA.nombre).toLowerCase();
+    const needle = marcaBuscable(TIENDA).toLowerCase();
     const offenders: string[] = [];
 
     for (const file of await listSourceFiles(ROOTS)) {

@@ -60,7 +60,7 @@ describe("las guías y el modo de venta (O32)", () => {
     const fuente = readFileSync("src/app/guias/[slug]/page.tsx", "utf8");
     const tarjetas = [...fuente.matchAll(/<ProductCard\b[^>]*>/g)].map((m) => m[0]);
     expect(tarjetas.length).toBeGreaterThan(0);
-    for (const tarjeta of tarjetas) expect(tarjeta).toMatch(/modoVenta=\{modoVenta\}/);
+    for (const tarjeta of tarjetas) expect(tarjeta).toMatch(/\{\.\.\.propsDeModoVenta\(modoVenta\)\}/);
     expect(fuente).toMatch(/modoVentaEfectivo\(\)/);
   });
 });

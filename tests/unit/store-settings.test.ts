@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { PAGINAS_DEFAULT } from "@/config/paginas-default";
 import { TIENDA } from "@/config/tienda";
+import { marcaBuscable } from "../helpers/marca-buscable";
 import {
   DEFAULT_STORE_SETTINGS,
   PAGINAS,
@@ -333,7 +334,7 @@ describe("placeholders de las páginas", () => {
   it("los textos por defecto no nombran la tienda a mano", () => {
     for (const slug of PAGINAS) {
       expect(PAGINAS_DEFAULT[slug].cuerpo.toLowerCase()).not.toContain(
-        (TIENDA.marcaBuscable ?? TIENDA.nombre).toLowerCase()
+        marcaBuscable(TIENDA).toLowerCase()
       );
     }
   });

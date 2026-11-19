@@ -13,6 +13,7 @@ import { waLinkPublico } from "@/lib/comercio";
 import { atributosConsulta } from "@/lib/consulta-click";
 import { log } from "@/lib/log";
 import { marcaEfectiva } from "@/lib/marca";
+import { propsDeModoVenta } from "@/domain/modo-venta";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { formatDatePY } from "@/lib/py";
 import { safeError } from "@/lib/safe-error";
@@ -213,7 +214,7 @@ export default async function GuiaPage({ params }: { params: Params }) {
           <h2 className="text-lg font-semibold">{t("guias.productos")}</h2>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             {productos.map((producto) => (
-              <ProductCard key={producto.id} product={producto} modoVenta={modoVenta} />
+              <ProductCard key={producto.id} product={producto} {...propsDeModoVenta(modoVenta)} />
             ))}
           </div>
         </section>

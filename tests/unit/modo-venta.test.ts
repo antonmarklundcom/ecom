@@ -5,6 +5,7 @@ import {
   MODO_VENTA_POR_DEFECTO,
   conModoVenta,
   esModoVenta,
+  modoVentaDeFabrica,
   saleModeEfectivo,
   tomaPedidos,
 } from "@/domain/modo-venta";
@@ -71,8 +72,11 @@ describe("saleModeEfectivo: la única regla", () => {
 describe("el ajuste `ventas`", () => {
   it.skipIf(TIENDA.nombre !== MARCA_PLACEHOLDER)(
     "el template sale de fábrica con carrito",
-    () => {
-      expect(TIENDA.modoVenta).toBe("carrito");
+    async () => {
+      // El real: la suite corre con `modoVenta: "carrito"` forzado
+      // (tests/setup/config-del-template.ts).
+      const real = await vi.importActual<typeof import("@/config/tienda")>("@/config/tienda");
+      expect(modoVentaDeFabrica(real.TIENDA)).toBe("carrito");
       expect(MODO_VENTA_POR_DEFECTO).toBe("carrito");
     }
   );
@@ -235,7 +239,8 @@ export const TIENDA: Tienda = {
   it("el tienda.ts del template tiene el campo que el script reescribe", async () => {
     const { readFile } = await import("node:fs/promises");
     const fuente = await readFile("src/config/tienda.ts", "utf8");
-    expect(leerModoVentaActual(fuente)).toBe(TIENDA.modoVenta ?? "carrito");
+    const real = await vi.importActual<typeof import("@/config/tienda")>("@/config/tienda");
+    expect(leerModoVentaActual(fuente)).toBe(modoVentaDeFabrica(real.TIENDA));
   });
 });
 

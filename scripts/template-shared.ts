@@ -261,6 +261,9 @@ export const TESTS_DE_PIEL = [
   "src/components/__tests__/modo-consulta.test.tsx",
   "tests/unit/piel-sin-colores.test.ts",
   "tests/unit/temas.test.ts",
+  // No mira un archivo de piel, pero pregunta si corre en el template: las
+  // claves muertas sólo se controlan ahí (O36).
+  "tests/unit/i18n.test.ts",
 ] as const;
 
 /**

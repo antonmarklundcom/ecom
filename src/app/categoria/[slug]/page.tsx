@@ -32,6 +32,7 @@ import {
 } from "@/lib/seo";
 import { siteOrigin } from "@/lib/site-url";
 import { waLinkPublico } from "@/lib/comercio";
+import { propsDeModoVenta } from "@/domain/modo-venta";
 import { modoVentaEfectivo } from "@/lib/modo-venta";
 import { TESTIDS } from "@/lib/testids";
 import { parametrosDeLaUrl } from "@/lib/vidriera-cache";
@@ -349,7 +350,7 @@ export default async function CategoryPage({
               product={product}
               priority={index < 4}
               showRating={vidriera.estrellasEnTarjetas}
-              modoVenta={modoVenta}
+              {...propsDeModoVenta(modoVenta)}
             />
           ))}
         </div>

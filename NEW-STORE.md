@@ -20,6 +20,22 @@ sólo hay cuatro trabajos — marca, diseño, base de datos, productos.
 
 Sin `gh`: "Use this template" + §1.
 
+**Tienda que no vende todavía (modo consulta, v2.1.0):** todo se consulta por
+WhatsApp, sin carrito ni pedidos.
+
+1. En el paso 1, `--modo consulta` (`pnpm nueva-tienda --crear-repo dueño/nombre
+   --modo consulta`): queda `modoVenta: "consulta"` en `tienda.ts`; se cambia
+   después en `/admin/ajustes` → Modo de venta (§4b-ter). `pnpm preflight` dice
+   "no aplica" en banco, pagos y envíos y **bloquea sin WhatsApp público**.
+2. Categorías y sus textos: `src/content/categorias.json` → `pnpm
+   categorias:aplicar` (ensayo) y después `--aplicar` (docs/SEO.md §4).
+3. Guías: `src/content/guias/<slug>.md` según docs/GUIAS.md; el test de
+   contenido (`tests/unit/guias-contenido.test.ts`) las revisa en el CI.
+4. `pnpm seo:auditar` antes de publicar (`--estricto` sale con 1 si falta algo).
+5. Los clics de WhatsApp y las búsquedas se ven en `/admin/consultas`.
+
+Pasar a vender es cambiar el modo en el panel: entonces vale el paso 5 de arriba.
+
 ---
 
 **Los pasos de la base de datos corrélos en tu máquina, en una terminal.**
@@ -621,7 +637,17 @@ Pagopar, avisos de pedido y formas de entrega, y **bloquea sin un WhatsApp
 público** (`/admin/ajustes` → Contacto o `WHATSAPP_NUMBER`): sin él no queda
 ningún botón para consultar. El resumen del panel tampoco avisa de banco,
 zonas de envío ni precios. Un `tienda.ts` de antes de este campo compila
-igual y queda en `carrito`.
+igual y queda en `carrito` (el campo se lee con `modoVentaDeFabrica()`, nunca
+como `TIENDA.modoVenta`).
+
+**Tarjeta rediseñada antes de v2.1.0:** las páginas le pasan el modo a
+`ProductCard` como `{...propsDeModoVenta(modo)}`, así una tarjeta propia sin la
+prop sigue compilando, pero no se entera del modo: en consulta mostraría un
+producto `stock` como comprable. Antes de pasar a consulta, sumale a tu tarjeta
+la prop `modoVenta?: ModoVenta` y dibujá el producto con
+`saleModeEfectivo(product.saleMode, modoVenta)`, como `product-card.tsx` del
+template. Un pie de página propio tampoco gana los links "Guías" y "Contacto",
+y en consulta tiene que perder el de "Seguí tu pedido" (`/pedido/buscar` es 404).
 
 ### 4c. ¿Entrar sin contraseña? (opcional, apagado)
 

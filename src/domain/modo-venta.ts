@@ -26,6 +26,35 @@ export function esModoVenta(valor: unknown): valor is ModoVenta {
   return (MODOS_VENTA as readonly unknown[]).includes(valor);
 }
 
+/**
+ * El `modoVenta` de fábrica de un `TIENDA` (`src/config/tienda.ts`), sin el
+ * campo o con un valor que no es un modo: `carrito`.
+ *
+ * Se lee así, y no como `TIENDA.modoVenta`, porque `tienda.ts` es de la tienda
+ * y `template:sync` nunca lo pisa: una tienda nacida antes de v2.1.0 tiene un
+ * tipo `Tienda` sin el campo, y `TIENDA.modoVenta` no le compilaba (O36,
+ * tienda "Norte" del arnés). `tests/unit/tienda-campos-nuevos.test.ts` lo
+ * vigila.
+ */
+export function modoVentaDeFabrica(tienda: object): ModoVenta {
+  const valor = (tienda as { modoVenta?: unknown }).modoVenta;
+  return esModoVenta(valor) ? valor : MODO_VENTA_POR_DEFECTO;
+}
+
+/**
+ * Las props de modo para la tarjeta de producto, para pasarlas **esparcidas**
+ * (`<ProductCard … {...propsDeModoVenta(modo)} />`), nunca como
+ * `modoVenta={modo}`.
+ *
+ * `product-card.tsx` es piel: una tienda que la rediseñó antes de v2.1.0 tiene
+ * una tarjeta sin la prop, y un atributo JSX que la tarjeta no declara no
+ * compila (O36, tienda "Norte" del arnés). Esparcida, TypeScript no la
+ * reclama: esa tarjeta compila y no se entera del modo (NEW-STORE.md §4b-ter).
+ */
+export function propsDeModoVenta(modoVenta: ModoVenta): { modoVenta: ModoVenta } {
+  return { modoVenta };
+}
+
 export type SaleMode = "stock" | "enquiry" | "showcase";
 
 /**

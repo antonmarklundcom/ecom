@@ -30,6 +30,21 @@ item by deleting it in the PR that acts on it.
 - O31 catalogue (2026-11-12): from Anton's D1 export; Dropi Product Lab only as a read-only cross-check.
 - O31 "Tests en MariaDB" (2026-11-12): may be dispatched by hand on O31's own PR branches in productos.tienda only.
 
+## 5. Tag v2.1.0 (O36, 2026-11-18 — `fable/plan-trafico.md` §5.5 item 3)
+
+O32–O36 are on `main`; `CHANGELOG.md` has `v2.1.0 — 2026-11-18`, **Migración: sí (0026)**.
+The tag goes on the merge commit of O36's PR (`phase/o36-release-v210`) or a later `main`,
+pushed by the manager (or Anton on the GitHub release page) on Anton's go, nobody else:
+
+```bash
+git fetch origin main && git tag -a v2.1.0 -m v2.1.0 origin/main && git push origin v2.1.0
+```
+
+**What it triggers**: `distribuir.yml` runs on the tag push, but every store in
+`tiendas.json` (lenceria, mascota, anillos, productos.tienda) is `"estado": "pausada"`, so
+the run picks zero stores and opens no PR. No `TIENDAS_TOKEN` is needed for that (item 4).
+The four store sessions of `fable/plan-trafico.md` §6 start from this tag.
+
 ## 4. Distribution token: GitHub App or fine-grained PAT (O28, 2026-11-11 — plan §5.4 item 5)
 
 `distribuir.yml` needs one credential (`secrets.TIENDAS_TOKEN` today) that can clone each

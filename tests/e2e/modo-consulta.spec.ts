@@ -1,13 +1,14 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { esPielDelTemplate } from "../helpers/piel";
 import { irAPrimeraCategoria, loginAsOwner } from "./helpers";
 import { TESTIDS } from "./testids";
 
 /**
  * Modo consulta (O32, fable/plan-trafico.md §2.1 y §5.1), en un navegador de
  * verdad: el dueño lo prende en `/admin/ajustes` → Modo de venta, y la
- * vidriera deja de vender. Al final vuelve a "Lo que diga el código" (el
+ * vidriera deja de vender. Al final vuelve a "Con carrito y pedidos" (el
  * `carrito` del template) para el resto de los specs, que corren en serie
  * contra la misma base (`playwright.config.ts`: `workers: 1`).
  *
@@ -31,7 +32,10 @@ test("modo consulta: sin carrito, la ficha sólo ofrece WhatsApp y /checkout es 
   try {
     await page.goto("/");
     await expect(page.getByTestId(TESTIDS.headerCartLink)).toHaveCount(0);
-    await expect(page.locator('footer a[href="/pedido/buscar"]')).toHaveCount(0);
+    // El pie es piel: uno rediseñado antes de v2.1.0 conserva su link (O36,
+    // NEW-STORE.md §4b-ter); sólo el del template se controla acá.
+    if (esPielDelTemplate("src/components/site-footer.tsx"))
+      await expect(page.locator('footer a[href="/pedido/buscar"]')).toHaveCount(0);
 
     await irAPrimeraCategoria(page);
     await expect(page).toHaveURL(/\/categoria\//);
@@ -46,7 +50,7 @@ test("modo consulta: sin carrito, la ficha sólo ofrece WhatsApp y /checkout es 
     expect((await request.get("/checkout")).status()).toBe(404);
     expect((await request.get("/pedido/buscar")).status()).toBe(404);
   } finally {
-    await elegirModo(page, "Lo que diga el código (Con carrito y pedidos)");
+    await elegirModo(page, "Con carrito y pedidos");
   }
 
   // De vuelta en carrito: la tienda de siempre.

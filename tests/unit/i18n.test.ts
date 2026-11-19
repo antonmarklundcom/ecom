@@ -6,6 +6,7 @@ import { esPY } from '@/i18n/es-PY';
 import { catalogosRegistrados, idiomaActivo, t, tPlural } from '@/i18n';
 import { TIENDA } from '@/config/tienda';
 
+import { esRepoDelTemplate } from '../helpers/piel';
 import { listSourceFiles, readCode } from '../helpers/source';
 
 /**
@@ -83,7 +84,11 @@ describe('catálogo de mensajes', () => {
     expect(faltantes).toEqual([]);
   });
 
-  it('no quedan claves muertas en el catálogo', async () => {
+  // Sólo en el template: en una tienda, una clave que usaba sólo piel que la
+  // tienda rediseñó (el link "Guías" o "Contacto" de un pie propio) queda
+  // "muerta" y la tienda no puede sacarla — `es-PY.ts` se fusiona con el
+  // template en cada sync. Ahí el control no dice nada útil (O36, "Norte").
+  it.skipIf(!esRepoDelTemplate())('no quedan claves muertas en el catálogo', async () => {
     const { plurales, literales } = await clavesUsadas();
 
     const usadas = new Set(literales);

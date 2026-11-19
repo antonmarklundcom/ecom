@@ -20,6 +20,15 @@ vi.mock("@/config/checkout", () => ({
   CHECKOUT: { paymentMethods: ["transferencia", "contra_entrega", "tarjeta"] },
 }));
 
+// Lo mismo con el modo de venta (O36): `src/config/tienda.ts` es de la tienda,
+// y una nacida con `pnpm nueva-tienda --modo consulta` lo deja en "consulta",
+// donde ningún pedido se crea y la suite de checkout entera quedaba en rojo
+// (tienda "Este" del arnés). El resto de `TIENDA` es el de la tienda.
+vi.mock("@/config/tienda", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/config/tienda")>();
+  return { ...real, TIENDA: { ...real.TIENDA, modoVenta: "carrito" } };
+});
+
 // Vacía = "no está" (src/domain/payment-policy.ts). Un test que la necesita
 // la pone él mismo.
 process.env.STORE_PAYMENT_METHODS = "";

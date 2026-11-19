@@ -8,8 +8,13 @@ import {
   products,
   productImages,
   productSlugRedirects,
+  storeSettings,
   variants,
 } from "@/db/schema";
+import {
+  DEFAULT_STORE_SETTINGS,
+  StoreSettingsSchema,
+} from "@/domain/store-settings-schema";
 import { createUser } from "@/lib/auth";
 import { seedCatalog } from "./seed";
 
@@ -59,6 +64,19 @@ async function main(): Promise<void> {
       password: ownerPassword,
       role: "staff",
     });
+    // Los specs prueban la maquinaria con carrito, como la suite unitaria
+    // (tests/setup/config-del-template.ts): una tienda nacida en modo
+    // consulta (`modoVenta: "consulta"` en tienda.ts) dejaba en rojo compra,
+    // panel y checkout (O36, tienda "Este"). Es el ajuste del panel, no el
+    // código: `modo-consulta.spec.ts` lo cambia y lo devuelve a carrito.
+    const ajustes = StoreSettingsSchema.parse({
+      ...DEFAULT_STORE_SETTINGS,
+      ventas: { modo: "carrito" },
+    });
+    await db
+      .insert(storeSettings)
+      .values({ id: 1, data: ajustes })
+      .onDuplicateKeyUpdate({ set: { data: ajustes } });
     await db.insert(bankDetails).values({
       id: 1,
       banco: "Banco de prueba",
