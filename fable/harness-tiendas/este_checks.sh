@@ -38,6 +38,7 @@ TS
 pnpm exec tsx este-pedido.mts 2>&1 | grep -E "pedido"
 # Un producto sin stock propio: en consulta tiene que salir como "por encargo" (BackOrder).
 mysql_cli "$db" -e "UPDATE variants v JOIN products p ON p.id = v.product_id SET v.on_hand = 0 WHERE p.slug = 'parlante-portatil-20w'"
+rm -f este-pedido.mts
 rm -rf .next
 pnpm build > e-build.log 2>&1; echo "build $?"; grep -E "/guias" e-build.log | head -4
 ( pnpm exec next start --port "$port" > e-start.log 2>&1 & echo $! > e-start.pid )
@@ -58,7 +59,8 @@ echo "ficha botón WhatsApp: $(echo "$ficha" | grep -c 'data-testid="variant-inq
 echo "feed ítems: $(curl -sS "$u/feed.xml" | grep -c '<item>')"
 echo "guía: $(curl -s -o /dev/null -w '%{http_code}' "$u/guias/como-elegir-en-el-navegador")  borrador: $(curl -s -o /dev/null -w '%{http_code}' "$u/guias/borrador-de-prueba")"
 # Un clic de verdad en el botón de WhatsApp de la ficha.
-cat > este-clic.cjs <<'JS'
+clic="$S/este-clic.cjs"  # fuera de la tienda: su eslint lo leería
+cat > "$clic" <<'JS'
 const { chromium } = require("playwright");
 (async () => {
   const b = await chromium.launch();
@@ -71,6 +73,6 @@ const { chromium } = require("playwright");
   await p.waitForTimeout(1500); await b.close();
 })().catch((e) => { console.log("clic: FALLA", e.message); process.exit(1); });
 JS
-node este-clic.cjs "$u" 2>&1 | tail -2
+node "$clic" "$u" 2>&1 | tail -2
 mysql_cli "$db" -N -e "SELECT CONCAT('enquiry_daily: ', origin, ' producto ', product_id, ' variante ', variant_id, ' = ', count) FROM enquiry_daily"
 kill "$(cat e-start.pid)" 2>/dev/null; pkill -f "next start --port $port" 2>/dev/null; true
