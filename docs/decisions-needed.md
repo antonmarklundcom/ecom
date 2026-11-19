@@ -5,6 +5,8 @@ item by deleting it in the PR that acts on it.
 
 ## Answered
 
+- Tag v2.1.0 (2026-11-19): go from Anton. The planning session's cloud git proxy refuses tag pushes (403), so Anton pushes it himself: the command of item 5, or a GitHub release with tag `v2.1.0` on `main` (`a57f29b` or later). Every store in `tiendas.json` is `pausada`, so nothing is distributed.
+- lenceria (2026-11-19): built now on `ecom` as `antonmarklundcom/lenceria.tienda`, by Opus 5.5 sessions under a Fable manager Anton starts on that repo (`fable/prompts/manager-tienda-lenceria.md`). productos.com.py stays on its Worker until `ecom-cf` has been judged.
 - Cloudflare (2026-11-18): Anton wants the shop built for Cloudflare on his Workers Paid plan, in a new repo `antonmarklundcom/ecom-cf` (`fable/cf/plan-ecom-cf.md`, manager prompt `fable/cf/MANAGER.md`). `docs/decisions/0001-hosting.md` stays true for `ecom`; nothing from `ecom-cf` is merged back. The many-stores phases of `fable/plan-100-tiendas.md` (E6–E10, E12) wait for what that build shows. The four Hostinger store builds of `fable/plan-trafico.md` are not started until Anton says.
 - Traffic first (2026-11-18, `fable/plan-trafico.md` §1): no store has stock; every product is "consultar por WhatsApp"; card payment stays off; the template is finished and tagged `v2.1.0` (O32–O36) before any store work.
 - lenceria (2026-11-18): rebuilt as a new repo `antonmarklundcom/lenceria.tienda` (`fable/plan-trafico.md` §6.4), not by adopting the template's history in the old repo. Item 2 below now applies to mascota only.
